@@ -44,8 +44,8 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
         <p className="text-[13px] font-medium">Playground</p>
-        <span className={cn("rounded-full border px-2 py-px text-[11px]", modeLabel.startsWith("Live") ? "border-read/30 text-read" : "border-hairline text-muted-foreground")}>{modeLabel}</span>
-        <span className="text-[11px] text-faint">Tools run against sandboxed sample data</span>
+        <span className={cn("whitespace-nowrap rounded-full border px-2 py-px text-[11px]", modeLabel.startsWith("Live") ? "border-read/30 text-read" : "border-hairline text-muted-foreground")}>{modeLabel}</span>
+        <span className="text-[11px] text-faint max-md:hidden">Tools run against sandboxed sample data</span>
         <Button variant="ghost" size="sm" className="ml-auto h-7 text-muted-foreground" onClick={chat.reset} disabled={busy}>
           <RotateCcw /> New conversation
         </Button>

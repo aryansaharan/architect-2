@@ -77,7 +77,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-3 border-b border-hairline px-5 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-hairline px-5 py-3">
           <Avatar name={agent.name} hue={agent.avatarHue} size={34} />
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold">{agent.name}</p>
@@ -87,7 +87,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <Segmented<Tab>
-            className="ml-auto"
+            className="ml-auto max-lg:w-full max-lg:overflow-x-auto"
             ariaLabel="Agent view"
             value={tab}
             onChange={setTab}

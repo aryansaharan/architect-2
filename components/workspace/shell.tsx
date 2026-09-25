@@ -1,6 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
-import { PanelLeft } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { WorkspaceProvider, useWorkspace, type WorkspaceData } from "./context";
 import { TopBar } from "./top-bar";
@@ -22,6 +21,11 @@ export function WorkspaceShell({ data, children }: { data: WorkspaceData; childr
 function ShellLayout({ children }: { children: React.ReactNode }) {
   const ws = useWorkspace();
   const [railOpen, setRailOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setRailOpen(true);
+    window.addEventListener("architect:open-rail", open);
+    return () => window.removeEventListener("architect:open-rail", open);
+  }, []);
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <TopBar />
@@ -31,12 +35,6 @@ function ShellLayout({ children }: { children: React.ReactNode }) {
         </div>
         <main id="main" className="relative min-w-0 flex-1">
           {children}
-          <button
-            onClick={() => setRailOpen(true)}
-            className="panel-raised absolute bottom-4 left-4 z-30 flex h-9 items-center gap-2 rounded-full px-3 text-[12.5px] lg:hidden"
-          >
-            <PanelLeft className="size-3.5" /> Activity
-          </button>
         </main>
         {ws.selected && (
           <div className="max-xl:absolute max-xl:inset-y-12 max-xl:right-0 max-xl:z-40 max-xl:shadow-2xl">

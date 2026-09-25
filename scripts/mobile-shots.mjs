@@ -1,0 +1,12 @@
+import { chromium, devices } from "@playwright/test";
+const base = "http://localhost:3001";
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ ...devices["iPhone 14"] });
+const page = await ctx.newPage();
+const snap = async (n) => { await page.waitForTimeout(600); await page.screenshot({ path: `/tmp/m-${n}.png` }); console.log("✓", n); };
+await page.goto(base + "/"); await snap("landing");
+await page.goto(base + "/demo"); await page.waitForURL(/\/blueprint/); await snap("blueprint");
+const ws = page.url().split("?")[0].replace(/\/blueprint$/, "");
+await page.goto(ws + "/ship"); await snap("ship");
+await page.goto(ws + "/agents?agent=settlement&tab=playground"); await snap("agents");
+await browser.close();

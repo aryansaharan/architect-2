@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
-  Blocks, Bot, Check, ChevronDown, Code2, Copy, ExternalLink, History, Home, LogOut, Eye, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
+  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, ExternalLink, History, Home, LogOut, Eye, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function TopBar() {
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70">
+    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70 md:h-12 md:flex-nowrap md:py-0">
       <div className="flex min-w-0 items-center gap-2">
         <Link href="/home" aria-label="All projects" className="grid size-8 place-items-center rounded-md hover:bg-raised">
           <LogoMark />
@@ -47,7 +47,7 @@ export function TopBar() {
         </div>
       </div>
 
-      <nav aria-label="Project" className="mx-auto flex items-center gap-0.5 rounded-lg border border-hairline bg-deep p-0.5">
+      <nav aria-label="Project" className="mx-auto flex items-center gap-0.5 rounded-lg border border-hairline bg-deep p-0.5 max-md:order-last max-md:w-full max-md:justify-between">
         {TABS.map((t) => {
           const href = `${base}/${t.slug}`;
           const active = pathname.startsWith(href);
@@ -68,11 +68,14 @@ export function TopBar() {
         })}
       </nav>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 max-md:ml-auto">
+        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Brief and activity">
+          <PanelLeft className="size-4" />
+        </button>
         <button type="button" onClick={() => window.dispatchEvent(new Event("architect:command-k"))} className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground 2xl:flex" aria-label="Open command palette">
           Jump to <span className="kbd">⌘K</span>
         </button>
-        <SavePoints />
+        <div className="max-sm:hidden"><SavePoints /></div>
         <SpendMeter />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -83,7 +86,7 @@ export function TopBar() {
           </TooltipTrigger>
           <TooltipContent>Hand this to an engineer with full context</TooltipContent>
         </Tooltip>
-        <ShareButton />
+        <div className="max-sm:hidden"><ShareButton /></div>
         <UserMenu />
       </div>
     </header>
