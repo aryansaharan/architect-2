@@ -19,7 +19,7 @@ type Common = {
 
 const shell = (c: Common) =>
   cn(
-    "group relative block w-full rounded-xl border bg-panel text-left transition-[opacity,border-color,box-shadow,transform] duration-200 outline-none",
+    "@container group relative block w-full rounded-xl border bg-panel text-left transition-[opacity,border-color,box-shadow,transform] duration-200 outline-none",
     "hover:border-[#343947] focus-visible:ring-2 focus-visible:ring-amber/60",
     c.selected ? "border-amber/70 shadow-[0_0_0_1px_rgb(245_165_36/0.35),0_8px_30px_rgb(0_0_0/0.45)]" : "border-hairline shadow-[inset_0_1px_0_rgb(255_255_255/0.03),0_1px_2px_rgb(0_0_0/0.4)]",
     c.dimmed && "opacity-35",
@@ -66,7 +66,7 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>
-            <span className="ml-auto shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
+            <span className="ml-auto hidden shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint @[230px]:inline-block" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
           </p>
           <p className="truncate text-[11.5px] text-muted-foreground">{agent.role}</p>
         </div>
