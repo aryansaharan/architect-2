@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Architect 2.0: "Solstice"
+ * Wonderwork: "Solstice"
  * Ink-night surfaces with one signature: a sunset gradient
  * (gold, amber, ember, flare, dusk) that slowly moves. Amber stays the
  * anchor for actions and focus. Semantic colours are reserved for meaning:
@@ -50,7 +50,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* Architect tokens */
+  /* Wonderwork tokens */
   --color-canvas: var(--canvas);
   --color-panel: var(--panel);
   --color-raised: var(--raised);
@@ -199,7 +199,7 @@
       0 1px 1px rgb(0 0 0 / 0.3),
       0 16px 40px -8px rgb(0 0 0 / 0.55);
   }
-  /* Blueprint canvas dot grid: a nod to "Architect" */
+  /* Blueprint canvas dot grid: a nod to drafting paper */
   .dot-grid {
     background-color: var(--canvas);
     background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);

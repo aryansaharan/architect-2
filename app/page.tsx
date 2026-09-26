@@ -94,7 +94,7 @@ export default async function Landing() {
                 <em className="word-in text-amber-grad pr-2" style={{ animationDelay: "520ms" }}>in production.</em>
               </h1>
               <p className="fade-up mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground" style={{ animationDelay: "700ms" }}>
-                Describe the app. Architect plans it, prices it, builds it and shows its work, so the people who don&apos;t code and the people who do can ship it together, in the same project.
+                Describe the app. Wonderwork plans it, prices it, builds it and shows its work, so the people who don&apos;t code and the people who do can ship it together, in the same project.
               </p>
               <div className="fade-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "820ms" }}>
                 <Button asChild size="lg" className="btn-solstice sheen h-11 px-5 text-[14px]">
@@ -168,7 +168,7 @@ export default async function Landing() {
                     {[
                       "A real repo: a branch and a pull request per change, diffs between save points.",
                       "Agents in the framework you already use: LangGraph, CrewAI, OpenAI, ADK, Lyzr, Mastra.",
-                      "Bring your repo. House Rules say what Architect will never touch.",
+                      "Bring your repo. House Rules say what Wonderwork will never touch.",
                       "Keyboard first (⌘K, G then B), and open it in Cursor or Claude Code any time.",
                     ].map((t) => <li key={t} className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />{t}</li>)}
                   </ul>
@@ -183,7 +183,7 @@ export default async function Landing() {
           <div className="mx-auto max-w-6xl px-6 py-20">
             <Reveal>
               <p className="micro-label text-amber">Designed for turn three</p>
-              <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Architect is built for the third: when something breaks, costs money, or needs a person.</h2>
+              <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Wonderwork is built for the third: when something breaks, costs money, or needs a person.</h2>
             </Reveal>
             <Stagger className="mt-12 grid gap-5 md:grid-cols-2">
               <PromiseCard
@@ -299,7 +299,7 @@ export default async function Landing() {
         {/* Import + journey */}
         <section className="border-t border-hairline">
           <Stagger className="mx-auto grid max-w-6xl gap-5 px-6 py-20 md:grid-cols-3" gap={0.06}>
-            <Feature icon={FileSearch} title="Bring your existing project" body="Paste a GitHub URL. Architect reads the stack and any agents, shows what it understood and what it didn't, and signs House Rules (“never change the framework”, “never touch /legacy”) before it touches a file." />
+            <Feature icon={FileSearch} title="Bring your existing project" body="Paste a GitHub URL. Wonderwork reads the stack and any agents, shows what it understood and what it didn't, and signs House Rules (“never change the framework”, “never touch /legacy”) before it touches a file." />
             <Feature icon={GitPullRequest} title="Real repo, real review" body="Every Work Order lands on its own branch as a change for review. Two-way sync, CI rehearsals on every pull request, and “Open in Cursor or Claude Code” whenever you want the wheel." />
             <Feature icon={Undo2} title="Save points, not fear" body="Every change is a save point. Going back is always free, and your previous state is kept, so trying things costs nothing." />
             <Feature icon={Coins} title="Budgets, not surprises" body="A spending cap per project. Agents pause and tell you before passing it, and the live app shows what one conversation costs." />

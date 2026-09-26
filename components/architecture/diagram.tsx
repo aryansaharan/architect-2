@@ -5,7 +5,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 /**
- * The production architecture of Architect 2.0, drawn as one SVG so it scales
+ * The production architecture of Wonderwork, drawn as one SVG so it scales
  * crisply on screen and exports cleanly to PNG and PDF.
  * Coordinates live on a 1824 × 1116 canvas.
  */
@@ -78,7 +78,7 @@ export const CARDS: Card[] = [
   },
   { id: "egress", x: 1192, y: 676, w: 260, h: 112, title: "Egress proxy", sub: "Allow-listed network. Secrets are added on the way out and never live in the VM", icon: KeyRound, tone: "sandbox" },
   // runtime plane
-  { id: "cloud", x: 1524, y: 196, w: 260, h: 116, title: "Architect Cloud", sub: "Live apps on Knative or Fly Machines. Scale to zero, a Postgres branch per app", icon: Cloud, tone: "runtime", step: [7, 8] },
+  { id: "cloud", x: 1524, y: 196, w: 260, h: 116, title: "Wonderwork Cloud", sub: "Live apps on Knative or Fly Machines. Scale to zero, a Postgres branch per app", icon: Cloud, tone: "runtime", step: [7, 8] },
   { id: "agentgw", x: 1524, y: 328, w: 260, h: 164, title: "Agent gateway", sub: "Every production tool call passes here: permissions, approval gates, budget caps, traces", icon: ShieldCheck, tone: "runtime", tags: ["Read", "Change", "Ask first"], step: [8] },
   { id: "jobs", x: 1524, y: 508, w: 260, h: 88, title: "Queues + schedules", sub: "Triggers, retries, long-running agent tasks", icon: CalendarClock, tone: "runtime" },
   { id: "evals", x: 1524, y: 612, w: 260, h: 88, title: "Evals in production", sub: "Rehearsals replayed on real traces, drift alerts", icon: FlaskConical, tone: "runtime" },
@@ -175,7 +175,7 @@ export const FLOWS: { n: number; title: string; body: string }[] = [
   { n: 4, title: "Live preview", body: "The preview proxy maps the project's subdomain to the sandbox dev server, including WebSockets for hot reload." },
   { n: 5, title: "Show the work", body: "File, test and step events stream back through the realtime hub, so people see progress in plain English, not a spinner." },
   { n: 6, title: "Branch + PR", body: "Each Work Order becomes a branch and a pull request through the GitHub App. Pushes from engineers sync back into the Blueprint." },
-  { n: 7, title: "Ship", body: "Preflight passes, the deploy service builds one immutable release and rolls it out to Architect Cloud, Vercel or your VPC." },
+  { n: 7, title: "Ship", body: "Preflight passes, the deploy service builds one immutable release and rolls it out to Wonderwork Cloud, Vercel or your VPC." },
   { n: 8, title: "Governed agents", body: "In production every tool call goes through the agent gateway: permissions, approval gates, budget caps and traces." },
 ];
 
@@ -225,7 +225,7 @@ function CardView({ c }: { c: Card }) {
 export function ArchitectureDiagram({ id = "architecture-diagram", animated = true }: { id?: string; animated?: boolean }) {
   return (
     <svg id={id} viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-labelledby={`${id}-title`}>
-      <title id={`${id}-title`}>Architect 2.0 production architecture: people, edge, control plane, sandbox plane, runtime plane, and data platform, with eight numbered flows.</title>
+      <title id={`${id}-title`}>Wonderwork production architecture: people, edge, control plane, sandbox plane, runtime plane, and data platform, with eight numbered flows.</title>
       <defs>
         <linearGradient id="sol-stroke" x1="0" y1="0" x2={W} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#ffd27a" />

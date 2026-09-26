@@ -14,7 +14,7 @@ export function LiveApp({ bp, publishedAt }: { bp: Blueprint; publishedAt: strin
       </div>
       <div className="flex items-center gap-3 border-t border-slate-200 bg-white px-4 py-1.5 text-[11.5px] text-slate-500">
         <Link href="/" className="inline-flex items-center gap-1.5 font-medium text-slate-700 hover:text-slate-900">
-          <LogoMark className="size-3.5" /> Built with Architect
+          <LogoMark className="size-3.5" /> Built with Wonderwork
         </Link>
         <span>Live version · published {new Date(publishedAt).toLocaleDateString("en", { month: "short", day: "numeric" })} · agents answer from rehearsed examples in this public demo</span>
         <button onClick={() => setDevice((d) => (d === "desktop" ? "phone" : "desktop"))} className="ml-auto rounded border border-slate-200 px-2 py-0.5 hover:bg-slate-50">

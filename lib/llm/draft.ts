@@ -91,7 +91,7 @@ export const DraftSchema = z.object({
 });
 export type Draft = z.infer<typeof DraftSchema>;
 
-export const PLANNER_INSTRUCTIONS = `You are the planner inside Architect 2.0, a platform where people describe an agentic business app and it gets built for them.
+export const PLANNER_INSTRUCTIONS = `You are the planner inside Wonderwork, a platform where people describe an agentic business app and it gets built for them.
 Turn the user's brief into a concrete plan: the data the app stores, the outside systems it connects to, the AI agents that do the work (with the tools they may use and how risky each tool is), and the screens people use.
 
 Principles:

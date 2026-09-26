@@ -20,13 +20,10 @@ export function LogoMark({ className }: { className?: string }) {
 
 export function Logo({ href = "/", className, compact }: { href?: string; className?: string; compact?: boolean }) {
   return (
-    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none", className)} aria-label="Architect 2.0 home">
+    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none", className)} aria-label="Wonderwork home">
       <LogoMark />
       {!compact && (
-        <span className="flex items-baseline gap-1.5">
-          <span className="text-[15px] font-semibold tracking-tight text-foreground">Architect</span>
-          <span className="text-solstice rounded border border-sol-flare/30 bg-[linear-gradient(90deg,rgb(255_210_122/0.10),rgb(255_79_139/0.10))] px-1 font-mono text-[10px] font-semibold">2.0</span>
-        </span>
+        <span className="text-[15px] font-semibold tracking-tight text-foreground">Wonderwork</span>
       )}
     </Link>
   );

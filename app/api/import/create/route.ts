@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     return next;
   };
 
-  const prompt = `Reverse-engineer the plan of this EXISTING repository so it can be developed further in Architect. Map what is already there. Do not invent a different product.
+  const prompt = `Reverse-engineer the plan of this EXISTING repository so it can be developed further in Wonderwork. Map what is already there. Do not invent a different product.
 Repository: ${report.repo.owner}/${report.repo.name}: ${report.repo.description ?? "no description"}
 Primary language: ${report.repo.language ?? "unknown"} · ${report.fileCount} files
 Stack: ${report.stack.map((s) => s.label).join(", ") || "unknown"}

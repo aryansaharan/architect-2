@@ -116,7 +116,7 @@ function render(agent: Agent, bp: Blueprint): string {
     "",
     `from lyzr import ${user ? "CognisConfig, " : ""}Studio`,
     "",
-    audited && 'audit = logging.getLogger("architect.audit")',
+    audited && 'audit = logging.getLogger("wonderwork.audit")',
     audited && "",
     pyPromptConst("INSTRUCTIONS", systemPrompt(agent)),
     "",
@@ -142,11 +142,11 @@ function notes(agent: Agent): string[] {
       !LYZR_KNOWN_CLAUDE.has(model) &&
         `lyzr-adk checks provider strings against its built-in model list; if anthropic/${model} isn't listed in your installed version, create_agent raises.`,
       logged.length > 0 &&
-        `Lyzr has no audit hook for local tools; ${namesOf(logged)} ${logged.length > 1 ? "log" : "logs"} to architect.audit around the call.`,
+        `Lyzr has no audit hook for local tools; ${namesOf(logged)} ${logged.length > 1 ? "log" : "logs"} to wonderwork.audit around the call.`,
       (scope === "project" || scope === "org") &&
         `Lyzr memory is keyed by user_id, so '${scope}' maps to one shared MEMORY_USER with cross-session recall (CognisConfig).`,
       agent.supervision === "spot_check" &&
-        "Lyzr has no spot-check setting; Architect samples finished runs for review outside the SDK.",
+        "Lyzr has no spot-check setting; Wonderwork samples finished runs for review outside the SDK.",
     ],
     [
       "create_agent registers a new agent in Lyzr Studio on every run; keep the returned agent id and reuse it after the first sync.",

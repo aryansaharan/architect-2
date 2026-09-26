@@ -57,7 +57,7 @@ test("ship: preflight passes and the live URL serves the app", async ({ page }) 
   await expect(page.getByText("Ready to go live")).toBeVisible();
   const slug = (await page.locator("code").filter({ hasText: "/live/" }).first().innerText()).trim();
   await page.goto(slug);
-  await expect(page.getByText("Built with Architect")).toBeVisible();
+  await expect(page.getByText("Built with Wonderwork")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Intake Queue" })).toBeVisible();
 });
 

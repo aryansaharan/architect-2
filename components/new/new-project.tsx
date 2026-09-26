@@ -49,7 +49,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
       <div className="fade-up mx-auto max-w-2xl">
         <p className="micro-label flex items-center gap-2"><span className="flex gap-1" aria-hidden>{[1, 2, 3].map((d) => <span key={d} className={cn("h-1 rounded-full transition-all duration-500", d <= 2 ? "w-4 bg-amber shadow-[0_0_8px_rgb(245_165_36/0.7)]" : "w-1.5 bg-hairline-hi")} />)}</span>New project · step 2 of 3</p>
         <h1 className="mt-3 font-display text-[44px] leading-tight">Three quick <em className="text-amber-grad">questions.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">They shape who the agents answer to. Skip them and Architect picks sensible, careful defaults.</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">They shape who the agents answer to. Skip them and Wonderwork picks sensible, careful defaults.</p>
         <div className="panel mt-6 flex gap-3 rounded-xl p-4">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1 text-[13.5px] leading-relaxed">{brief}</p>

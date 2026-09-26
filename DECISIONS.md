@@ -1,6 +1,6 @@
 # Product decisions
 
-Short notes on the calls that shaped Architect 2.0: what I chose, what I rejected, and why.
+Short notes on the calls that shaped Wonderwork: what I chose, what I rejected, and why.
 
 ## 1. No "builder mode" and "developer mode"
 
@@ -26,7 +26,7 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 ## 4. Price before work, and "our fix · free"
 
-**Decision.** Every build and every change is a Work Order with a price and a blast radius. Fixes for Architect's own mistakes are labelled and free. Stopping a build refunds it.
+**Decision.** Every build and every change is a Work Order with a price and a blast radius. Fixes for Wonderwork's own mistakes are labelled and free. Stopping a build refunds it.
 
 **Why.** Paying for an AI's own mistakes is the single loudest complaint about AI builders. Showing the price up front and attributing every credit makes trust measurable.
 
@@ -56,9 +56,9 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 ## 9. Import reads first and signs House Rules
 
-**Decision.** Importing shows what Architect understood, what it isn't sure about and what it ignored, then asks the owner to confirm House Rules ("never change the framework", "pull requests only") before anything is mapped.
+**Decision.** Importing shows what Wonderwork understood, what it isn't sure about and what it ignored, then asks the owner to confirm House Rules ("never change the framework", "pull requests only") before anything is mapped.
 
-**Why.** Engineers adopt tools that respect their codebase. Most teams don't start from zero; Architect has to adopt existing projects rather than absorb them.
+**Why.** Engineers adopt tools that respect their codebase. Most teams don't start from zero; Wonderwork has to adopt existing projects rather than absorb them.
 
 ## 10. Honest fallbacks everywhere
 
@@ -70,12 +70,12 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 **Decision.** A dark studio with one amber accent; the generated app previews in its own light theme.
 
-**Why.** The contrast separates "the tool" from "the thing you're building" at a glance. Semantic colours are reserved for meaning: green reads, blue changes, rose can't be undone, violet is Architect fixing its own mistake.
+**Why.** The contrast separates "the tool" from "the thing you're building" at a glance. Semantic colours are reserved for meaning: green reads, blue changes, rose can't be undone, violet is Wonderwork fixing its own mistake.
 
 ## What I cut, and what's next
 
 - **Real GitHub pushes and pull requests**: the flow and repo semantics are designed; the push is sandboxed.
-- **Real deploys to Vercel and customer VPCs**: the live URL on Architect Cloud is real; the other targets are sandboxed.
+- **Real deploys to Vercel and customer VPCs**: the live URL on Wonderwork Cloud is real; the other targets are sandboxed.
 - **Real teammates**: handoffs persist, but the resolution is simulated.
 - **A drag-and-drop layout editor**: point-and-tweak covers copy, columns and removal; layout changes go through Work Orders.
 - **Next:** approvals inbox for production agent actions, LLM-judged rehearsals against production traces, multiplayer presence, ZIP and Figma import.

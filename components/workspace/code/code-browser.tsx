@@ -193,7 +193,7 @@ function OpenIn() {
         <DropdownMenuItem onSelect={() => copyCmd(`cursor ${repo ? `https://github.com/${repo}` : "."}`, "Cursor")}><ExternalLink /> Cursor</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => copyCmd(`git clone https://github.com/${repo ?? "you/app"} && cd ${(repo ?? "you/app").split("/")[1]} && claude`, "Claude Code")}><Terminal /> Claude Code</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => copyCmd(`code ${repo ? `https://github.com/${repo}` : "."}`, "VS Code")}><ExternalLink /> VS Code</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copyCmd("npx @architect/cli sync --watch", "Architect CLI")}><RefreshCw /> Sync with your editor (CLI)</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => copyCmd("npx @wonderwork/cli sync --watch", "Wonderwork CLI")}><RefreshCw /> Sync with your editor (CLI)</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -265,7 +265,7 @@ function GitHubPanel({ workOrders }: { workOrders: WorkOrderRow[] }) {
       <div className="mt-6 border-t border-hairline pt-4">
         <p className="micro-label">No lock-in</p>
         <Button variant="outline" size="sm" className="mt-2 w-full" onClick={exportBundle}><Download /> Download all source</Button>
-        <p className="mt-2 text-[11px] text-faint">Standard Next.js, Postgres and agent files. Runs without Architect.</p>
+        <p className="mt-2 text-[11px] text-faint">Standard Next.js, Postgres and agent files. Runs without Wonderwork.</p>
       </div>
       {ws.checkpoints[0] && <p className="mt-6 text-[11px] text-faint">Last save point <TimeAgo iso={ws.checkpoints[0].created_at} /></p>}
     </aside>

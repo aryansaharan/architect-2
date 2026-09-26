@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Architect 2.0: agentic apps you'd trust in production";
+export const alt = "Wonderwork: agentic apps you'd trust in production";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -21,8 +21,8 @@ export default function OpengraphImage() {
             <path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="none" stroke="url(#g)" strokeWidth="1.6" />
             <path d="M12 7 17 12 12 17 7 12Z" fill="url(#g)" />
           </svg>
-          <span style={{ fontSize: 34, fontWeight: 600 }}>Architect</span>
-          <span style={{ fontSize: 20, color: "#ff7438", border: "1px solid rgba(255,79,139,0.45)", borderRadius: 6, padding: "2px 8px" }}>2.0</span>
+          <span style={{ fontSize: 34, fontWeight: 600 }}>Wonderwork</span>
+          <span style={{ fontSize: 20, color: "#a19dae", border: "1px solid rgba(255,79,139,0.45)", borderRadius: 6, padding: "2px 10px" }}>Architect 2.0 prototype for Lyzr</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <span style={{ fontSize: 76, lineHeight: 1.05, letterSpacing: -2 }}>Agentic apps you&apos;d trust</span>

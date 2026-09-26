@@ -76,7 +76,7 @@ export function Rail() {
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [mask-image:linear-gradient(to_bottom,transparent,black_18px,black_calc(100%-12px),transparent)]">
         {entries.length === 0 && live.length === 0 ? (
-          <p className="px-1 py-6 text-center text-[12.5px] text-muted-foreground">Nothing here yet. Everything Architect thinks, does and checks will show up here, with its price.</p>
+          <p className="px-1 py-6 text-center text-[12.5px] text-muted-foreground">Nothing here yet. Everything Wonderwork thinks, does and checks will show up here, with its price.</p>
         ) : (
           <ol className="space-y-1">
             {entries.map((e) => (

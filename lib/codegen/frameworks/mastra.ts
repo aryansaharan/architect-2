@@ -69,8 +69,8 @@ function render(agent: Agent, bp: Blueprint): string {
       : [
           "",
           bound
-            ? `// Stub for Architect's connection runtime; bound on deploy to ${bound}.`
-            : "// Stub for Architect's connection runtime.",
+            ? `// Stub for Wonderwork's connection runtime; bound on deploy to ${bound}.`
+            : "// Stub for Wonderwork's connection runtime.",
           "async function callConnection(connectionId: string, toolId: string, query: string): Promise<string> {",
           "  return `[stub] ${toolId} via ${connectionId}: ${query}`;",
           "}",
@@ -101,7 +101,7 @@ function render(agent: Agent, bp: Blueprint): string {
     "export const mastra = new Mastra({",
     `  agents: { ${agentConst} },`,
     "  // Storage holds memory and the snapshots that paused approvals resume from.",
-    '  storage: new LibSQLStore({ id: "architect-storage", url: "file:./mastra.db" }),',
+    '  storage: new LibSQLStore({ id: "wonderwork-storage", url: "file:./mastra.db" }),',
     "});",
   ];
 

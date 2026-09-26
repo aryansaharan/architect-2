@@ -19,7 +19,7 @@ import { Term } from "@/components/arch/term";
 
 type Target = DeploymentRow["target"];
 const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag: string }[] = [
-  { id: "architect_cloud", name: "Architect Cloud", icon: Cloud, body: "Instant, managed. Agents run with the permissions and caps you set.", tag: "Recommended · real" },
+  { id: "architect_cloud", name: "Wonderwork Cloud", icon: Cloud, body: "Instant, managed. Agents run with the permissions and caps you set.", tag: "Recommended · real" },
   { id: "vercel", name: "Your Vercel team", icon: Server, body: "Push to your own Vercel project and keep your usual deploy previews.", tag: "Sandbox" },
   { id: "vpc", name: "Your VPC or on-prem", icon: Container, body: "Download a Docker bundle and run everything inside your network.", tag: "Sandbox" },
 ];
@@ -165,7 +165,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
             <label className="block">
               <span className="micro-label flex items-center gap-1.5"><Globe className="size-3" />Custom domain · optional</span>
               <Input className="mt-1.5 h-9" placeholder="claims.harbormutual.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
-              {domain && <span className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME to <span className="font-mono">cname.architect.new</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>}
+              {domain && <span className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME to <span className="font-mono">cname.wonderwork.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>}
             </label>
             <div className="flex gap-2 pt-1">
               <Button size="lg" className="btn-solstice sheen h-10 flex-1 disabled:animate-none" disabled={!ready || deploying !== null} onClick={deploy}>
@@ -224,7 +224,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
                     <span className={cn("size-2 shrink-0 rounded-full", d.status === "live" ? "bg-read" : d.status === "sandbox" ? "bg-change" : "bg-faint")} />
                     <span className="min-w-0 flex-1">
-                      <span className="block">{d.target === "architect_cloud" ? "Architect Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
+                      <span className="block">{d.target === "architect_cloud" ? "Wonderwork Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
                       <span className="block text-[11.5px] text-muted-foreground">{d.status === "live" ? "Serving now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · <TimeAgo iso={d.created_at} /></span>
                     </span>
                     {d.status === "rolled_back" && d.target === "architect_cloud" && live && (

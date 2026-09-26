@@ -181,7 +181,7 @@ export default async function HomePage() {
           <div className="panel rounded-xl p-4">
             <p className="micro-label">Our fixes, on us</p>
             <p className="mt-2 text-2xl font-semibold tabular-nums text-fix [text-shadow:0_0_24px_rgb(180_140_255/0.45)]">{fixes.count ?? 0}</p>
-            <p className="text-[12.5px] text-muted-foreground">Problems Architect caught and fixed without charging you.</p>
+            <p className="text-[12.5px] text-muted-foreground">Problems Wonderwork caught and fixed without charging you.</p>
           </div>
           <Link href="/settings#usage" className="panel group flex flex-col justify-between rounded-xl p-4 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi">
             <p className="micro-label">Budgets &amp; breakdown</p>

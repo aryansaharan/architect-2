@@ -1,12 +1,12 @@
-# Architect 2.0: technical architecture
+# Wonderwork: technical architecture
 
-How Architect 2.0 runs in production, service by service, with the reasoning behind each choice.
+How Wonderwork (my prototype for Lyzr's Architect 2.0 brief) runs in production, service by service, with the reasoning behind each choice.
 
 - Interactive version: **[architect-2-aryan.vercel.app/architecture](https://architect-2-aryan.vercel.app/architecture)**
 - Diagram files: [`public/docs/architecture-diagram.png`](public/docs/architecture-diagram.png) · [`public/docs/architecture.pdf`](public/docs/architecture.pdf)
 - Product decisions: [`DECISIONS.md`](DECISIONS.md) · Market research: [`RESEARCH.md`](RESEARCH.md)
 
-![Architect 2.0 production architecture](public/docs/architecture-diagram.png)
+![Wonderwork production architecture](public/docs/architecture-diagram.png)
 
 ---
 
@@ -26,7 +26,7 @@ How Architect 2.0 runs in production, service by service, with the reasoning beh
 | **Edge** | CDN + WAF, API gateway, preview proxy, realtime hub, app router | Global, latency sensitive, terminates TLS and WebSockets, enforces rate limits before anything expensive happens |
 | **Control plane** | Web app + BFF, project service, orchestrator, agent harness, model gateway, GitHub service, deploy service, import, budget, policy | Stateless and horizontally scalable. Owns decisions, never runs user code |
 | **Sandbox plane** | Sandbox manager, one Firecracker microVM per project, egress proxy | Runs untrusted code with hard isolation and its own capacity model |
-| **Runtime plane** | Architect Cloud (live apps), agent gateway, queues and schedules, production evals, self-hosted runtime | Serves end users with production SLOs, separate from build traffic |
+| **Runtime plane** | Wonderwork Cloud (live apps), agent gateway, queues and schedules, production evals, self-hosted runtime | Serves end users with production SLOs, separate from build traffic |
 | **Data + platform** | Postgres (Supabase), Redis, object storage, vector index, secrets vault, usage warehouse, observability | Shared services with their own scaling and backup policies |
 
 ## 3. Services and the reasoning behind them
@@ -113,7 +113,7 @@ flowchart LR
 
 - *Transient* (429, 5xx, timeouts): retried by the orchestrator with backoff, then failed over to another provider by the model gateway.
 - *Invalid output* (schema mismatch): near-miss JSON is repaired locally (nulls, synonyms, casing); otherwise the model is re-asked once with the exact validation error, then the step falls back to a rule-based path. The prototype does exactly this for change requests (`lib/change/edits.ts`, `lib/change/propose.ts`).
-- *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Architect caught a problem" card, and the fix is labelled **Our fix · free**.
+- *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Wonderwork caught a problem" card, and the fix is labelled **Our fix · free**.
 - *Doom loops*: errors are normalised (paths, line numbers and ids stripped) and hashed. The same signature twice, or three attempts, stops the loop, restores the last save point and opens a handoff with the full context.
 - *People stop runs*: a stop signal cancels the workflow; unused credits are refunded by the ledger.
 
@@ -215,13 +215,13 @@ sequenceDiagram
 1. **Preflight** (the prototype's Ship tab): sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen. Blocking checks disable the button and name the blocker.
 2. **Build once**: Buildpacks or Nixpacks inside the sandbox produce an OCI image plus static assets; the release id is immutable.
 3. **Targets**:
-   - *Architect Cloud*: Knative or Fly Machines with scale to zero, a Postgres branch per app (Neon or a Supabase project), secrets from the vault, the agent gateway as a sidecar, custom domains with automatic TLS.
+   - *Wonderwork Cloud*: Knative or Fly Machines with scale to zero, a Postgres branch per app (Neon or a Supabase project), secrets from the vault, the agent gateway as a sidecar, custom domains with automatic TLS.
    - *Vercel*: deploy through the Vercel API into the customer's team, env vars synced.
    - *Customer VPC or on-prem*: Helm chart or Terraform module for the runtime and agent gateway, connected to the control plane through an outbound-only tunnel. Data and traces stay in the customer's network.
 4. **Rollout**: canary 5% → 50% → 100% with automatic rollback on error rate or latency SLO breach.
 5. **Rollback** is instant: the router points at the previous release. Database migrations use expand-and-contract so old releases keep working.
 
-**Architect itself.**
+**Wonderwork itself.**
 
 - Studio and BFF on Vercel (as today). Control-plane services on Kubernetes (EKS or GKE) deployed by Argo CD from Git.
 - Temporal Cloud for workflows, Supabase Postgres, Redis, NATS, S3-compatible storage, ClickHouse.
@@ -271,7 +271,7 @@ sequenceDiagram
 | Build + repair | **Simulated, labelled.** Deterministic build timeline; the repair decision is real and changes the Blueprint | Full tool loop in microVMs |
 | Sandbox + live preview | **Simulated, labelled.** Preview renders the Blueprint with a spec renderer; no untrusted code runs | Firecracker microVMs behind the preview proxy |
 | GitHub | **Partly real.** Public repo reads, stack and agent detection, House Rules; pushes and PRs are sandboxed | GitHub App with two-way sync |
-| Deploy | **Real for Architect Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases, canary, instant rollback |
+| Deploy | **Real for Wonderwork Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases, canary, instant rollback |
 
 ## 14. Trade-offs and alternatives considered
 
