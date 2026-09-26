@@ -90,7 +90,7 @@ export function ApprovalCard({
         {irreversible ? "This can't be undone, so it always asks a person first." : "You asked to approve this before it runs."} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(245_165_36/0.7)]" : "bg-slate-900 text-white")}>
+        <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(223_255_79/0.7)]" : "bg-slate-900 text-white")}>
           <Check className="size-3.5" /> Allow once
         </button>
         {!irreversible && (

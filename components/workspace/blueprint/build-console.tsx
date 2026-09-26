@@ -28,7 +28,7 @@ export function BuildConsole() {
         className="aurora panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl"
       >
         <div className="h-1 overflow-hidden rounded-t-2xl bg-deep">
-          <motion.div className="bg-solstice relative h-full shadow-[0_0_16px_rgb(255_116_56/0.8)]" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }}>
+          <motion.div className="bg-solstice relative h-full shadow-[0_0_16px_rgb(141_255_158/0.8)]" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }}>
             <span className="shimmer absolute inset-0" />
           </motion.div>
         </div>

@@ -1,23 +1,35 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowRight, Check, Rocket, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FireflyField } from "@/components/fx/firefly-field";
 import { useWorkspace } from "../context";
 
-/** The moment a build lands: a sweep of light across the canvas, then a quiet "it's ready". */
+/** The moment a build lands: lights lift off the canvas in one rhythm, a sweep of light, then a quiet "it's ready". */
 export function BuildComplete() {
   const ws = useWorkspace();
   const replay = ws.build.mode === "replay";
   const bp = ws.blueprint;
+  const [celebrating, setCelebrating] = useState(!replay);
+  useEffect(() => {
+    const t = setTimeout(() => setCelebrating(false), 7000);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <>
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[6] overflow-hidden">
+        {celebrating && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 7, times: [0, 0.08, 0.7, 1] }} className="absolute inset-0">
+            <FireflyField variant="rise" density={0.7} initialHarmony={0.9} />
+          </motion.div>
+        )}
         <motion.div
           initial={{ x: "-60%", opacity: 0 }}
           animate={{ x: "160%", opacity: [0, 1, 1, 0] }}
           transition={{ duration: 1.6, ease: [0.45, 0, 0.2, 1] }}
-          className="absolute inset-y-0 w-1/3 bg-[linear-gradient(90deg,transparent,rgb(255_199_107/0.10),rgb(255_199_107/0.22),rgb(255_199_107/0.10),transparent)] blur-md"
+          className="absolute inset-y-0 w-1/3 bg-[linear-gradient(90deg,transparent,rgb(239_255_148/0.10),rgb(239_255_148/0.22),rgb(239_255_148/0.10),transparent)] blur-md"
         />
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-5">

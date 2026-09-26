@@ -76,7 +76,7 @@ export function TopBar() {
                 <motion.span
                   layoutId="topbar-tab"
                   aria-hidden
-                  className="absolute inset-0 rounded-md bg-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.07),0_0_0_1px_rgb(245_165_36/0.18),0_4px_18px_-6px_rgb(245_165_36/0.35)]"
+                  className="absolute inset-0 rounded-md bg-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.07),0_0_0_1px_rgb(223_255_79/0.18),0_4px_18px_-6px_rgb(223_255_79/0.35)]"
                   transition={{ type: "spring", stiffness: 480, damping: 36 }}
                 />
               )}

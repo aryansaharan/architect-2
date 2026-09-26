@@ -144,7 +144,7 @@ export default async function HomePage() {
                 return (
                   <li key={p.id} className="fade-up" style={{ animationDelay: `${520 + Math.min(i, 8) * 60}ms` }}>
                     <Spotlight className="rounded-xl">
-                    <Link href={`/p/${p.id}/blueprint`} className="panel group block overflow-hidden rounded-xl transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-1 hover:border-hairline-hi hover:shadow-[0_28px_60px_-24px_rgb(0_0_0/0.9),0_0_40px_-20px_rgb(245_165_36/0.35)]">
+                    <Link href={`/p/${p.id}/blueprint`} className="panel group block overflow-hidden rounded-xl transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-1 hover:border-hairline-hi hover:shadow-[0_28px_60px_-24px_rgb(0_0_0/0.9),0_0_40px_-20px_rgb(223_255_79/0.35)]">
                       <div className="dot-grid relative overflow-hidden border-b border-hairline p-4">
                         <div className="rounded-lg border border-white/[0.06] bg-panel/80 p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.03]">{s && <ScreenThumb screen={s} primary={p.blueprint.meta.theme.primary} />}</div>
                         <div aria-hidden className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-panel/70 to-transparent" />

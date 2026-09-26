@@ -1,19 +1,34 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+/** The mark: a W drawn as a firefly's light trail, its head glowing on the swarm's rhythm. */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn("size-5", className)} aria-hidden>
+    <svg viewBox="0 0 24 24" className={cn("size-5 overflow-visible", className)} aria-hidden>
       <defs>
-        <linearGradient id="logo-sol" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#ffd27a" />
-          <stop offset="0.45" stopColor="#ff7438" />
-          <stop offset="0.75" stopColor="#ff4f8b" />
-          <stop offset="1" stopColor="#b06bff" />
+        <linearGradient id="ww-trail" x1="3" y1="12" x2="21" y2="12" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#3fe0c5" stopOpacity="0.35" />
+          <stop offset="0.5" stopColor="#8dff9e" />
+          <stop offset="1" stopColor="#dfff4f" />
         </linearGradient>
+        <radialGradient id="ww-head">
+          <stop offset="0" stopColor="#fffbe0" />
+          <stop offset="0.35" stopColor="#dfff4f" />
+          <stop offset="1" stopColor="#dfff4f" stopOpacity="0" />
+        </radialGradient>
       </defs>
-      <path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="none" stroke="url(#logo-sol)" strokeWidth="1.6" />
-      <path d="M12 7 17 12 12 17 7 12Z" fill="url(#logo-sol)" />
+      <path
+        className="logo-trail"
+        pathLength={1}
+        d="M3.2 6.6C4.6 12.6 6 17.6 8 17.6c1.9 0 2.6-6.5 4-6.5s2.1 6.5 4 6.5c1.8 0 2.9-4.7 4.2-9.9"
+        fill="none"
+        stroke="url(#ww-trail)"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle className="logo-head" cx="20.4" cy="6.4" r="4.2" fill="url(#ww-head)" />
+      <circle cx="20.4" cy="6.4" r="1.25" fill="#fffbe0" />
     </svg>
   );
 }

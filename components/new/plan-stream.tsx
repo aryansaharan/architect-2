@@ -91,7 +91,7 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
   const working = !done && !error;
   return (
     <div className="relative mx-auto max-w-5xl">
-      <div aria-hidden className="pointer-events-none absolute -inset-x-40 -top-40 h-[520px] bg-[radial-gradient(ellipse_at_50%_30%,rgb(245_165_36/0.12),transparent_60%)]" />
+      <div aria-hidden className="pointer-events-none absolute -inset-x-40 -top-40 h-[520px] bg-[radial-gradient(ellipse_at_50%_30%,rgb(223_255_79/0.12),transparent_60%)]" />
       <div className="relative flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="micro-label flex items-center gap-2">

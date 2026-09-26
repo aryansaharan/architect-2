@@ -25,7 +25,7 @@ export function WorkOrderDock() {
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 240, damping: 24, delay: 0.55 } }}
         exit={{ opacity: 0, y: 30, scale: 0.98, transition: { duration: 0.2 } }}
-        className="beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(245_165_36/0.45)]"
+        className="beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(223_255_79/0.45)]"
       >
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">

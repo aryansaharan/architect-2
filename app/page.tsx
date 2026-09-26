@@ -347,7 +347,7 @@ export default async function Landing() {
 
         <section className="border-t border-hairline">
           <Reveal className="relative mx-auto flex max-w-6xl flex-col items-center px-6 py-28 text-center">
-            <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-72 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(245_165_36/0.16),transparent_65%)] blur-2xl" />
+            <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-72 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(223_255_79/0.16),transparent_65%)] blur-2xl" />
             <h2 className="font-display text-[48px] leading-tight">See it on a <span className="text-amber-grad">real project.</span></h2>
             <p className="mt-3 max-w-lg text-[15px] text-muted-foreground">A claims desk with three agents, a live URL, a caught mistake and a pending handoff. No account needed.</p>
             <Button asChild size="lg" className="btn-solstice sheen mt-8 h-11 px-6 text-[14px]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>

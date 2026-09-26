@@ -24,11 +24,11 @@ const shell = (c: Common) =>
     "bg-[linear-gradient(180deg,rgb(255_255_255/0.03),rgb(255_255_255/0)_45%)] bg-panel",
     "hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_12px_30px_-10px_rgb(0_0_0/0.7)] focus-visible:ring-2 focus-visible:ring-amber/60",
     c.selected
-      ? "border-amber/70 shadow-[0_0_0_1px_rgb(245_165_36/0.45),0_0_44px_-8px_rgb(245_165_36/0.55),0_14px_34px_-12px_rgb(0_0_0/0.8)]"
+      ? "border-amber/70 shadow-[0_0_0_1px_rgb(223_255_79/0.45),0_0_44px_-8px_rgb(223_255_79/0.55),0_14px_34px_-12px_rgb(0_0_0/0.8)]"
       : "border-hairline shadow-[inset_0_1px_0_rgb(255_255_255/0.035),0_1px_2px_rgb(0_0_0/0.45)]",
     c.dimmed && "opacity-30 saturate-50",
     c.buildState === "pending" && "opacity-40 saturate-50",
-    c.buildState === "active" && "beam border-amber/40 shadow-[0_0_50px_-10px_rgb(245_165_36/0.6)]",
+    c.buildState === "active" && "beam border-amber/40 shadow-[0_0_50px_-10px_rgb(223_255_79/0.6)]",
   );
 
 function Scan({ s }: { s: NodeState | null }) {

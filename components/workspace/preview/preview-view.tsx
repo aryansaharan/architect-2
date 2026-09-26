@@ -118,7 +118,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           )}
         </div>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(245_165_36/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-5">
+      <div className="relative min-h-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(223_255_79/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-5">
         <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>
           {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only: this is what will be built</span>}
@@ -129,8 +129,8 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           className={cn(
             "relative mx-auto flex flex-col transition-[width,border-radius,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
             device === "phone"
-              ? "rounded-[46px] bg-[linear-gradient(160deg,#2a2d35,#0c0d11_40%,#1b1d23)] p-[11px] shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_40px_100px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(245_165_36/0.35)]"
-              : "rounded-xl border border-hairline-hi bg-deep shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_0_1px_rgb(255_255_255/0.02),0_0_90px_-40px_rgb(245_165_36/0.3)]",
+              ? "rounded-[46px] bg-[linear-gradient(160deg,#2a2d35,#0c0d11_40%,#1b1d23)] p-[11px] shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_40px_100px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(223_255_79/0.35)]"
+              : "rounded-xl border border-hairline-hi bg-deep shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_0_1px_rgb(255_255_255/0.02),0_0_90px_-40px_rgb(223_255_79/0.3)]",
           )}
           style={{ width: device === "phone" ? 412 : WIDTH[device], maxWidth: "100%", height: device === "phone" ? "min(820px, calc(100% - 28px))" : "calc(100% - 28px)", minHeight: 560 }}
         >
@@ -140,7 +140,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             <div aria-hidden className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-[linear-gradient(180deg,#171a20,#121419)] px-3">
               <span className="flex gap-1.5"><i className="size-2.5 rounded-full bg-[#ff5f57]/80" /><i className="size-2.5 rounded-full bg-[#febc2e]/80" /><i className="size-2.5 rounded-full bg-[#28c840]/80" /></span>
               <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 truncate rounded-md border border-hairline bg-deep px-3 font-mono text-[11px] text-muted-foreground">
-                <span className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(245_165_36/0.9)]" />
+                <span className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(223_255_79/0.9)]" />
                 test.{bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.wonderwork.app
               </span>
               <span className="w-[46px]" />
@@ -201,7 +201,7 @@ function BlockFrame({
         >
           <div className={cn("pointer-events-none absolute -inset-1.5 z-10 rounded-[calc(var(--app-radius)+8px)] border-2 border-transparent transition-colors", mode === "tweak" && "group-hover/frame:border-amber/80", selected && "border-amber")} />
           {mode === "tweak" && (
-            <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-md bg-amber px-1.5 py-0.5 font-mono text-[10px] font-medium text-[#1a1206] opacity-0 transition-opacity group-hover/frame:opacity-100", selected && "opacity-100")}>
+            <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-md bg-amber px-1.5 py-0.5 font-mono text-[10px] font-medium text-[#0b1402] opacity-0 transition-opacity group-hover/frame:opacity-100", selected && "opacity-100")}>
               {label} · {BLOCK_LABELS[block.type]}
             </span>
           )}

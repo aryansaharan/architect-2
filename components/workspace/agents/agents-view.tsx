@@ -58,7 +58,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
               <li key={a.id}>
                 <button onClick={() => pick(a.id)} aria-current={a.id === agent.id} className={cn("relative w-full rounded-xl border p-3 text-left transition-[border-color,transform] duration-200", a.id === agent.id ? "border-transparent" : "border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi")}>
                   {a.id === agent.id && (
-                    <motion.span layoutId="agent-pick" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(245_165_36/0.14),rgb(245_165_36/0.05))] shadow-[0_0_30px_-12px_rgb(245_165_36/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />
+                    <motion.span layoutId="agent-pick" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(223_255_79/0.14),rgb(223_255_79/0.05))] shadow-[0_0_30px_-12px_rgb(223_255_79/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />
                   )}
                   <span className="relative flex items-center gap-2.5">
                     <Avatar name={a.name} hue={a.avatarHue} size={30} />

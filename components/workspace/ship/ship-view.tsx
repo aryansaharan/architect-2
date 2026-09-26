@@ -154,7 +154,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
             <h3 id="tg" className="text-[14px] font-semibold">Where it runs</h3>
             {TARGETS.map((t) => (
               <button key={t.id} onClick={() => setTarget(t.id)} aria-pressed={target === t.id} className={cn("relative flex w-full gap-3 rounded-xl border p-3.5 text-left transition-[border-color,transform] duration-200", target === t.id ? "border-transparent" : "border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi")}>
-                {target === t.id && <motion.span layoutId="ship-target" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(245_165_36/0.13),rgb(245_165_36/0.04))] shadow-[0_0_36px_-14px_rgb(245_165_36/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+                {target === t.id && <motion.span layoutId="ship-target" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(223_255_79/0.13),rgb(223_255_79/0.04))] shadow-[0_0_36px_-14px_rgb(223_255_79/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
                 <t.icon className={cn("relative mt-0.5 size-4 shrink-0 transition-colors", target === t.id ? "text-amber" : "text-muted-foreground")} />
                 <span className="relative min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[13.5px] font-medium">{t.name}<span className={cn("rounded px-1.5 py-px text-[10.5px]", t.tag.includes("real") ? "bg-read/10 text-read" : "bg-raised text-muted-foreground")}>{t.tag}</span></span>
@@ -184,7 +184,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   className="aurora panel-raised overflow-hidden rounded-xl"
                 >
                   <div className="h-0.5 bg-deep">
-                    <motion.div className="bg-solstice h-full shadow-[0_0_12px_rgb(255_116_56/0.8)]" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }} />
+                    <motion.div className="bg-solstice h-full shadow-[0_0_12px_rgb(141_255_158/0.8)]" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }} />
                   </div>
                   <ol className="p-3 text-[12.5px]" aria-live="polite">
                     {STEPS.map((s, i) => (

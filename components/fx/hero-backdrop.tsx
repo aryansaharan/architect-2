@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { FireflyField } from "@/components/fx/firefly-field";
 
 /**
- * The landing backdrop: a dot grid that lights up around the cursor, over slow
- * warm aurora light. Pure CSS painting; the only JS is two custom properties.
+ * The landing backdrop: a night meadow. Moonlit haze, a drafting grid that
+ * lights up around the cursor, and a swarm of fireflies that falls into one
+ * rhythm as the plan in the hero comes together.
  */
 export function HeroBackdrop() {
   const ref = useRef<HTMLDivElement>(null);
@@ -27,11 +29,11 @@ export function HeroBackdrop() {
   }, []);
   return (
     <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [--mx:60%] [--my:20%]">
-      <div className="solstice-orb -left-[14%] -top-[46%] h-[760px] w-[760px] opacity-[0.34]" />
-      <div className="solstice-orb -right-[16%] -top-[40%] h-[600px] w-[600px] opacity-[0.22] [animation-direction:reverse] [animation-duration:38s]" />
-      <div className="absolute left-[18%] top-[-30%] h-[520px] w-[64%] rounded-full bg-[radial-gradient(ellipse,rgb(255_79_139/0.10),transparent_65%)] blur-2xl [animation:aurora-a_22s_ease-in-out_infinite_alternate]" />
-      <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.055)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(rgb(255_170_120/0.7)_1px,transparent_1.2px)] [background-size:22px_22px] [mask-image:radial-gradient(220px_circle_at_var(--mx)_var(--my),black,transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(1100px_560px_at_72%_-12%,rgb(111_183_255/0.10),transparent_62%),radial-gradient(900px_520px_at_12%_-18%,rgb(63_224_197/0.09),transparent_60%),radial-gradient(1200px_420px_at_50%_118%,rgb(141_255_158/0.07),transparent_65%)]" />
+      <div className="solstice-orb -right-[18%] -top-[48%] h-[680px] w-[680px] opacity-[0.16] [animation-duration:48s]" />
+      <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.045)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(rgb(223_255_79/0.55)_1px,transparent_1.2px)] [background-size:22px_22px] [mask-image:radial-gradient(200px_circle_at_var(--mx)_var(--my),black,transparent)]" />
+      <FireflyField />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-canvas" />
     </div>
   );

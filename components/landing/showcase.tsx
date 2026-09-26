@@ -20,7 +20,7 @@ export function Showcase() {
 
   return (
     <div ref={ref} className="relative mx-auto max-w-6xl px-6 [perspective:1600px]">
-      <motion.div aria-hidden style={{ opacity: glow }} className="absolute inset-x-16 top-24 -z-10 h-[70%] rounded-[40px] bg-[radial-gradient(ellipse_at_center,rgb(245_165_36/0.35),transparent_65%)] blur-3xl" />
+      <motion.div aria-hidden style={{ opacity: glow }} className="absolute inset-x-16 top-24 -z-10 h-[70%] rounded-[40px] bg-[radial-gradient(ellipse_at_center,rgb(223_255_79/0.35),transparent_65%)] blur-3xl" />
       <motion.div style={{ rotateX, scale, y, transformOrigin: "50% 0%" }} className="relative overflow-hidden rounded-2xl border border-hairline-hi bg-panel shadow-[0_40px_120px_-20px_rgb(0_0_0/0.8),0_0_0_1px_rgb(255_255_255/0.03)]">
         <div className="flex items-center gap-2 border-b border-hairline bg-deep px-4 py-2.5">
           <span className="size-2.5 rounded-full bg-[#ff5f57]/80" />

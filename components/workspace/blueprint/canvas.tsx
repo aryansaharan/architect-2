@@ -142,9 +142,9 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
           <svg className="pointer-events-none absolute left-0 top-0" width={size.w} height={size.h} aria-hidden>
             <defs>
               <linearGradient id="edge-hot" x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stopColor="#f5a524" stopOpacity="0.35" />
-                <stop offset="50%" stopColor="#ffc76b" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#f5a524" stopOpacity="0.35" />
+                <stop offset="0%" stopColor="#dfff4f" stopOpacity="0.35" />
+                <stop offset="50%" stopColor="#efff94" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#dfff4f" stopOpacity="0.35" />
               </linearGradient>
               <filter id="edge-glow" x="-20%" y="-50%" width="140%" height="200%">
                 <feGaussianBlur stdDeviation="3" />
@@ -162,7 +162,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
                   )}
                   {hot && (
                     <>
-                      <path d={p.d} fill="none" stroke="#f5a524" strokeOpacity={0.45} strokeWidth={4} filter="url(#edge-glow)" />
+                      <path d={p.d} fill="none" stroke="#dfff4f" strokeOpacity={0.45} strokeWidth={4} filter="url(#edge-glow)" />
                       <path d={p.d} fill="none" stroke="url(#edge-hot)" strokeWidth={1.6} />
                       <path d={p.d} fill="none" stroke="#fff4dc" strokeOpacity={0.9} strokeWidth={1.4} strokeLinecap="round" className="flow" />
                     </>
@@ -194,7 +194,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
         </div>
       </div>
 
-      {running && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[5] shadow-[inset_0_0_160px_rgb(245_165_36/0.09)] transition-opacity" />}
+      {running && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[5] shadow-[inset_0_0_160px_rgb(223_255_79/0.09)] transition-opacity" />}
       <AnimatePresence>{ws.project.buildState === "draft" && !running && ws.build.status !== "done" && <WorkOrderDock key="dock" />}</AnimatePresence>
       <AnimatePresence>{running && <BuildConsole key="console" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "repair" && <RepairOverlay key="repair" />}</AnimatePresence>

@@ -58,14 +58,14 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
           {Array.from({ length: large ? 4 : 3 }).map((_, i) => (
             <div key={i} className="h-1.5 rounded-[2px] border border-white/10" />
           ))}
-          <div className="h-1.5 w-1/3 rounded-[2px]" style={{ background: "var(--thumb-primary, #F5A524)" }} />
+          <div className="h-1.5 w-1/3 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)" }} />
         </div>
       );
     case "chat":
       return (
         <div className="space-y-1 rounded-[3px] border border-white/10 p-1">
           <div className={cn(faint, "h-1.5 w-2/3")} />
-          <div className="ml-auto h-1.5 w-1/2 rounded-[2px]" style={{ background: "var(--thumb-primary, #F5A524)", opacity: 0.55 }} />
+          <div className="ml-auto h-1.5 w-1/2 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)", opacity: 0.55 }} />
           <div className={cn(faint, "h-1.5 w-3/5")} />
         </div>
       );
@@ -91,7 +91,7 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
     case "actions":
       return (
         <div className="flex gap-1">
-          <div className="h-1.5 w-1/4 rounded-[2px]" style={{ background: "var(--thumb-primary, #F5A524)" }} />
+          <div className="h-1.5 w-1/4 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)" }} />
           <div className="h-1.5 w-1/4 rounded-[2px] border border-white/15" />
         </div>
       );

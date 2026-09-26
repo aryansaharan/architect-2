@@ -77,7 +77,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
           <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-panel px-3 text-[12.5px] hover:border-hairline-hi"><GitHubMark className="size-3.5" /> Full write-up</a>
         </div>
 
-        <section aria-label="Architecture diagram" className="fade-up mt-8 overflow-x-auto rounded-2xl border border-hairline bg-canvas p-2 shadow-[0_40px_120px_-40px_rgb(0_0_0/0.9),0_0_90px_-50px_rgb(255_79_139/0.35)]" style={{ animationDelay: "280ms" }}>
+        <section aria-label="Architecture diagram" className="fade-up mt-8 overflow-x-auto rounded-2xl border border-hairline bg-canvas p-2 shadow-[0_40px_120px_-40px_rgb(0_0_0/0.9),0_0_90px_-50px_rgb(63_224_197/0.35)]" style={{ animationDelay: "280ms" }}>
           <div className="min-w-[1100px]">
             <ArchitectureDiagram animated={!print} />
           </div>
@@ -89,7 +89,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
             {FLOWS.map((f) => (
               <li key={f.n} className="panel rounded-xl p-4">
                 <p className="flex items-center gap-2 text-[13.5px] font-semibold">
-                  <span className="bg-solstice grid size-6 place-items-center rounded-full text-[12px] font-bold text-[#1a0b07]">{f.n}</span>
+                  <span className="bg-solstice grid size-6 place-items-center rounded-full text-[12px] font-bold text-[#0b1402]">{f.n}</span>
                   {f.title}
                 </p>
                 <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{f.body}</p>

@@ -28,9 +28,9 @@ export default async function LoginPage(props: PageProps<"/login">) {
               {"ask before they act.".split(" ").map((w, i) => <em key={i} className="word-in text-amber-grad mr-[0.25em] last:mr-0" style={{ animationDelay: `${180 + i * 80}ms` }}>{w}</em>)}
             </p>
             <ul className="fade-up mt-8 space-y-3 text-[14px] text-muted-foreground" style={{ animationDelay: "600ms" }}>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />See the plan and the price before anything runs.</li>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />When a build breaks, it shows you what it tried, and you don&apos;t pay for its fixes.</li>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />Every change is a save point you can return to.</li>
+              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />See the plan and the price before anything runs.</li>
+              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />When a build breaks, it shows you what it tried, and you don&apos;t pay for its fixes.</li>
+              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />Every change is a save point you can return to.</li>
             </ul>
           </div>
           <p className="micro-label">Built for Lyzr · Architect 2.0 prototype</p>

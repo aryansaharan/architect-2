@@ -72,14 +72,14 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         <p className="micro-label">Bring your existing project</p>
         <h1 className="mt-2 font-display text-[44px] leading-tight">Adopt it. <em className="text-amber-grad">Don&apos;t absorb it.</em></h1>
         <p className="mt-2 text-[14px] text-muted-foreground">Wonderwork reads your repository first, tells you what it understood and what it didn&apos;t, and signs House Rules before it touches a file. Every change ships as a pull request.</p>
-        <div className="panel mt-6 rounded-2xl p-4 transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(245_165_36/0.08),0_24px_70px_-24px_rgb(245_165_36/0.45)]">
+        <div className="panel mt-6 rounded-2xl p-4 transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(223_255_79/0.08),0_24px_70px_-24px_rgb(223_255_79/0.45)]">
           <label htmlFor="repo-url" className="text-[13px] font-medium">Public GitHub repository</label>
           <div className="mt-2 flex gap-2">
             <div className="flex flex-1 items-center gap-2 rounded-lg border border-hairline bg-deep px-3 focus-within:border-amber/50">
               <GitHubMark className="text-muted-foreground" />
               <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full bg-transparent font-mono text-[13px] outline-none placeholder:text-faint" disabled={step === "reading"} />
             </div>
-            <Button className="sheen h-10 shadow-[0_8px_24px_-10px_rgb(245_165_36/0.8)] disabled:shadow-none" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
+            <Button className="sheen h-10 shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
               {step === "reading" ? <Loader2 className="animate-spin" /> : <FileSearch />} Read it
             </Button>
           </div>
@@ -186,7 +186,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button variant="ghost" onClick={() => setStep("input")}>Read a different repo</Button>
         <p className="ml-auto text-[12.5px] text-muted-foreground">Next: I map it into a Blueprint so you can see it. Nothing is pushed.</p>
-        <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(255_199_107/0.35),0_10px_30px_-10px_rgb(245_165_36/0.8)]" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
+        <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(239_255_148/0.35),0_10px_30px_-10px_rgb(223_255_79/0.8)]" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
       </div>
     </div>
   );

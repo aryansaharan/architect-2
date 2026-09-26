@@ -5,21 +5,24 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Wonderwork: "Solstice"
- * Ink-night surfaces with one signature: a sunset gradient
- * (gold, amber, ember, flare, dusk) that slowly moves. Amber stays the
- * anchor for actions and focus. Semantic colours are reserved for meaning:
+ * Wonderwork: "Nightfield"
+ * A night meadow, and the wonder of many small lights finding one rhythm.
+ * Signature: the lume gradient (candle, firefly, glow, lagoon, moon) that
+ * slowly drifts. Firefly chartreuse is the anchor for actions and focus.
+ * Semantic colours are reserved for meaning:
  *   read (green) · change (blue) · ask-me-first (rose) · our-fix (violet)
- * Contrast (on --background): foreground 17:1, muted 7.6:1, amber 9.8:1.
+ * Contrast (on --background): foreground 17.6:1, muted 8.1:1, firefly 17:1.
+ * (Token names like --amber and .text-solstice are kept for stability; they
+ * now carry the Nightfield values.)
  */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
-  --font-display: var(--font-instrument-serif);
+  --font-sans: var(--font-work);
+  --font-mono: var(--font-code);
+  --font-heading: var(--font-work);
+  --font-display: var(--font-wonder);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -84,25 +87,25 @@
 :root {
   color-scheme: dark;
 
-  --canvas: #09080f;
-  --panel: #12111a;
-  --raised: #1a1824;
-  --deep: #0c0b13;
-  --hairline: #24222f;
-  --hairline-hi: #35323f;
-  --amber-hi: #ffc76b;
-  --ember: #ff7438;
-  --faint: #716d80;
+  --canvas: #060a09;
+  --panel: #0c1311;
+  --raised: #121b18;
+  --deep: #040706;
+  --hairline: #1c2824;
+  --hairline-hi: #2a3934;
+  --amber-hi: #efff94;
+  --ember: #8dff9e;
+  --faint: #6c7c74;
 
-  /* the signature */
-  --sol-gold: #ffd27a;
-  --sol-amber: #f5a524;
-  --sol-ember: #ff7438;
-  --sol-flare: #ff4f8b;
-  --sol-dusk: #b06bff;
+  /* the signature: lume (candle, firefly, glow, lagoon, moon) */
+  --sol-gold: #fff2a6;
+  --sol-amber: #dfff4f;
+  --sol-ember: #8dff9e;
+  --sol-flare: #3fe0c5;
+  --sol-dusk: #6fb7ff;
   --solstice: linear-gradient(90deg, var(--sol-gold), var(--sol-amber), var(--sol-ember), var(--sol-flare), var(--sol-dusk), var(--sol-flare), var(--sol-ember), var(--sol-amber), var(--sol-gold));
-  --amber: #f5a524;
-  --amber-soft: rgb(245 165 36 / 0.12);
+  --amber: #dfff4f;
+  --amber-soft: rgb(223 255 79 / 0.09);
   --read: #3dd68c;
   --change: #5b9cff;
   --ask: #ff6b7a;
@@ -110,22 +113,22 @@
   --ok: #3dd68c;
 
   --background: var(--canvas);
-  --foreground: #efedf4;
+  --foreground: #edf3ee;
   --card: var(--panel);
-  --card-foreground: #eeecf3;
+  --card-foreground: #ecf2ed;
   --popover: var(--raised);
-  --popover-foreground: #eeecf3;
+  --popover-foreground: #ecf2ed;
   --primary: var(--amber);
-  --primary-foreground: #1a1206;
+  --primary-foreground: #0b1402;
   --secondary: var(--raised);
-  --secondary-foreground: #eeecf3;
+  --secondary-foreground: #ecf2ed;
   --muted: var(--raised);
-  --muted-foreground: #a19dae;
-  --accent: #201e2a;
-  --accent-foreground: #eeecf3;
+  --muted-foreground: #9baaa2;
+  --accent: #17221e;
+  --accent-foreground: #ecf2ed;
   --destructive: var(--ask);
   --border: var(--hairline);
-  --input: #2c2938;
+  --input: #22302b;
   --ring: var(--amber);
   --chart-1: var(--amber);
   --chart-2: var(--change);
@@ -134,13 +137,17 @@
   --chart-5: var(--ask);
   --radius: 0.625rem;
   --sidebar: var(--panel);
-  --sidebar-foreground: #eeecf3;
+  --sidebar-foreground: #ecf2ed;
   --sidebar-primary: var(--amber);
-  --sidebar-primary-foreground: #1a1206;
+  --sidebar-primary-foreground: #0b1402;
   --sidebar-accent: var(--raised);
-  --sidebar-accent-foreground: #eeecf3;
+  --sidebar-accent-foreground: #ecf2ed;
   --sidebar-border: var(--hairline);
   --sidebar-ring: var(--amber);
+
+  /* legacy aliases so older references keep resolving */
+  --font-geist-sans: var(--font-work);
+  --font-geist-mono: var(--font-code);
 }
 
 @layer base {
@@ -153,14 +160,13 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "ss01", "cv11";
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   ::selection {
-    background: rgb(255 116 56 / 0.32);
+    background: rgb(223 255 79 / 0.26);
     color: #fff;
   }
   :focus-visible {
@@ -172,7 +178,7 @@
     height: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #2a2735;
+    background: #22302b;
     border-radius: 10px;
     border: 2px solid transparent;
     background-clip: padding-box;
@@ -193,7 +199,7 @@
   }
   .panel-raised {
     background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 45%), var(--raised);
-    border: 1px solid #2c2938;
+    border: 1px solid #22302c;
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.05),
       0 1px 1px rgb(0 0 0 / 0.3),
@@ -207,37 +213,49 @@
     background-position: -10px -10px;
   }
   .micro-label {
-    font-family: var(--font-geist-mono);
+    font-family: var(--font-code);
     font-size: 10.5px;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #8f8b9e;
+    color: #8e9d96;
+  }
+  /* Fraunces for the moments of wonder: soft upright, playful italic. */
+  .font-display {
+    font-optical-sizing: auto;
+    font-weight: 380;
+    letter-spacing: -0.022em;
+    font-variation-settings: "SOFT" 50, "WONK" 0;
+  }
+  .font-display em,
+  .font-display i {
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    font-weight: 340;
   }
   .kbd {
-    font-family: var(--font-geist-mono);
+    font-family: var(--font-code);
     font-size: 10.5px;
     padding: 1px 5px;
     border-radius: 4px;
-    border: 1px solid #34313f;
-    background: #17161f;
-    color: #bdb9c9;
+    border: 1px solid #2c3b36;
+    background: #111a17;
+    color: #b7c4bd;
   }
   .amber-glow {
     background: radial-gradient(
       60% 60% at 50% 0%,
-      rgb(255 116 56 / 0.16) 0%,
-      rgb(255 79 139 / 0.05) 45%,
+      rgb(223 255 79 / 0.11) 0%,
+      rgb(63 224 197 / 0.05) 45%,
       transparent 75%
     );
   }
   .code-face {
     background: var(--deep);
-    font-family: var(--font-geist-mono);
+    font-family: var(--font-code);
   }
   .shiki,
   .shiki code {
     background: transparent !important;
-    font-family: var(--font-geist-mono);
+    font-family: var(--font-code);
     font-size: 12.5px;
     line-height: 1.65;
   }
@@ -249,7 +267,7 @@
     padding: 8px 12px;
     border-radius: 8px;
     background: var(--amber);
-    color: #1a1206;
+    color: #0b1402;
     font-weight: 600;
     transition: top 120ms ease;
   }
@@ -296,14 +314,14 @@ body::before {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), transparent 0deg, transparent 200deg, rgb(176 107 255 / 0.25) 240deg, var(--sol-flare) 285deg, var(--sol-ember) 315deg, var(--sol-gold) 340deg, transparent 360deg);
+  background: conic-gradient(from var(--beam-angle), transparent 0deg, transparent 200deg, rgb(111 183 255 / 0.25) 240deg, var(--sol-flare) 285deg, var(--sol-ember) 315deg, var(--sol-gold) 340deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   animation: beam-spin 3.6s linear infinite;
 }
 
-/* "AI at work": a warm aurora ring for planning and building. */
+/* "AI at work": a living lume ring for planning and building. */
 .aurora {
   position: relative;
   isolation: isolate;
@@ -329,13 +347,13 @@ body::before {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), rgb(255 210 122 / 0.22), rgb(255 116 56 / 0.16), rgb(255 79 139 / 0.16), rgb(176 107 255 / 0.18), rgb(255 210 122 / 0.22));
+  background: conic-gradient(from var(--beam-angle), rgb(255 242 166 / 0.2), rgb(223 255 79 / 0.16), rgb(63 224 197 / 0.16), rgb(111 183 255 / 0.18), rgb(255 242 166 / 0.2));
   filter: blur(28px);
   opacity: 0.55;
   animation: beam-spin 4s linear infinite;
 }
 
-/* Warm sheen that sweeps across primary buttons on hover. */
+/* A sheen of light that sweeps across primary buttons on hover. */
 .sheen {
   position: relative;
   overflow: hidden;
@@ -372,7 +390,7 @@ body::before {
   }
 }
 
-/* ------------------------------------------------ the Solstice gradient */
+/* --------------------------------------------------- the lume gradient */
 @keyframes sol-pan {
   from {
     background-position: 0% 50%;
@@ -381,7 +399,7 @@ body::before {
     background-position: 100% 50%;
   }
 }
-/* Headline accents: the sunset drifting through the letters. */
+/* Headline accents: light drifting through the letters. */
 .text-amber-grad,
 .text-solstice {
   background: var(--solstice);
@@ -395,7 +413,7 @@ body::before {
 .btn-solstice {
   position: relative;
   isolation: isolate;
-  color: #1a0b07 !important;
+  color: #0b1402 !important;
   background: var(--solstice) !important;
   background-size: 300% 100% !important;
   animation: sol-pan 9s ease-in-out infinite alternate;
@@ -426,7 +444,7 @@ body::before {
   mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
   opacity: 0.55;
 }
-/* A slowly turning sun behind hero sections. Rotates with transform, so it stays cheap. */
+/* A slowly turning moon haze behind hero sections. Rotates with transform, so it stays cheap. */
 @keyframes orb-spin {
   to {
     transform: rotate(360deg);
@@ -436,9 +454,9 @@ body::before {
   position: absolute;
   border-radius: 9999px;
   pointer-events: none;
-  background: conic-gradient(from 0deg, var(--sol-gold), var(--sol-amber), var(--sol-ember), var(--sol-flare), var(--sol-dusk), #5d5bff, var(--sol-gold));
-  filter: blur(90px);
-  opacity: 0.32;
+  background: conic-gradient(from 0deg, #1c6b5d, var(--sol-flare), var(--sol-dusk), #1d4f7a, #2f6b2c, var(--sol-amber), #1c6b5d);
+  filter: blur(100px);
+  opacity: 0.2;
   animation: orb-spin 26s linear infinite;
 }
 /* Always-on gradient border for a featured surface (no glow). */
@@ -454,7 +472,7 @@ body::before {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), rgb(255 210 122 / 0.7), rgb(255 116 56 / 0.5), rgb(255 79 139 / 0.55), rgb(176 107 255 / 0.6), rgb(255 210 122 / 0.7));
+  background: conic-gradient(from var(--beam-angle), rgb(255 242 166 / 0.7), rgb(223 255 79 / 0.55), rgb(63 224 197 / 0.55), rgb(111 183 255 / 0.6), rgb(255 242 166 / 0.7));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -464,6 +482,39 @@ body::before {
   background: var(--solstice);
   background-size: 400% 100%;
   animation: sol-pan 8s ease-in-out infinite alternate;
+}
+
+/* The mark: the trail redraws on hover, the head flashes on the swarm's rhythm. */
+.logo-trail {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.group:hover .logo-trail {
+  animation: trail-draw 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes trail-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.logo-head {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: head-flash 2.4s ease-in-out infinite;
+}
+@keyframes head-flash {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
 }
 
 /* Cursor spotlight: parent sets --mx/--my. */
@@ -478,7 +529,7 @@ body::before {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
-  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgb(255 150 60 / 0.09), rgb(255 79 139 / 0.04) 40%, transparent 65%);
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgb(223 255 79 / 0.07), rgb(63 224 197 / 0.035) 40%, transparent 65%);
 }
 .spotlight:hover::after {
   opacity: 1;
@@ -493,6 +544,7 @@ body::before {
 .flow {
   stroke-dasharray: 4 8;
   animation: flow-dash 0.9s linear infinite;
+  filter: drop-shadow(0 0 3px rgb(223 255 79 / 0.55));
 }
 
 /* A scan line sweeping over a surface while something is being made. */
@@ -517,8 +569,8 @@ body::before {
   inset-inline: 0;
   top: 0;
   height: 30%;
-  background: linear-gradient(180deg, transparent, rgb(255 116 56 / 0.04) 70%, rgb(255 79 139 / 0.10));
-  border-bottom: 1px solid rgb(255 180 120 / 0.4);
+  background: linear-gradient(180deg, transparent, rgb(223 255 79 / 0.035) 70%, rgb(63 224 197 / 0.09));
+  border-bottom: 1px solid rgb(223 255 79 / 0.35);
   animation: scan 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
@@ -620,10 +672,10 @@ body::before {
 
 @keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgb(245 165 36 / 0.45);
+    box-shadow: 0 0 0 0 rgb(223 255 79 / 0.45);
   }
   100% {
-    box-shadow: 0 0 0 10px rgb(245 165 36 / 0);
+    box-shadow: 0 0 0 10px rgb(223 255 79 / 0);
   }
 }
 @keyframes travel-x {

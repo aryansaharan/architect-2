@@ -24,6 +24,7 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
   const [custom, setCustom] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
+  const card = useRef<HTMLDivElement>(null);
   const ex = examples[i];
   const full = ex.prompt;
   const doneTyping = typed >= full.length;
@@ -57,17 +58,25 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
   );
   const gates = ex.agents.reduce((n, a) => n + a.gated, 0);
 
+  // The backdrop swarm falls into one rhythm as the plan comes together.
+  useEffect(() => {
+    const harmony = custom !== null ? Math.min(1, 0.2 + custom.trim().length / 90) : progress > 0.95 ? 1 : progress * 0.6;
+    window.dispatchEvent(new CustomEvent("ww:harmony", { detail: harmony }));
+  }, [progress, custom]);
+
   function submit() {
     const text = (custom ?? "").trim();
     if (text.length < 12) {
       input.current?.focus();
       return;
     }
+    const r = card.current?.getBoundingClientRect();
+    if (r) window.dispatchEvent(new CustomEvent("ww:gather", { detail: { x: r.left + r.width / 2, y: r.top + r.height / 2 } }));
     router.push(`/demo?prompt=${encodeURIComponent(text)}`);
   }
 
   return (
-    <div className={cn("panel-raised relative rounded-2xl transition-shadow duration-700", custom === null && !doneTyping ? "aurora" : "shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8),0_0_0_1px_rgb(245_165_36/0.12)]")} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <div ref={card} className={cn("panel-raised relative rounded-2xl transition-shadow duration-700", custom === null && !doneTyping ? "aurora" : "shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8),0_0_0_1px_rgb(223_255_79/0.12)]")} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <div className="flex items-center gap-1.5 border-b border-hairline px-3 py-2">
         {examples.map((e, k) => (
           <button
@@ -141,7 +150,7 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
           initial={false}
           animate={progress > 0.95 ? { opacity: 1, y: 0, filter: "blur(0px)" } : { opacity: 0, y: 10, filter: "blur(4px)" }}
           transition={{ type: "spring", stiffness: 260, damping: 26 }}
-          className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2.5 text-[12px] shadow-[0_0_30px_-10px_rgb(245_165_36/0.5)]"
+          className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2.5 text-[12px] shadow-[0_0_30px_-10px_rgb(223_255_79/0.5)]"
           aria-hidden={progress <= 0.95}
         >
           <span className="font-mono text-[10px] uppercase tracking-wider text-amber">Work Order</span>

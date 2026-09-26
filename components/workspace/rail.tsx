@@ -278,7 +278,7 @@ function Composer() {
           ))}
         </div>
       )}
-      <div className={cn("panel rounded-xl transition-[border-color,box-shadow] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(245_165_36/0.08),0_12px_40px_-16px_rgb(255_116_56/0.45)]", building && "opacity-60")}>
+      <div className={cn("panel rounded-xl transition-[border-color,box-shadow] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(223_255_79/0.08),0_12px_40px_-16px_rgb(141_255_158/0.45)]", building && "opacity-60")}>
         {effectiveScope && (
           <div className="flex items-center gap-1.5 px-2.5 pt-2">
             <span className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-amber/30 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber">
