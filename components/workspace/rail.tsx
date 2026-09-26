@@ -210,19 +210,36 @@ function Composer() {
   }
 
   const p = order?.wo.proposal;
-  const needsPerson = p && p.operations.length === 0;
+  const isAnswer = Boolean(p?.answer);
+  const needsPerson = p && p.operations.length === 0 && !isAnswer;
 
   return (
     <div className="border-t border-hairline p-3">
       {order && p && (
         <div className="panel-raised mb-2.5 rounded-xl p-3" role="region" aria-label="Work Order">
           <div className="flex items-center justify-between">
-            <span className="micro-label text-amber">{needsPerson ? "Needs a person" : <Term k="work-order" />}</span>
+            <span className="micro-label text-amber">{isAnswer ? "Answer · no change made" : needsPerson ? "Needs a person" : <Term k="work-order" />}</span>
             <button onClick={() => { void rejectChange(ws.project.id, order.wo.id); setOrder(null); }} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
           </div>
-          <p className="mt-1.5 text-[13px] font-medium leading-snug">{p.summary}</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>
-          {!needsPerson && (
+          {isAnswer ? (
+            <>
+              <p className="mt-1.5 text-[13px] leading-relaxed">{p.rationale}</p>
+              <button
+                type="button"
+                onClick={() => { setText(p.summary); setOrder(null); ref.current?.focus(); }}
+                className="mt-2.5 w-full rounded-lg border border-hairline bg-deep px-2.5 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
+              >
+                <span className="micro-label mb-0.5 block">Want to change it?</span>
+                “{p.summary}”
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="mt-1.5 text-[13px] font-medium leading-snug">{p.summary}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>
+            </>
+          )}
+          {!needsPerson && !isAnswer && (
             <>
               <dl className="mt-2.5 grid grid-cols-3 gap-1.5 text-center">
                 <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Screens</dt><dd className="font-mono text-[12px]">{p.blastRadius.screens.length}</dd></div>

@@ -14,6 +14,7 @@ const NamedRef = z.string().describe("The id or the visible name. Use \"*\" for 
 
 export const EditsSchema = z.object({
   feasible: z.boolean().describe("false only if the request needs custom code or an outside system the blueprint cannot express"),
+  isQuestion: z.boolean().default(false).describe("true when the message asks a question instead of requesting a change; answer it in rationale"),
   summary: z.string().describe("Imperative, under 12 words, e.g. 'Add a party size column to Reservations'"),
   rationale: z.string().describe("One plain-English sentence explaining the change and its effect"),
   addFields: z

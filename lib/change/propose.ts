@@ -21,6 +21,7 @@ Given a request and a scope, return the smallest set of typed edits that fully d
 - Rules for how an agent behaves: rules. Test cases: rehearsals. Look and feel: theme (hex colours only).
 - Use ids or exact visible names from the blueprint map. Never invent ids for existing objects.
 - Use patches only when no typed edit fits.
+- If the message is a question about the project (not a change), set isQuestion=true and feasible=false, answer it in rationale in one or two plain sentences, and suggest one change they could ask for. Put that suggestion in summary, phrased as a request.
 - Set feasible=false only when it truly needs custom code or an outside system the blueprint cannot express; explain what a person would need to do.
 ${STYLE_RULE}`;
 
@@ -55,8 +56,8 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     let feedback = "";
     type Usage = NonNullable<ProposeResult["usage"]>;
     const finish = (out: Edits, usage: Usage): { result?: ProposeResult; feedback: string } => {
-      if (!out.feasible) {
-        return { result: { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live" }, usage }, feedback: "" };
+      if (!out.feasible || out.isQuestion) {
+        return { result: { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live", ...(out.isQuestion ? { answer: true } : {}) }, usage }, feedback: "" };
       }
       const compiled = compileEdits(bp, out, scopeScreenId);
       if (!compiled.ops.length) return { feedback: compiled.problems.join("; ") || "the edits changed nothing" };

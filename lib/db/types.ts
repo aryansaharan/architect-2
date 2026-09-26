@@ -94,6 +94,8 @@ export type ChangeProposal = {
   credits: number;
   minutes: number;
   mode: "live" | "rules";
+  /** The message was a question, answered in `rationale`; nothing to apply. */
+  answer?: boolean;
 };
 
 export type WorkOrderRow = {
