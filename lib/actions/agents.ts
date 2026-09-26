@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { STYLE_RULE, cleanDeep } from "@/lib/text";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
@@ -59,7 +60,7 @@ export async function runRehearsals(projectId: string, agentId: string): Promise
   await updateProject(supa, projectId, { blueprint: bp });
   const total = agent.rehearsals.length;
   await addLedger(supa, projectId, [
-    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${agent.name} · ${passed} of ${total} passed`, body: passed === total ? "Every conversation went as expected." : "A rehearsal failed — open Rehearsals to see why and fix it.", credits: 0, objectRef: { type: "agent", id: agentId } },
+    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${agent.name} · ${passed} of ${total} passed`, body: passed === total ? "Every conversation went as expected." : "A rehearsal failed. Open Rehearsals to see why and fix it.", credits: 0, objectRef: { type: "agent", id: agentId } },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, passed, total };
@@ -103,7 +104,7 @@ export async function addAgentFromDescription(projectId: string, description: st
   const text = description.trim().slice(0, 800);
   if (text.length < 10) return { ok: false, error: "Describe the job in a sentence" };
   const bp = structuredClone(project.blueprint);
-  if (bp.agents.length >= 6) return { ok: false, error: "Six agents is the limit for one project — fewer, sharper agents behave better" };
+  if (bp.agents.length >= 6) return { ok: false, error: "Six agents is the limit for one project. Fewer, sharper agents behave better" };
   const db = bp.connections.find((c) => c.kind === "database") ?? bp.connections[0];
   let agent: Agent | null = null;
   let credits = 0;
@@ -112,15 +113,15 @@ export async function addAgentFromDescription(projectId: string, description: st
     try {
       const r = await generateText({
         model: m.model,
-        instructions: "You design one new AI agent for an existing Architect 2.0 project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'.",
-        prompt: `Project: ${bp.meta.name} — ${bp.meta.plain}\nExisting agents: ${bp.agents.map((a) => `${a.name} (${a.role})`).join("; ")}\nConnections: ${bp.connections.map((c) => c.name).join(", ")}\nData: ${bp.entities.map((e) => e.plural).join(", ")}\n\nNew agent: ${text}`,
+        instructions: "You design one new AI agent for an existing Architect 2.0 project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'. " + STYLE_RULE,
+        prompt: `Project: ${bp.meta.name}: ${bp.meta.plain}\nExisting agents: ${bp.agents.map((a) => `${a.name} (${a.role})`).join("; ")}\nConnections: ${bp.connections.map((c) => c.name).join(", ")}\nData: ${bp.entities.map((e) => e.plural).join(", ")}\n\nNew agent: ${text}`,
         output: Output.object({ schema: NewAgentSchema, name: "new_agent" }),
         maxOutputTokens: 3000,
         timeout: 60_000,
         maxRetries: 1,
         providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
       });
-      const o = r.output;
+      const o = cleanDeep(r.output);
       const id = uniqueId(bp, kebab(o.name));
       const toolIds = new Set<string>();
       agent = {
@@ -162,7 +163,7 @@ export async function addAgentFromDescription(projectId: string, description: st
       name,
       role: "New agent",
       avatarHue: hash(id) % 360,
-      plain: `${text} It starts with read access only — give it more when you trust it.`,
+      plain: `${text} It starts with read access only. Give it more when you trust it.`,
       jobDescription: `You are ${name}. ${text} Use your tools to look things up before answering, keep answers short, and hand anything you're unsure about to a person.`,
       rules: ["Hand anything you're unsure about to a person.", "Never act outside this project's data."],
       tools: [{ id: "look_up", name: "Look things up", description: "Search the project's records.", connectionId: db.id, access: "read", permission: "auto" }],

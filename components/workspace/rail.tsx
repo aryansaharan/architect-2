@@ -13,6 +13,9 @@ import { objectLabel } from "@/lib/blueprint";
 import type { Lane, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
+import { Term } from "@/components/arch/term";
+import { undoTo } from "./undo";
+import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 
 const LANE: Record<Lane, { icon: typeof Brain; label: string; cls: string }> = {
   thought: { icon: Brain, label: "Thought", cls: "text-muted-foreground bg-raised" },
@@ -73,7 +76,7 @@ export function Rail() {
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [mask-image:linear-gradient(to_bottom,transparent,black_18px,black_calc(100%-12px),transparent)]">
         {entries.length === 0 && live.length === 0 ? (
-          <p className="px-1 py-6 text-center text-[12.5px] text-muted-foreground">Nothing here yet. Everything Architect thinks, does and checks will show up here — with its price.</p>
+          <p className="px-1 py-6 text-center text-[12.5px] text-muted-foreground">Nothing here yet. Everything Architect thinks, does and checks will show up here, with its price.</p>
         ) : (
           <ol className="space-y-1">
             {entries.map((e) => (
@@ -190,13 +193,18 @@ function Composer() {
   async function approve() {
     if (!order) return;
     setApproving(true);
+    const prev = ws.project.currentCheckpointId;
     const r = await approveChange(ws.project.id, order.wo.id);
     setApproving(false);
     if (!r.ok) {
       toast.error(r.error ?? "Couldn't apply the change");
       return;
     }
-    toast.success(order.wo.proposal?.summary ?? "Change applied", { description: `${r.label} — you can go back to the previous one any time, for free.` });
+    toast.success(order.wo.proposal?.summary ?? "Change applied", {
+      description: `${r.label}. Going back is always free.`,
+      duration: 9000,
+      action: prev ? { label: "Undo", onClick: () => void undoTo(ws.project.id, prev, () => router.refresh()) } : undefined,
+    });
     setOrder(null);
     router.refresh();
   }
@@ -209,7 +217,7 @@ function Composer() {
       {order && p && (
         <div className="panel-raised mb-2.5 rounded-xl p-3" role="region" aria-label="Work Order">
           <div className="flex items-center justify-between">
-            <span className="micro-label text-amber">{needsPerson ? "Needs a person" : "Work Order"}</span>
+            <span className="micro-label text-amber">{needsPerson ? "Needs a person" : <Term k="work-order" />}</span>
             <button onClick={() => { void rejectChange(ws.project.id, order.wo.id); setOrder(null); }} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
           </div>
           <p className="mt-1.5 text-[13px] font-medium leading-snug">{p.summary}</p>
@@ -221,7 +229,7 @@ function Composer() {
                 <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Agents</dt><dd className="font-mono text-[12px]">{p.blastRadius.agents.length}</dd></div>
                 <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Files</dt><dd className="font-mono text-[12px]">{p.blastRadius.files}</dd></div>
               </dl>
-              {order.overBudget && <p className="mt-2 text-[11.5px] text-ask">This would pass your spending cap. Approving raises nothing — you&apos;ll be asked first.</p>}
+              {order.overBudget && <p className="mt-2 text-[11.5px] text-ask">This would pass your spending cap. Approving raises nothing. You&apos;ll be asked first.</p>}
               <div className="mt-2.5 flex items-center gap-2">
                 <Button size="sm" className="h-8 flex-1" onClick={approve} disabled={approving || order.overBudget}>
                   {approving ? <Loader2 className="animate-spin" /> : <Check />} Approve · {formatCredits(p.credits)}
@@ -235,11 +243,25 @@ function Composer() {
               <UsersRound /> Ask a teammate
             </Button>
           )}
-          {p.mode === "rules" && !needsPerson && <p className="mt-2 text-[10.5px] text-faint">Offline mode — handled by built-in rules.</p>}
+          {p.mode === "rules" && !needsPerson && <p className="mt-2 text-[10.5px] text-faint">Offline mode: handled by built-in rules.</p>}
         </div>
       )}
 
-      <div className={cn("panel rounded-xl transition-colors focus-within:border-amber/50", building && "opacity-60")}>
+      {!order && !text && !building && (
+        <div className="mb-2 flex flex-wrap gap-1.5" aria-label="Suggestions">
+          {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
+            <button
+              key={sg}
+              type="button"
+              onClick={() => { setText(sg); ref.current?.focus(); }}
+              className="max-w-full truncate rounded-full border border-hairline bg-panel px-2.5 py-1 text-[11.5px] text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground"
+            >
+              {sg}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={cn("panel rounded-xl transition-[border-color,box-shadow] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(245_165_36/0.08),0_12px_40px_-16px_rgb(255_116_56/0.45)]", building && "opacity-60")}>
         {effectiveScope && (
           <div className="flex items-center gap-1.5 px-2.5 pt-2">
             <span className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-amber/30 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber">
@@ -277,4 +299,25 @@ function Composer() {
       </div>
     </div>
   );
+}
+
+/** Starter requests for whatever is in scope. Each one works offline too (lib/change/rules.ts). */
+function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
+  const out: string[] = [];
+  const gateable = (a: Blueprint["agents"][number]) => a.tools.find((t) => t.access !== "read" && t.permission !== "ask");
+  if (scope?.type === "agent") {
+    const a = bp.agents.find((x) => x.id === scope.id);
+    const t = a && gateable(a);
+    if (a && t) out.push(`Make ${a.name} ask before it can ${t.name.toLowerCase()}`);
+  } else if (scope?.type === "screen" || scope?.type === "block") {
+    const screen = scope.type === "screen" ? bp.screens.find((x) => x.id === scope.id) : bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id));
+    if (screen?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority", "Sort it by amount");
+  } else {
+    if (bp.screens[0]?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority");
+    const a = bp.agents.find((x) => gateable(x));
+    const t = a && gateable(a);
+    if (a && t) out.push(`Make ${a.name} ask before it can ${t.name.toLowerCase()}`);
+  }
+  out.push(bp.meta.theme.primary.toLowerCase() === "#0f766e" ? "Make it indigo" : "Make it teal");
+  return out.slice(0, 3);
 }

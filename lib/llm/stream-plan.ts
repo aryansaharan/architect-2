@@ -5,6 +5,7 @@ import { DraftSchema, PLANNER_INSTRUCTIONS, type Draft } from "./draft";
 import { expandDraft } from "./expand";
 import { getModel } from "./provider";
 import { costOf } from "./pricing";
+import { STYLE_RULE, cleanDeep } from "@/lib/text";
 
 export type PlanEvent =
   | { t: "status"; mode: "live" | "offline"; model?: string }
@@ -39,7 +40,7 @@ export async function streamPlan(opts: {
     try {
       const result = streamText({
         model: m.model,
-        instructions: opts.instructions ?? PLANNER_INSTRUCTIONS,
+        instructions: `${opts.instructions ?? PLANNER_INSTRUCTIONS}\n\n${STYLE_RULE}`,
         prompt: opts.prompt,
         output: Output.object({ schema: DraftSchema, name: "blueprint_draft" }),
         maxOutputTokens: 12000,
@@ -51,11 +52,11 @@ export async function streamPlan(opts: {
       for await (const partial of result.partialOutputStream) {
         const now = Date.now();
         if (now - last > 350) {
-          send({ t: "partial", draft: partial });
+          send({ t: "partial", draft: cleanDeep(partial) });
           last = now;
         }
       }
-      const draft = await result.output;
+      const draft = cleanDeep(await result.output);
       send({ t: "partial", draft });
       let blueprint = expandDraft(draft, { modelId: m.id });
       if (opts.adjust) blueprint = opts.adjust(blueprint, draft);

@@ -27,7 +27,7 @@ export type RepairPlan = {
  * always finds one real weakness in the blueprint and proposes two fixes.
  */
 export function planRepair(bp: Blueprint): RepairPlan {
-  // Case A — an action that can't be undone is not gated.
+  // Case A: an action that can't be undone is not gated.
   for (let ai = 0; ai < bp.agents.length; ai++) {
     const agent = bp.agents[ai];
     const ti = agent.tools.findIndex((t) => t.access === "irreversible" && t.permission !== "ask");
@@ -62,7 +62,7 @@ export function planRepair(bp: Blueprint): RepairPlan {
           ops: [
             { op: "set", path: `/agents/${ai}/supervision`, value: "approve_all" },
             { op: "set", path: `/agents/${ai}/tools/${ti}/permission`, value: "ask" },
-            { op: "set", path: `/agents/${ai}/rules`, value: [...rules, `Never ${tool.name.toLowerCase()} yourself — prepare it for a person to carry out.`] },
+            { op: "set", path: `/agents/${ai}/rules`, value: [...rules, `Never ${tool.name.toLowerCase()} yourself. Prepare it for a person to carry out.`] },
           ],
           changelog: `${agent.name} now prepares “${tool.name}” for a person instead of doing it itself.`,
         },
@@ -70,7 +70,7 @@ export function planRepair(bp: Blueprint): RepairPlan {
     };
   }
 
-  // Case B — an agent improvises commitments its rules don't forbid.
+  // Case B: an agent improvises commitments its rules don't forbid.
   const ai = Math.max(0, bp.agents.findIndex((a) => a.rehearsals.length > 0));
   const agent = bp.agents[ai];
   const rehearsal = agent.rehearsals[agent.rehearsals.length - 1]?.name ?? "edge-case";

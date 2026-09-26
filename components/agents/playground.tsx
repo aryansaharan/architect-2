@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { noEmDash } from "@/lib/text";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowUp, Loader2, RotateCcw, Sparkles } from "lucide-react";
@@ -69,14 +70,14 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
         {chat.messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="flex justify-end">
-              <p className="max-w-[80%] rounded-2xl rounded-br-md bg-raised px-3.5 py-2 text-[13px]">{m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}</p>
+              <p className="max-w-[80%] rounded-2xl rounded-br-md bg-raised px-3.5 py-2 text-[13px]">{m.parts.map((p) => (p.type === "text" ? noEmDash(p.text) : "")).join("")}</p>
             </div>
           ) : (
             <div key={m.id} className="flex gap-2.5">
               <Avatar name={agent.name} hue={agent.avatarHue} size={26} className="mt-0.5" />
               <div className="min-w-0 flex-1 space-y-2">
                 {m.parts.map((p, i) => {
-                  if (p.type === "text") return p.text ? <p key={i} className="whitespace-pre-wrap text-[13px] leading-relaxed">{p.text}</p> : null;
+                  if (p.type === "text") return p.text ? <p key={i} className="whitespace-pre-wrap text-[13px] leading-relaxed">{noEmDash(p.text)}</p> : null;
                   if (isToolPart(p)) {
                     const tool = agent.tools.find((t) => t.id === p.type.slice(5));
                     if (p.state === "approval-requested" && p.approval && !p.approval.isAutomatic)
@@ -92,7 +93,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
         {chat.status === "submitted" && (
           <div className="flex items-center gap-2 pl-9 text-[12px] text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> {agent.name} is thinking…</div>
         )}
-        {chat.error && <p className="rounded-lg border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">Something went wrong reaching the agent. Try again — nothing was charged.</p>}
+        {chat.error && <p className="rounded-lg border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">Something went wrong reaching the agent. Try again. Nothing was charged.</p>}
       </div>
       <div className="border-t border-hairline p-3">
         <div className="panel flex items-end gap-2 rounded-xl p-2 focus-within:border-amber/50">

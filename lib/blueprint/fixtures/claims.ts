@@ -2,7 +2,7 @@ import type { BlueprintInput } from "../schema";
 
 /**
  * Hero demo: a claims triage desk for a mid-size insurer.
- * `issue_payment` starts as "log" on purpose — the first build's rehearsal
+ * `issue_payment` starts as "log" on purpose: the first build's rehearsal
  * catches it and the repair card proposes an approval gate (turn 3 moment).
  */
 export const claimsBrief =
@@ -108,7 +108,7 @@ export const claimsFixture: BlueprintInput = {
               { title: "Triaged · Auto · routed to M. Okafor", when: "09:15", state: "done" },
               { title: "Fraud check · score 0.18 (low)", when: "09:15", state: "done" },
               { title: "Adjuster review", when: "In progress", state: "active" },
-              { title: "Payout", when: "—", state: "pending" },
+              { title: "Payout", when: "Pending", state: "pending" },
             ],
           },
         ],
@@ -202,7 +202,7 @@ export const claimsFixture: BlueprintInput = {
             type: "actions",
             id: "payout-actions",
             buttons: [
-              { label: "Approve selected", variant: "primary", action: { kind: "toast", message: "Approved — Settlement will send 2 payouts." } },
+              { label: "Approve selected", variant: "primary", action: { kind: "toast", message: "Approved. Settlement will send 2 payouts." } },
               { label: "Hold for review", variant: "secondary", action: { kind: "toast", message: "Held. The adjuster has been notified." } },
             ],
           },
@@ -261,7 +261,7 @@ export const claimsFixture: BlueprintInput = {
       plain:
         "Reads every new claim the moment it arrives, checks the policy covers it, decides what kind of claim it is, and hands it to the adjuster best placed to handle it. It emails the policyholder a confirmation, but only after you approve the wording.",
       jobDescription:
-        "You are Intake Triage for Harbor Mutual's claims team. For each new claim: read it, look up the policy to confirm coverage, classify the claim type and urgency, and route it to the adjuster with the right speciality and the lowest open-case count. Write a two-sentence summary a busy adjuster can read in five seconds. Be precise and never guess coverage — if the policy lookup fails, mark the claim 'Needs human' and say why.",
+        "You are Intake Triage for Harbor Mutual's claims team. For each new claim: read it, look up the policy to confirm coverage, classify the claim type and urgency, and route it to the adjuster with the right speciality and the lowest open-case count. Write a two-sentence summary a busy adjuster can read in five seconds. Be precise and never guess coverage. If the policy lookup fails, mark the claim 'Needs human' and say why.",
       rules: [
         "Never tell a policyholder a claim is approved or denied.",
         "If coverage can't be confirmed, route to a human and explain why.",
@@ -301,7 +301,7 @@ export const claimsFixture: BlueprintInput = {
         "You are the Fraud Screener. Score each claim from 0 (no concern) to 1 (strong concern) using these signals: policy age under 60 days, more than two claims in 12 months, amount within 5% below a review threshold, inconsistent dates, and duplicate attachments. Always list the signals you found with evidence. You flag claims; you never deny them.",
       rules: [
         "Always show the evidence behind a score.",
-        "Never deny a claim — only flag it for a person.",
+        "Never deny a claim. Only flag it for a person.",
         "Don't use protected characteristics as signals.",
       ],
       tools: [
@@ -373,13 +373,13 @@ export const claimsFixture: BlueprintInput = {
       sample: [
         { claim_no: "CLM-20931", policyholder: "Dana Whitfield", type: "Auto", amount: 4200, status: "With adjuster", fraud_score: 0.18, adjuster: "M. Okafor", filed: "2026-09-25", summary: "Rear-end collision at low speed; bumper and tail-light damage; police report attached." },
         { claim_no: "CLM-20932", policyholder: "Ravi Menon", type: "Property", amount: 18750, status: "Triaged", fraud_score: 0.22, adjuster: "L. Chen", filed: "2026-09-25", summary: "Kitchen water damage from a burst pipe; plumber's invoice and photos attached." },
-        { claim_no: "CLM-20933", policyholder: "Jordan Pike", type: "Auto", amount: 9800, status: "Flagged", fraud_score: 0.71, adjuster: "—", filed: "2026-09-25", summary: "Vehicle theft reported; policy opened 12 days ago; no police report yet." },
-        { claim_no: "CLM-20934", policyholder: "Amara Osei", type: "Health", amount: 2310, status: "New", fraud_score: 0.05, adjuster: "—", filed: "2026-09-25", summary: "Emergency room visit after a sports injury; itemised bill attached." },
+        { claim_no: "CLM-20933", policyholder: "Jordan Pike", type: "Auto", amount: 9800, status: "Flagged", fraud_score: 0.71, adjuster: "Unassigned", filed: "2026-09-25", summary: "Vehicle theft reported; policy opened 12 days ago; no police report yet." },
+        { claim_no: "CLM-20934", policyholder: "Amara Osei", type: "Health", amount: 2310, status: "New", fraud_score: 0.05, adjuster: "Unassigned", filed: "2026-09-25", summary: "Emergency room visit after a sports injury; itemised bill attached." },
         { claim_no: "CLM-20935", policyholder: "Grace Liu", type: "Travel", amount: 1640, status: "Approved", fraud_score: 0.09, adjuster: "S. Patel", filed: "2026-09-24", summary: "Flight cancelled; non-refundable hotel nights; airline letter attached." },
-        { claim_no: "CLM-20936", policyholder: "Tomás Rivera", type: "Property", amount: 24900, status: "Flagged", fraud_score: 0.64, adjuster: "—", filed: "2026-09-24", summary: "Roof damage after storm; amount just under the $25k review threshold; third claim this year." },
+        { claim_no: "CLM-20936", policyholder: "Tomás Rivera", type: "Property", amount: 24900, status: "Flagged", fraud_score: 0.64, adjuster: "Unassigned", filed: "2026-09-24", summary: "Roof damage after storm; amount just under the $25k review threshold; third claim this year." },
         { claim_no: "CLM-20937", policyholder: "Hannah Brooks", type: "Auto", amount: 1100, status: "Paid", fraud_score: 0.03, adjuster: "M. Okafor", filed: "2026-09-23", summary: "Windshield chip repair; first claim in nine years." },
         { claim_no: "CLM-20938", policyholder: "Wei Zhang", type: "Health", amount: 5400, status: "With adjuster", fraud_score: 0.14, adjuster: "S. Patel", filed: "2026-09-23", summary: "Outpatient surgery; pre-authorisation on file." },
-        { claim_no: "CLM-20939", policyholder: "Fatima Noor", type: "Travel", amount: 780, status: "New", fraud_score: 0.11, adjuster: "—", filed: "2026-09-25", summary: "Lost luggage on a connecting flight; airline reference attached." },
+        { claim_no: "CLM-20939", policyholder: "Fatima Noor", type: "Travel", amount: 780, status: "New", fraud_score: 0.11, adjuster: "Unassigned", filed: "2026-09-25", summary: "Lost luggage on a connecting flight; airline reference attached." },
       ],
     },
     {

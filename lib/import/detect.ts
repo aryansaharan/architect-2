@@ -78,7 +78,7 @@ export function detect(paths: string[], manifests: Manifests) {
   if (paths.some((p) => /^(src\/)?pages\//.test(p)) && stack.some((s) => s.label === "Next.js")) conventions.push("Next.js Pages Router");
   if (manifests["tsconfig.json"]?.includes('"strict": true')) conventions.push("TypeScript strict mode");
   if (paths.some((p) => /(^|\/)\.env\.example$/.test(p))) conventions.push("Secrets documented in .env.example");
-  if (paths.some((p) => /(^|\/)(eslint\.config\.\w+|\.eslintrc[\w.]*|ruff\.toml|\.ruff\.toml)$/.test(p)) || /\[tool\.ruff\]/.test(manifests["pyproject.toml"] ?? "")) conventions.push("Has a linter config — Architect will follow it");
+  if (paths.some((p) => /(^|\/)(eslint\.config\.\w+|\.eslintrc[\w.]*|ruff\.toml|\.ruff\.toml)$/.test(p)) || /\[tool\.ruff\]/.test(manifests["pyproject.toml"] ?? "")) conventions.push("Has a linter config: Architect will follow it");
   if (paths.some((p) => /(^|\/)agents?\//.test(p))) conventions.push("Agents grouped in an agents/ folder");
   const topLang = [...langs.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   if (topLang) conventions.push(`Mostly ${topLang === "py" ? "Python" : topLang === "ts" || topLang === "tsx" ? "TypeScript" : topLang === "js" || topLang === "jsx" ? "JavaScript" : topLang} (${langs.get(topLang)} files)`);
@@ -113,9 +113,9 @@ export function detect(paths: string[], manifests: Manifests) {
 export function defaultHouseRules(report: Pick<ImportReport, "stack" | "frameworks" | "coverage" | "tests">): string[] {
   const rules = [
     `Never change the framework${report.stack[0] ? ` (${report.stack.slice(0, 2).map((s) => s.label).join(" + ")})` : ""} without asking.`,
-    "Every change ships as a pull request — never push to main.",
+    "Every change ships as a pull request, never push to main.",
   ];
-  if (report.frameworks.some((f) => f.id !== "ai_sdk" && f.id !== "langchain")) rules.push(`Keep agents in ${report.frameworks.filter((f) => f.id !== "ai_sdk").map((f) => f.label).slice(0, 2).join(" / ")} — wrap them, don't rewrite them.`);
+  if (report.frameworks.some((f) => f.id !== "ai_sdk" && f.id !== "langchain")) rules.push(`Keep agents in ${report.frameworks.filter((f) => f.id !== "ai_sdk").map((f) => f.label).slice(0, 2).join(" / ")} : wrap them, don't rewrite them.`);
   if (report.tests.length) rules.push(`Run the existing tests (${report.tests.join(", ")}) before opening a pull request.`);
   if (report.coverage.unsure.length) rules.push(`Don't touch ${report.coverage.unsure[0].split(" · ")[0]} until someone explains it.`);
   rules.push("Don't touch .github/ or infrastructure files.");

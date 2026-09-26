@@ -49,14 +49,16 @@ export default async function Landing() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <header className="sticky top-0 z-30 border-b border-hairline/70 bg-canvas/80 backdrop-blur">
+      <header className="sticky top-0 z-30 bg-canvas/75 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
           <Logo />
           <nav className="hidden items-center gap-5 text-[13px] text-muted-foreground md:flex" aria-label="Sections">
+            <a href="#both" className="hover:text-foreground">For both</a>
             <a href="#turn-three" className="hover:text-foreground">Why it&apos;s different</a>
-            <a href="#depth" className="hover:text-foreground">One project, three depths</a>
+            <a href="#depth" className="hover:text-foreground">Three depths</a>
             <a href="#frameworks" className="hover:text-foreground">Any framework</a>
             <a href="#real" className="hover:text-foreground">What&apos;s real</a>
+            <Link href="/architecture" className="hover:text-foreground">Architecture</Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <a href={REPO_URL} className="hidden items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground sm:inline-flex" target="_blank" rel="noreferrer">
@@ -72,6 +74,7 @@ export default async function Landing() {
             )}
           </div>
         </div>
+        <div className="solstice-line" aria-hidden />
       </header>
 
       <main id="main">
@@ -91,11 +94,11 @@ export default async function Landing() {
                 <em className="word-in text-amber-grad pr-2" style={{ animationDelay: "520ms" }}>in production.</em>
               </h1>
               <p className="fade-up mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground" style={{ animationDelay: "700ms" }}>
-                Describe the app. Architect plans it, prices it, builds it and shows its work — so the people who don&apos;t code and the people who do can ship it together, in the same project.
+                Describe the app. Architect plans it, prices it, builds it and shows its work, so the people who don&apos;t code and the people who do can ship it together, in the same project.
               </p>
               <div className="fade-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "820ms" }}>
-                <Button asChild size="lg" className="sheen h-11 px-5 text-[14px] shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_10px_40px_-8px_rgb(245_165_36/0.55)]">
-                  <Link href="/demo">Try the demo — no account <ArrowRight /></Link>
+                <Button asChild size="lg" className="btn-solstice sheen h-11 px-5 text-[14px]">
+                  <Link href="/demo">Try the demo · no account <ArrowRight /></Link>
                 </Button>
                 {!user || user.isAnonymous ? <OAuthButton /> : null}
               </div>
@@ -111,10 +114,68 @@ export default async function Landing() {
         <section className="relative pb-24">
           <Reveal className="mx-auto mb-12 max-w-3xl px-6 text-center">
             <p className="micro-label text-amber">One studio</p>
-            <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight sm:text-[42px]">The plan, the agents and the price — on one screen.</h2>
+            <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight sm:text-[42px]">The plan, the agents and the price. On one screen.</h2>
             <p className="mt-4 text-[15.5px] leading-relaxed text-muted-foreground">Every screen, agent, kind of data and connection, with what each one is allowed to do. Click anything to read it in plain English, change it, or see its code.</p>
           </Reveal>
           <Showcase />
+        </section>
+
+        {/* Two audiences */}
+        <section id="both" className="border-t border-hairline">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <Reveal className="max-w-3xl">
+              <p className="micro-label text-amber">Two people, one project</p>
+              <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">The person who describes it and the person who ships it work on <span className="text-solstice">the same objects.</span></h2>
+            </Reveal>
+            <Stagger className="relative mt-10 grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
+              <StaggerItem>
+                <Spotlight className="panel h-full rounded-2xl p-6">
+                  <div className="flex items-center gap-3">
+                    <Avatar name="Priya Nair" hue={32} size={36} />
+                    <div>
+                      <p className="text-[15px] font-semibold">If you describe apps</p>
+                      <p className="text-[12.5px] text-muted-foreground">Ops leads, analysts, founders</p>
+                    </div>
+                  </div>
+                  <ul className="mt-5 space-y-3 text-[13.5px]">
+                    {[
+                      "See the plan and the price before anything runs, in plain English.",
+                      "Point at the preview to change words, columns and colours. Free.",
+                      "Agents ask you before anything that can't be undone.",
+                      "Stuck? Ask a teammate. The answer comes back as a sentence.",
+                    ].map((t) => <li key={t} className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />{t}</li>)}
+                  </ul>
+                </Spotlight>
+              </StaggerItem>
+              <StaggerItem className="flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2 py-2 text-center lg:w-44">
+                  <span className="bg-solstice h-10 w-px lg:h-16" aria-hidden />
+                  <p className="text-[12.5px] font-medium">Same Blueprint</p>
+                  <p className="text-[11.5px] leading-snug text-muted-foreground">Plain, Spec and Code are three depths of one object. No modes.</p>
+                  <span className="bg-solstice h-10 w-px lg:h-16" aria-hidden />
+                </div>
+              </StaggerItem>
+              <StaggerItem>
+                <Spotlight className="panel h-full rounded-2xl p-6">
+                  <div className="flex items-center gap-3">
+                    <Avatar name="Dev Mehta" hue={265} size={36} />
+                    <div>
+                      <p className="text-[15px] font-semibold">If you ship code</p>
+                      <p className="text-[12.5px] text-muted-foreground">Engineers, platform teams</p>
+                    </div>
+                  </div>
+                  <ul className="mt-5 space-y-3 text-[13.5px]">
+                    {[
+                      "A real repo: a branch and a pull request per change, diffs between save points.",
+                      "Agents in the framework you already use: LangGraph, CrewAI, OpenAI, ADK, Lyzr, Mastra.",
+                      "Bring your repo. House Rules say what Architect will never touch.",
+                      "Keyboard first (⌘K, G then B), and open it in Cursor or Claude Code any time.",
+                    ].map((t) => <li key={t} className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />{t}</li>)}
+                  </ul>
+                </Spotlight>
+              </StaggerItem>
+            </Stagger>
+          </div>
         </section>
 
         {/* Turn three */}
@@ -122,12 +183,12 @@ export default async function Landing() {
           <div className="mx-auto max-w-6xl px-6 py-20">
             <Reveal>
               <p className="micro-label text-amber">Designed for turn three</p>
-              <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Architect is built for the third — when something breaks, costs money, or needs a person.</h2>
+              <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Architect is built for the third: when something breaks, costs money, or needs a person.</h2>
             </Reveal>
             <Stagger className="mt-12 grid gap-5 md:grid-cols-2">
               <PromiseCard
                 title="See the plan and the price before anything runs"
-                body="Every build and every change starts as a Work Order: what it touches, how long, how many credits. You approve it — or narrow it."
+                body="Every build and every change starts as a Work Order: what it touches, how long, how many credits. You approve it, or narrow it."
               >
                 <div className="rounded-xl border border-amber/25 bg-amber-soft p-3.5">
                   <p className="font-mono text-[10px] uppercase tracking-wider text-amber">Work Order</p>
@@ -139,7 +200,7 @@ export default async function Landing() {
                 </div>
               </PromiseCard>
               <PromiseCard
-                title="When it breaks, it tells you — and you don't pay for its fixes"
+                title="When it breaks, it tells you, and you don't pay for its fixes"
                 body="Rehearsals run on every build. When one fails, you see what it tried, why it matters and two ways forward. Fixes for our own mistakes are labelled and free."
               >
                 <div className="rounded-xl border border-hairline bg-deep/70 p-3.5">
@@ -156,7 +217,7 @@ export default async function Landing() {
               </PromiseCard>
               <PromiseCard
                 title="Agents ask before they act"
-                body="Every tool is marked Read, Change or Can't undo. Anything that sends, pays, creates or deletes waits for a person — in the playground and in production."
+                body="Every tool is marked Read, Change or Can't undo. Anything that sends, pays, creates or deletes waits for a person, in the playground and in production."
               >
                 <div className="rounded-xl border border-ask/25 bg-ask/[0.06] p-3.5">
                   <p className="flex items-center gap-2 text-[13px] font-medium"><Lock className="size-3.5 text-ask" />Settlement wants to issue a payment</p>
@@ -192,11 +253,11 @@ export default async function Landing() {
               <p className="micro-label text-amber">One project, three depths</p>
               <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">No “developer mode”. Every object has a plain face, a spec and its code.</h2>
               <p className="mt-5 text-[15.5px] leading-relaxed text-muted-foreground">
-                Most builders split people into “technical” and “non-technical” and give each a different product. People don&apos;t work like that — an ops lead reads code when it matters, an engineer wants the plain summary when reviewing. So depth lives on each screen, agent and connection, not on the person.
+                Most builders split people into “technical” and “non-technical” and give each a different product. People don&apos;t work like that: an ops lead reads code when it matters, an engineer wants the plain summary when reviewing. So depth lives on each screen, agent and connection, not on the person.
               </p>
               <ul className="mt-6 space-y-2.5 text-[14px]">
                 <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Plain: what it does, what it may do, what it costs.</li>
-                <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Spec: the structured settings — change a permission with one click, free.</li>
+                <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Spec: the structured settings. Change a permission with one click, free.</li>
                 <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Code: the real files, in a real repo, with diffs between save points.</li>
               </ul>
             </Reveal>
@@ -223,7 +284,7 @@ export default async function Landing() {
             <Reveal className="grid gap-8 lg:grid-cols-[1fr_1.4fr] lg:items-end">
               <div>
                 <p className="micro-label text-amber">Any framework, honestly</p>
-                <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">The same agent in six frameworks — with a list of what doesn&apos;t translate.</h2>
+                <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">The same agent in six frameworks, with a list of what doesn&apos;t translate.</h2>
               </div>
               <p className="text-[15px] leading-relaxed text-muted-foreground">
                 Agents are files in your repo (<span className="font-mono text-[13px] text-foreground/80">agent.yaml</span>, <span className="font-mono text-[13px] text-foreground/80">SOUL.md</span>, <span className="font-mono text-[13px] text-foreground/80">RULES.md</span>) plus runtime code for Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK or Mastra. Permissions compile to each framework&apos;s own approval mechanism. Where one can&apos;t express something, we say so.
@@ -238,9 +299,9 @@ export default async function Landing() {
         {/* Import + journey */}
         <section className="border-t border-hairline">
           <Stagger className="mx-auto grid max-w-6xl gap-5 px-6 py-20 md:grid-cols-3" gap={0.06}>
-            <Feature icon={FileSearch} title="Bring your existing project" body="Paste a GitHub URL. Architect reads the stack and any agents, shows what it understood and what it didn't, and signs House Rules — “never change the framework”, “never touch /legacy” — before it touches a file." />
+            <Feature icon={FileSearch} title="Bring your existing project" body="Paste a GitHub URL. Architect reads the stack and any agents, shows what it understood and what it didn't, and signs House Rules (“never change the framework”, “never touch /legacy”) before it touches a file." />
             <Feature icon={GitPullRequest} title="Real repo, real review" body="Every Work Order lands on its own branch as a change for review. Two-way sync, CI rehearsals on every pull request, and “Open in Cursor or Claude Code” whenever you want the wheel." />
-            <Feature icon={Undo2} title="Save points, not fear" body="Every change is a save point. Going back is always free, and your previous state is kept — so trying things costs nothing." />
+            <Feature icon={Undo2} title="Save points, not fear" body="Every change is a save point. Going back is always free, and your previous state is kept, so trying things costs nothing." />
             <Feature icon={Coins} title="Budgets, not surprises" body="A spending cap per project. Agents pause and tell you before passing it, and the live app shows what one conversation costs." />
             <Feature icon={ShieldCheck} title="Preflight before going live" body="Sign-in on, irreversible actions gated, rehearsals passing, keys in place, cap set, data region chosen. Warnings don't block; real risks do." />
             <Feature icon={UsersRound} title="Built for the handoff" body="Comments pinned on the preview. Requests that carry context. A plain-English changelog of what teammates changed, and why." />
@@ -289,7 +350,7 @@ export default async function Landing() {
             <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-72 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(245_165_36/0.16),transparent_65%)] blur-2xl" />
             <h2 className="font-display text-[48px] leading-tight">See it on a <span className="text-amber-grad">real project.</span></h2>
             <p className="mt-3 max-w-lg text-[15px] text-muted-foreground">A claims desk with three agents, a live URL, a caught mistake and a pending handoff. No account needed.</p>
-            <Button asChild size="lg" className="sheen mt-8 h-11 px-6 text-[14px] shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_10px_40px_-8px_rgb(245_165_36/0.55)]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>
+            <Button asChild size="lg" className="btn-solstice sheen mt-8 h-11 px-6 text-[14px]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>
           </Reveal>
         </section>
       </main>
@@ -300,7 +361,8 @@ export default async function Landing() {
           <span>Built by Aryan Saharan for Lyzr&apos;s Architect 2.0 brief.</span>
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link href="/terms" className="hover:text-foreground">Terms</Link>
-          <a href={REPO_URL} className="ml-auto inline-flex items-center gap-1.5 hover:text-foreground" target="_blank" rel="noreferrer"><GitHubMark /> Source &amp; product notes</a>
+          <Link href="/architecture" className="ml-auto hover:text-foreground">Architecture</Link>
+          <a href={REPO_URL} className="inline-flex items-center gap-1.5 hover:text-foreground" target="_blank" rel="noreferrer"><GitHubMark /> Source &amp; product notes</a>
         </div>
       </footer>
     </div>

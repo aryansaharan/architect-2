@@ -1,10 +1,10 @@
 # Architect 2.0
 
-**Agentic apps you'd trust in production — built by the people who don't code and the people who do, in the same project.**
+**Agentic apps you'd trust in production: built by the people who don't code and the people who do, in the same project.**
 
 A working prototype of the next Lyzr Architect, built for the *Technical Product Manager · Architect* take-home.
 
-**[Live demo](https://architect-2-aryan.vercel.app)** · **[Open the demo project — no account](https://architect-2-aryan.vercel.app/demo)** · **[2-minute walkthrough](#walkthrough)** · [Product decisions](DECISIONS.md)
+**[Live demo](https://architect-2-aryan.vercel.app)** · **[Open the demo project (no account)](https://architect-2-aryan.vercel.app/demo)** · **[Technical architecture](ARCHITECTURE.md)** ([interactive diagram](https://architect-2-aryan.vercel.app/architecture)) · [Market research](RESEARCH.md) · [Product decisions](DECISIONS.md) · [Walkthrough](#walkthrough)
 
 ![The Blueprint: every screen, agent, kind of data and connection in one view](docs/screenshots/01-blueprint.png)
 
@@ -19,8 +19,8 @@ Four principles, each of them visible in the product:
 | Principle | What you see |
 | --- | --- |
 | **1. Depth is per object, not per person.** There is no "developer mode". | Every screen, agent and connection opens in an Inspector with three faces: **Plain** (what it does, in English) · **Spec** (editable settings) · **Code** (the generated files). An ops lead can read code when it matters; an engineer can read the plain summary when reviewing. |
-| **2. Agents are colleagues you put on duty.** | Every tool is marked **Read**, **Change** or **Can't undo**. Anything irreversible **asks a person first** — in the playground, with a real approval gate on Claude. Agents have rules, a supervision level, rehearsals (tests), a replay log and a cost per run. |
-| **3. Designed for turn three.** | Every build and change starts as a **Work Order** with a price. The build **rehearses** every agent and, when it finds a problem, shows *what it tried, why it matters and two ways to fix it* — labelled **Our fix · free**. Every change is a **save point**; going back is free. |
+| **2. Agents are colleagues you put on duty.** | Every tool is marked **Read**, **Change** or **Can't undo**. Anything irreversible **asks a person first**, in the playground, with a real approval gate on Claude. Agents have rules, a supervision level, rehearsals (tests), a replay log and a cost per run. |
+| **3. Designed for turn three.** | Every build and change starts as a **Work Order** with a price. The build **rehearses** every agent and, when it finds a problem, shows *what it tried, why it matters and two ways to fix it*, labelled **Our fix · free**. Every change is a **save point**; going back is free. |
 | **4. The handoff is the product.** | **Ask a teammate** sends the object, your brief, your recent requests and the latest diff. The engineer sees code; you get the answer back as a sentence. Pinned comments on the preview feed the same loop. |
 
 ## Try it in two minutes
@@ -42,6 +42,24 @@ Four principles, each of them visible in the product:
 | ![Preview with point-and-tweak](docs/screenshots/04-tweak.png) | ![Approval gate in the playground](docs/screenshots/05-approval.png) |
 | ![Import: stack report and House Rules](docs/screenshots/06-import.png) | ![Diff between save points](docs/screenshots/07-diff.png) |
 | ![Ship: preflight and targets](docs/screenshots/08-ship.png) | ![Handoff: what the engineer sees](docs/screenshots/09-handoff.png) |
+
+## Technical architecture
+
+The production design, service by service, is in **[ARCHITECTURE.md](ARCHITECTURE.md)** and drawn at **[/architecture](https://architect-2-aryan.vercel.app/architecture)** ([PNG](public/docs/architecture-diagram.png) · [PDF](public/docs/architecture.pdf)).
+
+![Architect 2.0 production architecture](public/docs/architecture-diagram.png)
+
+- **Sandboxing:** one Firecracker microVM per project (strong isolation, ~150 ms snapshot resume, Python and Node agents), no secrets inside the VM, allow-listed egress.
+- **Agent harness:** planner, coder, verifier and repairer share one tool loop with credit, step and time budgets. The same error twice stops the loop, rolls back and hands it to a person.
+- **Model-agnostic:** a model gateway routes by task (plan, code, summarise), fails over between Claude, GPT, Gemini and open models, supports BYOK, and meters every call. Switches are gated on eval suites.
+- **Live preview:** the sandbox dev server behind a preview proxy on a separate domain, with WebSockets for hot reload and wake-on-request. Build events stream through a realtime hub.
+- **GitHub:** a GitHub App, a branch and PR per Work Order, two-way sync that parses generated files back into the Blueprint.
+- **Deployment:** build once, immutable releases, canary rollout, instant rollback, to Architect Cloud, Vercel or your VPC. Live agents run behind an agent gateway that enforces approvals and caps.
+- **Scale:** stateless control plane, durable workflows, warm pools and idle suspend, cells of ~1,000 active users, priority queues per model provider.
+
+## Exploration
+
+**[RESEARCH.md](RESEARCH.md)** compares architect.new, Replit, Lovable, Emergent, v0, Rocket.new, Cursor, Codex and Claude Code: who each is for, why people adopt it, the core flow and where it hurts. The short version: app builders win non-technical users on turn one and lose their trust on turn three (fix loops, surprise bills, no control); coding agents give engineers control but stop at the repo. Architect 2.0 is designed for the gap in between.
 
 ## Every flow
 
@@ -76,7 +94,7 @@ Deployed on Vercel
 ```
 
 - **One source of truth.** A project is a validated JSON *Blueprint* (screens, agents, data, connections). The canvas, the preview, the public live site, the generated code, the diffs and the build script are all pure functions of it. That is what makes "same object, three depths" cheap and consistent. See [`lib/blueprint/schema.ts`](lib/blueprint/schema.ts).
-- **The model decides; code lays out.** The planner asks Claude for the *decisions* — which agents, which tools and how risky, which data — then expands them deterministically into screens and blocks, and validates referential integrity before saving ([`lib/llm`](lib/llm)).
+- **The model decides; code lays out.** The planner asks Claude for the *decisions* (which agents, which tools and how risky, which data), then expands them deterministically into screens and blocks, and validates referential integrity before saving ([`lib/llm`](lib/llm)).
 - **Every model call has a scripted path.** No key, a timeout, an error, or a spent daily budget all fall back to starter plans, rule-based changes and a scripted agent run that still exercises the real approval protocol. The demo never shows an error because of the model.
 - **Approval gates are real.** Blueprint permissions compile to AI SDK `toolApproval` in the playground and to each framework's own mechanism in generated code: LangGraph `interrupt()`, OpenAI Agents `needs_approval`, ADK tool confirmation, CrewAI hooks, Mastra `requireApproval`.
 - **Security.** No service-role key anywhere: every write goes through the user's session and row-level security. Guests are capped at 8 projects and a daily model budget.
@@ -127,7 +145,10 @@ Set `LLM_PROVIDER=none` to run everything in scripted mode without an API key.
 ## Repo map
 
 ```
-app/                 routes: landing, login, demo, home, new, settings, live, p/[id]/{blueprint,preview,agents,code,ship,handoffs}, api/*
+ARCHITECTURE.md      production architecture: sandboxes, harness, model gateway, proxy, GitHub, deploy, scale
+RESEARCH.md          exploration of nine products and the gaps Architect 2.0 targets
+public/docs          architecture diagram (PNG, PDF)
+app/                 routes: landing, architecture, login, demo, home, new, settings, live, p/[id]/{blueprint,preview,agents,code,ship,handoffs}, api/*
 components/workspace the studio: top bar, activity rail, inspector, canvas, preview, agents, code, ship, handoffs
 components/renderer  the spec-driven app renderer (Preview and /live)
 lib/blueprint        schema, fixtures, validation, estimates, plain-English descriptions

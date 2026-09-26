@@ -108,7 +108,7 @@ export function objectLabel(bp: Blueprint, ref: ObjectRef | null): string {
   }
 }
 
-/** Screens / agents / entities / connections each object touches — used for canvas connectors and blast radius. */
+/** Screens / agents / entities / connections each object touches: used for canvas connectors and blast radius. */
 export function relations(bp: Blueprint) {
   const screenAgents = new Map<string, Set<string>>();
   const screenEntities = new Map<string, Set<string>>();

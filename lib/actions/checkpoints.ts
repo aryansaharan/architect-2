@@ -16,7 +16,7 @@ export async function restoreCheckpoint(projectId: string, checkpointId: string)
     label: `Restored “${cp.label}”`,
     kind: "restore",
     blueprint: cp.blueprint,
-    summary: `Went back to save point #${cp.seq}. Nothing was lost — the previous state is still a save point.`,
+    summary: `Went back to save point #${cp.seq}. Nothing was lost. The previous state is still a save point.`,
   });
   await addLedger(supa, projectId, [
     {

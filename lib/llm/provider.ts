@@ -5,7 +5,7 @@ import type { LanguageModel } from "ai";
 export type ModelHandle = { model: LanguageModel; provider: "anthropic"; id: string };
 
 /**
- * Returns null when no model is configured — every caller then takes its
+ * Returns null when no model is configured: every caller then takes its
  * scripted path, so the product never shows an error because of a missing key.
  */
 export function getModel(): ModelHandle | null {

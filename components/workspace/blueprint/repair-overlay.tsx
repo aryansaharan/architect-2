@@ -9,6 +9,7 @@ import { Avatar } from "@/components/arch/badges";
 import { cancelBuild } from "@/lib/actions/build";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import { Term } from "@/components/arch/term";
 
 export function RepairOverlay() {
   const ws = useWorkspace();
@@ -45,7 +46,7 @@ export function RepairOverlay() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="micro-label">Checked · rehearsal</p>
-              <span className="rounded-full border border-fix/30 bg-fix/10 px-2 py-px text-[11px] font-medium text-fix">Our fix · free</span>
+              <span className="rounded-full border border-fix/30 bg-fix/10 px-2 py-px text-[11px] font-medium text-fix"><Term k="our-fix" /> · free</span>
             </div>
             <h2 id="repair-title" className="mt-1 text-[17px] font-semibold leading-snug">{plan.title}</h2>
           </div>
@@ -110,7 +111,7 @@ export function RepairOverlay() {
                 setStopping(false);
                 if (!r.ok) return toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped — nothing was charged", { description: "Your plan is exactly as you left it." });
+                toast.success("Build stopped. Nothing was charged", { description: "Your plan is exactly as you left it." });
                 router.refresh();
               }}
             >

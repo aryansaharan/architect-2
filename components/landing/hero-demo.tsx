@@ -16,7 +16,7 @@ export type HeroExample = {
   credits: number;
 };
 
-/** Typing prompt that turns into a plan — the thesis shown, not told. */
+/** Typing prompt that turns into a plan: the thesis shown, not told. */
 export function HeroDemo({ examples }: { examples: HeroExample[] }) {
   const router = useRouter();
   const [i, setI] = useState(0);
@@ -104,14 +104,14 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
             className="block w-full resize-none bg-transparent text-[14px] leading-relaxed outline-none placeholder:text-faint"
           />
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[11px] text-faint">{custom !== null ? "Enter to plan it — no account needed" : !doneTyping ? <span className="caret">▍</span> : "Plan ready in the preview below"}</span>
+            <span className="text-[11px] text-faint">{custom !== null ? "Enter to plan it, no account needed" : !doneTyping ? <span className="caret">▍</span> : "Plan ready in the preview below"}</span>
             <button onClick={submit} className="inline-flex h-7 items-center gap-1 rounded-md bg-amber px-2.5 text-[12px] font-medium text-primary-foreground">
               Plan it <ArrowRight className="size-3.5" />
             </button>
           </div>
         </div>
 
-        <div className="dot-grid mt-3 grid grid-cols-4 gap-2.5 rounded-xl border border-hairline p-3" aria-hidden>
+        <div className="dot-grid mt-3 grid min-h-[224px] grid-cols-4 content-start gap-2.5 rounded-xl border border-hairline p-3" aria-hidden>
           {cols.map((c) => (
             <div key={c.title} className="min-w-0">
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><c.icon className="size-3" />{c.title}</p>

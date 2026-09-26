@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { creditsUsd } from "@/lib/format";
 import { useWorkspace } from "../context";
+import { Term } from "@/components/arch/term";
 
 export function WorkOrderDock() {
   const ws = useWorkspace();
@@ -28,7 +29,7 @@ export function WorkOrderDock() {
       >
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <p className="micro-label text-amber">Work Order · nothing has run yet</p>
+            <p className="micro-label text-amber"><Term k="work-order" /> · nothing has run yet</p>
             <p className="mt-1 text-[15px] font-semibold">Build {bp.meta.name}</p>
           </div>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px]">
@@ -60,7 +61,7 @@ export function WorkOrderDock() {
             <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)}>Change the plan</Button>
             <Button
               size="lg"
-              className="sheen h-9 px-4 shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_8px_28px_-8px_rgb(245_165_36/0.7)]"
+              className="btn-solstice sheen h-9 px-4"
               disabled={starting || over}
               onClick={async () => {
                 setStarting(true);
@@ -78,7 +79,7 @@ export function WorkOrderDock() {
             <span className="inline-flex items-center gap-1 text-amber"><KeyRound className="size-3" />{missing.map((c) => c.name).join(", ")} will use test data until you add a key</span>
           )}
           <span>Confidence: {est.confidence}</span>
-          {over && <span className="text-ask">This would pass your cap — raise it in Settings first.</span>}
+          {over && <span className="text-ask">This would pass your cap. Raise it in Settings first.</span>}
         </div>
       </motion.section>
     </div>

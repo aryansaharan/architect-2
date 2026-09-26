@@ -4,8 +4,16 @@ import { cn } from "@/lib/utils";
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={cn("size-5", className)} aria-hidden>
-      <path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="none" stroke="var(--amber)" strokeWidth="1.6" />
-      <path d="M12 7 17 12 12 17 7 12Z" fill="var(--amber)" />
+      <defs>
+        <linearGradient id="logo-sol" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ffd27a" />
+          <stop offset="0.45" stopColor="#ff7438" />
+          <stop offset="0.75" stopColor="#ff4f8b" />
+          <stop offset="1" stopColor="#b06bff" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="none" stroke="url(#logo-sol)" strokeWidth="1.6" />
+      <path d="M12 7 17 12 12 17 7 12Z" fill="url(#logo-sol)" />
     </svg>
   );
 }
@@ -17,7 +25,7 @@ export function Logo({ href = "/", className, compact }: { href?: string; classN
       {!compact && (
         <span className="flex items-baseline gap-1.5">
           <span className="text-[15px] font-semibold tracking-tight text-foreground">Architect</span>
-          <span className="rounded border border-amber/30 bg-amber-soft px-1 font-mono text-[10px] font-medium text-amber">2.0</span>
+          <span className="text-solstice rounded border border-sol-flare/30 bg-[linear-gradient(90deg,rgb(255_210_122/0.10),rgb(255_79_139/0.10))] px-1 font-mono text-[10px] font-semibold">2.0</span>
         </span>
       )}
     </Link>

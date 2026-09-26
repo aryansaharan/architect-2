@@ -115,9 +115,9 @@ export async function cancelBuild(projectId: string): Promise<Result> {
     const credits = project.blueprint.estimate.credits;
     await updateProject(supa, projectId, { build_state: "draft" });
     await supa.from("work_orders").update({ status: "proposed" }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
-    await logUsage(supa, { userId: user.id, projectId, kind: "refund", credits: -credits, meta: { note: "Build stopped at repair — refunded" } });
+    await logUsage(supa, { userId: user.id, projectId, kind: "refund", credits: -credits, meta: { note: "Build stopped at repair, refunded" } });
     await addLedger(supa, projectId, [
-      { lane: "did", kind: "restore", blame: "system_fix", title: "You stopped the build — nothing was charged", body: `The ${credits}-credit estimate was refunded. The plan is exactly as you left it.`, credits: 0 },
+      { lane: "did", kind: "restore", blame: "system_fix", title: "You stopped the build. Nothing was charged", body: `The ${credits}-credit estimate was refunded. The plan is exactly as you left it.`, credits: 0 },
     ]);
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true };

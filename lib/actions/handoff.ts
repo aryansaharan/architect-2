@@ -76,7 +76,7 @@ export async function resolveHandoff(projectId: string, handoffId: string, note?
     if (!target.value.rules.includes(rule) && target.value.rules.length < 8) ops = [{ op: "set", path: `/agents/${i}/rules`, value: [...target.value.rules, rule] }];
     changelog ||= `${target.value.name} now hands anything it's unsure about to a person, with a reason. Its rehearsals still pass.`;
   } else if (target?.type === "screen" || target?.type === "block") {
-    changelog ||= `Updated ${objectLabel(bp, h.object_ref)} as you asked. It's live in the Test version — have a look before it goes out.`;
+    changelog ||= `Updated ${objectLabel(bp, h.object_ref)} as you asked. It's live in the Test version. Have a look before it goes out.`;
   } else {
     changelog ||= "Done. The change is in the Test version for you to check.";
   }

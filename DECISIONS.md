@@ -20,7 +20,7 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 ## 3. The model decides; code lays out
 
-**Decision.** The planner asks Claude for decisions only — data, agents, tools and their risk, screens and their purpose — then expands them deterministically and validates referential integrity.
+**Decision.** The planner asks Claude for decisions only (data, agents, tools and their risk, screens and their purpose), then expands them deterministically and validates referential integrity.
 
 **Why.** It is faster, cheaper and far more reliable than asking a model for a finished layout, and it keeps the model's job to what it's good at: judgment. Estimates are computed, never taken from the model.
 
@@ -40,13 +40,13 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 **Decision.** Every build rehearses every agent; Preflight requires rehearsals to pass before going live; generated CI runs them on each pull request.
 
-**Why.** This brings Lyzr's simulation engine forward from "before production" to "while designing". The first build always surfaces one real weakness in the plan and proposes two fixes — the repair moment is the product's clearest demonstration of trust.
+**Why.** This brings Lyzr's simulation engine forward from "before production" to "while designing". The first build always surfaces one real weakness in the plan and proposes two fixes. The repair moment is the product's clearest demonstration of trust.
 
 ## 7. Stream the plan
 
 **Decision.** The plan streams onto the screen as Claude decides it.
 
-**Why.** Careful planning takes about a minute. A spinner makes that feel broken; watching screens, agents and risky actions appear makes it feel like work being done — and shows what the agents will be allowed to do before anyone approves anything.
+**Why.** Careful planning takes about a minute. A spinner makes that feel broken; watching screens, agents and risky actions appear makes it feel like work being done, and shows what the agents will be allowed to do before anyone approves anything.
 
 ## 8. A guest session instead of a login wall
 
@@ -74,8 +74,8 @@ Short notes on the calls that shaped Architect 2.0: what I chose, what I rejecte
 
 ## What I cut, and what's next
 
-- **Real GitHub pushes and pull requests** — the flow and repo semantics are designed; the push is sandboxed.
-- **Real deploys to Vercel and customer VPCs** — the live URL on Architect Cloud is real; the other targets are sandboxed.
-- **Real teammates** — handoffs persist, but the resolution is simulated.
-- **A drag-and-drop layout editor** — point-and-tweak covers copy, columns and removal; layout changes go through Work Orders.
+- **Real GitHub pushes and pull requests**: the flow and repo semantics are designed; the push is sandboxed.
+- **Real deploys to Vercel and customer VPCs**: the live URL on Architect Cloud is real; the other targets are sandboxed.
+- **Real teammates**: handoffs persist, but the resolution is simulated.
+- **A drag-and-drop layout editor**: point-and-tweak covers copy, columns and removal; layout changes go through Work Orders.
 - **Next:** approvals inbox for production agent actions, LLM-judged rehearsals against production traces, multiplayer presence, ZIP and Figma import.

@@ -5,10 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Architect 2.0 — "Studio dark"
- * One brand accent (amber). Semantic colours are reserved for meaning:
+ * Architect 2.0: "Solstice"
+ * Ink-night surfaces with one signature: a sunset gradient
+ * (gold, amber, ember, flare, dusk) that slowly moves. Amber stays the
+ * anchor for actions and focus. Semantic colours are reserved for meaning:
  *   read (green) · change (blue) · ask-me-first (rose) · our-fix (violet)
- * Contrast (on --background): foreground 16.9:1, muted 7.5:1, amber 9.7:1.
+ * Contrast (on --background): foreground 17:1, muted 7.6:1, amber 9.8:1.
  */
 
 @theme inline {
@@ -65,6 +67,10 @@
   --color-ask: var(--ask);
   --color-fix: var(--fix);
   --color-ok: var(--ok);
+  --color-sol-gold: var(--sol-gold);
+  --color-sol-ember: var(--sol-ember);
+  --color-sol-flare: var(--sol-flare);
+  --color-sol-dusk: var(--sol-dusk);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -78,15 +84,23 @@
 :root {
   color-scheme: dark;
 
-  --canvas: #0a0b0e;
-  --panel: #121419;
-  --raised: #191c23;
-  --deep: #0d0f13;
-  --hairline: #22252e;
-  --hairline-hi: #30343f;
+  --canvas: #09080f;
+  --panel: #12111a;
+  --raised: #1a1824;
+  --deep: #0c0b13;
+  --hairline: #24222f;
+  --hairline-hi: #35323f;
   --amber-hi: #ffc76b;
-  --ember: #ff8a3d;
-  --faint: #6b7280;
+  --ember: #ff7438;
+  --faint: #716d80;
+
+  /* the signature */
+  --sol-gold: #ffd27a;
+  --sol-amber: #f5a524;
+  --sol-ember: #ff7438;
+  --sol-flare: #ff4f8b;
+  --sol-dusk: #b06bff;
+  --solstice: linear-gradient(90deg, var(--sol-gold), var(--sol-amber), var(--sol-ember), var(--sol-flare), var(--sol-dusk), var(--sol-flare), var(--sol-ember), var(--sol-amber), var(--sol-gold));
   --amber: #f5a524;
   --amber-soft: rgb(245 165 36 / 0.12);
   --read: #3dd68c;
@@ -96,22 +110,22 @@
   --ok: #3dd68c;
 
   --background: var(--canvas);
-  --foreground: #edeef0;
+  --foreground: #efedf4;
   --card: var(--panel);
-  --card-foreground: #ecedef;
+  --card-foreground: #eeecf3;
   --popover: var(--raised);
-  --popover-foreground: #ecedef;
+  --popover-foreground: #eeecf3;
   --primary: var(--amber);
   --primary-foreground: #1a1206;
   --secondary: var(--raised);
-  --secondary-foreground: #ecedef;
+  --secondary-foreground: #eeecf3;
   --muted: var(--raised);
-  --muted-foreground: #9ba1ad;
-  --accent: #20232b;
-  --accent-foreground: #ecedef;
+  --muted-foreground: #a19dae;
+  --accent: #201e2a;
+  --accent-foreground: #eeecf3;
   --destructive: var(--ask);
   --border: var(--hairline);
-  --input: #2a2e39;
+  --input: #2c2938;
   --ring: var(--amber);
   --chart-1: var(--amber);
   --chart-2: var(--change);
@@ -120,11 +134,11 @@
   --chart-5: var(--ask);
   --radius: 0.625rem;
   --sidebar: var(--panel);
-  --sidebar-foreground: #ecedef;
+  --sidebar-foreground: #eeecf3;
   --sidebar-primary: var(--amber);
   --sidebar-primary-foreground: #1a1206;
   --sidebar-accent: var(--raised);
-  --sidebar-accent-foreground: #ecedef;
+  --sidebar-accent-foreground: #eeecf3;
   --sidebar-border: var(--hairline);
   --sidebar-ring: var(--amber);
 }
@@ -146,7 +160,8 @@
     cursor: pointer;
   }
   ::selection {
-    background: rgb(245 165 36 / 0.28);
+    background: rgb(255 116 56 / 0.32);
+    color: #fff;
   }
   :focus-visible {
     outline: 2px solid var(--amber);
@@ -157,7 +172,7 @@
     height: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #262a33;
+    background: #2a2735;
     border-radius: 10px;
     border: 2px solid transparent;
     background-clip: padding-box;
@@ -178,13 +193,13 @@
   }
   .panel-raised {
     background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 45%), var(--raised);
-    border: 1px solid #2a2e39;
+    border: 1px solid #2c2938;
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.05),
       0 1px 1px rgb(0 0 0 / 0.3),
       0 16px 40px -8px rgb(0 0 0 / 0.55);
   }
-  /* Blueprint canvas dot grid — a nod to "Architect" */
+  /* Blueprint canvas dot grid: a nod to "Architect" */
   .dot-grid {
     background-color: var(--canvas);
     background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
@@ -196,22 +211,22 @@
     font-size: 10.5px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #8b919c;
+    color: #8f8b9e;
   }
   .kbd {
     font-family: var(--font-geist-mono);
     font-size: 10.5px;
     padding: 1px 5px;
     border-radius: 4px;
-    border: 1px solid #2f3440;
-    background: #181b21;
-    color: #b7bcc6;
+    border: 1px solid #34313f;
+    background: #17161f;
+    color: #bdb9c9;
   }
   .amber-glow {
     background: radial-gradient(
       60% 60% at 50% 0%,
-      rgb(245 165 36 / 0.16) 0%,
-      rgb(245 165 36 / 0.04) 45%,
+      rgb(255 116 56 / 0.16) 0%,
+      rgb(255 79 139 / 0.05) 45%,
       transparent 75%
     );
   }
@@ -268,7 +283,7 @@ body::before {
   }
 }
 
-/* A light beam travelling around the border — used for the one thing that matters on screen. */
+/* A light beam travelling around the border: used for the one thing that matters on screen. */
 .beam {
   position: relative;
   isolation: isolate;
@@ -281,7 +296,7 @@ body::before {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), transparent 0deg, transparent 230deg, rgb(245 165 36 / 0.1) 260deg, var(--amber) 318deg, var(--amber-hi) 338deg, transparent 360deg);
+  background: conic-gradient(from var(--beam-angle), transparent 0deg, transparent 200deg, rgb(176 107 255 / 0.25) 240deg, var(--sol-flare) 285deg, var(--sol-ember) 315deg, var(--sol-gold) 340deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -301,7 +316,7 @@ body::before {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), var(--amber), var(--ember), #ff6b7a, #b48cff, var(--amber-hi), var(--amber));
+  background: conic-gradient(from var(--beam-angle), var(--sol-gold), var(--sol-amber), var(--sol-ember), var(--sol-flare), var(--sol-dusk), var(--sol-gold));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -314,7 +329,7 @@ body::before {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  background: conic-gradient(from var(--beam-angle), rgb(245 165 36 / 0.22), rgb(255 138 61 / 0.12), rgb(255 107 122 / 0.12), rgb(180 140 255 / 0.14), rgb(245 165 36 / 0.22));
+  background: conic-gradient(from var(--beam-angle), rgb(255 210 122 / 0.22), rgb(255 116 56 / 0.16), rgb(255 79 139 / 0.16), rgb(176 107 255 / 0.18), rgb(255 210 122 / 0.22));
   filter: blur(28px);
   opacity: 0.55;
   animation: beam-spin 4s linear infinite;
@@ -341,7 +356,7 @@ body::before {
 
 /* Shimmering text for "thinking" states. */
 .text-shimmer {
-  background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--foreground) 40%, var(--amber-hi) 50%, var(--foreground) 60%, var(--muted-foreground) 100%);
+  background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--foreground) 38%, var(--sol-gold) 46%, var(--sol-flare) 54%, var(--foreground) 62%, var(--muted-foreground) 100%);
   background-size: 250% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -357,22 +372,98 @@ body::before {
   }
 }
 
-/* Gradient headline accent with a slow drifting sheen. */
-.text-amber-grad {
-  background: linear-gradient(100deg, #ffb13b 0%, #ffd58f 28%, #f5a524 52%, #ff8a3d 78%, #ffc76b 100%);
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: grad-drift 9s ease-in-out infinite alternate;
-}
-@keyframes grad-drift {
+/* ------------------------------------------------ the Solstice gradient */
+@keyframes sol-pan {
   from {
     background-position: 0% 50%;
   }
   to {
     background-position: 100% 50%;
   }
+}
+/* Headline accents: the sunset drifting through the letters. */
+.text-amber-grad,
+.text-solstice {
+  background: var(--solstice);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sol-pan 12s ease-in-out infinite alternate;
+}
+/* Hero actions: a living gradient with its own glow. */
+.btn-solstice {
+  position: relative;
+  isolation: isolate;
+  color: #1a0b07 !important;
+  background: var(--solstice) !important;
+  background-size: 300% 100% !important;
+  animation: sol-pan 9s ease-in-out infinite alternate;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.08) !important;
+}
+.btn-solstice::before {
+  content: "";
+  position: absolute;
+  inset: 2px -2px -6px;
+  z-index: -1;
+  border-radius: inherit;
+  background: inherit;
+  background-size: 300% 100%;
+  animation: inherit;
+  filter: blur(16px);
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+.btn-solstice:hover::before {
+  opacity: 0.9;
+}
+/* A 1px horizon line under headers. */
+.solstice-line {
+  height: 1px;
+  background: var(--solstice);
+  background-size: 400% 100%;
+  animation: sol-pan 10s ease-in-out infinite alternate;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  opacity: 0.55;
+}
+/* A slowly turning sun behind hero sections. Rotates with transform, so it stays cheap. */
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.solstice-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: conic-gradient(from 0deg, var(--sol-gold), var(--sol-amber), var(--sol-ember), var(--sol-flare), var(--sol-dusk), #5d5bff, var(--sol-gold));
+  filter: blur(90px);
+  opacity: 0.32;
+  animation: orb-spin 26s linear infinite;
+}
+/* Always-on gradient border for a featured surface (no glow). */
+.solstice-ring {
+  position: relative;
+  isolation: isolate;
+}
+.solstice-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--beam-angle), rgb(255 210 122 / 0.7), rgb(255 116 56 / 0.5), rgb(255 79 139 / 0.55), rgb(176 107 255 / 0.6), rgb(255 210 122 / 0.7));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam-spin 8s linear infinite;
+}
+.bg-solstice {
+  background: var(--solstice);
+  background-size: 400% 100%;
+  animation: sol-pan 8s ease-in-out infinite alternate;
 }
 
 /* Cursor spotlight: parent sets --mx/--my. */
@@ -387,7 +478,7 @@ body::before {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
-  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgb(245 165 36 / 0.09), transparent 60%);
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgb(255 150 60 / 0.09), rgb(255 79 139 / 0.04) 40%, transparent 65%);
 }
 .spotlight:hover::after {
   opacity: 1;
@@ -426,8 +517,8 @@ body::before {
   inset-inline: 0;
   top: 0;
   height: 30%;
-  background: linear-gradient(180deg, transparent, rgb(245 165 36 / 0.04) 70%, rgb(245 165 36 / 0.11));
-  border-bottom: 1px solid rgb(255 199 107 / 0.35);
+  background: linear-gradient(180deg, transparent, rgb(255 116 56 / 0.04) 70%, rgb(255 79 139 / 0.10));
+  border-bottom: 1px solid rgb(255 180 120 / 0.4);
   animation: scan 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
@@ -448,7 +539,7 @@ body::before {
   }
 }
 
-/* Headline words rise out of a blur on first paint — CSS only, so text is visible without JS. */
+/* Headline words rise out of a blur on first paint: CSS only, so text is visible without JS. */
 @keyframes word-in {
   from {
     opacity: 0;

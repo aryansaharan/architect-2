@@ -11,7 +11,7 @@ const ws = page.url().split("?")[0].replace(/\/blueprint$/, "");
 await page.goto(ws + "/blueprint"); await page.waitForTimeout(1600);
 await page.getByRole("button", { name: /Settlement/ }).filter({ hasText: "Prepares payouts" }).first().hover(); await page.waitForTimeout(500); await snap("2-hover-flow");
 await page.goto(base + "/new?prompt=" + encodeURIComponent("A claims triage desk for a mid-size insurer: take in new claims, flag likely fraud, route each claim to the right adjuster, and prepare payouts that a human approves."));
-await page.getByRole("button", { name: /Skip — use sensible defaults/ }).click();
+await page.getByRole("button", { name: /Skip, use sensible defaults/ }).click();
 await page.waitForTimeout(1400); await snap("3-planning");
 await page.waitForURL(/\/p\/.*\/blueprint/, { timeout: 60000 }); await page.waitForTimeout(1600); await snap("4-dock");
 await page.getByRole("button", { name: /Build it/ }).click();

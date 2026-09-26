@@ -97,7 +97,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             }}
             options={[
               { value: "use", label: <><MousePointer2 className="size-3.5" />Use</>, title: "Use the app like a real person" },
-              { value: "tweak", label: <><Pencil className="size-3.5" />Tweak</>, title: "Point at anything to edit it — free" },
+              { value: "tweak", label: <><Pencil className="size-3.5" />Tweak</>, title: "Point at anything to edit it, free" },
               { value: "comment", label: <><MessageSquare className="size-3.5" />Comment{open.length ? ` ${open.length}` : ""}</>, title: "Pin a note for a teammate" },
             ]}
           />
@@ -121,7 +121,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
       <div className="relative min-h-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(245_165_36/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-5">
         <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>
-          {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only — this is what will be built</span>}
+          {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only: this is what will be built</span>}
           {mode === "tweak" && <span>Point at anything and click to edit it. Tweaks are free.</span>}
           {mode === "comment" && <span>Click a spot to pin a note. Teammates see it in their activity.</span>}
         </div>

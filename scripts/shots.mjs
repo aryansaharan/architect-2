@@ -1,4 +1,4 @@
-// Usage: node scripts/shots.mjs [baseUrl] [outDir] — captures key screens for visual review.
+// Usage: node scripts/shots.mjs [baseUrl] [outDir]: captures key screens for visual review.
 import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 const base = process.argv[2] ?? "http://localhost:3000";

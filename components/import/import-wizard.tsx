@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { GitHubMark } from "@/components/brand/logo";
 import { PlanningView, usePlanStream } from "@/components/new/plan-stream";
 import { cn } from "@/lib/utils";
+import { Term } from "@/components/arch/term";
 
 const EXAMPLES = ["openai/openai-cs-agents-demo", "langchain-ai/langgraph-example", "crewAIInc/crewAI-examples", "vercel/chatbot"];
 const READ_STEPS = ["Fetching repository details", "Listing every file", "Reading manifests and README", "Detecting stack, agents and tests", "Mapping what I understood"];
@@ -145,7 +146,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
             {r.stack.length ? r.stack.map((s) => <span key={s.label} className="rounded-md border border-hairline bg-deep px-2 py-1 text-[12px]" title={s.evidence}>{s.label}</span>) : <span className="text-[13px] text-muted-foreground">{r.repo.language ?? "Unknown"}</span>}
           </div>
           <h2 className="micro-label mt-4">Tests &amp; CI</h2>
-          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found — Architect will add rehearsals, not rewrite your tests.</span>}</p>
+          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found. Architect will add rehearsals, not rewrite your tests.</span>}</p>
         </section>
         <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "240ms" }}>
           <h2 className="micro-label">Conventions I&apos;ll follow</h2>
@@ -156,15 +157,15 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       </div>
 
       <section className="fade-up mt-4 grid gap-4 md:grid-cols-3" style={{ animationDelay: "340ms" }} aria-label="Coverage map">
-        <Coverage title="Understood" icon={Check} tone="text-read" items={r.coverage.understood} empty="—" />
-        <Coverage title="Not sure yet" icon={CircleHelp} tone="text-amber" items={r.coverage.unsure} empty="Nothing — every source folder matched something I know." />
+        <Coverage title="Understood" icon={Check} tone="text-read" items={r.coverage.understood} empty="None" />
+        <Coverage title="Not sure yet" icon={CircleHelp} tone="text-amber" items={r.coverage.unsure} empty="Nothing. Every source folder matched something I know." />
         <Coverage title="Ignored" icon={EyeOff} tone="text-muted-foreground" items={r.coverage.ignored} empty="Nothing ignored." />
       </section>
 
       <section className="panel fade-up mt-4 rounded-xl p-5" style={{ animationDelay: "440ms" }} aria-labelledby="rules">
         <div className="flex flex-wrap items-center gap-2">
           <ShieldCheck className="size-4 text-amber" />
-          <h2 id="rules" className="text-[15px] font-semibold">House Rules</h2>
+          <h2 id="rules" className="text-[15px] font-semibold"><Term k="house-rules" /></h2>
           <span className="text-[12.5px] text-muted-foreground">Architect signs these before touching anything. Every agent and every Work Order follows them.</span>
         </div>
         <ul className="mt-4 space-y-2">

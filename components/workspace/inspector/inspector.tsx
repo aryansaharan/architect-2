@@ -65,7 +65,7 @@ export function Inspector() {
           onChange={setFace}
           options={[
             { value: "plain", label: "Plain", title: "What it does, in plain English" },
-            { value: "spec", label: "Spec", title: "The structured settings — editable" },
+            { value: "spec", label: "Spec", title: "The structured settings, editable" },
             { value: "code", label: <><FileCode2 className="size-3" />Code</>, title: "The generated files" },
           ]}
         />

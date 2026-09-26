@@ -28,7 +28,7 @@ export function nameFromBrief(brief: string, fallback: string): string {
     .replace(/[\n\r]+/g, " ")
     .replace(/^(please\s+)?(build|create|make|i want|i need|we need|an?|the)\s+/gi, "")
     .replace(/^(an?|the)\s+/i, "");
-  const head = cleaned.split(/[:.,;—–-]| for | that | which | to | with /i)[0]?.trim() ?? "";
+  const head = cleaned.split(/[:.,;-–-]| for | that | which | to | with /i)[0]?.trim() ?? "";
   const words = head.split(/\s+/).filter(Boolean).slice(0, 5);
   if (words.length < 2 || head.length > 48) return fallback;
   return words.map((w) => (w.length <= 3 && /^(and|of|the|for|to|a|an|in)$/i.test(w) ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1))).join(" ");

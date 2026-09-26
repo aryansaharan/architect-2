@@ -44,7 +44,7 @@ export function ScreenPlain({ screen }: { screen: Screen }) {
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{screen.plain}</p>
       <p className="mt-2 text-[12.5px] text-muted-foreground">{screenSummary(ws.blueprint, screen)}</p>
       <Section title="Who sees it">
-        <p className="text-[12.5px]">{screen.audience === "customer" ? "Your customers — no sign-in needed for this screen." : screen.audience === "admin" ? "Admins only." : "Your team, after signing in."}</p>
+        <p className="text-[12.5px]">{screen.audience === "customer" ? "Your customers. No sign-in needed for this screen." : screen.audience === "admin" ? "Admins only." : "Your team, after signing in."}</p>
       </Section>
       {agents.length > 0 && (
         <Section title="Agents on this screen">
@@ -136,7 +136,7 @@ export function EntityPlain({ entity }: { entity: Entity }) {
         </div>
       </Section>
       <Section title="Who can see it">
-        <p className="text-[12.5px]">People on your team only — every table has row-level security on.</p>
+        <p className="text-[12.5px]">People on your team only. Every table has row-level security on.</p>
       </Section>
     </div>
   );
@@ -177,13 +177,13 @@ export function ConnectionPlain({ connection }: { connection: Connection }) {
         <ConnectionIcon kind={connection.kind} className="size-5 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium">{connection.name}</p>
-          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-amber")}>{connection.status === "configured" ? "Connected" : "Using test data — needs a key"}</p>
+          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-amber")}>{connection.status === "configured" ? "Connected" : "Using test data · needs a key"}</p>
         </div>
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{connectionSummary(ws.blueprint, connection)}</p>
       {connection.status === "missing" && (
         <div className="mt-4 rounded-lg border border-amber/30 bg-amber-soft p-3">
-          <p className="text-[12.5px]">Don&apos;t have the key? Ask a teammate — they&apos;ll get this connection and exactly where it&apos;s used.</p>
+          <p className="text-[12.5px]">Don&apos;t have the key? Ask a teammate. They&apos;ll get this connection and exactly where it&apos;s used.</p>
           <div className="mt-2.5 flex gap-2">
             <Button size="sm" className="h-7" disabled={pending} onClick={() => run(() => setConnectionStatus(ws.project.id, connection.id, "configured"), `${connection.name} connected (sandbox)`)}>
               <KeyRound /> Add a sandbox key

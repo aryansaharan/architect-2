@@ -1,4 +1,4 @@
--- Architect 2.0 — initial schema
+-- Architect 2.0: initial schema
 -- Paste this whole file into Supabase → SQL Editor → Run (safe to run once on a new project).
 --
 -- Design: the whole project design (screens, agents, data, connections) lives in

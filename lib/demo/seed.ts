@@ -57,7 +57,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     { lane: "did", kind: "ship", title: "Went live on Architect Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
     { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0.7, createdAt: at(90) },
     { lane: "thought", kind: "comment", blame: "teammate", title: "Maya commented on Intake Queue", body: "“Can we sort this by SLA risk instead of date?”", objectRef: { type: "screen", id: "intake-queue" }, createdAt: at(91) },
-    { lane: "thought", kind: "handoff", title: "You asked Priya to connect the policy system", body: "“I don't have the Guidewire key — can you wire up the sandbox?”", objectRef: { type: "connection", id: "policy-system" }, createdAt: at(93) },
+    { lane: "thought", kind: "handoff", title: "You asked Priya to connect the policy system", body: "“I don't have the Guidewire key. Can you wire up the sandbox?”", objectRef: { type: "connection", id: "policy-system" }, createdAt: at(93) },
   ]);
 
   await supa.from("comments").insert({
@@ -74,7 +74,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   await supa.from("handoffs").insert({
     project_id: project.id,
     object_ref: { type: "connection", id: "policy-system" },
-    prompt: "I don't have the Guidewire key — can you wire up the sandbox so Intake Triage can confirm coverage?",
+    prompt: "I don't have the Guidewire key. Can you wire up the sandbox so Intake Triage can confirm coverage?",
     context: {
       objectLabel: "Policy system (Guidewire)",
       promptHistory: [STARTERS.claims.brief, "Make sure payouts always wait for a person."],
@@ -91,8 +91,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     checkpoint_id: cp2.id,
     mode: "scripted",
     transcript: [
-      { role: "user", text: "A new claim just came in from Dana Whitfield — triage it." },
-      { role: "assistant", text: "CLM-20931 is an Auto claim on an active policy (HM-A-44102). Low fraud risk. I routed it to Michael Okafor (14 open cases). I'd like to send Dana a confirmation email — waiting for your approval." },
+      { role: "user", text: "A new claim just came in from Dana Whitfield. Triage it." },
+      { role: "assistant", text: "CLM-20931 is an Auto claim on an active policy (HM-A-44102). Low fraud risk. I routed it to Michael Okafor (14 open cases). I'd like to send Dana a confirmation email. Waiting for your approval." },
       { role: "assistant", text: "Email sent. Summary for the adjuster: “Low-speed rear-end collision, bumper and tail-light damage, police report attached.”" },
     ],
     tool_calls: [

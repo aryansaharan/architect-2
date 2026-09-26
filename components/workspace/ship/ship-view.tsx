@@ -15,6 +15,7 @@ import { fixPreflight, goLive, rollbackTo, takeOffline } from "@/lib/actions/shi
 import { creditsUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import { Term } from "@/components/arch/term";
 
 type Target = DeploymentRow["target"];
 const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag: string }[] = [
@@ -32,6 +33,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const built = ws.project.buildState === "built";
   const checks = useMemo(() => preflight(bp, { budgetCapCredits: ws.project.settings.budgetCapCredits, built, region: ws.project.settings.region }), [bp, ws.project.settings, built]);
   const ready = canGoLive(checks);
+  const blocking = checks.filter((c) => c.blocking && c.status === "fail").length;
   const [target, setTarget] = useState<Target>("architect_cloud");
   const [domain, setDomain] = useState("");
   const [deploying, setDeploying] = useState<number | null>(null);
@@ -120,7 +122,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           {/* Preflight */}
           <section aria-labelledby="pf" className="panel rounded-xl">
             <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
-              <h3 id="pf" className="text-[14px] font-semibold">Preflight</h3>
+              <h3 id="pf" className="text-[14px] font-semibold"><Term k="preflight" /></h3>
               <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px]", ready ? "border-read/30 bg-read/10 text-read" : "border-ask/30 bg-ask/10 text-ask")}>
                 <span className={cn("size-1.5 rounded-full", ready ? "bg-read" : "bg-ask")} />
                 {ready ? "Ready to go live" : `${checks.filter((c) => c.blocking && c.status === "fail").length} blocking`}
@@ -166,8 +168,8 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               {domain && <span className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME to <span className="font-mono">cname.architect.new</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>}
             </label>
             <div className="flex gap-2 pt-1">
-              <Button size="lg" className="sheen h-10 flex-1 shadow-[0_0_0_1px_rgb(255_199_107/0.35),0_10px_30px_-10px_rgb(245_165_36/0.8)] disabled:shadow-none" disabled={!ready || deploying !== null} onClick={deploy}>
-                {deploying !== null ? <Loader2 className="animate-spin" /> : <Rocket />} {live && target === "architect_cloud" ? "Update the live version" : "Go live"}
+              <Button size="lg" className="btn-solstice sheen h-10 flex-1 disabled:animate-none" disabled={!ready || deploying !== null} onClick={deploy}>
+                {deploying !== null ? <Loader2 className="animate-spin" /> : <Rocket />} {!ready ? `Fix ${blocking} blocking check${blocking === 1 ? "" : "s"} to go live` : live && target === "architect_cloud" ? "Update the live version" : "Go live"}
               </Button>
               {target === "vpc" && <Button size="lg" variant="outline" className="h-10" onClick={downloadBundle}><Download /> Bundle</Button>}
             </div>
@@ -182,7 +184,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   className="aurora panel-raised overflow-hidden rounded-xl"
                 >
                   <div className="h-0.5 bg-deep">
-                    <motion.div className="h-full bg-[linear-gradient(90deg,var(--amber),var(--amber-hi))] shadow-[0_0_12px_rgb(245_165_36/0.8)]" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }} />
+                    <motion.div className="bg-solstice h-full shadow-[0_0_12px_rgb(255_116_56/0.8)]" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }} />
                   </div>
                   <ol className="p-3 text-[12.5px]" aria-live="polite">
                     {STEPS.map((s, i) => (
@@ -210,7 +212,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <input type="range" min={50} max={20000} step={50} value={users} onChange={(e) => setUsers(Number(e.target.value))} className="mt-2 w-full accent-[var(--amber)]" aria-label="People using it" />
             </label>
             <p className="mt-2 text-[20px] font-semibold tabular-nums">≈ {creditsUsd(monthly)} <span className="text-[12.5px] font-normal text-muted-foreground">a month · {Math.round(monthly).toLocaleString()} credits</span></p>
-            <p className="mt-1 text-[12px] text-muted-foreground">Your cap is {ws.project.settings.budgetCapCredits} credits. Past it, agents pause and tell you — they never keep spending quietly.</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">Your cap is {ws.project.settings.budgetCapCredits} credits. Past it, agents pause and tell you. They never keep spending quietly.</p>
           </section>
           <section className="panel rounded-xl">
             <h3 className="border-b border-hairline px-4 py-3 text-[14px] font-semibold">Deployments</h3>
@@ -301,7 +303,7 @@ function LaunchMoment({ slug, name, onClose }: { slug: string; name: string; onC
           You&apos;re <em className="text-read">live.</em>
         </motion.p>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }} className="relative mt-3 text-[13.5px] text-muted-foreground">
-          {name} is serving real people now. Agents keep the permissions and spending cap you set — and rollback is one click.
+          {name} is serving real people now. Agents keep the permissions and spending cap you set, and rollback is one click.
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.5 }} className="relative mt-6 flex items-center gap-2 rounded-xl border border-hairline bg-deep p-1.5 pl-3">
           <span className="size-2 shrink-0 rounded-full bg-read pulse-read" />
@@ -310,7 +312,7 @@ function LaunchMoment({ slug, name, onClose }: { slug: string; name: string; onC
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.5 }} className="relative mt-4 flex justify-center gap-2">
           <Button variant="ghost" className="h-10" onClick={onClose}>Back to Ship</Button>
-          <Button asChild className="sheen h-10 px-5 shadow-[0_10px_30px_-10px_rgb(245_165_36/0.8)]">
+          <Button asChild className="btn-solstice sheen h-10 px-5">
             <a href={`/live/${slug}`} target="_blank" rel="noreferrer">Open the live version <ExternalLink /></a>
           </Button>
         </motion.div>

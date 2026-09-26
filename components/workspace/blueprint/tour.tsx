@@ -14,13 +14,13 @@ export function Tour() {
   const gated = ws.blueprint.agents.find((a) => a.tools.some((t) => t.access === "irreversible")) ?? ws.blueprint.agents[0];
   const steps = [
     {
-      title: "This is the plan — and the product",
+      title: "This is the plan, and the product",
       body: "Every screen, agent, kind of data and connection in one view. Click any card to read it in plain English, as a spec, or as code. No developer mode: depth is per object.",
       cta: null as null | { href: string; label: string },
     },
     {
       title: "Agents ask before they act",
-      body: `Coloured dots are permissions: green reads, blue changes things you can undo, rose can't be undone — and asks a person first. That's ${gated.name}, open on the right.`,
+      body: `Coloured dots are permissions: green reads, blue changes things you can undo, rose can't be undone, and asks a person first. That's ${gated.name}, open on the right.`,
       cta: null,
     },
     {

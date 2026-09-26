@@ -26,7 +26,7 @@ const KIND_LABEL: Record<string, string> = { llm: "Planning & quotes", build: "B
 
 const CATALOG = [
   { provider: "github", name: "GitHub", body: "Two-way sync, branch per change, CI rehearsals." },
-  { provider: "gmail", name: "Gmail", body: "Agents draft and send email — sending always asks first." },
+  { provider: "gmail", name: "Gmail", body: "Agents draft and send email. Sending always asks first." },
   { provider: "slack", name: "Slack", body: "Post updates and approvals to channels." },
   { provider: "hubspot", name: "HubSpot", body: "Read and update CRM records." },
   { provider: "jira", name: "Jira", body: "Create and triage issues." },
@@ -210,7 +210,7 @@ export function SettingsView({
           <h2 className="text-[20px] font-semibold">Account</h2>
           <div className="panel mt-5 rounded-xl p-4 text-[13px]">
             <p>{user.isAnonymous ? "You're a guest. Your work is saved in this browser session." : `Signed in${user.provider ? ` with ${user.provider}` : ""}${user.email ? ` as ${user.email}` : ""}.`}</p>
-            {user.isAnonymous && <Button asChild size="sm" className="mt-3"><Link href="/login?next=/settings">Keep this work — sign in</Link></Button>}
+            {user.isAnonymous && <Button asChild size="sm" className="mt-3"><Link href="/login?next=/settings">Sign in to keep this work</Link></Button>}
           </div>
         </section>
       </main>

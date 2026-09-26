@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       const enc = new TextEncoder();
       const send = (e: PlanEvent) => controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
       const { blueprint, mode, usage, vertical } = await streamPlan({
-        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped — use sensible defaults)"}`,
+        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}`,
         userId: user.id,
         allowModel,
         send,
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
             title: `Planned ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`,
             body:
               mode === "live"
-                ? `Planned with ${usage?.model}. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build — nothing runs until you approve.`
+                ? `Planned with ${usage?.model}. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing runs until you approve.`
                 : `Offline mode: started from the closest starter plan. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.`,
             credits: usage?.credits ?? 0,
             checkpointId: cp.id,

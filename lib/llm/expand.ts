@@ -239,7 +239,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
               { title: `${entity.name} created`, when: "09:02", state: "done" },
               { title: `Reviewed by ${agent?.name ?? agents[0].name}`, when: "09:04", state: "done" },
               { title: "Waiting for a decision", when: "Now", state: "active" },
-              { title: "Closed", when: "—", state: "pending" },
+              { title: "Closed", when: "Pending", state: "pending" },
             ],
           },
         ];

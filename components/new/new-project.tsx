@@ -29,7 +29,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
       <div className="fade-up mx-auto max-w-2xl">
         <p className="micro-label flex items-center gap-2"><span className="flex gap-1" aria-hidden>{[1, 2, 3].map((d) => <span key={d} className={cn("h-1 rounded-full transition-all duration-500", d <= 1 ? "w-4 bg-amber shadow-[0_0_8px_rgb(245_165_36/0.7)]" : "w-1.5 bg-hairline-hi")} />)}</span>New project · step 1 of 3</p>
         <h1 className="mt-3 font-display text-[44px] leading-tight">Describe the <em className="text-amber-grad">job.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech — that&apos;s our part.</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech. That&apos;s our part.</p>
         <div className="panel mt-6 rounded-2xl transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(245_165_36/0.08),0_24px_70px_-24px_rgb(245_165_36/0.45)]">
           <label htmlFor="new-brief" className="sr-only">Describe what you want to build</label>
           <textarea id="new-brief" autoFocus rows={5} value={brief} onChange={(e) => setBrief(e.target.value)} className="block w-full resize-none bg-transparent p-4 text-[15px] leading-relaxed outline-none placeholder:text-faint" placeholder="A desk that reads every refund request, checks the order and warranty, approves the simple ones, and asks me before sending money back." />
@@ -81,7 +81,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
         </div>
         <div className="mt-8 flex items-center gap-3">
           <Button variant="ghost" onClick={() => setStep("describe")}><ArrowLeft /> Back</Button>
-          <Button variant="ghost" className="ml-auto text-muted-foreground" onClick={() => plan(true)}>Skip — use sensible defaults</Button>
+          <Button variant="ghost" className="ml-auto text-muted-foreground" onClick={() => plan(true)}>Skip, use sensible defaults</Button>
           <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(255_199_107/0.35),0_10px_30px_-10px_rgb(245_165_36/0.8)]" onClick={() => plan(false)}>Plan it <ArrowRight /></Button>
         </div>
         <p className="mt-4 text-right text-[12px] text-faint">Planning is free to review. Nothing is built until you approve a Work Order.</p>

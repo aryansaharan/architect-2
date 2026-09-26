@@ -13,7 +13,7 @@ const ws = page.url().split("?")[0].replace(/\/blueprint$/, "");
 await page.goto(ws + "/blueprint?sel=agent:settlement"); await page.getByRole("button", { name: /Settlement/ }).filter({ hasText: "Prepares payouts" }).first().hover(); await snap("01-blueprint");
 
 await page.goto(base + "/new?prompt=" + encodeURIComponent("A claims triage desk for a mid-size insurer: take in new claims, flag likely fraud, route each claim to the right adjuster, and prepare payouts that a human approves."));
-await page.getByRole("button", { name: /Skip — use sensible defaults/ }).click();
+await page.getByRole("button", { name: /Skip, use sensible defaults/ }).click();
 await page.waitForURL(/\/p\/.*\/blueprint/, { timeout: 60000 });
 const draft = page.url().split("?")[0];
 await page.goto(draft); await snap("02-work-order");

@@ -44,10 +44,10 @@ export async function scriptedRun(writer: UIMessageStreamWriter, bp: Blueprint, 
     const t = agent.tools.find((x) => x.id === responded.toolId);
     if (responded.approved && t) {
       writer.write({ type: "tool-output-available", toolCallId: responded.toolCallId, output: stubResult(bp, agent, t, responded.query) });
-      await text(writer, `t-${seed}`, `Done — ${t.name.toLowerCase()} went through (sandbox reference recorded above). I've logged it so the team can see who approved what.`);
+      await text(writer, `t-${seed}`, `Done: ${t.name.toLowerCase()} went through (sandbox reference recorded above). I've logged it so the team can see who approved what.`);
     } else {
       writer.write({ type: "tool-output-denied", toolCallId: responded.toolCallId });
-      await text(writer, `t-${seed}`, `Understood — I won't do that. I've left it for a person to handle and noted why in the activity log.`);
+      await text(writer, `t-${seed}`, `Understood. I won't do that. I've left it for a person to handle and noted why in the activity log.`);
     }
     writer.write({ type: "finish-step" });
     return;
@@ -64,7 +64,7 @@ export async function scriptedRun(writer: UIMessageStreamWriter, bp: Blueprint, 
     writer.write({ type: "tool-output-available", toolCallId: id, output: stubResult(bp, agent, read, ask) });
   }
   if (act) {
-    await text(writer, `b-${seed}`, `I found what I need. The next step is to ${act.name.toLowerCase()}${act.access === "irreversible" ? " — that can't be undone, so I need your OK." : "."}`);
+    await text(writer, `b-${seed}`, `I found what I need. The next step is to ${act.name.toLowerCase()}${act.access === "irreversible" ? ", which can't be undone, so I need your OK." : "."}`);
     const id = `call_${seed}_a`;
     writer.write({ type: "tool-input-available", toolCallId: id, toolName: act.id, input: { query: ask.slice(0, 140) } });
     if (act.permission === "ask" || act.access === "irreversible") {

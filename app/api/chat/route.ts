@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       originalMessages: body.messages,
       execute: ({ writer }) => {
         writer.write({ type: "text-start", id: "cap" });
-        writer.write({ type: "text-delta", id: "cap", delta: `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on — nothing was charged for this message.` });
+        writer.write({ type: "text-delta", id: "cap", delta: `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on. Nothing was charged for this message.` });
         writer.write({ type: "text-end", id: "cap" });
       },
     });

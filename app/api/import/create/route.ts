@@ -37,8 +37,8 @@ export async function POST(req: Request) {
     return next;
   };
 
-  const prompt = `Reverse-engineer the plan of this EXISTING repository so it can be developed further in Architect. Map what is already there — do not invent a different product.
-Repository: ${report.repo.owner}/${report.repo.name} — ${report.repo.description ?? "no description"}
+  const prompt = `Reverse-engineer the plan of this EXISTING repository so it can be developed further in Architect. Map what is already there. Do not invent a different product.
+Repository: ${report.repo.owner}/${report.repo.name}: ${report.repo.description ?? "no description"}
 Primary language: ${report.repo.language ?? "unknown"} · ${report.fileCount} files
 Stack: ${report.stack.map((s) => s.label).join(", ") || "unknown"}
 Agent frameworks found: ${report.frameworks.map((f) => `${f.label} (${f.evidence})`).join("; ") || "none"}
@@ -69,7 +69,7 @@ Use the repository's own names for agents and screens where the README or folder
         adjust,
       });
       try {
-        const brief = `Imported from github.com/${report.repo.owner}/${report.repo.name}${report.repo.description ? ` — ${report.repo.description}` : ""}`;
+        const brief = `Imported from github.com/${report.repo.owner}/${report.repo.name}${report.repo.description ? `: ${report.repo.description}` : ""}`;
         const project = await createProject(supa, {
           ownerId: user.id,
           name: blueprint.meta.name,
@@ -84,9 +84,9 @@ Use the repository's own names for agents and screens where the README or folder
         const cp = await addCheckpoint(supa, project.id, { label: "Imported from GitHub", kind: "import", blueprint, summary: `${report.repo.owner}/${report.repo.name} · ${report.fileCount} files · ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"}` });
         await supa.from("work_orders").insert({ project_id: project.id, request: brief, kind: "build", estimate: blueprint.estimate, status: "proposed" });
         await addLedger(supa, project.id, [
-          { lane: "thought", kind: "import", title: `Read ${report.repo.owner}/${report.repo.name}`, body: `${report.fileCount} files. Found ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"} on ${report.stack.map((s) => s.label).slice(0, 4).join(", ") || "an unknown stack"}.${report.cached ? " (Cached analysis — GitHub rate limit.)" : ""}`, credits: 0 },
+          { lane: "thought", kind: "import", title: `Read ${report.repo.owner}/${report.repo.name}`, body: `${report.fileCount} files. Found ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"} on ${report.stack.map((s) => s.label).slice(0, 4).join(", ") || "an unknown stack"}.${report.cached ? " (Cached analysis: GitHub rate limit.)" : ""}`, credits: 0 },
           { lane: "checked", kind: "import", title: `Signed ${houseRules.length} House Rules`, body: houseRules.map((r) => `• ${r}`).join("\n"), credits: 0 },
-          { lane: "thought", kind: "work_order", title: `Mapped the repo into ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`, body: mode === "live" ? `Mapped with ${usage?.model}. The first change will open as a pull request — nothing is pushed to main.` : "Offline mode: mapped onto the closest starter plan.", credits: usage?.credits ?? 0, checkpointId: cp.id },
+          { lane: "thought", kind: "work_order", title: `Mapped the repo into ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`, body: mode === "live" ? `Mapped with ${usage?.model}. The first change will open as a pull request. Nothing is pushed to main.` : "Offline mode: mapped onto the closest starter plan.", credits: usage?.credits ?? 0, checkpointId: cp.id },
         ]);
         if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "import", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: usage.credits, meta: { op: "import" } });
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });

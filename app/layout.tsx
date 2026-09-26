@@ -10,9 +10,9 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 
 export const metadata: Metadata = {
-  title: { default: "Architect 2.0 — agentic apps you'd trust in production", template: "%s · Architect 2.0" },
+  title: { default: "Architect 2.0: agentic apps you'd trust in production", template: "%s · Architect 2.0" },
   description:
-    "Describe an agentic app. Architect plans it, prices it, builds it and shows its work — for the people who don't code and the people who do, in the same project.",
+    "Describe an agentic app. Architect plans it, prices it, builds it and shows its work, for the people who don't code and the people who do, in the same project.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
 };
 

@@ -45,7 +45,7 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
   bp.estimate = estimate(bp);
   await updateProject(supa, projectId, { blueprint: bp });
   const cp = await addCheckpoint(supa, projectId, { label: title.slice(0, 60), kind: "change", blueprint: bp, summary: "Fixed from Preflight" });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: `Preflight: ${title.toLowerCase()}`, credits: 0, checkpointId: cp.id, body: "One-click fix from the Ship tab — free." }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: `Preflight: ${title.toLowerCase()}`, credits: 0, checkpointId: cp.id, body: "One-click fix from the Ship tab, free." }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }
@@ -58,7 +58,7 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false, error: "Project not found" };
   const checks = preflight(project.blueprint, { budgetCapCredits: project.settings.budgetCapCredits, built: project.build_state === "built", region: project.settings.region });
-  if (!canGoLive(checks)) return { ok: false, error: "Preflight has blocking issues — fix them first." };
+  if (!canGoLive(checks)) return { ok: false, error: "Preflight has blocking issues. Fix them first." };
   const summary = checks.map((c) => ({ id: c.id, label: c.label, pass: c.status !== "fail" }));
 
   if (target !== "architect_cloud") {

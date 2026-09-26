@@ -2,7 +2,7 @@ import type { BlueprintInput } from "../schema";
 
 /**
  * Support demo: a B2B SaaS support inbox.
- * PagerDuty starts "missing" on purpose — Escalation's third rehearsal
+ * PagerDuty starts "missing" on purpose: Escalation's third rehearsal
  * checks that it falls back to Slack and tells the team the page didn't go out.
  */
 export const supportBrief =
@@ -115,7 +115,7 @@ export const supportFixture: BlueprintInput = {
               { title: "On-call paged · approved by J. Alvarez", when: "14:11", state: "done" },
               { title: "Status posted in #support-incidents", when: "14:12", state: "done" },
               { title: "Reply drafted · waiting for approval", when: "In progress", state: "active" },
-              { title: "Reply sent to customer", when: "—", state: "pending" },
+              { title: "Reply sent to customer", when: "Pending", state: "pending" },
             ],
           },
         ],
@@ -138,7 +138,7 @@ export const supportFixture: BlueprintInput = {
       icon: "send",
       purpose: "Read and approve every reply before it is emailed to a customer.",
       plain:
-        "Every reply Reply Drafter writes waits here with the articles it used and how confident it is. Nothing is emailed to a customer until someone on the team presses Approve — or sends it back with a note.",
+        "Every reply Reply Drafter writes waits here with the articles it used and how confident it is. Nothing is emailed to a customer until someone on the team presses Approve, or sends it back with a note.",
       layout: "single",
       audience: "team",
       status: "planned",
@@ -168,7 +168,7 @@ export const supportFixture: BlueprintInput = {
             type: "actions",
             id: "reply-actions",
             buttons: [
-              { label: "Approve & send selected", variant: "primary", action: { kind: "toast", message: "Approved — 3 replies are on their way from support@northwind.cloud." } },
+              { label: "Approve & send selected", variant: "primary", action: { kind: "toast", message: "Approved. 3 replies are on their way from support@northwind.cloud." } },
               { label: "Send back with a note", variant: "secondary", action: { kind: "toast", message: "Sent back. Reply Drafter will revise and return it here." } },
             ],
           },
@@ -265,7 +265,7 @@ export const supportFixture: BlueprintInput = {
             id: "help-centre-note",
             title: "How drafts use the help centre",
             markdown:
-              "Reply Drafter searches published articles, quotes only what they say, and links every article it used. If nothing matches, it **doesn't guess** — it leaves an internal note and suggests an article to write.\n\nArticles marked **Needs review** are still used, but the draft is flagged so you check it more carefully.",
+              "Reply Drafter searches published articles, quotes only what they say, and links every article it used. If nothing matches, it **doesn't guess**. It leaves an internal note and suggests an article to write.\n\nArticles marked **Needs review** are still used, but the draft is flagged so you check it more carefully.",
           },
         ],
       },
@@ -280,9 +280,9 @@ export const supportFixture: BlueprintInput = {
       plain:
         "Reads every new ticket the moment it lands in Zendesk, works out what it's about and how urgent it is, and sets the priority so the most serious problems and the biggest customers are seen first. It explains each decision in one line so the team can overrule it.",
       jobDescription:
-        "You are Ticket Triage for Northwind Cloud's support team. For every new ticket: read the full thread, look up the customer's plan and account health, and classify it into exactly one category — Billing, Bug, How-to, Outage, Account access or Feature request. Set priority with this policy: Urgent for suspected outages, data loss, or any Enterprise customer who is blocked in production; High for Enterprise or Growth customers with a broken workflow or a billing error; Normal for how-to questions and non-blocking bugs; Low for feature requests. Write a one-line reason for every decision (for example 'Enterprise, webhooks failing in production'). If three or more tickets mention the same error within 30 minutes, tag each one 'possible-outage' so Escalation can look. You never reply to customers.",
+        "You are Ticket Triage for Northwind Cloud's support team. For every new ticket: read the full thread, look up the customer's plan and account health, and classify it into exactly one category: Billing, Bug, How-to, Outage, Account access or Feature request. Set priority with this policy: Urgent for suspected outages, data loss, or any Enterprise customer who is blocked in production; High for Enterprise or Growth customers with a broken workflow or a billing error; Normal for how-to questions and non-blocking bugs; Low for feature requests. Write a one-line reason for every decision (for example 'Enterprise, webhooks failing in production'). If three or more tickets mention the same error within 30 minutes, tag each one 'possible-outage' so Escalation can look. You never reply to customers.",
       rules: [
-        "Never reply to a customer — only classify and prioritise.",
+        "Never reply to a customer. Only classify and prioritise.",
         "Any Enterprise customer who says they are blocked is at least High.",
         "Tag 'possible-outage' when 3+ tickets mention the same error within 30 minutes.",
         "Always give a one-line reason for the priority you set.",
@@ -317,9 +317,9 @@ export const supportFixture: BlueprintInput = {
       plain:
         "Writes a reply to each ticket using only what's in Northwind's help centre, and links the articles it used. A person reads every draft and presses Approve before anything is emailed to a customer.",
       jobDescription:
-        "You are Reply Drafter for Northwind Cloud support. For each triaged ticket, search the help centre and draft a reply that answers the customer's actual question in plain language. Use only facts from published help centre articles or the ticket itself, and cite each article you used by title and link. Match Northwind's voice: warm, direct, no jargon, no exclamation marks; sign off as 'The Northwind Support Team'. Keep replies under 180 words and put any steps in a numbered list. If no article covers the question, don't guess — write an internal note saying so and suggest the article that should exist. Give every draft a confidence score from 0 to 1. Never send a reply without a person's approval.",
+        "You are Reply Drafter for Northwind Cloud support. For each triaged ticket, search the help centre and draft a reply that answers the customer's actual question in plain language. Use only facts from published help centre articles or the ticket itself, and cite each article you used by title and link. Match Northwind's voice: warm, direct, no jargon, no exclamation marks; sign off as 'The Northwind Support Team'. Keep replies under 180 words and put any steps in a numbered list. If no article covers the question, don't guess. Write an internal note saying so and suggest the article that should exist. Give every draft a confidence score from 0 to 1. Never send a reply without a person's approval.",
       rules: [
-        "Only use facts from the help centre or the ticket — never invent features, dates or prices.",
+        "Only use facts from the help centre or the ticket. Never invent features, dates or prices.",
         "Cite every article you used.",
         "Never promise refunds, credits or fix dates.",
         "Every reply waits for a person to approve it before it is sent.",
@@ -353,13 +353,13 @@ export const supportFixture: BlueprintInput = {
       role: "Spots outages and gets on-call involved",
       avatarHue: 4,
       plain:
-        "Watches the inbox for signs that something is broken for many customers at once — the same error from several accounts in a short time. When it spots one, it asks you before paging the on-call engineer, then posts an update in Slack so the whole company knows.",
+        "Watches the inbox for signs that something is broken for many customers at once: the same error from several accounts in a short time. When it spots one, it asks you before paging the on-call engineer, then posts an update in Slack so the whole company knows.",
       jobDescription:
-        "You are Escalation for Northwind Cloud support. Watch new tickets tagged 'possible-outage' and search for others describing the same symptom. Declare a suspected incident when 3 or more customers — or any 2 Enterprise customers — report the same error within 30 minutes. For a suspected incident: write a four-line summary (what customers are seeing, first report time, affected customers and plans, likely component), request approval to page the on-call engineer in PagerDuty, and post the summary in #support-incidents. Link all related tickets to the first one. Describe symptoms only; never guess at a root cause or a fix time. If PagerDuty can't be reached, say so clearly in Slack so a person can phone on-call.",
+        "You are Escalation for Northwind Cloud support. Watch new tickets tagged 'possible-outage' and search for others describing the same symptom. Declare a suspected incident when 3 or more customers (or any 2 Enterprise customers) report the same error within 30 minutes. For a suspected incident: write a four-line summary (what customers are seeing, first report time, affected customers and plans, likely component), request approval to page the on-call engineer in PagerDuty, and post the summary in #support-incidents. Link all related tickets to the first one. Describe symptoms only; never guess at a root cause or a fix time. If PagerDuty can't be reached, say so clearly in Slack so a person can phone on-call.",
       rules: [
         "Always get approval before paging on-call.",
         "Only page when 3+ customers (or 2 Enterprise customers) report the same symptom within 30 minutes.",
-        "Post one Slack message per incident — update it rather than posting again.",
+        "Post one Slack message per incident. Update it rather than posting again.",
         "Never tell anyone a cause or a fix time.",
       ],
       tools: [
@@ -406,13 +406,13 @@ export const supportFixture: BlueprintInput = {
       sample: [
         { ticket_no: "NW-48211", subject: "Webhooks returning 502 since 14:05 UTC", customer: "Pinecrest Bank", category: "Outage", priority: "Urgent", status: "Escalated", channel: "Email", assignee: "J. Alvarez", sla_due: "in 12m", opened: "2026-09-25", summary: "All webhook deliveries to their payments endpoint fail with 502; reconciliation jobs have stopped. Matches 3 other reports in 20 minutes." },
         { ticket_no: "NW-48212", subject: "Webhook deliveries failing for us too", customer: "Orbital Freight", category: "Outage", priority: "Urgent", status: "Escalated", channel: "Chat", assignee: "J. Alvarez", sla_due: "in 18m", opened: "2026-09-25", summary: "Same 502 errors on webhook deliveries since about 14:10 UTC; linked to NW-48211." },
-        { ticket_no: "NW-48214", subject: "Query API latency spikes in eu-west", customer: "Copperleaf Retail", category: "Bug", priority: "High", status: "New", channel: "Email", assignee: "—", sla_due: "in 3h 50m", opened: "2026-09-25", summary: "p95 latency on the Query API jumped from 180 ms to 1.9 s since this morning in eu-west-1." },
+        { ticket_no: "NW-48214", subject: "Query API latency spikes in eu-west", customer: "Copperleaf Retail", category: "Bug", priority: "High", status: "New", channel: "Email", assignee: "Unassigned", sla_due: "in 3h 50m", opened: "2026-09-25", summary: "p95 latency on the Query API jumped from 180 ms to 1.9 s since this morning in eu-west-1." },
         { ticket_no: "NW-48207", subject: "September invoice charged twice", customer: "Verdant Foods", category: "Billing", priority: "High", status: "Awaiting approval", channel: "Email", assignee: "S. Kaur", sla_due: "in 2h 10m", opened: "2026-09-25", summary: "Two identical charges of $1,188 on the same card on 1 September; customer wants one refunded." },
-        { ticket_no: "NW-48203", subject: "How do I rotate API keys without downtime?", customer: "Kestrel Labs", category: "How-to", priority: "Normal", status: "Awaiting approval", channel: "Web form", assignee: "—", sla_due: "in 5h", opened: "2026-09-25", summary: "Wants to rotate production keys this week; draft uses 'Rotating API keys safely'." },
+        { ticket_no: "NW-48203", subject: "How do I rotate API keys without downtime?", customer: "Kestrel Labs", category: "How-to", priority: "Normal", status: "Awaiting approval", channel: "Web form", assignee: "Unassigned", sla_due: "in 5h", opened: "2026-09-25", summary: "Wants to rotate production keys this week; draft uses 'Rotating API keys safely'." },
         { ticket_no: "NW-48199", subject: "SSO login loop for Okta users", customer: "Tidewater Health", category: "Account access", priority: "High", status: "Triaged", channel: "Email", assignee: "M. Brennan", sla_due: "in 1h 05m", opened: "2026-09-25", summary: "About 40 users stuck in a redirect loop after an Okta certificate renewal; admins can still sign in with passwords." },
         { ticket_no: "NW-48194", subject: "CSV export times out on large projects", customer: "Blue Fjord Media", category: "Bug", priority: "Normal", status: "Triaged", channel: "Web form", assignee: "M. Brennan", sla_due: "in 6h", opened: "2026-09-24", summary: "Exports over ~200k rows fail after 60 seconds; the async export API is a known workaround." },
-        { ticket_no: "NW-48190", subject: "Request: dark mode for the dashboard", customer: "Sable & Co.", category: "Feature request", priority: "Low", status: "Replied", channel: "Web form", assignee: "—", sla_due: "—", opened: "2026-09-24", summary: "Asked for a dark mode; reply thanked them and linked the public roadmap." },
-        { ticket_no: "NW-48186", subject: "Can't add a new seat — 'plan limit reached'", customer: "Juniper Robotics", category: "Billing", priority: "Normal", status: "Solved", channel: "Chat", assignee: "S. Kaur", sla_due: "—", opened: "2026-09-24", summary: "Growth plan capped at 25 seats; customer upgraded to 50 after the reply explained the options." },
+        { ticket_no: "NW-48190", subject: "Request: dark mode for the dashboard", customer: "Sable & Co.", category: "Feature request", priority: "Low", status: "Replied", channel: "Web form", assignee: "Unassigned", sla_due: "Met", opened: "2026-09-24", summary: "Asked for a dark mode; reply thanked them and linked the public roadmap." },
+        { ticket_no: "NW-48186", subject: "Can't add a new seat: 'plan limit reached'", customer: "Juniper Robotics", category: "Billing", priority: "Normal", status: "Solved", channel: "Chat", assignee: "S. Kaur", sla_due: "Met", opened: "2026-09-24", summary: "Growth plan capped at 25 seats; customer upgraded to 50 after the reply explained the options." },
       ],
     },
     {
@@ -439,7 +439,7 @@ export const supportFixture: BlueprintInput = {
         { name: "Blue Fjord Media", plan: "Growth", arr: 21600, csm: "Owen Price", open_tickets: 2, csat: 95, health: "Healthy", customer_since: "2023-11-07" },
         { name: "Kestrel Labs", plan: "Growth", arr: 9600, csm: "Owen Price", open_tickets: 1, csat: 98, health: "Healthy", customer_since: "2025-03-19" },
         { name: "Juniper Robotics", plan: "Growth", arr: 18000, csm: "Aiko Tanaka", open_tickets: 0, csat: 97, health: "Healthy", customer_since: "2024-08-01" },
-        { name: "Sable & Co.", plan: "Starter", arr: 1188, csm: "—", open_tickets: 0, csat: 100, health: "Healthy", customer_since: "2026-05-10" },
+        { name: "Sable & Co.", plan: "Starter", arr: 1188, csm: "None", open_tickets: 0, csat: 100, health: "Healthy", customer_since: "2026-05-10" },
       ],
     },
     {
@@ -487,7 +487,7 @@ export const supportFixture: BlueprintInput = {
         { ticket_no: "NW-48203", customer: "Kestrel Labs", subject: "How do I rotate API keys without downtime?", draft: "You can rotate keys with no downtime by running two keys side by side: 1. Create a new key in Settings → API keys. 2. Deploy it alongside the old one. 3. Revoke the old key once traffic has moved over.", sources: "Rotating API keys safely", confidence: 0.93, status: "Awaiting approval", drafted: "2026-09-25" },
         { ticket_no: "NW-48194", customer: "Blue Fjord Media", subject: "CSV export times out on large projects", draft: "Exports above about 200,000 rows can time out in the browser. The async export API handles large projects and emails you a link when the file is ready.", sources: "Exporting large projects", confidence: 0.61, status: "Sent back", drafted: "2026-09-24" },
         { ticket_no: "NW-48190", customer: "Sable & Co.", subject: "Request: dark mode for the dashboard", draft: "Thank you for the suggestion. We've added your vote to dark mode on our public roadmap, where you can follow its progress.", sources: "Public roadmap", confidence: 0.9, status: "Sent", drafted: "2026-09-24" },
-        { ticket_no: "NW-48186", customer: "Juniper Robotics", subject: "Can't add a new seat — 'plan limit reached'", draft: "The Growth plan includes up to 25 seats. To add more, an admin can move to the 50-seat tier in Settings → Billing; the change is pro-rated from today.", sources: "Adding and removing seats", confidence: 0.91, status: "Sent", drafted: "2026-09-24" },
+        { ticket_no: "NW-48186", customer: "Juniper Robotics", subject: "Can't add a new seat: 'plan limit reached'", draft: "The Growth plan includes up to 25 seats. To add more, an admin can move to the 50-seat tier in Settings → Billing; the change is pro-rated from today.", sources: "Adding and removing seats", confidence: 0.91, status: "Sent", drafted: "2026-09-24" },
       ],
     },
   ],

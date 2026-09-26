@@ -198,7 +198,7 @@ export function DetailBlock({ block }: { block: Extract<Block, { type: "detail" 
       <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 px-4 py-4">
         <div className="min-w-0">
           <p className="text-[12px] text-slate-500">{block.title ?? entity?.name}</p>
-          <p className="text-[18px] font-semibold tracking-tight text-slate-900">{String(row[first] ?? "—")}</p>
+          <p className="text-[18px] font-semibold tracking-tight text-slate-900">{String(row[first] ?? "Untitled")}</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {block.actions.map((a, i) => (
@@ -220,7 +220,7 @@ export function DetailBlock({ block }: { block: Extract<Block, { type: "detail" 
       {long.map((f) => (
         <div key={f} className="border-t border-slate-100 px-4 py-3">
           <p className="text-[12px] text-slate-500">{entity?.fields.find((x) => x.name === f)?.label ?? f}</p>
-          <p className="mt-1 text-[13.5px] leading-relaxed text-slate-700">{String(row[f] ?? "—")}</p>
+          <p className="mt-1 text-[13.5px] leading-relaxed text-slate-700">{String(row[f] ?? "Not set")}</p>
         </div>
       ))}
       {entity && entity.sample.length > 1 && (
@@ -242,7 +242,7 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
       {sent ? (
         <div className="flex flex-col items-center px-6 py-12 text-center">
           <span className="grid size-10 place-items-center rounded-full text-white" style={{ background: "var(--app-primary)" }}><Check className="size-5" /></span>
-          <p className="mt-3 text-[15px] font-semibold text-slate-900">Thanks — we&apos;ve got it.</p>
+          <p className="mt-3 text-[15px] font-semibold text-slate-900">Thanks, we&apos;ve got it.</p>
           <button onClick={() => setSent(false)} className="mt-4 text-[12.5px] text-slate-500 underline underline-offset-4">Submit another</button>
         </div>
       ) : (

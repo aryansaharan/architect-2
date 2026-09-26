@@ -1,6 +1,6 @@
 import { USD_PER_CREDIT } from "@/lib/blueprint/estimate";
 
-/** USD per 1M tokens (input, output) — Anthropic first-party list prices. */
+/** USD per 1M tokens (input, output): Anthropic first-party list prices. */
 const PRICES: Record<string, { in: number; out: number }> = {
   "claude-opus-5": { in: 5, out: 25 },
   "claude-sonnet-5": { in: 2, out: 10 },

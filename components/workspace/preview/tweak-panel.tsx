@@ -9,10 +9,13 @@ import { tweakBlock, type BlockTweak } from "@/lib/actions/blueprint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { undoTo } from "../undo";
+import { useWorkspace } from "../context";
 
 /** Free, deterministic edits to one block. Bigger asks go to the composer as a Work Order. */
 export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId: string; block: Block; bp: Blueprint; onClose: () => void; onAsk: () => void }) {
   const router = useRouter();
+  const ws = useWorkspace();
   const [pending, start] = useTransition();
   const entity = "entityId" in block && block.entityId ? bp.entities.find((e) => e.id === block.entityId) : undefined;
   const [title, setTitle] = useState("title" in block ? (block.title ?? "") : "");
@@ -23,6 +26,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
 
   const save = (patches: BlockTweak[], msg: string) =>
     start(async () => {
+      const prev = ws.project.currentCheckpointId;
       for (const p of patches) {
         const r = await tweakBlock(projectId, block.id, p);
         if (!r.ok) {
@@ -30,7 +34,11 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
           return;
         }
       }
-      toast.success(msg, { description: "Free · no model involved · saved as a save point" });
+      toast.success(msg, {
+        description: "Free · no model involved · saved as a save point",
+        duration: 9000,
+        action: prev ? { label: "Undo", onClick: () => void undoTo(projectId, prev, () => router.refresh()) } : undefined,
+      });
       router.refresh();
       onClose();
     });
@@ -119,7 +127,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
           </label>
         )}
         {(block.type === "chat" || block.type === "timeline" || block.type === "list" || block.type === "detail") && (
-          <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change — ask for it and you&apos;ll get a Work Order with the price first.</p>
+          <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll get a Work Order with the price first.</p>
         )}
       </div>
       <div className="flex items-center gap-2 border-t border-hairline p-3">

@@ -1,4 +1,4 @@
-/** FNV-1a — deterministic durations so replays (and SSR) are identical. */
+/** FNV-1a: deterministic durations so replays (and SSR) are identical. */
 export function hash(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {

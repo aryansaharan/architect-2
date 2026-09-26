@@ -272,7 +272,7 @@ export const BlueprintSchema = z.object({
   estimate: EstimateSchema,
 });
 export type Blueprint = z.infer<typeof BlueprintSchema>;
-/** Input shape (before zod defaults are applied) — what fixtures are authored in. */
+/** Input shape (before zod defaults are applied): what fixtures are authored in. */
 export type BlueprintInput = z.input<typeof BlueprintSchema>;
 
 export const ObjectTypes = [

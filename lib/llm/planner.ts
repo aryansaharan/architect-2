@@ -1,4 +1,5 @@
 import "server-only";
+import { STYLE_RULE, cleanDeep } from "@/lib/text";
 import { generateText, Output } from "ai";
 import type { Blueprint } from "@/lib/blueprint/schema";
 import { getModel } from "./provider";
@@ -18,7 +19,7 @@ export async function planWithModel(prompt: string, opts: { timeoutMs?: number; 
   try {
     const result = await generateText({
       model: m.model,
-      instructions: PLANNER_INSTRUCTIONS,
+      instructions: `${PLANNER_INSTRUCTIONS}\n\n${STYLE_RULE}`,
       prompt,
       output: Output.object({ schema: DraftSchema, name: "blueprint_draft" }),
       maxOutputTokens: 12000,
@@ -26,7 +27,7 @@ export async function planWithModel(prompt: string, opts: { timeoutMs?: number; 
       maxRetries: 1,
       providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat", ...(opts.userId ? { metadata: { userId: opts.userId } } : {}) } },
     });
-    const blueprint = expandDraft(result.output, { modelId: m.id });
+    const blueprint = expandDraft(cleanDeep(result.output), { modelId: m.id });
     const inputTokens = result.usage.inputTokens ?? 0;
     const outputTokens = result.usage.outputTokens ?? 0;
     const { costUsd, credits } = costOf(m.id, inputTokens, outputTokens);

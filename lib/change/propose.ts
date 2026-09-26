@@ -1,4 +1,5 @@
 import "server-only";
+import { STYLE_RULE, cleanDeep } from "@/lib/text";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
@@ -53,7 +54,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
       const result = await generateText({
         model: m.model,
         instructions:
-          "You edit Architect 2.0 blueprints (JSON). Given a blueprint, a scope and a request, return the smallest set of JSON Pointer operations that implements the request inside the scope. Obey the blueprint's existing shapes exactly: block types kpis/table/list/detail/form/chat/timeline/text/actions; table columns must be field names of the table's entity (add the field to the entity first if needed, and add the value to its sample rows); tool permissions are auto/log/ask; supervision is autonomous/spot_check/approve_all. Never change ids. If the request needs something the blueprint can't express, set feasible=false and explain in rationale.",
+          "You edit Architect 2.0 blueprints (JSON). Given a blueprint, a scope and a request, return the smallest set of JSON Pointer operations that implements the request inside the scope. Obey the blueprint's existing shapes exactly: block types kpis/table/list/detail/form/chat/timeline/text/actions; table columns must be field names of the table's entity (add the field to the entity first if needed, and add the value to its sample rows); tool permissions are auto/log/ask; supervision is autonomous/spot_check/approve_all. Never change ids. If the request needs something the blueprint can't express, set feasible=false and explain in rationale. " + STYLE_RULE,
         prompt: `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nFull blueprint JSON:\n${JSON.stringify({ ...bp, estimate: undefined })}`,
         output: Output.object({ schema: ProposalSchema, name: "change_proposal" }),
         maxOutputTokens: 6000,
@@ -61,7 +62,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         maxRetries: 1,
         providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
       });
-      const out = result.output;
+      const out = cleanDeep(result.output);
       const inputTokens = result.usage.inputTokens ?? 0;
       const outputTokens = result.usage.outputTokens ?? 0;
       const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
@@ -94,7 +95,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
   return {
     proposal: {
       summary: "This one needs a person",
-      rationale: `I can't make “${request.slice(0, 80)}” safely on my own${m ? "" : " in offline mode"}. Hand it to a teammate — they'll get the screen, your request and the latest changes.`,
+      rationale: `I can't make “${request.slice(0, 80)}” safely on my own${m ? "" : " in offline mode"}. Hand it to a teammate. They'll get the screen, your request and the latest changes.`,
       operations: [],
       blastRadius: { screens: [], agents: [], files: 0 },
       credits: 0,

@@ -33,7 +33,7 @@ export function HandoffsView({ initial }: { initial?: string }) {
         <div className="max-w-sm">
           <UsersRound className="mx-auto size-6 text-muted-foreground" />
           <p className="mt-3 text-[14px] font-medium">No handoffs yet</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">Use “Ask a teammate” on any screen, agent or connection. They get the object, your brief, your recent requests and the latest diff — you get a plain-English answer back.</p>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">Use “Ask a teammate” on any screen, agent or connection. They get the object, your brief, your recent requests and the latest diff, and you get a plain-English answer back.</p>
           <Button className="mt-4" variant="outline" onClick={() => ws.openHandoff(null)}><UsersRound /> Ask a teammate</Button>
         </div>
       </div>
@@ -185,7 +185,7 @@ function RequesterView({ h }: { h: HandoffRow }) {
           <p className="mt-3 text-[12px] text-muted-foreground">It&apos;s in the test version now, and saved as a save point you can go back from.</p>
         </div>
       ) : (
-        <p className="text-[13px] text-muted-foreground">You&apos;ll see the answer here and in your activity — no need to chase.</p>
+        <p className="text-[13px] text-muted-foreground">You&apos;ll see the answer here and in your activity, no need to chase.</p>
       )}
     </div>
   );

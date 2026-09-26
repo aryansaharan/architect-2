@@ -95,7 +95,7 @@ export function entitySummary(bp: Blueprint, e: Entity): string {
 export function connectionSummary(bp: Blueprint, c: Connection): string {
   const users = bp.agents.filter((a) => a.tools.some((t) => t.connectionId === c.id));
   const auth = c.auth === "oauth" ? "signs in with your account" : c.auth === "api_key" ? "uses a private key" : "needs no sign-in";
-  return `${c.plain} It ${auth}. ${users.length ? `Used by ${list(users.map((a) => a.name))}.` : "No agent uses it yet."} ${c.status === "missing" ? "Not connected yet — add it before going live." : "Connected."}`;
+  return `${c.plain} It ${auth}. ${users.length ? `Used by ${list(users.map((a) => a.name))}.` : "No agent uses it yet."} ${c.status === "missing" ? "Not connected yet. Add it before going live." : "Connected."}`;
 }
 
 export function list(items: string[]): string {

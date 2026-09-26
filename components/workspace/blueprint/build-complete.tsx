@@ -44,7 +44,7 @@ export function BuildComplete() {
           {!replay && (
             <div className="flex shrink-0 items-center gap-2">
               <Button asChild size="sm" variant="outline" className="h-8"><Link href={`/p/${ws.project.id}/ship`}><Rocket /> Go live</Link></Button>
-              <Button asChild size="sm" className="sheen h-8"><Link href={`/p/${ws.project.id}/preview`}>Open preview <ArrowRight /></Link></Button>
+              <Button asChild size="sm" className="btn-solstice sheen h-8"><Link href={`/p/${ws.project.id}/preview`}>Open preview <ArrowRight /></Link></Button>
             </div>
           )}
           <button onClick={() => ws.build.dismiss()} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>

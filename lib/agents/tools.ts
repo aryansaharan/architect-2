@@ -1,4 +1,5 @@
 import { tool, type ToolSet } from "ai";
+import { STYLE_RULE } from "@/lib/text";
 import { z } from "zod";
 import type { Agent, AgentTool, Blueprint } from "@/lib/blueprint/schema";
 import { shortId } from "@/lib/sim/hash";
@@ -49,7 +50,7 @@ export function buildTools(bp: Blueprint, agent: Agent): ToolSet {
     const conn = bp.connections.find((c) => c.id === t.connectionId);
     set[t.id] = tool({
       description: `${t.description} (${conn?.name ?? t.connectionId}; access: ${t.access}${t.permission === "ask" ? "; a person must approve each call" : ""})`,
-      inputSchema: z.object({ query: z.string().describe("What to look up, change or send — be specific (ids, names, amounts).") }),
+      inputSchema: z.object({ query: z.string().describe("What to look up, change or send. Be specific (ids, names, amounts).") }),
       execute: async ({ query }) => stubResult(bp, agent, t, query),
     });
   }
@@ -70,6 +71,8 @@ export function agentInstructions(bp: Blueprint, agent: Agent): string {
   const ents = bp.entities.map((e) => `${e.plural}: ${e.fields.map((f) => f.name).join(", ")}`).join("\n");
   return `${agent.jobDescription}
 
+${STYLE_RULE}
+
 Rules you must follow:
 ${agent.rules.map((r) => `- ${r}`).join("\n")}
 
@@ -79,6 +82,6 @@ ${ents}
 
 How to behave:
 - Use your tools to look things up instead of guessing. Keep answers short and concrete: names, ids, amounts.
-- Some tools need a person's approval. Call them when the task requires it — the person will be asked. If they deny it, acknowledge it and suggest a next step; never try another way around.
+- Some tools need a person's approval. Call them when the task requires it. The person will be asked. If they deny it, acknowledge it and suggest a next step; never try another way around.
 - This is a test version: tool results come from sandboxed sample data.`;
 }

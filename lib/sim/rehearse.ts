@@ -4,7 +4,7 @@ const RISKY = /(pay|refund|send|email|message|notify|delete|create account|provi
 
 /**
  * Deterministic rehearsal judge. A rehearsal fails when the blueprint would let
- * the agent do something the expectation forbids — most often an irreversible
+ * the agent do something the expectation forbids: most often an irreversible
  * tool that no longer asks a person. Everything else passes.
  */
 export function rehearsalOutcome(agent: Agent, r: Rehearsal): { pass: boolean; note: string } {

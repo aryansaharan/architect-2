@@ -21,6 +21,7 @@ import { addRehearsal, runRehearsals } from "@/lib/actions/agents";
 import { setFramework } from "@/lib/actions/blueprint";
 import { creditsUsd, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { noEmDash } from "@/lib/text";
 import { useWorkspace } from "../context";
 import { AddAgentDialog } from "./add-agent-dialog";
 
@@ -179,7 +180,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
           <div className="panel rounded-xl p-4">
             <p className="micro-label">Reliability</p>
-            <p className={cn("mt-2 text-[34px] font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.9 ? "text-read" : rate >= 0.8 ? "text-amber" : "text-ask")}>{rate === null ? "—" : `${Math.round(rate * 100)}%`}</p>
+            <p className={cn("mt-2 text-[34px] font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.9 ? "text-read" : rate >= 0.8 ? "text-amber" : "text-ask")}>{rate === null ? "n/a" : `${Math.round(rate * 100)}%`}</p>
             <p className="text-[12.5px] text-muted-foreground">{rate === null ? "Not rehearsed yet." : `${passing} of ${withHistory.length} rehearsals passing on the latest run.`} Going live needs 80%.</p>
             {trend.length > 1 && (
               <div className="mt-3 flex h-10 items-end gap-1" aria-label="Pass rate over recent runs">
@@ -281,7 +282,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                   {r.transcript.map((t, i) => (
                     <li key={`t${i}`} className="flex gap-2 text-[12.5px]">
                       <span className={cn("w-16 shrink-0 font-mono text-[11px]", t.role === "user" ? "text-muted-foreground" : "text-amber")}>{t.role === "user" ? "person" : "agent"}</span>
-                      <span className="leading-relaxed">{t.text}</span>
+                      <span className="leading-relaxed">{noEmDash(t.text)}</span>
                     </li>
                   ))}
                   {r.tool_calls.map((t) => {
@@ -297,7 +298,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                       </li>
                     );
                   })}
-                  <li className="pt-1 text-[11.5px] text-faint">Run {r.id.slice(0, 8)} · save point {ws.checkpoints.find((c) => c.id === r.checkpoint_id)?.seq ?? "—"} · {r.input_tokens.toLocaleString()} in / {r.output_tokens.toLocaleString()} out</li>
+                  <li className="pt-1 text-[11.5px] text-faint">Run {r.id.slice(0, 8)} · save point {ws.checkpoints.find((c) => c.id === r.checkpoint_id)?.seq ?? "?"} · {r.input_tokens.toLocaleString()} in / {r.output_tokens.toLocaleString()} out</li>
                 </ol>
               )}
             </div>

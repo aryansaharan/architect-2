@@ -26,7 +26,7 @@ export function timeAgo(iso: string, now = Date.now()): string {
 }
 
 export function formatValue(v: unknown, type?: string): string {
-  if (v === null || v === undefined || v === "") return "—";
+  if (v === null || v === undefined || v === "") return "n/a";
   if (type === "money" && typeof v === "number") return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   if (type === "number" && typeof v === "number") return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toFixed(2);
   if (type === "date" && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) {

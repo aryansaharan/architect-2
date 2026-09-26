@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { noEmDash } from "@/lib/text";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 import type { Agent, Block, Blueprint } from "@/lib/blueprint/schema";
 import { cn } from "@/lib/utils";
@@ -82,12 +83,12 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
         {chat.messages.map((m) =>
           m.role === "user" ? (
             <p key={m.id} className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md px-3 py-2 text-[13px] text-white" style={{ background: "var(--app-primary)" }}>
-              {m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}
+              {m.parts.map((p) => (p.type === "text" ? noEmDash(p.text) : "")).join("")}
             </p>
           ) : (
             <div key={m.id} className="space-y-2">
               {m.parts.map((p, i) => {
-                if (p.type === "text") return p.text ? <p key={i} className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-slate-100 px-3 py-2 text-[13px] text-slate-800">{p.text}</p> : null;
+                if (p.type === "text") return p.text ? <p key={i} className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-slate-100 px-3 py-2 text-[13px] text-slate-800">{noEmDash(p.text)}</p> : null;
                 if (isToolPart(p)) {
                   const tool = agent.tools.find((t) => t.id === p.type.slice(5));
                   if (p.state === "approval-requested" && p.approval && !p.approval.isAutomatic)
@@ -106,7 +107,7 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
   );
 }
 
-/** Public live version: no model calls from anonymous visitors — answers come from the agent's rehearsals. */
+/** Public live version: no model calls from anonymous visitors: answers come from the agent's rehearsals. */
 function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined }) {
   const [log, setLog] = useState<{ role: "user" | "agent"; text: string }[]>([]);
   const [text, setText] = useState("");
@@ -119,7 +120,7 @@ function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined
     setBusy(true);
     const r = agent?.rehearsals[log.length % Math.max(1, agent.rehearsals.length)];
     setTimeout(() => {
-      setLog((l) => [...l, { role: "agent", text: r ? `Here's how I'd handle that: ${r.expect} (This public demo answers from rehearsed examples — sign in to talk to the real agent.)` : "Thanks — a colleague will follow up shortly." }]);
+      setLog((l) => [...l, { role: "agent", text: r ? `Here's how I'd handle that: ${r.expect} (This public demo answers from rehearsed examples. Sign in to talk to the real agent.)` : "Thanks, a colleague will follow up shortly." }]);
       setBusy(false);
     }, 700);
   };

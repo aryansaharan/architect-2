@@ -5,7 +5,7 @@ import type { SessionUser } from "@/lib/auth";
 /**
  * Protects the model bill from a busy demo day: each person gets a daily model
  * budget (credits of real model spend). Past it, features switch to their
- * scripted/offline path — the product keeps working, it just stops calling Claude.
+ * scripted/offline path: the product keeps working, it just stops calling Claude.
  */
 const DAILY = { guest: 150, member: 600 } as const;
 

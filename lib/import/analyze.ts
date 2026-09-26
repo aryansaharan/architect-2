@@ -17,7 +17,7 @@ export async function analyzeRepo(input: string): Promise<AnalyzeResult> {
     const key = `${ref.owner}/${ref.name}`.toLowerCase();
     const hit = (cached as Record<string, ImportReport>)[key];
     if (hit) return { ok: true, report: { ...hit, cached: true } };
-    if (e instanceof GitHubError && e.status === 404) return { ok: false, error: "We couldn't find that repository. It may be private — connect GitHub to import private repos.", code: "not_found" };
+    if (e instanceof GitHubError && e.status === 404) return { ok: false, error: "We couldn't find that repository. It may be private. Connect GitHub to import private repos.", code: "not_found" };
     if (e instanceof GitHubError && e.rateLimited) return { ok: false, error: "GitHub's public rate limit is used up for the moment. Try one of the example repos, or again in a few minutes.", code: "rate_limited" };
     return { ok: false, error: "We couldn't reach GitHub just now. Try again in a moment.", code: "network" };
   }

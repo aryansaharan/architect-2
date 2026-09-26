@@ -56,7 +56,7 @@ export function preflight(
       plain: "Every agent has played through its test conversations.",
       status: !built ? "fail" : rate >= 0.8 ? "pass" : "fail",
       detail: !built
-        ? "Build the project first — rehearsals run as part of the build."
+        ? "Build the project first. Rehearsals run as part of the build."
         : withHistory.length
           ? `${passing} of ${withHistory.length} passing (${Math.round(rate * 100)}%).`
           : `${rehearsals.length} of ${rehearsals.length} passed during the last build.`,
@@ -77,7 +77,7 @@ export function preflight(
       label: "Spending cap is set",
       plain: "Agents stop and tell you before they spend past your cap.",
       status: opts.budgetCapCredits > 0 ? "pass" : "fail",
-      detail: opts.budgetCapCredits > 0 ? `${opts.budgetCapCredits} credits a month (≈ $${(opts.budgetCapCredits / 100).toFixed(2)}).` : "No cap — a busy day could cost anything.",
+      detail: opts.budgetCapCredits > 0 ? `${opts.budgetCapCredits} credits a month (≈ $${(opts.budgetCapCredits / 100).toFixed(2)}).` : "No cap. A busy day could cost anything.",
       blocking: true,
       fix: opts.budgetCapCredits > 0 ? undefined : { label: "Set a 200-credit cap", action: "set_budget" },
     },

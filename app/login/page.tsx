@@ -18,8 +18,8 @@ export default async function LoginPage(props: PageProps<"/login">) {
     <main id="main" className="relative grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <section className="relative hidden overflow-hidden border-r border-hairline lg:block">
         <div className="dot-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]" />
-        <div aria-hidden className="absolute -left-40 -top-40 h-[640px] w-[640px] rounded-full bg-[radial-gradient(circle,rgb(245_165_36/0.2),transparent_62%)] blur-2xl [animation:aurora-a_18s_ease-in-out_infinite_alternate]" />
-        <div aria-hidden className="absolute -bottom-40 right-[-20%] h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgb(255_138_61/0.12),transparent_62%)] blur-2xl [animation:aurora-b_22s_ease-in-out_infinite_alternate]" />
+        <div aria-hidden className="solstice-orb -left-[30%] -top-[30%] h-[720px] w-[720px] opacity-[0.38]" />
+        <div aria-hidden className="solstice-orb -bottom-[30%] -right-[35%] h-[560px] w-[560px] opacity-[0.22] [animation-direction:reverse] [animation-duration:36s]" />
         <div className="relative flex h-full flex-col justify-between p-10">
           <Logo />
           <div className="max-w-md">
@@ -29,7 +29,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
             </p>
             <ul className="fade-up mt-8 space-y-3 text-[14px] text-muted-foreground" style={{ animationDelay: "600ms" }}>
               <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />See the plan and the price before anything runs.</li>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />When a build breaks, it shows you what it tried — and you don&apos;t pay for its fixes.</li>
+              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />When a build breaks, it shows you what it tried, and you don&apos;t pay for its fixes.</li>
               <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(245_165_36/0.8)]" />Every change is a save point you can return to.</li>
             </ul>
           </div>

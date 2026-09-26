@@ -2,7 +2,7 @@ import type { BlueprintInput } from "../schema";
 
 /**
  * Sales demo: an account research desk for a B2B analytics vendor.
- * LinkedIn Sales Navigator starts "missing" on purpose — Researcher can still
+ * LinkedIn Sales Navigator starts "missing" on purpose: Researcher can still
  * build briefs from the web and HubSpot, but contact discovery is limited until it's connected.
  */
 export const salesBrief =
@@ -28,7 +28,7 @@ export const salesFixture: BlueprintInput = {
       icon: "building-2",
       purpose: "See every target account, how well it fits, and what's happened lately.",
       plain:
-        "The first screen a rep opens each morning. It lists their target accounts with a fit score, the latest buying signal, and where each one is — from 'just added' to 'meeting booked'.",
+        "The first screen a rep opens each morning. It lists their target accounts with a fit score, the latest buying signal, and where each one is, from 'just added' to 'meeting booked'.",
       layout: "dashboard",
       audience: "team",
       status: "planned",
@@ -113,8 +113,8 @@ export const salesFixture: BlueprintInput = {
               { title: "3 contacts found · VP Data is the likely buyer", when: "Sep 15", state: "done" },
               { title: "Signal · $62M Series C announced", when: "Sep 22", state: "done" },
               { title: "First-touch email drafted · waiting for rep", when: "Today", state: "active" },
-              { title: "Rep sends email", when: "—", state: "pending" },
-              { title: "Meeting booked", when: "—", state: "pending" },
+              { title: "Rep sends email", when: "Pending", state: "pending" },
+              { title: "Meeting booked", when: "Pending", state: "pending" },
             ],
           },
         ],
@@ -146,7 +146,7 @@ export const salesFixture: BlueprintInput = {
       icon: "radar",
       purpose: "Every buying signal found across target accounts, strongest first.",
       plain:
-        "Signal Watcher checks the news, press releases and job boards every morning. Anything that suggests an account might be ready to buy — new funding, a new data leader, job posts that mention replacing a competitor — shows up here and in HubSpot.",
+        "Signal Watcher checks the news, press releases and job boards every morning. Anything that suggests an account might be ready to buy (new funding, a new data leader, job posts that mention replacing a competitor) shows up here and in HubSpot.",
       layout: "dashboard",
       audience: "team",
       status: "planned",
@@ -228,7 +228,7 @@ export const salesFixture: BlueprintInput = {
             type: "actions",
             id: "draft-actions",
             buttons: [
-              { label: "Approve & send selected", variant: "primary", action: { kind: "toast", message: "Approved — 2 emails are going out from the reps' Gmail." } },
+              { label: "Approve & send selected", variant: "primary", action: { kind: "toast", message: "Approved. 2 emails are going out from the reps' Gmail." } },
               {
                 label: "Ask for a rewrite",
                 variant: "secondary",
@@ -292,12 +292,12 @@ export const salesFixture: BlueprintInput = {
       plain:
         "Researches each target account the way a good rep would if they had an hour: what the company does, how big it is, which data tools it uses, who's likely to buy, and why Lumen could help. Every fact links to where it was found, and it checks HubSpot first so it never repeats what the team already knows.",
       jobDescription:
-        "You are the Researcher for Lumen Analytics' sales team. Lumen sells a product analytics platform to B2B software, fintech and digital companies with 200–2,000 employees and an in-house data team. For each target account, produce a one-page brief with: what the company does (two sentences), size and funding, current data stack (look for Snowflake, BigQuery, Databricks, dbt, Segment, Amplitude and Mixpanel in job posts and engineering blogs), the likely pains Lumen solves, two to four people to contact with their role in a buying decision, and a fit score from 0 to 100 with reasons. Check HubSpot first so you don't repeat known facts, and note any open deal or past conversation. Cite a source link for every claim. If you can't verify something, write 'unverified' — never guess.",
+        "You are the Researcher for Lumen Analytics' sales team. Lumen sells a product analytics platform to B2B software, fintech and digital companies with 200–2,000 employees and an in-house data team. For each target account, produce a one-page brief with: what the company does (two sentences), size and funding, current data stack (look for Snowflake, BigQuery, Databricks, dbt, Segment, Amplitude and Mixpanel in job posts and engineering blogs), the likely pains Lumen solves, two to four people to contact with their role in a buying decision, and a fit score from 0 to 100 with reasons. Check HubSpot first so you don't repeat known facts, and note any open deal or past conversation. Cite a source link for every claim. If you can't verify something, write 'unverified', never guess.",
       rules: [
         "Cite a source for every fact in a brief.",
         "Check HubSpot before researching so you don't duplicate known history.",
         "Mark any account with an open deal 'Talk to owner first'.",
-        "Only use people's work role and public work profiles — nothing personal.",
+        "Only use people's work role and public work profiles, nothing personal.",
         "Keep briefs to one page (about 350 words).",
       ],
       tools: [
@@ -317,7 +317,7 @@ export const salesFixture: BlueprintInput = {
       triggers: ["manual", "on_create", "chat"],
       rehearsals: [
         { id: "r-good-fit", name: "Well-documented target", input: "Research Fernway Payments (fernway.com).", expect: "Brief lists Snowflake, dbt and Segment, names 3 contacts including the VP Data, fit score ≥ 70, every fact linked.", history: [] },
-        { id: "r-open-deal", name: "Existing open deal", input: "Research Quarry Health — HubSpot shows an open deal owned by Marcus Ortiz.", expect: "Brief marked 'Talk to owner first' naming Marcus Ortiz; no outreach suggested.", history: [] },
+        { id: "r-open-deal", name: "Existing open deal", input: "Research Quarry Health. HubSpot shows an open deal owned by Marcus Ortiz.", expect: "Brief marked 'Talk to owner first' naming Marcus Ortiz; no outreach suggested.", history: [] },
         { id: "r-thin-footprint", name: "Hardly anything public", input: "Research a 40-person stealth startup with no website.", expect: "Short brief with most facts marked 'unverified' and a low fit score with the reason.", history: [] },
       ],
       framework: "google_adk",
@@ -329,15 +329,15 @@ export const salesFixture: BlueprintInput = {
       role: "Spots buying signals and logs them to HubSpot",
       avatarHue: 32,
       plain:
-        "Reads the news, press releases and job boards every morning for each target account. When something suggests an account might be ready to buy — fresh funding, a new head of data, a job post about replacing a competitor — it rates how strong the signal is and adds it to HubSpot with a link.",
+        "Reads the news, press releases and job boards every morning for each target account. When something suggests an account might be ready to buy, fresh funding, a new head of data, a job post about replacing a competitor, it rates how strong the signal is and adds it to HubSpot with a link.",
       jobDescription:
-        "You are the Signal Watcher for Lumen Analytics. Every morning, scan news, press releases, funding announcements and job boards for each target account in HubSpot. Log a signal when you find: a funding round, a new head of data, analytics or product, job posts for analytics engineers or data platform roles, a move to or away from a competing analytics tool, a major product launch, or layoffs. Rate each signal Strong, Medium or Weak for Lumen specifically — a new VP Data or a job post that mentions replacing Amplitude or Mixpanel is Strong; general hiring is Weak. Write one sentence on why it matters and add it to the account's timeline in HubSpot. Don't log anything older than 30 days or anything you can't link to a source. Log layoffs as a caution, not a buying signal.",
+        "You are the Signal Watcher for Lumen Analytics. Every morning, scan news, press releases, funding announcements and job boards for each target account in HubSpot. Log a signal when you find: a funding round, a new head of data, analytics or product, job posts for analytics engineers or data platform roles, a move to or away from a competing analytics tool, a major product launch, or layoffs. Rate each signal Strong, Medium or Weak for Lumen specifically: a new VP Data or a job post that mentions replacing Amplitude or Mixpanel is Strong; general hiring is Weak. Write one sentence on why it matters and add it to the account's timeline in HubSpot. Don't log anything older than 30 days or anything you can't link to a source. Log layoffs as a caution, not a buying signal.",
       rules: [
         "Every signal needs a source link and a date.",
         "Ignore anything older than 30 days.",
         "Never log news about people's personal lives.",
         "Log layoffs as a caution so reps pause outreach.",
-        "Don't log the same signal twice — update the existing one.",
+        "Don't log the same signal twice. Update the existing one.",
       ],
       tools: [
         { id: "read_news", name: "Read news", description: "Search news, press releases and job boards for a company.", connectionId: "web", access: "read", permission: "auto" },
@@ -374,7 +374,7 @@ export const salesFixture: BlueprintInput = {
         "Under 120 words, at most one link.",
         "Only mention signals and facts that appear in the brief with a source.",
         "Never email a contact who has unsubscribed or an account with an open deal.",
-        "No fake personalisation — only compliments that are true and sourced.",
+        "No fake personalisation: only compliments that are true and sourced.",
       ],
       tools: [
         { id: "read_crm", name: "Read HubSpot", description: "Read the account's brief, contacts and email preferences in HubSpot.", connectionId: "hubspot", access: "read", permission: "auto" },
@@ -421,11 +421,11 @@ export const salesFixture: BlueprintInput = {
         { company: "Fernway Payments", domain: "fernway.com", industry: "Fintech", employees: 640, owner: "Priya Nakamura", stage: "Brief ready", fit_score: 86, last_signal: "$62M Series C · Sep 22", tech_stack: "Snowflake, dbt, Segment, Looker", brief: "B2B payments platform for mid-market marketplaces. Expanding into Europe after the Series C; data team of 14 is hiring a Head of Analytics Engineering. Product analytics lives in Looker dashboards the PMs say are slow to change." },
         { company: "Oakline Software", domain: "oakline.io", industry: "SaaS", employees: 320, owner: "Priya Nakamura", stage: "Meeting booked", fit_score: 91, last_signal: "Job post: migrating off Amplitude · Sep 20", tech_stack: "Snowflake, Amplitude, dbt", brief: "Project management tool for construction firms. Openly hiring a product analyst to 'help us migrate off Amplitude'; warehouse-first team already on Snowflake and dbt." },
         { company: "Brightwater Logistics", domain: "brightwaterlogistics.com", industry: "Logistics", employees: 1450, owner: "Marcus Ortiz", stage: "In outreach", fit_score: 78, last_signal: "New VP Data hired · Sep 18", tech_stack: "BigQuery, Fivetran, Mixpanel", brief: "Freight-tracking software for shippers. New VP Data (ex-Stripe) started this month and is likely to review tooling in her first 90 days." },
-        { company: "Quarry Health", domain: "quarryhealth.com", industry: "Healthtech", employees: 890, owner: "Marcus Ortiz", stage: "Researching", fit_score: 71, last_signal: "Hiring 3 analytics engineers · Sep 23", tech_stack: "Redshift, dbt, Tableau", brief: "Patient-scheduling platform for clinics. Open deal in HubSpot from Q2 — talk to Marcus before any outreach." },
+        { company: "Quarry Health", domain: "quarryhealth.com", industry: "Healthtech", employees: 890, owner: "Marcus Ortiz", stage: "Researching", fit_score: 71, last_signal: "Hiring 3 analytics engineers · Sep 23", tech_stack: "Redshift, dbt, Tableau", brief: "Patient-scheduling platform for clinics. Open deal in HubSpot from Q2, talk to Marcus before any outreach." },
         { company: "Sundial HR", domain: "sundialhr.com", industry: "SaaS", employees: 410, owner: "Devon Park", stage: "Brief ready", fit_score: 74, last_signal: "London office opened · Sep 12", tech_stack: "Snowflake, Heap", brief: "Payroll and benefits software for SMBs. Uses Heap for product analytics; engineering blog mentions pain with event governance." },
         { company: "Northstar Media Group", domain: "northstarmedia.com", industry: "Media", employees: 760, owner: "Hannah Cole", stage: "Researching", fit_score: 63, last_signal: "Subscriptions app launched · Sep 16", tech_stack: "Databricks, Segment", brief: "Digital publisher with six titles. New subscriptions app means new funnels to measure; data team sits under marketing." },
-        { company: "Tessera Retail", domain: "tessera.shop", industry: "E-commerce", employees: 1200, owner: "Hannah Cole", stage: "Target", fit_score: 58, last_signal: "12% layoffs reported · Sep 10", tech_stack: "Shopify Plus, BigQuery, GA4", brief: "Online homeware retailer. Recent layoffs across corporate teams — pause outreach until the dust settles." },
-        { company: "Meridian Credit Union", domain: "meridiancu.org", industry: "Fintech", employees: 1900, owner: "Devon Park", stage: "Disqualified", fit_score: 34, last_signal: "—", tech_stack: "On-prem Oracle, SAS", brief: "Regional credit union. No cloud warehouse and no product team — outside Lumen's ideal customer profile." },
+        { company: "Tessera Retail", domain: "tessera.shop", industry: "E-commerce", employees: 1200, owner: "Hannah Cole", stage: "Target", fit_score: 58, last_signal: "12% layoffs reported · Sep 10", tech_stack: "Shopify Plus, BigQuery, GA4", brief: "Online homeware retailer. Recent layoffs across corporate teams, pause outreach until the dust settles." },
+        { company: "Meridian Credit Union", domain: "meridiancu.org", industry: "Fintech", employees: 1900, owner: "Devon Park", stage: "Disqualified", fit_score: 34, last_signal: "None yet", tech_stack: "On-prem Oracle, SAS", brief: "Regional credit union. No cloud warehouse and no product team, outside Lumen's ideal customer profile." },
       ],
     },
     {
@@ -457,7 +457,7 @@ export const salesFixture: BlueprintInput = {
       id: "signal",
       name: "Signal",
       plural: "Signals",
-      plain: "Something that happened at an account that suggests it might be ready to buy — or that now isn't a good time.",
+      plain: "Something that happened at an account that suggests it might be ready to buy, or that now isn't a good time.",
       fields: [
         { name: "company", label: "Company", type: "string" },
         { name: "signal", label: "What happened", type: "string" },
@@ -494,12 +494,12 @@ export const salesFixture: BlueprintInput = {
         { name: "created", label: "Drafted", type: "date" },
       ],
       sample: [
-        { company: "Fernway Payments", contact: "Dana Kim", subject: "Europe, and your product data", body: "Hi Dana — congrats on the Series C. Expanding into Europe usually means a lot of new questions for the product team, fast. Harlow Pay was in a similar spot and cut the time to build a new product dashboard from two weeks to two days with Lumen, straight on top of Snowflake. Would it be useful to see how they set it up? — Priya", signal_used: "$62M Series C", owner: "Priya Nakamura", status: "Awaiting rep", created: "2026-09-25" },
-        { company: "Northstar Media Group", contact: "Sam Oduya", subject: "Measuring the new subscriptions app", body: "Hi Sam — saw the subscriptions app launched last week. Most publishers we work with find the first month is when trial-to-paid questions pile up. Lumen reads your Segment events directly, so funnels are ready the same day. Is measuring the app on your list this quarter? — Hannah", signal_used: "Subscriptions app launch", owner: "Hannah Cole", status: "Awaiting rep", created: "2026-09-24" },
-        { company: "Oakline Software", contact: "Tom Becker", subject: "Moving off Amplitude?", body: "Hi Tom — noticed the product analyst role mentions a migration off Amplitude. Since you're already on Snowflake and dbt, Lumen can sit on your warehouse with no second copy of your data. Happy to share the migration checklist we used with Keel. Worth a look? — Priya", signal_used: "Amplitude migration job post", owner: "Priya Nakamura", status: "Sent", created: "2026-09-21" },
-        { company: "Brightwater Logistics", contact: "Aisha Karim", subject: "Your first 90 days", body: "Hi Aisha — welcome to Brightwater. New data leaders often use their first 90 days to decide which tools stay. If product analytics is on that list, I'd be glad to share how Portside Freight replaced Mixpanel without losing history. Open to a short call? — Marcus", signal_used: "New VP Data", owner: "Marcus Ortiz", status: "Sent", created: "2026-09-19" },
-        { company: "Sundial HR", contact: "Mei Tanaka", subject: "Quick question", body: "Hi Mei — I wanted to reach out because Sundial HR looks like a great company and I think Lumen could help. Do you have 30 minutes next week?", signal_used: "London office opening", owner: "Devon Park", status: "Rejected", created: "2026-09-23" },
-        { company: "Fernway Payments", contact: "Rahul Iyer", subject: "dbt models → product dashboards", body: "Hi Rahul — your team's dbt project looks well kept (the public style guide is great). Lumen reads dbt metrics directly, so PMs get self-serve dashboards without new models. Would a 10-minute technical walkthrough be useful? — Priya", signal_used: "Head of Analytics Engineering role", owner: "Priya Nakamura", status: "Approved", created: "2026-09-25" },
+        { company: "Fernway Payments", contact: "Dana Kim", subject: "Europe, and your product data", body: "Hi Dana, congrats on the Series C. Expanding into Europe usually means a lot of new questions for the product team, fast. Harlow Pay was in a similar spot and cut the time to build a new product dashboard from two weeks to two days with Lumen, straight on top of Snowflake. Would it be useful to see how they set it up? Thanks, Priya", signal_used: "$62M Series C", owner: "Priya Nakamura", status: "Awaiting rep", created: "2026-09-25" },
+        { company: "Northstar Media Group", contact: "Sam Oduya", subject: "Measuring the new subscriptions app", body: "Hi Sam, saw the subscriptions app launched last week. Most publishers we work with find the first month is when trial-to-paid questions pile up. Lumen reads your Segment events directly, so funnels are ready the same day. Is measuring the app on your list this quarter? Thanks, Hannah", signal_used: "Subscriptions app launch", owner: "Hannah Cole", status: "Awaiting rep", created: "2026-09-24" },
+        { company: "Oakline Software", contact: "Tom Becker", subject: "Moving off Amplitude?", body: "Hi Tom, noticed the product analyst role mentions a migration off Amplitude. Since you're already on Snowflake and dbt, Lumen can sit on your warehouse with no second copy of your data. Happy to share the migration checklist we used with Keel. Worth a look? Thanks, Priya", signal_used: "Amplitude migration job post", owner: "Priya Nakamura", status: "Sent", created: "2026-09-21" },
+        { company: "Brightwater Logistics", contact: "Aisha Karim", subject: "Your first 90 days", body: "Hi Aisha, welcome to Brightwater. New data leaders often use their first 90 days to decide which tools stay. If product analytics is on that list, I'd be glad to share how Portside Freight replaced Mixpanel without losing history. Open to a short call? Thanks, Marcus", signal_used: "New VP Data", owner: "Marcus Ortiz", status: "Sent", created: "2026-09-19" },
+        { company: "Sundial HR", contact: "Mei Tanaka", subject: "Quick question", body: "Hi Mei, I wanted to reach out because Sundial HR looks like a great company and I think Lumen could help. Do you have 30 minutes next week?", signal_used: "London office opening", owner: "Devon Park", status: "Rejected", created: "2026-09-23" },
+        { company: "Fernway Payments", contact: "Rahul Iyer", subject: "dbt models → product dashboards", body: "Hi Rahul, your team's dbt project looks well kept (the public style guide is great). Lumen reads dbt metrics directly, so PMs get self-serve dashboards without new models. Would a 10-minute technical walkthrough be useful? Thanks, Priya", signal_used: "Head of Analytics Engineering role", owner: "Priya Nakamura", status: "Approved", created: "2026-09-25" },
       ],
     },
   ],

@@ -36,7 +36,7 @@ async function mutate(projectId: string, objectRef: ObjectRef | null, fn: (bp: B
   parsed.data.estimate = estimate(parsed.data);
   await updateProject(supa, projectId, { blueprint: parsed.data });
   const cp = await addCheckpoint(supa, projectId, { label: title.slice(0, 60), kind: "tweak", blueprint: parsed.data });
-  await addLedger(supa, projectId, [{ lane: "did", kind, title, credits: 0, objectRef, checkpointId: cp.id, body: "Direct edit — free, no model involved." }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind, title, credits: 0, objectRef, checkpointId: cp.id, body: "Direct edit: free, no model involved." }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }

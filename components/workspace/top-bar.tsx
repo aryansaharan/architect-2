@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,20 +14,28 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/arch/badges";
 import { AnimatedNumber } from "@/components/fx/animated-number";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
 import { creditsUsd, formatCredits } from "@/lib/format";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
 import { useWorkspace } from "./context";
+import { Term } from "@/components/arch/term";
 
 const TABS = [
-  { slug: "blueprint", label: "Blueprint", icon: Blocks },
-  { slug: "preview", label: "Preview", icon: Eye },
-  { slug: "agents", label: "Agents", icon: Bot },
-  { slug: "code", label: "Code", icon: Code2 },
-  { slug: "ship", label: "Ship", icon: Rocket },
+  { slug: "blueprint", label: "Blueprint", icon: Blocks, key: "B", hint: "The plan: screens, agents, data, connections" },
+  { slug: "preview", label: "Preview", icon: Eye, key: "P", hint: "Use the app, tweak it for free, pin comments" },
+  { slug: "agents", label: "Agents", icon: Bot, key: "A", hint: "Talk to agents, set what they may do, rehearse" },
+  { slug: "code", label: "Code", icon: Code2, key: "C", hint: "Every generated file, diffs, GitHub" },
+  { slug: "ship", label: "Ship", icon: Rocket, key: "S", hint: "Preflight, where it runs, go live" },
 ] as const;
+
+/** A thin shimmer under a tab while its view is loading. */
+function TabPending() {
+  const { pending } = useLinkStatus();
+  return <span aria-hidden className={cn("bg-solstice absolute inset-x-2 -bottom-px h-px rounded-full transition-opacity duration-200", pending ? "opacity-100" : "opacity-0")} />;
+}
 
 export function TopBar() {
   const ws = useWorkspace();
@@ -36,7 +44,7 @@ export function TopBar() {
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70 md:h-12 md:flex-nowrap md:py-0">
+    <header className="relative flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70 md:h-12 md:flex-nowrap md:py-0">
       <div className="flex min-w-0 items-center gap-2">
         <Link href="/home" aria-label="All projects" className="grid size-8 place-items-center rounded-md hover:bg-raised">
           <LogoMark />
@@ -54,8 +62,9 @@ export function TopBar() {
           const href = `${base}/${t.slug}`;
           const active = pathname.startsWith(href);
           return (
+            <Tooltip key={t.slug}>
+            <TooltipTrigger asChild>
             <Link
-              key={t.slug}
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
@@ -73,7 +82,14 @@ export function TopBar() {
               )}
               <t.icon className={cn("relative z-[1] size-3.5 transition-colors", active && "text-amber")} aria-hidden />
               <span className="relative z-[1] max-md:sr-only">{t.label}</span>
+              <TabPending />
             </Link>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-2.5">
+              <span>{t.hint}</span>
+              <KbdGroup><Kbd>G</Kbd><Kbd>{t.key}</Kbd></KbdGroup>
+            </TooltipContent>
+            </Tooltip>
           );
         })}
       </nav>
@@ -82,8 +98,8 @@ export function TopBar() {
         <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Brief and activity">
           <PanelLeft className="size-4" />
         </button>
-        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:command-k"))} className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground 2xl:flex" aria-label="Open command palette">
-          Jump to <span className="kbd">⌘K</span>
+        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:command-k"))} className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground xl:flex" aria-label="Open command palette">
+          Jump to <KbdGroup><Kbd>⌘</Kbd><Kbd>K</Kbd></KbdGroup>
         </button>
         <div className="max-sm:hidden"><SavePoints /></div>
         <SpendMeter />
@@ -99,6 +115,7 @@ export function TopBar() {
         <div className="max-sm:hidden"><ShareButton /></div>
         <UserMenu />
       </div>
+      <div aria-hidden className="solstice-line pointer-events-none absolute inset-x-0 -bottom-px" style={{ opacity: 0.4 }} />
     </header>
   );
 }
@@ -120,7 +137,7 @@ function SavePoints() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Save points</span>
+          <span><Term k="save-point">Save points</Term></span>
           <span className="font-normal text-muted-foreground">Going back is always free</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -194,7 +211,7 @@ function SpendMeter() {
         </div>
         <ul className="mt-4 space-y-2 text-[13px]">
           <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-read" />Every change shows its price before it runs.</li>
-          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-read" />Fixes for our own mistakes are free — they&apos;re labelled <span className="text-fix">Our fix</span>.</li>
+          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-read" />Fixes for our own mistakes are free. They&apos;re labelled <span className="text-fix">Our fix</span>.</li>
           <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-read" />Agents pause and tell you before passing the cap.</li>
         </ul>
         <Button asChild variant="outline" size="sm" className="mt-4 w-full">
@@ -280,12 +297,12 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact }: { name: 
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>
           <span className="block text-[13px]">{name}</span>
-          <span className="block text-[11.5px] font-normal text-muted-foreground">{isAnonymous ? "Guest session — nothing is lost if you sign in" : "Signed in"}</span>
+          <span className="block text-[11.5px] font-normal text-muted-foreground">{isAnonymous ? "Guest session · nothing is lost if you sign in" : "Signed in"}</span>
         </DropdownMenuLabel>
         {isAnonymous && (
           <DropdownMenuItem asChild>
             <Link href="/login?next=/home" className="text-amber">
-              <UserRoundPlus /> Keep this work — sign in
+              <UserRoundPlus /> Sign in to keep this work
             </Link>
           </DropdownMenuItem>
         )}

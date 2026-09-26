@@ -2,20 +2,20 @@ import type { BlueprintInput } from "../schema";
 
 /**
  * HR demo: a new-hire onboarding desk for a hospital group, shared by HR and IT.
- * Procurement (Coupa) starts "missing" on purpose — laptop orders queue up
+ * Procurement (Coupa) starts "missing" on purpose: laptop orders queue up
  * for IT until it's connected, while accounts can already be approved and created.
  */
 export const hrBrief =
-  "A new-hire onboarding desk for Brightline Health: build each new hire's onboarding plan, provision their accounts and laptop, and track compliance training — with IT approving anything that creates an account.";
+  "A new-hire onboarding desk for Brightline Health: build each new hire's onboarding plan, provision their accounts and laptop, and track compliance training, with IT approving anything that creates an account.";
 
 export const hrFixture: BlueprintInput = {
   version: 1,
   meta: {
     name: "New Hire Onboarding",
-    tagline: "Every new hire ready on day one — plan, accounts, laptop and training.",
+    tagline: "Every new hire ready on day one: plan, accounts, laptop and training.",
     vertical: "hr",
     plain:
-      "A desk shared by Brightline Health's HR and IT teams. When someone accepts an offer, one agent builds their onboarding plan from Workday, a second prepares their accounts and orders their laptop — with IT approving anything that creates an account or spends money — and a third makes sure every new hire finishes the compliance training they need before they see patients.",
+      "A desk shared by Brightline Health's HR and IT teams. When someone accepts an offer, one agent builds their onboarding plan from Workday, a second prepares their accounts and orders their laptop (with IT approving anything that creates an account or spends money) and a third makes sure every new hire finishes the compliance training they need before they see patients.",
     theme: { primary: "#7C3AED", radius: "lg", density: "comfortable", mode: "light" },
     auth: { enabled: true, providers: ["sso"] },
     region: "us",
@@ -28,7 +28,7 @@ export const hrFixture: BlueprintInput = {
       icon: "user-plus",
       purpose: "See everyone starting soon and whether they'll be ready on day one.",
       plain:
-        "The screen HR opens each morning. It lists everyone who has accepted an offer, where they'll work, when they start, and how far along their onboarding is — so nobody turns up to a hospital without a badge, a login or their training done.",
+        "The screen HR opens each morning. It lists everyone who has accepted an offer, where they'll work, when they start, and how far along their onboarding is, so nobody turns up to a hospital without a badge, a login or their training done.",
       layout: "dashboard",
       audience: "team",
       status: "planned",
@@ -147,7 +147,7 @@ export const hrFixture: BlueprintInput = {
       icon: "laptop",
       purpose: "Approve the accounts and equipment prepared for each new hire.",
       plain:
-        "Every account and laptop IT Provisioner prepares waits here. No account is created and nothing is ordered until someone in IT presses Approve. Anything unusual — access outside the role, or an expensive laptop — is flagged.",
+        "Every account and laptop IT Provisioner prepares waits here. No account is created and nothing is ordered until someone in IT presses Approve. Anything unusual (access outside the role, or an expensive laptop) is flagged.",
       layout: "single",
       audience: "team",
       status: "planned",
@@ -176,7 +176,7 @@ export const hrFixture: BlueprintInput = {
             type: "actions",
             id: "it-actions",
             buttons: [
-              { label: "Approve selected", variant: "primary", action: { kind: "toast", message: "Approved — IT Provisioner will create 3 accounts and post in #it-onboarding." } },
+              { label: "Approve selected", variant: "primary", action: { kind: "toast", message: "Approved. IT Provisioner will create 3 accounts and post in #it-onboarding." } },
               { label: "Reject", variant: "danger", action: { kind: "toast", message: "Rejected. The hiring manager has been told why." } },
               {
                 label: "Check day-one readiness",
@@ -205,7 +205,7 @@ export const hrFixture: BlueprintInput = {
       icon: "shield-check",
       purpose: "Track required training and see who isn't cleared to work with patients.",
       plain:
-        "Every Brightline employee must finish certain training — clinical staff before their first shift with patients. This screen shows each new hire's courses, what's overdue, and who has been reminded.",
+        "Every Brightline employee must finish certain training: clinical staff before their first shift with patients. This screen shows each new hire's courses, what's overdue, and who has been reminded.",
       layout: "dashboard",
       audience: "team",
       status: "planned",
@@ -257,7 +257,7 @@ export const hrFixture: BlueprintInput = {
       icon: "clipboard-list",
       purpose: "A short form new hires fill in before their first day.",
       plain:
-        "Sent to every new hire the day they accept their offer. It collects the practical details HR and IT need — preferred name, badge photo, scrub size, emergency contact — so day one is about meeting the team, not paperwork.",
+        "Sent to every new hire the day they accept their offer. It collects the practical details HR and IT need (preferred name, badge photo, scrub size, emergency contact) so day one is about meeting the team, not paperwork.",
       layout: "form",
       audience: "customer",
       status: "planned",
@@ -279,7 +279,7 @@ export const hrFixture: BlueprintInput = {
               { name: "accessibility", label: "Anything that would make your first week easier?", kind: "textarea" },
             ],
             submitLabel: "Send to HR",
-            onSubmit: { kind: "toast", message: "Thank you — HR has your details. Your first-day schedule will arrive by email." },
+            onSubmit: { kind: "toast", message: "Thank you. HR has your details. Your first-day schedule will arrive by email." },
           },
         ],
         side: [
@@ -288,7 +288,7 @@ export const hrFixture: BlueprintInput = {
             id: "welcome-help",
             title: "What happens next",
             markdown:
-              "1. Your manager and HR build your first-week plan.\n2. IT sets up your sign-in and equipment — details arrive a few days before you start.\n3. You'll get links to any required training, with plenty of time to finish it.",
+              "1. Your manager and HR build your first-week plan.\n2. IT sets up your sign-in and equipment. Details arrive a few days before you start.\n3. You'll get links to any required training, with plenty of time to finish it.",
           },
         ],
       },
@@ -301,14 +301,14 @@ export const hrFixture: BlueprintInput = {
       role: "Builds each new hire's onboarding plan",
       avatarHue: 268,
       plain:
-        "When someone accepts an offer in Workday, it builds their onboarding plan: paperwork, what IT needs to set up, the training they must finish, and who meets them on day one and where. It tailors the plan to the role and site — a night-shift nurse at St. Anne's gets a different first week from a finance analyst at the main campus.",
+        "When someone accepts an offer in Workday, it builds their onboarding plan: paperwork, what IT needs to set up, the training they must finish, and who meets them on day one and where. It tailors the plan to the role and site: a night-shift nurse at St. Anne's gets a different first week from a finance analyst at the main campus.",
       jobDescription:
         "You are the Onboarding Planner for Brightline Health's HR team. When a new hire appears in Workday with status 'Offer accepted', read their role, department, site, manager, employment type and start date. Build an onboarding plan from the matching role template with four parts: pre-start tasks (background check confirmation, I-9, badge photo), IT requests (accounts and equipment for the role), required compliance training with due dates, and a first-week schedule with named owners. Clinical hires must have HIPAA Privacy & Security, Bloodborne Pathogens and Fire & Life Safety due at least 2 days before their first patient-facing shift. Every task needs an owner and a due date. If the start date is fewer than 5 working days away, mark the plan 'Tight timeline' and tell HR what can't be finished in time. Only ever change the onboarding plan in Workday.",
       rules: [
         "Every task has an owner and a due date.",
         "Clinical hires: HIPAA, Bloodborne Pathogens and Fire & Life Safety are due 2 days before the first shift.",
         "Mark start dates under 5 working days away as 'Tight timeline'.",
-        "Only change the onboarding plan in Workday — never pay, job or personal data.",
+        "Only change the onboarding plan in Workday, never pay, job or personal data.",
         "Never put salary or background-check results in a plan.",
       ],
       tools: [
@@ -340,10 +340,10 @@ export const hrFixture: BlueprintInput = {
       plain:
         "Takes the IT part of each onboarding plan and prepares it: the right sign-ins for the role (email, Epic, medication cabinets) and a laptop from the approved list. It can't create an account or place an order until someone in IT approves, and it posts every request in #it-onboarding so nothing slips.",
       jobDescription:
-        "You are the IT Provisioner for Brightline Health. For each onboarding plan, prepare the IT requests the role needs using the role access matrix: an Okta account and Microsoft 365 for everyone; Epic with the role's security class for clinical staff; Pyxis for nurses and pharmacists; VPN only for remote or on-call roles. Choose the standard laptop for the role from the approved catalogue. Write a one-line justification for each request, then ask IT to approve before creating any account or placing any order. Post a summary of each hire's requests in #it-onboarding. Apply least privilege: if the access matrix doesn't list a system for the role, don't request it — ask the manager to raise an exception. Requests should be ready 5 working days before the start date.",
+        "You are the IT Provisioner for Brightline Health. For each onboarding plan, prepare the IT requests the role needs using the role access matrix: an Okta account and Microsoft 365 for everyone; Epic with the role's security class for clinical staff; Pyxis for nurses and pharmacists; VPN only for remote or on-call roles. Choose the standard laptop for the role from the approved catalogue. Write a one-line justification for each request, then ask IT to approve before creating any account or placing any order. Post a summary of each hire's requests in #it-onboarding. Apply least privilege: if the access matrix doesn't list a system for the role, don't request it. Ask the manager to raise an exception. Requests should be ready 5 working days before the start date.",
       rules: [
         "Never create an account or place an order without IT approval.",
-        "Least privilege — only request systems the access matrix lists for the role.",
+        "Least privilege: only request systems the access matrix lists for the role.",
         "Contractor accounts must have an end date.",
         "Laptops only from the approved catalogue; anything over $1,800 also needs the department head.",
         "Have requests ready 5 working days before the start date.",
@@ -377,11 +377,11 @@ export const hrFixture: BlueprintInput = {
       role: "Tracks required training and chases what's overdue",
       avatarHue: 152,
       plain:
-        "Keeps an eye on the training every Brightline employee must finish — privacy, fire safety, infection control and role-specific courses. It sends friendly reminders as due dates get close and tells the manager if a clinical hire isn't cleared to see patients before their first shift.",
+        "Keeps an eye on the training every Brightline employee must finish: privacy, fire safety, infection control and role-specific courses. It sends friendly reminders as due dates get close and tells the manager if a clinical hire isn't cleared to see patients before their first shift.",
       jobDescription:
-        "You are the Compliance Tracker for Brightline Health. Each morning, check HealthStream for every new hire's assigned courses. Email the new hire a reminder 5 days and 2 days before a course is due, and on the due date. If a course becomes overdue, email the new hire and their manager together. A clinical hire is 'cleared for patient care' only when HIPAA Privacy & Security, Bloodborne Pathogens and Fire & Life Safety are all complete; tell the manager about anyone who isn't cleared 48 hours before their first shift. Keep reminders short, friendly and specific: course name, due date, how long it takes, and the direct link. Never mark a course complete — HealthStream is the source of truth.",
+        "You are the Compliance Tracker for Brightline Health. Each morning, check HealthStream for every new hire's assigned courses. Email the new hire a reminder 5 days and 2 days before a course is due, and on the due date. If a course becomes overdue, email the new hire and their manager together. A clinical hire is 'cleared for patient care' only when HIPAA Privacy & Security, Bloodborne Pathogens and Fire & Life Safety are all complete; tell the manager about anyone who isn't cleared 48 hours before their first shift. Keep reminders short, friendly and specific: course name, due date, how long it takes, and the direct link. Never mark a course complete, HealthStream is the source of truth.",
       rules: [
-        "Never mark training complete — HealthStream is the source of truth.",
+        "Never mark training complete. HealthStream is the source of truth.",
         "At most one reminder per person per day.",
         "Only copy the manager once a course is overdue, or 48 hours before a first shift.",
         "Clinical hires aren't cleared until HIPAA, Bloodborne Pathogens and Fire & Life Safety are complete.",

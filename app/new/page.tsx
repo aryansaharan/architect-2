@@ -16,7 +16,7 @@ export default async function NewPage(props: PageProps<"/new">) {
   return (
     <div className="relative min-h-screen overflow-x-clip">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[620px] overflow-hidden">
-        <div className="absolute left-1/2 top-[-340px] h-[640px] w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(245_165_36/0.13),transparent_62%)] blur-2xl [animation:aurora-b_22s_ease-in-out_infinite_alternate]" />
+        <div className="solstice-orb left-1/2 top-[-520px] h-[760px] w-[760px] -translate-x-1/2 opacity-[0.24]" />
         <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.045)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_50%_0%,black,transparent_70%)]" />
       </div>
       <header className="relative z-10 border-b border-hairline bg-canvas/60 backdrop-blur">

@@ -10,7 +10,7 @@ import { GitHubMark, GoogleMark } from "@/components/brand/logo";
 const ERRORS: Record<string, string> = {
   auth: "That sign-in link didn't work. Try again, or use the demo.",
   oauth: "The provider sent us back without signing you in. Try again.",
-  identity_exists: "That account already exists. Sign in with it directly — your guest project stays in the guest session.",
+  identity_exists: "That account already exists. Sign in with it directly. Your guest project stays in the guest session.",
   demo: "We couldn't start a guest session just now. Try again in a moment.",
   setup: "Sign-in isn't configured on this deployment yet.",
   provider: "That sign-in method isn't switched on for this deployment yet. Try another, or use the demo.",
@@ -56,7 +56,7 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
       <div className="space-y-2.5">
         <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
           {pending === "google" ? <Loader2 className="animate-spin" /> : <GoogleMark />}
-          {isGuest ? "Keep this work — continue with Google" : "Continue with Google"}
+          {isGuest ? "Keep this work with Google" : "Continue with Google"}
         </Button>
         <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("github")} disabled={!!pending}>
           {pending === "github" ? <Loader2 className="animate-spin" /> : <GitHubMark />}
@@ -94,7 +94,7 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
           <p className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-4 text-amber" /> Just looking?</p>
           <p className="mt-1 text-[13px] text-muted-foreground">Open a finished project with real data, no account needed. You can keep it later.</p>
           <Button asChild className="mt-3 w-full" size="lg">
-            <Link href="/demo">Try the demo — no account <ArrowRight /></Link>
+            <Link href="/demo">Try the demo · no account <ArrowRight /></Link>
           </Button>
         </div>
       )}

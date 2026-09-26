@@ -40,8 +40,8 @@ export default async function HomePage() {
   return (
     <div className="relative min-h-screen overflow-x-clip">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
-        <div className="absolute -left-32 -top-64 h-[560px] w-[560px] rounded-full bg-[radial-gradient(circle,rgb(245_165_36/0.14),transparent_62%)] blur-2xl [animation:aurora-a_20s_ease-in-out_infinite_alternate]" />
-        <div className="absolute -top-56 right-[-8%] h-[480px] w-[480px] rounded-full bg-[radial-gradient(circle,rgb(255_138_61/0.08),transparent_62%)] blur-2xl [animation:aurora-b_24s_ease-in-out_infinite_alternate]" />
+        <div className="solstice-orb -left-[10%] -top-[70%] h-[640px] w-[640px] opacity-[0.26]" />
+        <div className="solstice-orb -right-[12%] -top-[60%] h-[520px] w-[520px] opacity-[0.16] [animation-direction:reverse] [animation-duration:40s]" />
         <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.045)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_80%)]" />
       </div>
       <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/85 backdrop-blur">
@@ -63,7 +63,7 @@ export default async function HomePage() {
         {user.isAnonymous && (
           <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-amber/25 bg-amber-soft px-4 py-3 text-[13px]">
             <Sparkles className="size-4 text-amber" />
-            <span>You&apos;re exploring as a guest. Everything works — sign in any time and it all comes with you.</span>
+            <span>You&apos;re exploring as a guest. Everything works. Sign in any time and it all comes with you.</span>
             <Button asChild size="sm" variant="outline" className="ml-auto h-8"><Link href="/login?next=/home">Keep this work</Link></Button>
           </div>
         )}

@@ -143,7 +143,7 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
         ))}
       </div>
       <div className="relative mt-4 flex flex-wrap items-center gap-4 text-[12.5px] text-muted-foreground">
-        {risky > 0 && <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-ask" />{risky} action{risky === 1 ? "" : "s"} can&apos;t be undone — they&apos;ll ask a person first</span>}
+        {risky > 0 && <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-ask" />{risky} action{risky === 1 ? "" : "s"} can&apos;t be undone, so they&apos;ll ask a person first</span>}
         {mode === "live" && working && elapsed > 25 && <span>Careful planning takes about a minute. Everything appears here as it&apos;s decided.</span>}
         {done && <motion.span initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="inline-flex items-center gap-1.5 text-read"><Check className="size-3.5" />Saved as save point #1</motion.span>}
         {working && <Loader2 className="ml-auto size-4 animate-spin text-amber" />}

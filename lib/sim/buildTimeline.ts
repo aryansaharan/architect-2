@@ -65,7 +65,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
       id: `conn-${c.id}`,
       lane: missing ? "checked" : "did",
       tone: missing ? "warn" : "ok",
-      title: missing ? `${c.name} needs a key — using test data for now` : `Connected ${c.name} (sandbox)`,
+      title: missing ? `${c.name} needs a key, using test data for now` : `Connected ${c.name} (sandbox)`,
       detail: missing ? "You can add it later in Keys & passwords. Going live will remind you." : c.plain,
       objectRef: { type: "connection", id: c.id },
       durationMs: between(c.id, 700, 1300),
