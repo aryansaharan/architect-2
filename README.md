@@ -70,7 +70,7 @@ The production design, service by service, is in **[ARCHITECTURE.md](ARCHITECTUR
 | Blueprint canvas with live relations; Inspector Plain / Spec / Code | `/p/:id/blueprint` | **Real** |
 | Build with rehearsals and a repair decision; stop = refund | Blueprint | Scripted timeline over the **real** plan; save points and ledger are real |
 | Preview the generated app on desktop, tablet and phone; Tweak; Comment | `/p/:id/preview` | **Real** (spec-driven renderer, persisted edits and comments) |
-| Ask for a change → priced Work Order → approve → save point | Activity rail | **Real** (Claude proposes JSON-pointer edits; validated before applying); rules offline |
+| Ask for a change → priced Work Order → approve → save point (with Undo) | Activity rail | **Real** (Claude returns typed edits that code compiles and validates, with one self-repair retry; questions get answers); rules offline |
 | Agent playground with approval gates, replay and audit log | `/p/:id/agents` | **Real** (Claude + AI SDK tool approval; tools run on sandboxed sample data) |
 | Rehearsals and reliability | Agents → Rehearsals | Deterministic judge over the real blueprint |
 | Same agent in six frameworks, with "what doesn't translate" | Agents → Code, `/p/:id/code` | **Real** generated code (Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, Mastra) |

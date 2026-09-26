@@ -112,7 +112,7 @@ flowchart LR
 **Error recovery.**
 
 - *Transient* (429, 5xx, timeouts): retried by the orchestrator with backoff, then failed over to another provider by the model gateway.
-- *Invalid output* (schema mismatch): re-asked once with the validation errors, then the step falls back to a rule-based path.
+- *Invalid output* (schema mismatch): near-miss JSON is repaired locally (nulls, synonyms, casing); otherwise the model is re-asked once with the exact validation error, then the step falls back to a rule-based path. The prototype does exactly this for change requests (`lib/change/edits.ts`, `lib/change/propose.ts`).
 - *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Architect caught a problem" card, and the fix is labelled **Our fix · free**.
 - *Doom loops*: errors are normalised (paths, line numbers and ids stripped) and hashed. The same signature twice, or three attempts, stops the loop, restores the last save point and opens a handoff with the full context.
 - *People stop runs*: a stop signal cancels the workflow; unused credits are refunded by the ledger.
@@ -266,7 +266,7 @@ sequenceDiagram
 | Studio, auth, data | **Real.** Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with RLS on every table | Adds SAML SSO, SCIM, regions |
 | Planner | **Real.** Claude plans a structured draft, streamed live; code expands and validates it; starter plans when no model is available | Same contract, through the model gateway |
 | Model gateway | **Real, single provider.** `getModel()` seam, env-based switch, per-call token and cost metering, daily budgets per person | Multi-provider routing, failover, BYOK, caching |
-| Change requests | **Real.** Claude proposes JSON Pointer operations; code applies and validates them; priced Work Order; save point | Same, executed by the harness in a sandbox |
+| Change requests | **Real.** Claude returns typed edits (fields, columns, permissions, rules, rehearsals, screens, theme); code resolves names, fills sample data and emits validated operations; one self-repair retry with the exact error; questions get answers instead of changes; priced Work Order; save point | Same, executed by the harness in a sandbox |
 | Agent playground + approvals | **Real.** Agents run on Claude with tools; "Ask first" tools pause for a person (AI SDK tool approval) | Same policy enforced by the agent gateway in production |
 | Build + repair | **Simulated, labelled.** Deterministic build timeline; the repair decision is real and changes the Blueprint | Full tool loop in microVMs |
 | Sandbox + live preview | **Simulated, labelled.** Preview renders the Blueprint with a spec renderer; no untrusted code runs | Firecracker microVMs behind the preview proxy |
