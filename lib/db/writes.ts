@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
-  budgetCapCredits: 200,
+  budgetCapCredits: 500,
   houseRules: [],
   region: "us",
 };

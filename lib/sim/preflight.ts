@@ -79,7 +79,7 @@ export function preflight(
       status: opts.budgetCapCredits > 0 ? "pass" : "fail",
       detail: opts.budgetCapCredits > 0 ? `${opts.budgetCapCredits} credits a month (≈ $${(opts.budgetCapCredits / 100).toFixed(2)}).` : "No cap. A busy day could cost anything.",
       blocking: true,
-      fix: opts.budgetCapCredits > 0 ? undefined : { label: "Set a 200-credit cap", action: "set_budget" },
+      fix: opts.budgetCapCredits > 0 ? undefined : { label: "Set a 500-credit cap", action: "set_budget" },
     },
     {
       id: "residency",

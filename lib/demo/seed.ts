@@ -26,7 +26,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     blueprint: built,
     isDemo: true,
     buildState: "built",
-    settings: { budgetCapCredits: 200 },
+    settings: { budgetCapCredits: 500 },
   });
 
   const t0 = Date.now() - 1000 * 60 * 95;
@@ -43,7 +43,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     target: "architect_cloud",
     checkpoint_id: cp2.id,
     status: "live",
-    preflight: preflight(built, { budgetCapCredits: 200 }).map((c) => ({ id: c.id, label: c.label, pass: c.status !== "fail" })),
+    preflight: preflight(built, { budgetCapCredits: 500 }).map((c) => ({ id: c.id, label: c.label, pass: c.status !== "fail" })),
     url: `/live/${slug}`,
     created_at: at(88),
   });

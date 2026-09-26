@@ -35,8 +35,8 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
     bp.connections.forEach((c) => (c.status = "configured"));
     title = `Added sandbox keys for ${names.join(", ")}`;
   } else if (action === "set_budget") {
-    await updateProject(supa, projectId, { settings: { ...project.settings, budgetCapCredits: 200 } });
-    await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: "Set a 200-credit monthly cap", credits: 0 }]);
+    await updateProject(supa, projectId, { settings: { ...project.settings, budgetCapCredits: 500 } });
+    await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: "Set a 500-credit monthly cap", credits: 0 }]);
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true };
   } else {

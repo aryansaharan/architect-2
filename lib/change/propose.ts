@@ -47,7 +47,9 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
   if (m) {
     const resolved = resolveRef(bp, scope);
     const scopeScreenId = scope?.type === "screen" ? scope.id : scope?.type === "block" ? bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id))?.id : undefined;
-    const base = `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nBlueprint map:\n${blueprintIndex(bp)}\n\nFull blueprint JSON (for reference and patches):\n${JSON.stringify({ ...bp, estimate: undefined })}`;
+    // The compact map is enough for typed edits and keeps a quote cheap; the full JSON only rides along on a retry.
+    const base = `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nBlueprint map:\n${blueprintIndex(bp)}`;
+    const full = `\n\nFull blueprint JSON (for reference and patches):\n${JSON.stringify({ ...bp, estimate: undefined })}`;
     let inputTokens = 0;
     let outputTokens = 0;
     let feedback = "";
@@ -75,7 +77,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         const result = await generateText({
           model: m.model,
           instructions: EDIT_INSTRUCTIONS,
-          prompt: feedback ? `${base}\n\nYour previous edits could not be applied: ${feedback}\nFix them and return the complete set of edits again.` : base,
+          prompt: feedback ? `${base}${full}\n\nYour previous edits could not be applied: ${feedback}\nFix them and return the complete set of edits again.` : base,
           output: Output.object({ schema: EditsSchema, name: "blueprint_edits" }),
           maxOutputTokens: 8000,
           timeout: 70_000,
