@@ -1,5 +1,6 @@
 "use client";
 import { forwardRef } from "react";
+import { motion } from "motion/react";
 import { Check, Database, KeyRound, Loader2 } from "lucide-react";
 import type { Agent, Connection, Entity, Screen } from "@/lib/blueprint/schema";
 import { Avatar } from "@/components/arch/badges";
@@ -19,20 +20,33 @@ type Common = {
 
 const shell = (c: Common) =>
   cn(
-    "@container group relative block w-full rounded-xl border bg-panel text-left transition-[opacity,border-color,box-shadow,transform] duration-200 outline-none",
-    "hover:border-[#343947] focus-visible:ring-2 focus-visible:ring-amber/60",
-    c.selected ? "border-amber/70 shadow-[0_0_0_1px_rgb(245_165_36/0.35),0_8px_30px_rgb(0_0_0/0.45)]" : "border-hairline shadow-[inset_0_1px_0_rgb(255_255_255/0.03),0_1px_2px_rgb(0_0_0/0.4)]",
-    c.dimmed && "opacity-35",
-    c.buildState === "pending" && "opacity-45",
-    c.buildState === "active" && "border-amber/70 pulse-ring",
+    "@container group relative block w-full rounded-xl border text-left outline-none transition-[opacity,border-color,box-shadow,transform,filter] duration-300 ease-out",
+    "bg-[linear-gradient(180deg,rgb(255_255_255/0.03),rgb(255_255_255/0)_45%)] bg-panel",
+    "hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_12px_30px_-10px_rgb(0_0_0/0.7)] focus-visible:ring-2 focus-visible:ring-amber/60",
+    c.selected
+      ? "border-amber/70 shadow-[0_0_0_1px_rgb(245_165_36/0.45),0_0_44px_-8px_rgb(245_165_36/0.55),0_14px_34px_-12px_rgb(0_0_0/0.8)]"
+      : "border-hairline shadow-[inset_0_1px_0_rgb(255_255_255/0.035),0_1px_2px_rgb(0_0_0/0.45)]",
+    c.dimmed && "opacity-30 saturate-50",
+    c.buildState === "pending" && "opacity-40 saturate-50",
+    c.buildState === "active" && "beam border-amber/40 shadow-[0_0_50px_-10px_rgb(245_165_36/0.6)]",
   );
+
+function Scan({ s }: { s: NodeState | null }) {
+  return s === "active" ? <span className="scanline" aria-hidden /> : null;
+}
 
 function BuildMark({ s }: { s: NodeState | null }) {
   if (!s || s === "pending") return null;
   return (
-    <span className={cn("absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border", s === "done" ? "border-read/40 bg-[#10231a] text-read" : "border-amber/50 bg-[#241a08] text-amber")}>
-      {s === "done" ? <Check className="size-3" /> : <Loader2 className="size-3 animate-spin" />}
-    </span>
+    <motion.span
+      key={s}
+      initial={{ scale: 0, rotate: -45 }}
+      animate={{ scale: 1, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 520, damping: 18 }}
+      className={cn("absolute -right-1.5 -top-1.5 z-[3] grid size-5 place-items-center rounded-full border", s === "done" ? "border-read/40 bg-[#10231a] text-read shadow-[0_0_12px_rgb(61_214_140/0.5)]" : "border-amber/50 bg-[#241a08] text-amber")}
+    >
+      {s === "done" ? <Check className="size-3" strokeWidth={3} /> : <Loader2 className="size-3 animate-spin" />}
+    </motion.span>
   );
 }
 
@@ -40,6 +54,7 @@ export const ScreenNode = forwardRef<HTMLButtonElement, Common & { screen: Scree
   return (
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
+      <Scan s={c.buildState} />
       <div className="flex items-center gap-2 px-3 pt-2.5">
         <DynamicIcon name={screen.icon} className="size-3.5 text-muted-foreground" />
         <span className="truncate text-[13px] font-medium">{screen.title}</span>
@@ -61,6 +76,7 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
   return (
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
+      <Scan s={c.buildState} />
       <div className="flex items-start gap-2.5 p-3">
         <Avatar name={agent.name} hue={agent.avatarHue} size={30} />
         <div className="min-w-0 flex-1">
@@ -95,6 +111,7 @@ export const EntityNode = forwardRef<HTMLButtonElement, Common & { entity: Entit
   return (
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
+      <Scan s={c.buildState} />
       <div className="flex items-center gap-2.5 p-3">
         <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><Database className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0">
@@ -117,6 +134,7 @@ export const ConnectionNode = forwardRef<HTMLButtonElement, Common & { connectio
   return (
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
+      <Scan s={c.buildState} />
       <div className="flex items-center gap-2.5 p-3">
         <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><ConnectionIcon kind={connection.kind} className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0 flex-1">

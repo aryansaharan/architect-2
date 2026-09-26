@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Loader2, ShieldAlert, Undo2 } from "lucide-react";
@@ -22,8 +23,23 @@ export function RepairOverlay() {
   const agent = ws.blueprint.agents.find((a) => a.id === plan.objectRef.id);
 
   return (
-    <div className="absolute inset-0 z-20 grid place-items-center bg-canvas/70 p-6 backdrop-blur-[3px]">
-      <section role="alertdialog" aria-modal="true" aria-labelledby="repair-title" className="panel-raised w-full max-w-[720px] rounded-2xl">
+    <motion.div
+      initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+      animate={{ opacity: 1, backdropFilter: "blur(4px)" }}
+      exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+      transition={{ duration: 0.3 }}
+      className="absolute inset-0 z-20 grid place-items-center bg-canvas/70 p-6"
+    >
+      <motion.section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="repair-title"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.18 } }}
+        transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.05 }}
+        className="panel-raised w-full max-w-[720px] rounded-2xl shadow-[0_0_0_1px_rgb(180_140_255/0.18),0_30px_90px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(180_140_255/0.45)]"
+      >
         <div className="flex items-start gap-3 border-b border-hairline p-5">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-fix/30 bg-fix/10"><ShieldAlert className="size-4 text-fix" /></span>
           <div className="min-w-0 flex-1">
@@ -49,7 +65,13 @@ export function RepairOverlay() {
           {plan.options.map((o, i) => {
             const chosen = ws.build.repairChoice === o.id;
             return (
-              <div key={o.id} className={cn("flex flex-col rounded-xl border p-4", o.recommended ? "border-amber/40 bg-amber-soft" : "border-hairline bg-deep/60")}>
+              <motion.div
+                key={o.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 26, delay: 0.2 + i * 0.08 }}
+                className={cn("flex flex-col rounded-xl border p-4 transition-transform duration-300 hover:-translate-y-0.5", o.recommended ? "beam border-amber/40 bg-amber-soft" : "border-hairline bg-deep/60")}
+              >
                 <div className="flex items-center gap-2">
                   <span className="grid size-5 place-items-center rounded font-mono text-[11px] uppercase text-muted-foreground ring-1 ring-hairline">{o.id}</span>
                   {o.recommended && <span className="text-[11px] font-medium text-amber">Recommended</span>}
@@ -70,7 +92,7 @@ export function RepairOverlay() {
                 >
                   {chosen ? <Loader2 className="animate-spin" /> : <Check />} Use this fix
                 </Button>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -100,7 +122,7 @@ export function RepairOverlay() {
             </Button>
           )}
         </div>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Blocks, Bot, Database, Play, Plug } from "lucide-react";
 import type { ObjectRef, ObjectType } from "@/lib/blueprint/schema";
 import { relations } from "@/lib/blueprint";
@@ -11,6 +12,7 @@ import { WorkOrderDock } from "./work-order-dock";
 import { BuildConsole } from "./build-console";
 import { RepairOverlay } from "./repair-overlay";
 import { Tour } from "./tour";
+import { BuildComplete } from "./build-complete";
 
 type Edge = { from: string; to: string; kind: "screen-agent" | "agent-entity" | "agent-connection" };
 type Path = Edge & { d: string };
@@ -59,6 +61,11 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
     setPaths(next);
   }, [edges]);
 
+  useEffect(() => {
+    const t = setTimeout(measure, 950); // after the cards finish landing
+    return () => clearTimeout(t);
+  }, [measure]);
+
   useLayoutEffect(() => {
     measure();
     const root = container.current;
@@ -72,7 +79,8 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
     };
   }, [measure]);
 
-  const focusKey = hover ?? (ws.selected ? key(ws.selected.type, ws.selected.id) : null);
+  const canvasTypes: ObjectType[] = ["screen", "agent", "entity", "connection"];
+  const focusKey = hover ?? (ws.selected && canvasTypes.includes(ws.selected.type) ? key(ws.selected.type, ws.selected.id) : null);
   const related = useMemo(() => {
     if (!focusKey) return null;
     const set = new Set([focusKey]);
@@ -132,18 +140,34 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
       <div className="dot-grid relative min-h-0 flex-1 overflow-auto" onClick={(e) => e.target === e.currentTarget && ws.select(null)}>
         <div ref={container} className={cn("relative grid min-w-[980px] grid-cols-4 gap-x-14 px-8 pt-6", running || ws.project.buildState === "draft" ? "pb-56" : "pb-16")}>
           <svg className="pointer-events-none absolute left-0 top-0" width={size.w} height={size.h} aria-hidden>
+            <defs>
+              <linearGradient id="edge-hot" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor="#f5a524" stopOpacity="0.35" />
+                <stop offset="50%" stopColor="#ffc76b" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#f5a524" stopOpacity="0.35" />
+              </linearGradient>
+              <filter id="edge-glow" x="-20%" y="-50%" width="140%" height="200%">
+                <feGaussianBlur stdDeviation="3" />
+              </filter>
+            </defs>
             {paths.map((p, i) => {
-              const hot = related && related.has(p.from) && related.has(p.to);
+              const hot = Boolean(related && related.has(p.from) && related.has(p.to));
+              const dashed = p.kind === "agent-connection";
               return (
-                <path
-                  key={i}
-                  d={p.d}
-                  fill="none"
-                  stroke={hot ? "rgb(245 165 36 / 0.7)" : p.kind === "agent-connection" ? "rgb(255 255 255 / 0.06)" : "rgb(255 255 255 / 0.11)"}
-                  strokeWidth={hot ? 1.6 : 1.2}
-                  strokeDasharray={p.kind === "agent-connection" ? "3 4" : undefined}
-                  style={{ transition: "stroke 150ms" }}
-                />
+                <g key={`${p.from}-${p.to}`}>
+                  {dashed ? (
+                    <motion.path d={p.d} fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth={1.2} strokeDasharray="3 4" initial={{ opacity: 0 }} animate={{ opacity: hot ? 0 : 1 }} transition={{ duration: 0.6, delay: 0.5 + i * 0.015 }} />
+                  ) : (
+                    <motion.path d={p.d} fill="none" stroke="rgb(255 255 255 / 0.12)" strokeWidth={1.2} initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0.25 : 1 }} transition={{ pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.45 + i * 0.02 }, opacity: { duration: 0.3 } }} />
+                  )}
+                  {hot && (
+                    <>
+                      <path d={p.d} fill="none" stroke="#f5a524" strokeOpacity={0.45} strokeWidth={4} filter="url(#edge-glow)" />
+                      <path d={p.d} fill="none" stroke="url(#edge-hot)" strokeWidth={1.6} />
+                      <path d={p.d} fill="none" stroke="#fff4dc" strokeOpacity={0.9} strokeWidth={1.4} strokeLinecap="round" className="flow" />
+                    </>
+                  )}
+                </g>
               );
             })}
           </svg>
@@ -156,24 +180,35 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
             </div>
           ))}
           <div className="relative z-[1] space-y-3">
-            {bp.screens.map((s) => <ScreenNode key={s.id} ref={reg(key("screen", s.id))} screen={s} primary={bp.meta.theme.primary} {...common("screen", s.id)} />)}
+            {bp.screens.map((s, i) => <Land key={s.id} col={0} i={i}><ScreenNode ref={reg(key("screen", s.id))} screen={s} primary={bp.meta.theme.primary} {...common("screen", s.id)} /></Land>)}
           </div>
           <div className="relative z-[1] space-y-3 pt-8">
-            {bp.agents.map((a) => <AgentNode key={a.id} ref={reg(key("agent", a.id))} agent={a} {...common("agent", a.id)} />)}
+            {bp.agents.map((a, i) => <Land key={a.id} col={1} i={i}><AgentNode ref={reg(key("agent", a.id))} agent={a} {...common("agent", a.id)} /></Land>)}
           </div>
           <div className="relative z-[1] space-y-3 pt-4">
-            {bp.entities.map((e) => <EntityNode key={e.id} ref={reg(key("entity", e.id))} entity={e} {...common("entity", e.id)} />)}
+            {bp.entities.map((e, i) => <Land key={e.id} col={2} i={i}><EntityNode ref={reg(key("entity", e.id))} entity={e} {...common("entity", e.id)} /></Land>)}
           </div>
           <div className="relative z-[1] space-y-3 pt-12">
-            {bp.connections.map((c) => <ConnectionNode key={c.id} ref={reg(key("connection", c.id))} connection={c} {...common("connection", c.id)} />)}
+            {bp.connections.map((c, i) => <Land key={c.id} col={3} i={i}><ConnectionNode ref={reg(key("connection", c.id))} connection={c} {...common("connection", c.id)} /></Land>)}
           </div>
         </div>
       </div>
 
-      {ws.project.buildState === "draft" && !running && <WorkOrderDock />}
-      {running && <BuildConsole />}
-      {ws.build.status === "repair" && <RepairOverlay />}
+      {running && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[5] shadow-[inset_0_0_160px_rgb(245_165_36/0.09)] transition-opacity" />}
+      <AnimatePresence>{ws.project.buildState === "draft" && !running && ws.build.status !== "done" && <WorkOrderDock key="dock" />}</AnimatePresence>
+      <AnimatePresence>{running && <BuildConsole key="console" />}</AnimatePresence>
+      <AnimatePresence>{ws.build.status === "repair" && <RepairOverlay key="repair" />}</AnimatePresence>
+      <AnimatePresence>{ws.build.status === "done" && <BuildComplete key="complete" />}</AnimatePresence>
       {tour && !running && <Tour />}
     </div>
+  );
+}
+
+/** Cards cascade in column by column on first paint. */
+function Land({ col, i, children }: { col: number; i: number; children: React.ReactNode }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 28, delay: col * 0.07 + i * 0.045 }}>
+      {children}
+    </motion.div>
   );
 }

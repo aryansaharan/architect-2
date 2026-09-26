@@ -67,35 +67,36 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
 
   if (step === "input" || step === "reading") {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="fade-up mx-auto max-w-2xl">
         <p className="micro-label">Bring your existing project</p>
-        <h1 className="mt-2 font-display text-[40px] leading-tight">Adopt it. Don&apos;t absorb it.</h1>
+        <h1 className="mt-2 font-display text-[44px] leading-tight">Adopt it. <em className="text-amber-grad">Don&apos;t absorb it.</em></h1>
         <p className="mt-2 text-[14px] text-muted-foreground">Architect reads your repository first, tells you what it understood and what it didn&apos;t, and signs House Rules before it touches a file. Every change ships as a pull request.</p>
-        <div className="panel mt-6 rounded-2xl p-4">
+        <div className="panel mt-6 rounded-2xl p-4 transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(245_165_36/0.08),0_24px_70px_-24px_rgb(245_165_36/0.45)]">
           <label htmlFor="repo-url" className="text-[13px] font-medium">Public GitHub repository</label>
           <div className="mt-2 flex gap-2">
             <div className="flex flex-1 items-center gap-2 rounded-lg border border-hairline bg-deep px-3 focus-within:border-amber/50">
               <GitHubMark className="text-muted-foreground" />
               <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full bg-transparent font-mono text-[13px] outline-none placeholder:text-faint" disabled={step === "reading"} />
             </div>
-            <Button className="h-10" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
+            <Button className="sheen h-10 shadow-[0_8px_24px_-10px_rgb(245_165_36/0.8)] disabled:shadow-none" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
               {step === "reading" ? <Loader2 className="animate-spin" /> : <FileSearch />} Read it
             </Button>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {EXAMPLES.map((r) => (
-              <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-full border border-hairline px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground hover:border-amber/40 hover:text-foreground">{r}</button>
+              <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-full border border-hairline px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground">{r}</button>
             ))}
           </div>
           {error && <p role="alert" className="mt-3 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">{error}</p>}
           <p className="mt-4 text-[12px] text-muted-foreground">Private repository? <span className="text-foreground/80">Connect GitHub</span> from any project&apos;s Code tab (sandbox in this prototype). ZIP and Figma imports are next on the roadmap.</p>
         </div>
         {step === "reading" && (
-          <ol className="panel mt-4 space-y-1.5 rounded-xl p-4 text-[13px]" aria-live="polite">
+          <ol className="aurora panel-raised fade-up relative mt-4 space-y-1.5 overflow-hidden rounded-xl p-4 text-[13px]" aria-live="polite">
+            <span className="scanline" aria-hidden />
             {READ_STEPS.map((s, i) => (
-              <li key={s} className={cn("flex items-center gap-2", i > readStep && "text-faint")}>
+              <li key={s} className={cn("relative flex items-center gap-2 transition-colors duration-300", i > readStep ? "text-faint" : i === readStep ? "text-foreground" : "text-muted-foreground")}>
                 {i < readStep ? <Check className="size-3.5 text-read" /> : i === readStep ? <Loader2 className="size-3.5 animate-spin text-amber" /> : <span className="size-3.5" />}
-                {s}
+                <span className={cn(i === readStep && "text-shimmer")}>{s}</span>
               </li>
             ))}
           </ol>
@@ -123,7 +124,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="panel rounded-xl p-4">
+        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "80ms" }}>
           <h2 className="micro-label">Agents found</h2>
           {r.frameworks.length ? (
             <ul className="mt-3 space-y-2.5">
@@ -138,7 +139,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
             <p className="mt-3 text-[13px] text-muted-foreground">No agent framework detected. Architect can add agents alongside your code.</p>
           )}
         </section>
-        <section className="panel rounded-xl p-4">
+        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "160ms" }}>
           <h2 className="micro-label">Stack</h2>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {r.stack.length ? r.stack.map((s) => <span key={s.label} className="rounded-md border border-hairline bg-deep px-2 py-1 text-[12px]" title={s.evidence}>{s.label}</span>) : <span className="text-[13px] text-muted-foreground">{r.repo.language ?? "Unknown"}</span>}
@@ -146,7 +147,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
           <h2 className="micro-label mt-4">Tests &amp; CI</h2>
           <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found — Architect will add rehearsals, not rewrite your tests.</span>}</p>
         </section>
-        <section className="panel rounded-xl p-4">
+        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "240ms" }}>
           <h2 className="micro-label">Conventions I&apos;ll follow</h2>
           <ul className="mt-3 space-y-1.5 text-[12.5px]">
             {r.conventions.length ? r.conventions.map((c) => <li key={c} className="flex gap-2"><Check className="mt-0.5 size-3 shrink-0 text-read" />{c}</li>) : <li className="text-muted-foreground">Nothing unusual.</li>}
@@ -154,13 +155,13 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         </section>
       </div>
 
-      <section className="mt-4 grid gap-4 md:grid-cols-3" aria-label="Coverage map">
+      <section className="fade-up mt-4 grid gap-4 md:grid-cols-3" style={{ animationDelay: "340ms" }} aria-label="Coverage map">
         <Coverage title="Understood" icon={Check} tone="text-read" items={r.coverage.understood} empty="—" />
         <Coverage title="Not sure yet" icon={CircleHelp} tone="text-amber" items={r.coverage.unsure} empty="Nothing — every source folder matched something I know." />
         <Coverage title="Ignored" icon={EyeOff} tone="text-muted-foreground" items={r.coverage.ignored} empty="Nothing ignored." />
       </section>
 
-      <section className="panel mt-4 rounded-xl p-5" aria-labelledby="rules">
+      <section className="panel fade-up mt-4 rounded-xl p-5" style={{ animationDelay: "440ms" }} aria-labelledby="rules">
         <div className="flex flex-wrap items-center gap-2">
           <ShieldCheck className="size-4 text-amber" />
           <h2 id="rules" className="text-[15px] font-semibold">House Rules</h2>
@@ -184,7 +185,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button variant="ghost" onClick={() => setStep("input")}>Read a different repo</Button>
         <p className="ml-auto text-[12.5px] text-muted-foreground">Next: I map it into a Blueprint so you can see it. Nothing is pushed.</p>
-        <Button size="lg" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
+        <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(255_199_107/0.35),0_10px_30px_-10px_rgb(245_165_36/0.8)]" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
       </div>
     </div>
   );

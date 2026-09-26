@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import type { ObjectRef } from "@/lib/blueprint/schema";
 import Link from "next/link";
 import { Bot, Database, FileCode2, LayoutDashboard, MessageSquarePlus, Plug, Square, UsersRound, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,8 +26,12 @@ const TYPE_META: Record<ResolvedObject["type"], { label: string; icon: typeof Bo
 export function Inspector() {
   const ws = useWorkspace();
   const [face, setFace] = useState<Face>("plain");
-  const resolved = resolveRef(ws.blueprint, ws.selected);
-  if (!ws.selected || !resolved) return null;
+  // Keep showing the last object while the panel animates closed.
+  const [shown, setShown] = useState<ObjectRef | null>(ws.selected);
+  if (ws.selected && (ws.selected.type !== shown?.type || ws.selected.id !== shown?.id)) setShown(ws.selected);
+  const target = ws.selected ?? shown;
+  const resolved = resolveRef(ws.blueprint, target);
+  if (!target || !resolved) return null;
   const meta = TYPE_META[resolved.type];
   const name =
     resolved.type === "brief"
@@ -66,15 +72,25 @@ export function Inspector() {
         <span className="text-[11px] text-faint">same object, three depths</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        {face === "plain" && <PlainFace resolved={resolved} />}
-        {face === "spec" && <SpecFace resolved={resolved} />}
-        {face === "code" && <CodeFace objectRef={ws.selected} />}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={`${face}-${target.type}-${target.id}`}
+            initial={{ opacity: 0, y: 6, filter: "blur(3px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {face === "plain" && <PlainFace resolved={resolved} />}
+            {face === "spec" && <SpecFace resolved={resolved} />}
+            {face === "code" && <CodeFace objectRef={target} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
       <div className="flex gap-2 border-t border-hairline p-3">
-        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.focusComposer(ws.selected)}>
+        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.focusComposer(target)}>
           <MessageSquarePlus /> Ask for a change
         </Button>
-        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.openHandoff(ws.selected)}>
+        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.openHandoff(target)}>
           <UsersRound /> Ask a teammate
         </Button>
       </div>

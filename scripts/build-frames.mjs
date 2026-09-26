@@ -1,0 +1,25 @@
+// Frames of the build flow for visual review (offline mode): node scripts/build-frames.mjs http://localhost:3000
+import { chromium } from "@playwright/test";
+const base = process.argv[2] ?? "http://localhost:3000";
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const snap = (n) => page.screenshot({ path: `/tmp/B-${n}.png` });
+await page.goto(base + "/demo"); await page.waitForURL(/\/blueprint/);
+await page.waitForTimeout(250); await snap("0-landing-cascade");
+await page.waitForTimeout(1500); await snap("1-settled");
+const ws = page.url().split("?")[0].replace(/\/blueprint$/, "");
+await page.goto(ws + "/blueprint"); await page.waitForTimeout(1600);
+await page.getByRole("button", { name: /Settlement/ }).filter({ hasText: "Prepares payouts" }).first().hover(); await page.waitForTimeout(500); await snap("2-hover-flow");
+await page.goto(base + "/new?prompt=" + encodeURIComponent("A claims triage desk for a mid-size insurer: take in new claims, flag likely fraud, route each claim to the right adjuster, and prepare payouts that a human approves."));
+await page.getByRole("button", { name: /Skip — use sensible defaults/ }).click();
+await page.waitForTimeout(1400); await snap("3-planning");
+await page.waitForURL(/\/p\/.*\/blueprint/, { timeout: 60000 }); await page.waitForTimeout(1600); await snap("4-dock");
+await page.getByRole("button", { name: /Build it/ }).click();
+await page.waitForTimeout(4200); await snap("5-building");
+await page.getByRole("radio", { name: /Skip/ }).click();
+await page.getByRole("alertdialog").waitFor({ timeout: 60000 }); await page.waitForTimeout(700); await snap("6-repair");
+await page.getByRole("alertdialog").getByRole("button", { name: /Use this fix/ }).first().click();
+await page.getByRole("status").filter({ hasText: "built and rehearsed" }).waitFor({ timeout: 60000 }); await page.waitForTimeout(200); await snap("7-sweep");
+await page.waitForTimeout(1400); await snap("8-complete");
+await browser.close();
+console.log("done");

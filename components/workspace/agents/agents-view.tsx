@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronRight, CircleX, FlaskConical, History, Loader2, Play, Plus, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
 import type { Agent } from "@/lib/blueprint/schema";
 import type { AgentRunRow } from "@/lib/db/types";
@@ -54,15 +55,18 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
             const ungated = a.tools.some((t) => t.access === "irreversible" && t.permission !== "ask");
             return (
               <li key={a.id}>
-                <button onClick={() => pick(a.id)} aria-current={a.id === agent.id} className={cn("w-full rounded-xl border p-3 text-left transition-colors", a.id === agent.id ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel hover:border-[#343947]")}>
-                  <span className="flex items-center gap-2.5">
+                <button onClick={() => pick(a.id)} aria-current={a.id === agent.id} className={cn("relative w-full rounded-xl border p-3 text-left transition-[border-color,transform] duration-200", a.id === agent.id ? "border-transparent" : "border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi")}>
+                  {a.id === agent.id && (
+                    <motion.span layoutId="agent-pick" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(245_165_36/0.14),rgb(245_165_36/0.05))] shadow-[0_0_30px_-12px_rgb(245_165_36/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />
+                  )}
+                  <span className="relative flex items-center gap-2.5">
                     <Avatar name={a.name} hue={a.avatarHue} size={30} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-medium">{a.name}</span>
                       <span className="block truncate text-[11.5px] text-muted-foreground">{a.role}</span>
                     </span>
                   </span>
-                  <span className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                  <span className="relative mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                     <span>{FRAMEWORK_LABEL[a.framework]}</span>
                     <span>{SUPERVISION_LABEL[a.supervision].label}</span>
                     {last.length > 0 && <span className={passing === last.length ? "text-read" : "text-ask"}>{passing}/{last.length} rehearsals</span>}
@@ -101,11 +105,22 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
           />
         </div>
         <div className="min-h-0 flex-1">
-          {tab === "overview" && <Overview key={agent.id} agent={agent} />}
-          {tab === "playground" && <Playground key={agent.id} projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} />}
-          {tab === "rehearsals" && <Rehearsals key={agent.id} agent={agent} />}
-          {tab === "replay" && <Replay agent={agent} runs={runs.filter((r) => r.agent_id === agent.id)} />}
-          {tab === "code" && <AgentCode key={agent.id} agent={agent} />}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${tab}-${agent.id}`}
+              className="h-full"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {tab === "overview" && <Overview agent={agent} />}
+              {tab === "playground" && <Playground projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} />}
+              {tab === "rehearsals" && <Rehearsals agent={agent} />}
+              {tab === "replay" && <Replay agent={agent} runs={runs.filter((r) => r.agent_id === agent.id)} />}
+              {tab === "code" && <AgentCode agent={agent} />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
       <AddAgentDialog open={adding} onOpenChange={setAdding} onAdded={(id) => { setAdding(false); pick(id); setTab("overview"); }} />

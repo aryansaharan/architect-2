@@ -1,8 +1,11 @@
 "use client";
+import { useId } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 export type SegmentOption<T extends string> = { value: T; label: React.ReactNode; title?: string };
 
+/** Segmented control with a thumb that springs between options. */
 export function Segmented<T extends string>({
   value,
   onChange,
@@ -18,6 +21,7 @@ export function Segmented<T extends string>({
   className?: string;
   ariaLabel: string;
 }) {
+  const id = useId();
   return (
     <div role="radiogroup" aria-label={ariaLabel} className={cn("inline-flex items-center rounded-lg border border-hairline bg-deep p-0.5", className)}>
       {options.map((o) => {
@@ -31,12 +35,20 @@ export function Segmented<T extends string>({
             title={o.title}
             onClick={() => onChange(o.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md font-medium transition-colors",
+              "relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-200",
               size === "xs" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
-              active ? "bg-raised text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]" : "text-muted-foreground hover:text-foreground",
+              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {o.label}
+            {active && (
+              <motion.span
+                layoutId={`seg-${id}`}
+                aria-hidden
+                className="absolute inset-0 rounded-md bg-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.4)] ring-1 ring-white/[0.04]"
+                transition={{ type: "spring", stiffness: 520, damping: 38 }}
+              />
+            )}
+            <span className="relative z-[1] inline-flex items-center gap-1.5">{o.label}</span>
           </button>
         );
       })}

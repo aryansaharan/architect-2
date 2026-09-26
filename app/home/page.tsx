@@ -10,6 +10,7 @@ import { ScreenThumb } from "@/components/workspace/screen-thumb";
 import { TimeAgo } from "@/components/time-ago";
 import { HomeComposer } from "@/components/home/home-composer";
 import { Button } from "@/components/ui/button";
+import { Spotlight } from "@/components/fx/spotlight";
 import { creditsUsd, formatCredits } from "@/lib/format";
 
 export const metadata = { title: "Projects" };
@@ -37,7 +38,12 @@ export default async function HomePage() {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <div className="min-h-screen">
+    <div className="relative min-h-screen overflow-x-clip">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+        <div className="absolute -left-32 -top-64 h-[560px] w-[560px] rounded-full bg-[radial-gradient(circle,rgb(245_165_36/0.14),transparent_62%)] blur-2xl [animation:aurora-a_20s_ease-in-out_infinite_alternate]" />
+        <div className="absolute -top-56 right-[-8%] h-[480px] w-[480px] rounded-full bg-[radial-gradient(circle,rgb(255_138_61/0.08),transparent_62%)] blur-2xl [animation:aurora-b_24s_ease-in-out_infinite_alternate]" />
+        <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.045)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_80%)]" />
+      </div>
       <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-6">
           <Logo href="/home" />
@@ -53,7 +59,7 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-6xl px-6 pb-24 pt-10">
+      <main id="main" className="relative mx-auto max-w-6xl px-6 pb-24 pt-10">
         {user.isAnonymous && (
           <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-amber/25 bg-amber-soft px-4 py-3 text-[13px]">
             <Sparkles className="size-4 text-amber" />
@@ -63,9 +69,12 @@ export default async function HomePage() {
         )}
 
         <section aria-labelledby="new-heading">
-          <p className="text-[13px] text-muted-foreground">{greeting}{user.isAnonymous ? "" : `, ${first}`}.</p>
-          <h1 id="new-heading" className="mt-1 font-display text-[40px] leading-tight tracking-tight">What should we build?</h1>
-          <HomeComposer />
+          <p className="fade-up text-[13px] text-muted-foreground">{greeting}{user.isAnonymous ? "" : `, ${first}`}.</p>
+          <h1 id="new-heading" className="mt-1 font-display text-[44px] leading-tight tracking-tight">
+            {"What should we".split(" ").map((w, i) => <span key={i} className="word-in mr-[0.25em]" style={{ animationDelay: `${80 + i * 70}ms` }}>{w}</span>)}
+            <em className="word-in text-amber-grad" style={{ animationDelay: "380ms" }}>build?</em>
+          </h1>
+          <div className="fade-up" style={{ animationDelay: "420ms" }}><HomeComposer /></div>
         </section>
 
         {(openHandoffs.length > 0 || drafts.length > 0 || missingKeys.length > 0) && (
@@ -76,7 +85,7 @@ export default async function HomePage() {
                 const p = projects.find((x) => x.id === h.project_id);
                 return (
                   <li key={h.id}>
-                    <Link href={`/p/${h.project_id}/handoffs?h=${h.id}`} className="panel flex h-full gap-3 rounded-xl p-4 transition-colors hover:border-[#343947]">
+                    <Link href={`/p/${h.project_id}/handoffs?h=${h.id}`} className="panel flex h-full gap-3 rounded-xl p-4 transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[0_18px_40px_-18px_rgb(0_0_0/0.8)]">
                       <UsersRound className="mt-0.5 size-4 shrink-0 text-change" />
                       <span className="min-w-0">
                         <span className="block text-[13px] font-medium">Waiting on {h.assignee.split(" · ")[0].split(" ")[0]}</span>
@@ -89,7 +98,7 @@ export default async function HomePage() {
               })}
               {drafts.slice(0, 2).map((p) => (
                 <li key={p.id}>
-                  <Link href={`/p/${p.id}/blueprint`} className="panel flex h-full gap-3 rounded-xl p-4 transition-colors hover:border-[#343947]">
+                  <Link href={`/p/${p.id}/blueprint`} className="panel flex h-full gap-3 rounded-xl p-4 transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[0_18px_40px_-18px_rgb(0_0_0/0.8)]">
                     <Inbox className="mt-0.5 size-4 shrink-0 text-amber" />
                     <span className="min-w-0">
                       <span className="block text-[13px] font-medium">Plan ready: {p.name}</span>
@@ -100,7 +109,7 @@ export default async function HomePage() {
               ))}
               {missingKeys.slice(0, 1).map(({ p, c }) => (
                 <li key={p.id + c.id}>
-                  <Link href={`/p/${p.id}/blueprint?sel=connection:${c.id}`} className="panel flex h-full gap-3 rounded-xl p-4 transition-colors hover:border-[#343947]">
+                  <Link href={`/p/${p.id}/blueprint?sel=connection:${c.id}`} className="panel flex h-full gap-3 rounded-xl p-4 transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[0_18px_40px_-18px_rgb(0_0_0/0.8)]">
                     <KeyRound className="mt-0.5 size-4 shrink-0 text-amber" />
                     <span className="min-w-0">
                       <span className="block text-[13px] font-medium">{c.name} needs a key</span>
@@ -130,13 +139,15 @@ export default async function HomePage() {
             </div>
           ) : (
             <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p) => {
+              {projects.map((p, i) => {
                 const s = p.blueprint.screens[0];
                 return (
-                  <li key={p.id}>
-                    <Link href={`/p/${p.id}/blueprint`} className="panel group block overflow-hidden rounded-xl transition-colors hover:border-[#343947]">
-                      <div className="dot-grid border-b border-hairline p-4">
-                        <div className="rounded-lg border border-white/[0.06] bg-panel/80 p-2.5">{s && <ScreenThumb screen={s} primary={p.blueprint.meta.theme.primary} />}</div>
+                  <li key={p.id} className="fade-up" style={{ animationDelay: `${520 + Math.min(i, 8) * 60}ms` }}>
+                    <Spotlight className="rounded-xl">
+                    <Link href={`/p/${p.id}/blueprint`} className="panel group block overflow-hidden rounded-xl transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-1 hover:border-hairline-hi hover:shadow-[0_28px_60px_-24px_rgb(0_0_0/0.9),0_0_40px_-20px_rgb(245_165_36/0.35)]">
+                      <div className="dot-grid relative overflow-hidden border-b border-hairline p-4">
+                        <div className="rounded-lg border border-white/[0.06] bg-panel/80 p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.03]">{s && <ScreenThumb screen={s} primary={p.blueprint.meta.theme.primary} />}</div>
+                        <div aria-hidden className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-panel/70 to-transparent" />
                       </div>
                       <div className="p-4">
                         <div className="flex items-center gap-2">
@@ -152,6 +163,7 @@ export default async function HomePage() {
                         </p>
                       </div>
                     </Link>
+                    </Spotlight>
                   </li>
                 );
               })}
@@ -168,10 +180,10 @@ export default async function HomePage() {
           </div>
           <div className="panel rounded-xl p-4">
             <p className="micro-label">Our fixes, on us</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-fix">{fixes.count ?? 0}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-fix [text-shadow:0_0_24px_rgb(180_140_255/0.45)]">{fixes.count ?? 0}</p>
             <p className="text-[12.5px] text-muted-foreground">Problems Architect caught and fixed without charging you.</p>
           </div>
-          <Link href="/settings#usage" className="panel group flex flex-col justify-between rounded-xl p-4 transition-colors hover:border-[#343947]">
+          <Link href="/settings#usage" className="panel group flex flex-col justify-between rounded-xl p-4 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi">
             <p className="micro-label">Budgets &amp; breakdown</p>
             <p className="mt-2 flex items-center gap-1 text-[13px]">Per agent, per project, build vs. runtime <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" /></p>
           </Link>

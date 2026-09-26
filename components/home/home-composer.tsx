@@ -35,7 +35,7 @@ export function HomeComposer({ autoFocus }: { autoFocus?: boolean }) {
           { value: "import", label: <><FolderGit2 className="size-3.5" />Bring your existing project</> },
         ]}
       />
-      <div className="panel mt-3 rounded-2xl transition-colors focus-within:border-amber/50">
+      <div className="panel mt-3 rounded-2xl transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(245_165_36/0.08),0_24px_70px_-24px_rgb(245_165_36/0.45)]">
         {mode === "describe" ? (
           <>
             <label htmlFor="brief" className="sr-only">Describe what you want to build</label>
@@ -53,11 +53,11 @@ export function HomeComposer({ autoFocus }: { autoFocus?: boolean }) {
             />
             <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
               {EXAMPLES.map((ex) => (
-                <button key={ex.label} onClick={() => setText(ex.prompt)} className="rounded-full border border-hairline px-2.5 py-1 text-[12px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground">
+                <button key={ex.label} onClick={() => setText(ex.prompt)} className={"rounded-full border px-2.5 py-1 text-[12px] transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground active:translate-y-0 " + (text === ex.prompt ? "border-amber/50 bg-amber-soft text-foreground" : "border-hairline text-muted-foreground")}>
                   {ex.label}
                 </button>
               ))}
-              <Button className="ml-auto h-9" onClick={go} disabled={!text.trim()}>
+              <Button className="sheen ml-auto h-9 shadow-[0_8px_24px_-10px_rgb(245_165_36/0.8)] disabled:shadow-none" onClick={go} disabled={!text.trim()}>
                 Plan it <span className="kbd ml-1 border-black/20 bg-black/10 text-primary-foreground/80">⌘↵</span> <ArrowRight />
               </Button>
             </div>

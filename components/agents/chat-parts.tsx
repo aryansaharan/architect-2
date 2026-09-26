@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { motion } from "motion/react";
 import { Check, ChevronRight, Loader2, Lock, Pencil, Search, ShieldAlert, X } from "lucide-react";
 import type { UIMessage } from "ai";
 import type { Agent, AgentTool, Blueprint } from "@/lib/blueprint/schema";
@@ -72,7 +73,14 @@ export function ApprovalCard({
   const irreversible = tool?.access === "irreversible";
   const studio = theme === "studio";
   return (
-    <div role="group" aria-label="Approval needed" className={cn("rounded-xl border p-3", studio ? "border-ask/35 bg-ask/[0.07]" : "border-rose-200 bg-rose-50")}>
+    <motion.div
+      role="group"
+      aria-label="Approval needed"
+      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+      className={cn("rounded-xl border p-3", studio ? "pulse-rose border-ask/40 bg-[linear-gradient(180deg,rgb(255_107_122/0.10),rgb(255_107_122/0.04))]" : "border-rose-200 bg-rose-50")}
+    >
       <p className={cn("flex items-center gap-2 text-[13px] font-semibold", studio ? "text-foreground" : "text-slate-900")}>
         <ShieldAlert className={cn("size-4", studio ? "text-ask" : "text-rose-600")} />
         {agent.name} wants to {(tool?.name ?? part.type.slice(5)).toLowerCase()}
@@ -82,7 +90,7 @@ export function ApprovalCard({
         {irreversible ? "This can't be undone, so it always asks a person first." : "You asked to approve this before it runs."} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => onRespond("once")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium", studio ? "bg-amber text-primary-foreground" : "bg-slate-900 text-white")}>
+        <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(245_165_36/0.7)]" : "bg-slate-900 text-white")}>
           <Check className="size-3.5" /> Allow once
         </button>
         {!irreversible && (
@@ -95,6 +103,6 @@ export function ApprovalCard({
         </button>
       </div>
       {irreversible && <p className={cn("mt-2 text-[11px]", studio ? "text-faint" : "text-slate-400")}>“Always” isn&apos;t offered for actions that can&apos;t be undone.</p>}
-    </div>
+    </motion.div>
   );
 }

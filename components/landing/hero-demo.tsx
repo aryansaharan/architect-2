@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Blocks, Bot, Clock, Coins, Database, Plug, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,11 +29,12 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
   const doneTyping = typed >= full.length;
 
   useEffect(() => {
-    if (custom !== null || paused) return;
+    if (custom !== null) return;
     if (!doneTyping) {
       const t = setTimeout(() => setTyped((n) => Math.min(full.length, n + 2 + Math.floor(Math.random() * 3))), 22);
       return () => clearTimeout(t);
     }
+    if (paused) return; // hovering holds the finished plan on screen; it never freezes mid-sentence
     const t = setTimeout(() => {
       setI((x) => (x + 1) % examples.length);
       setTyped(0);
@@ -65,7 +67,7 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
   }
 
   return (
-    <div className="panel-raised relative overflow-hidden rounded-2xl" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <div className={cn("panel-raised relative rounded-2xl transition-shadow duration-700", custom === null && !doneTyping ? "aurora" : "shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8),0_0_0_1px_rgb(245_165_36/0.12)]")} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <div className="flex items-center gap-1.5 border-b border-hairline px-3 py-2">
         {examples.map((e, k) => (
           <button
@@ -114,22 +116,40 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
             <div key={c.title} className="min-w-0">
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><c.icon className="size-3" />{c.title}</p>
               <ul className="mt-2 space-y-1.5">
-                {c.items.map((it) => (
-                  <li key={it} className="animate-in fade-in slide-in-from-bottom-1 truncate rounded-md border border-hairline bg-panel px-2 py-1.5 text-[11px] duration-300">{it}</li>
-                ))}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {c.items.map((it) => (
+                    <motion.li
+                      key={`${ex.label}-${it}`}
+                      layout
+                      initial={{ opacity: 0, y: 8, scale: 0.94, filter: "blur(4px)" }}
+                      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
+                      transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                      className="truncate rounded-md border border-hairline bg-panel px-2 py-1.5 text-[11px] shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]"
+                    >
+                      {it}
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
                 {c.items.length === 0 && <li className="shimmer h-6 rounded-md" />}
               </ul>
             </div>
           ))}
         </div>
 
-        <div className={cn("mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-amber/25 bg-amber-soft px-3 py-2.5 text-[12px] transition-opacity duration-500", progress > 0.95 ? "opacity-100" : "opacity-0")} aria-hidden={progress <= 0.95}>
+        <motion.div
+          initial={false}
+          animate={progress > 0.95 ? { opacity: 1, y: 0, filter: "blur(0px)" } : { opacity: 0, y: 10, filter: "blur(4px)" }}
+          transition={{ type: "spring", stiffness: 260, damping: 26 }}
+          className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-amber/30 bg-amber-soft px-3 py-2.5 text-[12px] shadow-[0_0_30px_-10px_rgb(245_165_36/0.5)]"
+          aria-hidden={progress <= 0.95}
+        >
           <span className="font-mono text-[10px] uppercase tracking-wider text-amber">Work Order</span>
           <span className="inline-flex items-center gap-1"><Clock className="size-3 text-muted-foreground" />~{ex.minutes} min</span>
           <span className="inline-flex items-center gap-1"><Coins className="size-3 text-muted-foreground" />{ex.credits} credits ≈ ${(ex.credits / 100).toFixed(2)}</span>
           <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3 text-ask" />{gates} action{gates === 1 ? "" : "s"} ask{gates === 1 ? "s" : ""} first</span>
           <span className="ml-auto text-muted-foreground">Nothing runs until you approve</span>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

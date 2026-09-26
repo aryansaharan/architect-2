@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 import { ArrowUp, Brain, Check, ChevronDown, CornerDownLeft, Hammer, Loader2, ShieldCheck, Target, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -79,14 +80,14 @@ export function Rail() {
               <LedgerItem key={e.id} entry={e} />
             ))}
             {live.map((s) => (
-              <li key={`live-${s.id}`} className="flex gap-2.5 rounded-lg px-1.5 py-1.5">
+              <motion.li key={`live-${s.id}`} initial={{ opacity: 0, x: -8, filter: "blur(3px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }} className="flex gap-2.5 rounded-lg px-1.5 py-1.5">
                 <LaneIcon lane={s.lane} />
                 <div className="min-w-0 flex-1">
                   <p className="text-[12.5px] leading-snug">{s.title}</p>
                   {s.detail && <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground">{s.detail}</p>}
                 </div>
                 <Check className="mt-0.5 size-3.5 shrink-0 text-read" aria-label="done" />
-              </li>
+              </motion.li>
             ))}
             {ws.build.current?.kind === "step" && ws.build.status === "running" && (
               <li className="flex gap-2.5 rounded-lg bg-amber-soft px-1.5 py-1.5" aria-live="polite">
@@ -128,7 +129,7 @@ function LedgerItem({ entry }: { entry: LedgerRow }) {
   const [open, setOpen] = useState(false);
   const isFix = entry.blame === "system_fix";
   return (
-    <li className={cn("group rounded-lg px-1.5 py-1.5 transition-colors hover:bg-raised/60", isFix && "bg-fix/[0.06]")}>
+    <motion.li initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} className={cn("group rounded-lg px-1.5 py-1.5 transition-colors hover:bg-raised/60", isFix && "bg-fix/[0.06] shadow-[inset_2px_0_0_rgb(180_140_255/0.5)]")}>
       <div className="flex gap-2.5">
         <LaneIcon lane={entry.lane} />
         <div className="min-w-0 flex-1">
@@ -148,7 +149,7 @@ function LedgerItem({ entry }: { entry: LedgerRow }) {
           </div>
         </div>
       </div>
-    </li>
+    </motion.li>
   );
 }
 

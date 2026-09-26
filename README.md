@@ -47,7 +47,7 @@ Four principles, each of them visible in the product:
 
 | Flow | Where | Real or simulated |
 | --- | --- | --- |
-| Sign in with Google, GitHub or an email link; guest sessions you can keep | `/login`, `/demo` | **Real** (Supabase Auth, anonymous → linked identity) |
+| Sign in with Google or an email link; guest sessions you can keep | `/login`, `/demo` | **Real** (Supabase Auth, anonymous → linked identity). GitHub sign-in is wired but its OAuth app isn't switched on in this deployment |
 | Describe → 3 quick questions → plan streams in → Work Order | `/new` | **Real** (Claude, structured output, streamed); starter plans offline |
 | Blueprint canvas with live relations; Inspector Plain / Spec / Code | `/p/:id/blueprint` | **Real** |
 | Build with rehearsals and a repair decision; stop = refund | Blueprint | Scripted timeline over the **real** plan; save points and ledger are real |
@@ -70,7 +70,7 @@ Anything simulated is labelled in the product.
 
 ```
 Next.js 16 (App Router, React 19)  ·  Tailwind v4 + shadcn/ui (Radix)  ·  TypeScript strict
-Supabase: Auth (Google, GitHub, email, anonymous) + Postgres with row-level security on every table
+Supabase: Auth (Google, email, anonymous; GitHub ready to switch on) + Postgres with row-level security on every table
 Claude (claude-opus-5) via the Vercel AI SDK 7: structured outputs, streaming, tool approval
 Deployed on Vercel
 ```

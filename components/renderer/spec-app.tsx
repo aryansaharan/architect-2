@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
-import { Bell, Check, Menu, Search } from "lucide-react";
+import { BatteryFull, Bell, Check, Menu, Search, SignalHigh, Wifi } from "lucide-react";
 import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { DynamicIcon } from "@/components/icon";
 import { cn } from "@/lib/utils";
@@ -119,6 +119,12 @@ export function SpecApp({
               </span>
             </div>
           </aside>
+        )}
+        {phone && mode === "preview" && (
+          <div aria-hidden className="flex h-[42px] shrink-0 items-end justify-between bg-white px-6 pb-1 text-[12.5px] font-semibold tracking-tight text-slate-900">
+            <span className="w-14">9:41</span>
+            <span className="flex w-14 items-center justify-end gap-1"><SignalHigh className="size-3.5" /><Wifi className="size-3.5" /><BatteryFull className="size-4" /></span>
+          </div>
         )}
         {phone && (
           <div className="relative z-10 flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5">

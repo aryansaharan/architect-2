@@ -19,7 +19,7 @@ const draft = page.url().split("?")[0];
 await page.goto(draft); await snap("02-work-order");
 await page.getByRole("button", { name: /Build it/ }).click();
 await page.getByRole("radio", { name: /Skip/ }).click();
-await page.getByRole("alertdialog").waitFor({ timeout: 60000 }); await snap("03-repair");
+await page.getByRole("alertdialog").waitFor({ timeout: 60000 }); await page.waitForTimeout(1200); await snap("03-repair");
 await page.getByRole("alertdialog").getByRole("button", { name: /Use this fix/ }).first().click();
 await page.getByText("Built", { exact: true }).first().waitFor({ timeout: 60000 });
 
@@ -35,5 +35,5 @@ await page.getByRole("heading", { name: "House Rules" }).waitFor({ timeout: 3000
 await page.goto(ws + "/code?compare=1"); await snap("07-diff");
 await page.goto(ws + "/ship"); await snap("08-ship");
 await page.goto(ws + "/handoffs"); await snap("09-handoff");
-await page.goto(base + "/"); await snap("00-landing");
+await page.goto(base + "/"); await page.waitForTimeout(3200); await snap("00-landing");
 await browser.close();

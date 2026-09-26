@@ -11,7 +11,7 @@ export function StatusBadge({ state, live }: { state: BuildState; live?: boolean
   const s = live && state === "built" ? { label: "Live", cls: "border-read/40 bg-read/10 text-read" } : map[state];
   return (
     <span className={cn("inline-flex h-5 items-center gap-1 rounded-full border px-2 text-[11px] font-medium", s.cls)}>
-      {(live && state === "built") || state === "building" ? <span className={cn("size-1.5 rounded-full", state === "building" ? "bg-amber pulse-ring" : "bg-read")} /> : null}
+      {(live && state === "built") || state === "building" ? <span className={cn("size-1.5 rounded-full", state === "building" ? "bg-amber pulse-ring" : "bg-read pulse-read")} /> : null}
       {s.label}
     </span>
   );

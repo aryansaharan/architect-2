@@ -1,9 +1,10 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowRight, Check, CircleAlert, CircleX, Cloud, Container, Copy, Download, ExternalLink, Globe, Loader2, Rocket, Server, Undo2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Check, CircleAlert, CircleX, Cloud, Container, Copy, Download, ExternalLink, Globe, Loader2, Rocket, Server, Undo2, X } from "lucide-react";
 import type { DeploymentRow } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const [deploying, setDeploying] = useState<number | null>(null);
   const [pending, start] = useTransition();
   const [users, setUsers] = useState(1000);
+  const [launched, setLaunched] = useState<string | null>(null);
   const live = deployments.find((d) => d.status === "live");
   const perConversation = bp.agents.reduce((s, a) => s + a.cost.creditsPerRun, 0) / Math.max(1, bp.agents.length);
   const monthly = users * 4 * perConversation;
@@ -52,12 +54,13 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   async function deploy() {
     for (let i = 0; i < STEPS.length; i++) {
       setDeploying(i);
+      if (i === 0) setTimeout(() => document.getElementById("deploy-progress")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
       await new Promise((r) => setTimeout(r, 650 + (i % 2) * 250));
     }
     const r = await goLive(ws.project.id, target, domain || undefined);
     setDeploying(null);
     if (!r.ok) return void toast.error(r.error);
-    if (target === "architect_cloud") toast.success("You're live", { description: "Anyone with the link can use it. Rollback is one click." });
+    if (target === "architect_cloud") setLaunched(r.slug ?? ws.liveSlug ?? "");
     else toast.success(target === "vercel" ? "Vercel deploy prepared (sandbox)" : "Bundle ready (sandbox)");
     router.refresh();
   }
@@ -76,23 +79,27 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-6 py-8">
-        <h2 className="text-[22px] font-semibold tracking-tight">Ship</h2>
+        <p className="micro-label text-amber">Go live · roll back any time</p>
+        <h2 className="mt-1 font-display text-[36px] leading-tight tracking-tight">Ship</h2>
         <p className="mt-1 text-[13.5px] text-muted-foreground">Two versions, one project. The test version is yours to break; the live version is what people use.</p>
 
         {/* Environments */}
         <div className="mt-6 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr]">
-          <div className="panel rounded-xl p-4">
+          <div className="panel rounded-xl p-4 transition-colors hover:border-hairline-hi">
             <p className="micro-label">Test version</p>
             <p className="mt-1 text-[14px] font-medium">Only you · sandbox data</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">Save point #{ws.checkpoints[0]?.seq ?? 1} · {ws.checkpoints[0]?.label}</p>
             <Link href={`/p/${ws.project.id}/preview`} className="mt-3 inline-flex text-[12.5px] text-amber hover:underline">Open preview →</Link>
           </div>
-          <div className="hidden items-center md:flex"><ArrowRight className="size-5 text-faint" /></div>
-          <div className={cn("rounded-xl border p-4", live ? "border-read/30 bg-read/[0.06]" : "border-dashed border-hairline")}>
+          <div aria-hidden className="relative hidden w-16 items-center md:flex">
+            <span className="h-px w-full bg-[linear-gradient(90deg,var(--hairline-hi),rgb(61_214_140/0.5))]" />
+            <span className={cn("absolute size-1.5 rounded-full shadow-[0_0_10px_currentColor] [animation:travel-x_2.4s_cubic-bezier(0.45,0,0.2,1)_infinite]", live ? "bg-read text-read" : "bg-amber text-amber")} />
+          </div>
+          <div className={cn("rounded-xl border p-4 transition-[border-color,box-shadow] duration-700", live ? "border-read/35 bg-[linear-gradient(180deg,rgb(61_214_140/0.09),rgb(61_214_140/0.03))] shadow-[0_0_60px_-24px_rgb(61_214_140/0.55)]" : "border-dashed border-hairline")}>
             <p className="micro-label">Live version</p>
             {live && ws.liveSlug ? (
               <>
-                <p className="mt-1 flex items-center gap-2 text-[14px] font-medium"><span className="size-2 rounded-full bg-read pulse-ring" />Anyone with the link</p>
+                <p className="mt-1 flex items-center gap-2 text-[14px] font-medium"><span className="size-2 rounded-full bg-read pulse-read" />Anyone with the link</p>
                 <div className="mt-2 flex items-center gap-1.5">
                   <code className="min-w-0 flex-1 truncate rounded-md border border-hairline bg-deep px-2 py-1 font-mono text-[12px]">/live/{ws.liveSlug}</code>
                   <Button size="icon-sm" variant="outline" className="size-7" aria-label="Copy link" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/live/${ws.liveSlug}`); toast.success("Link copied"); }}><Copy /></Button>
@@ -114,12 +121,17 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           <section aria-labelledby="pf" className="panel rounded-xl">
             <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
               <h3 id="pf" className="text-[14px] font-semibold">Preflight</h3>
-              <span className={cn("text-[12px]", ready ? "text-read" : "text-ask")}>{ready ? "Ready to go live" : `${checks.filter((c) => c.blocking && c.status === "fail").length} blocking`}</span>
+              <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px]", ready ? "border-read/30 bg-read/10 text-read" : "border-ask/30 bg-ask/10 text-ask")}>
+                <span className={cn("size-1.5 rounded-full", ready ? "bg-read" : "bg-ask")} />
+                {ready ? "Ready to go live" : `${checks.filter((c) => c.blocking && c.status === "fail").length} blocking`}
+              </span>
             </div>
             <ul className="divide-y divide-hairline">
-              {checks.map((c) => (
-                <li key={c.id} className="flex items-start gap-3 px-4 py-3">
-                  {c.status === "pass" ? <Check className="mt-0.5 size-4 shrink-0 text-read" /> : c.status === "warn" ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-ask" />}
+              {checks.map((c, i) => (
+                <motion.li key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.08 + i * 0.07 }} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-raised/40">
+                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 18, delay: 0.2 + i * 0.07 }} className={cn("mt-px grid size-5 shrink-0 place-items-center rounded-full ring-1", c.status === "pass" ? "bg-read/10 text-read ring-read/25" : c.status === "warn" ? "bg-amber/10 text-amber ring-amber/25" : "bg-ask/10 text-ask ring-ask/25")}>
+                    {c.status === "pass" ? <Check className="size-3" strokeWidth={3} /> : c.status === "warn" ? <CircleAlert className="size-3" /> : <CircleX className="size-3" />}
+                  </motion.span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{c.label}</p>
                     <p className="text-[12px] text-muted-foreground">{c.detail}</p>
@@ -129,7 +141,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                       {c.fix.label}
                     </Button>
                   )}
-                </li>
+                </motion.li>
               ))}
             </ul>
             <p className="border-t border-hairline px-4 py-2.5 text-[11.5px] text-faint">Warnings don&apos;t block going live. Real risks do.</p>
@@ -139,9 +151,10 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           <section aria-labelledby="tg" className="space-y-3">
             <h3 id="tg" className="text-[14px] font-semibold">Where it runs</h3>
             {TARGETS.map((t) => (
-              <button key={t.id} onClick={() => setTarget(t.id)} aria-pressed={target === t.id} className={cn("flex w-full gap-3 rounded-xl border p-3.5 text-left transition-colors", target === t.id ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel hover:border-[#343947]")}>
-                <t.icon className={cn("mt-0.5 size-4 shrink-0", target === t.id ? "text-amber" : "text-muted-foreground")} />
-                <span className="min-w-0 flex-1">
+              <button key={t.id} onClick={() => setTarget(t.id)} aria-pressed={target === t.id} className={cn("relative flex w-full gap-3 rounded-xl border p-3.5 text-left transition-[border-color,transform] duration-200", target === t.id ? "border-transparent" : "border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi")}>
+                {target === t.id && <motion.span layoutId="ship-target" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(245_165_36/0.13),rgb(245_165_36/0.04))] shadow-[0_0_36px_-14px_rgb(245_165_36/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+                <t.icon className={cn("relative mt-0.5 size-4 shrink-0 transition-colors", target === t.id ? "text-amber" : "text-muted-foreground")} />
+                <span className="relative min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[13.5px] font-medium">{t.name}<span className={cn("rounded px-1.5 py-px text-[10.5px]", t.tag.includes("real") ? "bg-read/10 text-read" : "bg-raised text-muted-foreground")}>{t.tag}</span></span>
                   <span className="mt-0.5 block text-[12px] text-muted-foreground">{t.body}</span>
                 </span>
@@ -153,21 +166,37 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               {domain && <span className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME to <span className="font-mono">cname.architect.new</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>}
             </label>
             <div className="flex gap-2 pt-1">
-              <Button size="lg" className="h-10 flex-1" disabled={!ready || deploying !== null} onClick={deploy}>
+              <Button size="lg" className="sheen h-10 flex-1 shadow-[0_0_0_1px_rgb(255_199_107/0.35),0_10px_30px_-10px_rgb(245_165_36/0.8)] disabled:shadow-none" disabled={!ready || deploying !== null} onClick={deploy}>
                 {deploying !== null ? <Loader2 className="animate-spin" /> : <Rocket />} {live && target === "architect_cloud" ? "Update the live version" : "Go live"}
               </Button>
               {target === "vpc" && <Button size="lg" variant="outline" className="h-10" onClick={downloadBundle}><Download /> Bundle</Button>}
             </div>
-            {deploying !== null && (
-              <ol className="panel rounded-xl p-3 text-[12.5px]" aria-live="polite">
-                {STEPS.map((s, i) => (
-                  <li key={s} className={cn("flex items-center gap-2 py-0.5", i > deploying && "text-faint")}>
-                    {i < deploying ? <Check className="size-3.5 text-read" /> : i === deploying ? <Loader2 className="size-3.5 animate-spin text-amber" /> : <span className="size-3.5" />}
-                    {s}
-                  </li>
-                ))}
-              </ol>
-            )}
+            <AnimatePresence>
+              {deploying !== null && (
+                <motion.div
+                  id="deploy-progress"
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, transition: { duration: 0.2 } }}
+                  transition={{ type: "spring", stiffness: 320, damping: 28 }}
+                  className="aurora panel-raised overflow-hidden rounded-xl"
+                >
+                  <div className="h-0.5 bg-deep">
+                    <motion.div className="h-full bg-[linear-gradient(90deg,var(--amber),var(--amber-hi))] shadow-[0_0_12px_rgb(245_165_36/0.8)]" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }} />
+                  </div>
+                  <ol className="p-3 text-[12.5px]" aria-live="polite">
+                    {STEPS.map((s, i) => (
+                      <li key={s} className={cn("flex items-center gap-2 py-0.5 transition-colors duration-300", i > deploying ? "text-faint" : i === deploying ? "text-foreground" : "text-muted-foreground")}>
+                        {i < deploying ? (
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 18 }}><Check className="size-3.5 text-read" /></motion.span>
+                        ) : i === deploying ? <Loader2 className="size-3.5 animate-spin text-amber" /> : <span className="size-3.5" />}
+                        <span className={cn(i === deploying && "text-shimmer")}>{s}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </section>
         </div>
 
@@ -215,6 +244,77 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           </section>
         </div>
       </div>
+      <AnimatePresence>{launched !== null && <LaunchMoment slug={launched} name={bp.meta.name} onClose={() => setLaunched(null)} />}</AnimatePresence>
     </div>
+  );
+}
+
+/** Going live deserves a moment: rings of light, the link, and the way back. */
+function LaunchMoment({ slug, name, onClose }: { slug: string; name: string; onClose: () => void }) {
+  const url = typeof window === "undefined" ? `/live/${slug}` : `${window.location.origin}/live/${slug}`;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 grid place-items-center bg-canvas/70 p-6 backdrop-blur-md"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.25 } }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="You're live"
+        initial={{ opacity: 0, y: 30, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 12, scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 260, damping: 24 }}
+        className="panel-raised relative w-full max-w-[520px] overflow-hidden rounded-3xl px-8 pb-8 pt-12 text-center shadow-[0_0_0_1px_rgb(61_214_140/0.25),0_40px_120px_-20px_rgb(0_0_0/0.9),0_0_120px_-30px_rgb(61_214_140/0.55)]"
+      >
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_50%_0%,rgb(61_214_140/0.22),transparent_70%)]" />
+        <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        <div className="relative mx-auto grid size-20 place-items-center">
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              aria-hidden
+              className="absolute inset-0 rounded-full border border-read/50"
+              initial={{ scale: 0.6, opacity: 0.9 }}
+              animate={{ scale: 2.6, opacity: 0 }}
+              transition={{ duration: 2.2, ease: "easeOut", delay: 0.3 + i * 0.45, repeat: Infinity, repeatDelay: 0.6 }}
+            />
+          ))}
+          <motion.span
+            initial={{ scale: 0, rotate: -40 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 15, delay: 0.2 }}
+            className="relative grid size-16 place-items-center rounded-2xl bg-[linear-gradient(160deg,rgb(61_214_140/0.3),rgb(61_214_140/0.1))] text-read ring-1 ring-read/40 shadow-[0_0_40px_-6px_rgb(61_214_140/0.7)]"
+          >
+            <Rocket className="size-7" />
+          </motion.span>
+        </div>
+        <motion.p initial={{ opacity: 0, y: 10, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ delay: 0.45, duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="relative mt-6 font-display text-[40px] leading-none tracking-tight">
+          You&apos;re <em className="text-read">live.</em>
+        </motion.p>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }} className="relative mt-3 text-[13.5px] text-muted-foreground">
+          {name} is serving real people now. Agents keep the permissions and spending cap you set — and rollback is one click.
+        </motion.p>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.5 }} className="relative mt-6 flex items-center gap-2 rounded-xl border border-hairline bg-deep p-1.5 pl-3">
+          <span className="size-2 shrink-0 rounded-full bg-read pulse-read" />
+          <code className="min-w-0 flex-1 truncate text-left font-mono text-[12.5px]">{url}</code>
+          <Button size="sm" variant="outline" className="h-8" onClick={() => { void navigator.clipboard.writeText(url); toast.success("Link copied"); }}><Copy /> Copy</Button>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.5 }} className="relative mt-4 flex justify-center gap-2">
+          <Button variant="ghost" className="h-10" onClick={onClose}>Back to Ship</Button>
+          <Button asChild className="sheen h-10 px-5 shadow-[0_10px_30px_-10px_rgb(245_165_36/0.8)]">
+            <a href={`/live/${slug}`} target="_blank" rel="noreferrer">Open the live version <ExternalLink /></a>
+          </Button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }

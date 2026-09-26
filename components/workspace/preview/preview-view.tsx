@@ -118,15 +118,37 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           )}
         </div>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_0%,#161920,#0b0c0f_70%)] p-5">
+      <div className="relative min-h-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(245_165_36/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-5">
         <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>
           {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only — this is what will be built</span>}
           {mode === "tweak" && <span>Point at anything and click to edit it. Tweaks are free.</span>}
           {mode === "comment" && <span>Click a spot to pin a note. Teammates see it in their activity.</span>}
         </div>
-        <div className="mx-auto overflow-hidden rounded-xl border border-hairline shadow-[0_30px_80px_rgb(0_0_0/0.55)] transition-[width] duration-300" style={{ width: WIDTH[device], maxWidth: "100%", height: device === "phone" ? 780 : "calc(100% - 28px)", minHeight: 560 }}>
-          <SpecApp bp={bp} mode="preview" device={device} screenId={screenId} onScreenChange={changeScreen} projectId={ws.project.id} wrapBlock={mode === "use" ? undefined : wrap} />
+        <div
+          className={cn(
+            "relative mx-auto flex flex-col transition-[width,border-radius,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            device === "phone"
+              ? "rounded-[46px] bg-[linear-gradient(160deg,#2a2d35,#0c0d11_40%,#1b1d23)] p-[11px] shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_40px_100px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(245_165_36/0.35)]"
+              : "rounded-xl border border-hairline-hi bg-deep shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_0_1px_rgb(255_255_255/0.02),0_0_90px_-40px_rgb(245_165_36/0.3)]",
+          )}
+          style={{ width: device === "phone" ? 412 : WIDTH[device], maxWidth: "100%", height: device === "phone" ? "min(820px, calc(100% - 28px))" : "calc(100% - 28px)", minHeight: 560 }}
+        >
+          {device === "phone" ? (
+            <span aria-hidden className="absolute left-1/2 top-[19px] z-20 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255/0.05)]" />
+          ) : (
+            <div aria-hidden className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-[linear-gradient(180deg,#171a20,#121419)] px-3">
+              <span className="flex gap-1.5"><i className="size-2.5 rounded-full bg-[#ff5f57]/80" /><i className="size-2.5 rounded-full bg-[#febc2e]/80" /><i className="size-2.5 rounded-full bg-[#28c840]/80" /></span>
+              <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 truncate rounded-md border border-hairline bg-deep px-3 font-mono text-[11px] text-muted-foreground">
+                <span className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(245_165_36/0.9)]" />
+                test.{bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.architect.app
+              </span>
+              <span className="w-[46px]" />
+            </div>
+          )}
+          <div className={cn("min-h-0 flex-1 overflow-hidden", device === "phone" ? "rounded-[36px]" : "rounded-b-xl")}>
+            <SpecApp bp={bp} mode="preview" device={device} screenId={screenId} onScreenChange={changeScreen} projectId={ws.project.id} wrapBlock={mode === "use" ? undefined : wrap} />
+          </div>
         </div>
       </div>
     </div>

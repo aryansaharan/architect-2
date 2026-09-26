@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { motion } from "motion/react";
 import { ArrowRight, ChevronDown, Clock, Coins, FileCode2, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,7 +19,13 @@ export function WorkOrderDock() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-5">
-      <section aria-label="Work Order" className="panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4">
+      <motion.section
+        aria-label="Work Order"
+        initial={{ opacity: 0, y: 40, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 240, damping: 24, delay: 0.55 } }}
+        exit={{ opacity: 0, y: 30, scale: 0.98, transition: { duration: 0.2 } }}
+        className="beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(245_165_36/0.45)]"
+      >
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">
             <p className="micro-label text-amber">Work Order · nothing has run yet</p>
@@ -53,7 +60,7 @@ export function WorkOrderDock() {
             <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)}>Change the plan</Button>
             <Button
               size="lg"
-              className="h-9 px-4"
+              className="sheen h-9 px-4 shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_8px_28px_-8px_rgb(245_165_36/0.7)]"
               disabled={starting || over}
               onClick={async () => {
                 setStarting(true);
@@ -73,7 +80,7 @@ export function WorkOrderDock() {
           <span>Confidence: {est.confidence}</span>
           {over && <span className="text-ask">This would pass your cap — raise it in Settings first.</span>}
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 }

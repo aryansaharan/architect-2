@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { motion } from "motion/react";
 import {
   Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, ExternalLink, History, Home, LogOut, Eye, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/arch/badges";
+import { AnimatedNumber } from "@/components/fx/animated-number";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
 import { creditsUsd, formatCredits } from "@/lib/format";
@@ -57,12 +59,20 @@ export function TopBar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-medium transition-colors",
-                active ? "bg-raised text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]" : "text-muted-foreground hover:text-foreground",
+                "relative inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-medium transition-colors duration-200",
+                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <t.icon className={cn("size-3.5", active && "text-amber")} aria-hidden />
-              <span className="max-md:sr-only">{t.label}</span>
+              {active && (
+                <motion.span
+                  layoutId="topbar-tab"
+                  aria-hidden
+                  className="absolute inset-0 rounded-md bg-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.07),0_0_0_1px_rgb(245_165_36/0.18),0_4px_18px_-6px_rgb(245_165_36/0.35)]"
+                  transition={{ type: "spring", stiffness: 480, damping: 36 }}
+                />
+              )}
+              <t.icon className={cn("relative z-[1] size-3.5 transition-colors", active && "text-amber")} aria-hidden />
+              <span className="relative z-[1] max-md:sr-only">{t.label}</span>
             </Link>
           );
         })}
@@ -169,9 +179,9 @@ function SpendMeter() {
       <PopoverTrigger asChild>
         <button type="button" className="group flex h-8 items-center gap-2 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground" aria-label={`Spend: ${formatCredits(credits)} of ${cap} credits`}>
           <span className="relative h-1.5 w-14 overflow-hidden rounded-full bg-raised max-sm:hidden">
-            <span className={cn("absolute inset-y-0 left-0 rounded-full transition-all", tone)} style={{ width: `${Math.max(3, pct * 100)}%` }} />
+            <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out", tone)} style={{ width: `${Math.max(3, pct * 100)}%` }} />
           </span>
-          <span className="font-mono tabular-nums">{Math.round(credits)}<span className="opacity-60">/{cap}</span></span>
+          <span className="font-mono tabular-nums"><AnimatedNumber value={Math.round(credits)} /><span className="opacity-60">/{cap}</span></span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">

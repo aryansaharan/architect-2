@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { WorkspaceProvider, useWorkspace, type WorkspaceData } from "./context";
 import { TopBar } from "./top-bar";
@@ -36,11 +37,20 @@ function ShellLayout({ children }: { children: React.ReactNode }) {
         <main id="main" className="relative min-w-0 flex-1">
           {children}
         </main>
-        {ws.selected && (
-          <div className="max-xl:absolute max-xl:inset-y-12 max-xl:right-0 max-xl:z-40 max-xl:shadow-2xl">
-            <Inspector />
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {ws.selected && (
+            <motion.div
+              key="inspector"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "auto", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 360, damping: 38, opacity: { duration: 0.18 } }}
+              className="overflow-hidden max-xl:absolute max-xl:inset-y-12 max-xl:right-0 max-xl:z-40 max-xl:shadow-2xl"
+            >
+              <Inspector />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
         <SheetContent side="left" className="w-[320px] p-0">

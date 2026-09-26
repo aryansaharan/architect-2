@@ -6,6 +6,10 @@ import { HeroDemo, type HeroExample } from "@/components/landing/hero-demo";
 import { DepthDemo } from "@/components/landing/depth-demo";
 import { FrameworkTabs } from "@/components/landing/framework-tabs";
 import { OAuthButton } from "@/components/landing/oauth-button";
+import { Showcase } from "@/components/landing/showcase";
+import { HeroBackdrop } from "@/components/fx/hero-backdrop";
+import { Reveal, Stagger, StaggerItem } from "@/components/fx/reveal";
+import { Spotlight } from "@/components/fx/spotlight";
 import { Avatar } from "@/components/arch/badges";
 import { STARTERS, starterBlueprint, type StarterVertical } from "@/lib/blueprint/fixtures";
 import { applyOps } from "@/lib/blueprint/apply";
@@ -72,37 +76,55 @@ export default async function Landing() {
 
       <main id="main">
         {/* Hero */}
-        <section className="relative">
-          <div className="amber-glow pointer-events-none absolute inset-x-0 top-0 h-[520px]" />
-          <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1fr_1.05fr] lg:pt-24">
+        <section className="relative overflow-hidden">
+          <HeroBackdrop />
+          <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 pb-24 pt-16 lg:grid-cols-[1fr_1.05fr] lg:pt-24">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-hairline bg-panel px-3 py-1 text-[12px] text-muted-foreground">
-                <span className="size-1.5 rounded-full bg-amber" /> Architect 2.0 · a prototype for Lyzr
+              <p className="fade-up inline-flex items-center gap-2 rounded-full border border-hairline bg-panel/80 px-3 py-1 text-[12px] text-muted-foreground backdrop-blur" style={{ animationDelay: "0ms" }}>
+                <span className="relative flex size-1.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-amber opacity-60" /><span className="relative inline-flex size-1.5 rounded-full bg-amber" /></span>
+                Architect 2.0 · a prototype for Lyzr
               </p>
               <h1 className="mt-6 font-display text-[52px] leading-[1.02] tracking-tight sm:text-[64px]">
-                Agentic apps you&apos;d trust <em className="text-amber">in production.</em>
+                {["Agentic", "apps", "you'd", "trust"].map((w, i) => (
+                  <span key={w} className="word-in mr-[0.22em]" style={{ animationDelay: `${120 + i * 90}ms` }}>{w}</span>
+                ))}
+                <em className="word-in text-amber-grad pr-2" style={{ animationDelay: "520ms" }}>in production.</em>
               </h1>
-              <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
+              <p className="fade-up mt-6 max-w-xl text-[17px] leading-relaxed text-muted-foreground" style={{ animationDelay: "700ms" }}>
                 Describe the app. Architect plans it, prices it, builds it and shows its work — so the people who don&apos;t code and the people who do can ship it together, in the same project.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg" className="h-11 px-5 text-[14px]">
+              <div className="fade-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "820ms" }}>
+                <Button asChild size="lg" className="sheen h-11 px-5 text-[14px] shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_10px_40px_-8px_rgb(245_165_36/0.55)]">
                   <Link href="/demo">Try the demo — no account <ArrowRight /></Link>
                 </Button>
                 {!user || user.isAnonymous ? <OAuthButton /> : null}
               </div>
-              <p className="mt-4 text-[12.5px] text-faint">Opens a finished claims desk with real data, agents and a live URL. Takes about 5 seconds.</p>
+              <p className="fade-up mt-4 text-[12.5px] text-faint" style={{ animationDelay: "900ms" }}>Opens a finished claims desk with real data, agents and a live URL. Takes about 5 seconds.</p>
             </div>
-            <HeroDemo examples={examples} />
+            <div className="fade-up" style={{ animationDelay: "450ms" }}>
+              <HeroDemo examples={examples} />
+            </div>
           </div>
+        </section>
+
+        {/* Showcase */}
+        <section className="relative pb-24">
+          <Reveal className="mx-auto mb-12 max-w-3xl px-6 text-center">
+            <p className="micro-label text-amber">One studio</p>
+            <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight sm:text-[42px]">The plan, the agents and the price — on one screen.</h2>
+            <p className="mt-4 text-[15.5px] leading-relaxed text-muted-foreground">Every screen, agent, kind of data and connection, with what each one is allowed to do. Click anything to read it in plain English, change it, or see its code.</p>
+          </Reveal>
+          <Showcase />
         </section>
 
         {/* Turn three */}
         <section id="turn-three" className="border-t border-hairline bg-panel/30">
           <div className="mx-auto max-w-6xl px-6 py-20">
-            <p className="micro-label text-amber">Designed for turn three</p>
-            <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Architect is built for the third — when something breaks, costs money, or needs a person.</h2>
-            <div className="mt-12 grid gap-5 md:grid-cols-2">
+            <Reveal>
+              <p className="micro-label text-amber">Designed for turn three</p>
+              <h2 className="mt-3 max-w-3xl text-[34px] font-semibold leading-tight tracking-tight">Every AI builder looks great on the first prompt. Architect is built for the third — when something breaks, costs money, or needs a person.</h2>
+            </Reveal>
+            <Stagger className="mt-12 grid gap-5 md:grid-cols-2">
               <PromiseCard
                 title="See the plan and the price before anything runs"
                 body="Every build and every change starts as a Work Order: what it touches, how long, how many credits. You approve it — or narrow it."
@@ -159,14 +181,14 @@ export default async function Landing() {
                   <p className="mt-2 text-[12.5px] leading-relaxed">“The policy system is connected to the sandbox. Intake Triage now gets real coverage answers instead of test data.”</p>
                 </div>
               </PromiseCard>
-            </div>
+            </Stagger>
           </div>
         </section>
 
         {/* Depth */}
         <section id="depth" className="border-t border-hairline">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 lg:grid-cols-[1fr_1.1fr]">
-            <div>
+            <Reveal>
               <p className="micro-label text-amber">One project, three depths</p>
               <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">No “developer mode”. Every object has a plain face, a spec and its code.</h2>
               <p className="mt-5 text-[15.5px] leading-relaxed text-muted-foreground">
@@ -177,7 +199,8 @@ export default async function Landing() {
                 <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Spec: the structured settings — change a permission with one click, free.</li>
                 <li className="flex gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-read" />Code: the real files, in a real repo, with diffs between save points.</li>
               </ul>
-            </div>
+            </Reveal>
+            <Reveal delay={0.12}>
             <DepthDemo
               yaml={agentYaml(settlement, bp)}
               agent={{
@@ -190,13 +213,14 @@ export default async function Landing() {
                 tools: settlement.tools.map((t) => ({ name: t.name, where: connectionName(bp, t.connectionId), access: t.access, permission: PERMISSION_LABEL[t.permission] })),
               }}
             />
+            </Reveal>
           </div>
         </section>
 
         {/* Frameworks */}
         <section id="frameworks" className="border-t border-hairline bg-panel/30">
           <div className="mx-auto max-w-6xl px-6 py-20">
-            <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr] lg:items-end">
+            <Reveal className="grid gap-8 lg:grid-cols-[1fr_1.4fr] lg:items-end">
               <div>
                 <p className="micro-label text-amber">Any framework, honestly</p>
                 <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">The same agent in six frameworks — with a list of what doesn&apos;t translate.</h2>
@@ -204,36 +228,38 @@ export default async function Landing() {
               <p className="text-[15px] leading-relaxed text-muted-foreground">
                 Agents are files in your repo (<span className="font-mono text-[13px] text-foreground/80">agent.yaml</span>, <span className="font-mono text-[13px] text-foreground/80">SOUL.md</span>, <span className="font-mono text-[13px] text-foreground/80">RULES.md</span>) plus runtime code for Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK or Mastra. Permissions compile to each framework&apos;s own approval mechanism. Where one can&apos;t express something, we say so.
               </p>
-            </div>
-            <div className="mt-10">
+            </Reveal>
+            <Reveal className="mt-10" delay={0.1}>
               <FrameworkTabs items={frameworkItems} />
-            </div>
+            </Reveal>
           </div>
         </section>
 
         {/* Import + journey */}
         <section className="border-t border-hairline">
-          <div className="mx-auto grid max-w-6xl gap-5 px-6 py-20 md:grid-cols-3">
+          <Stagger className="mx-auto grid max-w-6xl gap-5 px-6 py-20 md:grid-cols-3" gap={0.06}>
             <Feature icon={FileSearch} title="Bring your existing project" body="Paste a GitHub URL. Architect reads the stack and any agents, shows what it understood and what it didn't, and signs House Rules — “never change the framework”, “never touch /legacy” — before it touches a file." />
             <Feature icon={GitPullRequest} title="Real repo, real review" body="Every Work Order lands on its own branch as a change for review. Two-way sync, CI rehearsals on every pull request, and “Open in Cursor or Claude Code” whenever you want the wheel." />
             <Feature icon={Undo2} title="Save points, not fear" body="Every change is a save point. Going back is always free, and your previous state is kept — so trying things costs nothing." />
             <Feature icon={Coins} title="Budgets, not surprises" body="A spending cap per project. Agents pause and tell you before passing it, and the live app shows what one conversation costs." />
             <Feature icon={ShieldCheck} title="Preflight before going live" body="Sign-in on, irreversible actions gated, rehearsals passing, keys in place, cap set, data region chosen. Warnings don't block; real risks do." />
             <Feature icon={UsersRound} title="Built for the handoff" body="Comments pinned on the preview. Requests that carry context. A plain-English changelog of what teammates changed, and why." />
-          </div>
+          </Stagger>
         </section>
 
         {/* Real vs simulated */}
         <section id="real" className="border-t border-hairline bg-panel/30">
           <div className="mx-auto max-w-6xl px-6 py-20">
-            <p className="micro-label text-amber">What&apos;s real in this prototype</p>
-            <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">Honest about the seams.</h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <Reveal>
+              <p className="micro-label text-amber">What&apos;s real in this prototype</p>
+              <h2 className="mt-3 text-[34px] font-semibold leading-tight tracking-tight">Honest about the seams.</h2>
+            </Reveal>
+            <Reveal className="mt-8 grid gap-4 md:grid-cols-2" delay={0.1}>
               <RealList
                 title="Real"
                 real
                 items={[
-                  "Google, GitHub and email sign-in; guest sessions you can keep",
+                  "Google and email sign-in; guest sessions you can keep",
                   "A Postgres database with row-level security on every table",
                   "Planning with Claude, streamed as it decides (starter plans offline)",
                   "Agent playground on Claude with a real approval gate",
@@ -254,16 +280,17 @@ export default async function Landing() {
                   "Third-party connections run in sandbox mode",
                 ]}
               />
-            </div>
+            </Reveal>
           </div>
         </section>
 
         <section className="border-t border-hairline">
-          <div className="mx-auto flex max-w-6xl flex-col items-center px-6 py-24 text-center">
-            <h2 className="font-display text-[44px] leading-tight">See it on a real project.</h2>
+          <Reveal className="relative mx-auto flex max-w-6xl flex-col items-center px-6 py-28 text-center">
+            <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-72 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(245_165_36/0.16),transparent_65%)] blur-2xl" />
+            <h2 className="font-display text-[48px] leading-tight">See it on a <span className="text-amber-grad">real project.</span></h2>
             <p className="mt-3 max-w-lg text-[15px] text-muted-foreground">A claims desk with three agents, a live URL, a caught mistake and a pending handoff. No account needed.</p>
-            <Button asChild size="lg" className="mt-8 h-11 px-6 text-[14px]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>
-          </div>
+            <Button asChild size="lg" className="sheen mt-8 h-11 px-6 text-[14px] shadow-[0_0_0_1px_rgb(255_199_107/0.4),0_10px_40px_-8px_rgb(245_165_36/0.55)]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>
+          </Reveal>
         </section>
       </main>
 
@@ -282,21 +309,25 @@ export default async function Landing() {
 
 function PromiseCard({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
   return (
-    <div className="panel flex flex-col rounded-2xl p-6">
+    <StaggerItem className="h-full">
+    <Spotlight className="panel flex h-full flex-col rounded-2xl p-6 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi">
       <h3 className="text-[17px] font-semibold leading-snug">{title}</h3>
       <p className="mt-2 flex-1 text-[14px] leading-relaxed text-muted-foreground">{body}</p>
       <div className="mt-5">{children}</div>
-    </div>
+    </Spotlight>
+    </StaggerItem>
   );
 }
 
 function Feature({ icon: I, title, body }: { icon: typeof Check; title: string; body: string }) {
   return (
-    <div className="panel rounded-2xl p-5">
-      <I className="size-4 text-amber" />
-      <h3 className="mt-3 text-[15px] font-semibold">{title}</h3>
-      <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{body}</p>
-    </div>
+    <StaggerItem className="h-full">
+      <Spotlight className="panel group h-full rounded-2xl p-5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-hairline-hi">
+        <span className="grid size-8 place-items-center rounded-lg border border-amber/25 bg-amber-soft transition-transform duration-300 group-hover:scale-110"><I className="size-4 text-amber" /></span>
+        <h3 className="mt-3.5 text-[15px] font-semibold">{title}</h3>
+        <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{body}</p>
+      </Spotlight>
+    </StaggerItem>
   );
 }
 
