@@ -22,15 +22,15 @@ export const EditsSchema = z.object({
         entity: NamedRef,
         name: z.string().describe("Field name in words, e.g. 'party size'"),
         type: z.enum(["string", "number", "boolean", "date", "enum", "money", "text"]),
-        options: z.array(z.string()).describe("For enum fields: 2 to 5 options. Otherwise empty."),
-        sampleValues: z.array(z.string()).describe("Realistic values for the existing sample records, in order. May be empty."),
+        options: z.array(z.string()).default([]).describe("For enum fields: 2 to 5 options. Otherwise empty."),
+        sampleValues: z.array(z.coerce.string()).default([]).describe("Realistic values for the existing sample records, in order. May be empty."),
       }),
     )
-    .describe("New details the app stores. Adding a column for a new detail needs an addFields entry too."),
+    .default([]).describe("New details the app stores. Adding a column for a new detail needs an addFields entry too."),
   addColumns: z
-    .array(z.object({ entity: NamedRef, field: z.string().describe("Field name (existing or just added)"), screen: z.string().describe("Screen id or title, or empty for every table of that entity"), first: z.boolean().describe("true to show it first (e.g. 'sort by')") }))
-    .describe("Show a detail as a table column"),
-  removeColumns: z.array(z.object({ entity: NamedRef, field: z.string(), screen: z.string() })),
+    .array(z.object({ entity: NamedRef, field: z.string().describe("Field name (existing or just added)"), screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity"), first: z.boolean().default(false).describe("true to show it first (e.g. 'sort by')") }))
+    .default([]).describe("Show a detail as a table column"),
+  removeColumns: z.array(z.object({ entity: NamedRef, field: z.string(), screen: z.string().default("") })).default([]),
   permissions: z
     .array(
       z.object({
@@ -39,14 +39,15 @@ export const EditsSchema = z.object({
         permission: z.enum(["auto", "log", "ask"]).describe("auto = just do it, log = do it and tell me, ask = ask a person first"),
       }),
     )
-    .describe("Who may do what without asking"),
-  supervision: z.array(z.object({ agent: NamedRef, level: z.enum(["autonomous", "spot_check", "approve_all"]) })),
-  rules: z.array(z.object({ agent: NamedRef, rule: z.string().describe("One sentence the agent must follow") })),
-  rehearsals: z.array(z.object({ agent: NamedRef, name: z.string(), input: z.string(), expect: z.string() })).describe("New test conversations"),
-  renames: z.array(z.object({ type: z.enum(["project", "screen", "agent", "entity", "connection"]), target: z.string().describe("id or current name; empty for project"), name: z.string() })),
+    .default([]).describe("Who may do what without asking"),
+  supervision: z.array(z.object({ agent: NamedRef, level: z.enum(["autonomous", "spot_check", "approve_all"]) })).default([]),
+  rules: z.array(z.object({ agent: NamedRef, rule: z.string().describe("One sentence the agent must follow") })).default([]),
+  rehearsals: z.array(z.object({ agent: NamedRef, name: z.string(), input: z.string(), expect: z.string() })).default([]).describe("New test conversations"),
+  renames: z.array(z.object({ type: z.enum(["project", "screen", "agent", "entity", "connection"]), target: z.string().default("").describe("id or current name; empty for project"), name: z.string() })).default([]),
   theme: z
-    .object({ primary: z.string().describe("Hex colour like #0F766E, or empty to keep"), radius: z.enum(["keep", "sm", "md", "lg"]), density: z.enum(["keep", "compact", "comfortable"]) })
-    .describe("Use radius/density 'keep' and primary '' when not changing the look"),
+    .object({ primary: z.string().default("").describe("Hex colour like #0F766E, or empty to keep"), radius: z.enum(["keep", "sm", "md", "lg"]).default("keep"), density: z.enum(["keep", "compact", "comfortable"]).default("keep") })
+    .default({ primary: "", radius: "keep", density: "keep" })
+    .describe("Only include when changing the look"),
   newScreens: z
     .array(
       z.object({
@@ -55,17 +56,17 @@ export const EditsSchema = z.object({
         description: z.string().describe("Two plain sentences for a non-technical reader"),
         kind: z.enum(["queue", "dashboard", "detail", "form", "assistant", "report"]),
         entity: z.string().describe("Main data type shown (entity id or name)"),
-        agent: z.string().describe("Agent available on this screen (id or name), or empty"),
-        audience: z.enum(["team", "customer", "admin"]),
-        metrics: z.array(z.object({ label: z.string(), value: z.string() })).describe("2 to 4 headline numbers for queue/dashboard/report; otherwise empty"),
+        agent: z.string().default("").describe("Agent available on this screen (id or name), or empty"),
+        audience: z.enum(["team", "customer", "admin"]).default("team"),
+        metrics: z.array(z.object({ label: z.string(), value: z.coerce.string() })).default([]).describe("2 to 4 headline numbers for queue/dashboard/report; otherwise empty"),
       }),
     )
-    .describe("New screens. The app has at most 8."),
+    .default([]).describe("New screens. The app has at most 8."),
   patches: z
-    .array(z.object({ op: z.enum(["set", "add", "remove"]), path: z.string(), valueJson: z.string() }))
-    .describe("Escape hatch for anything the typed edits cannot express: RFC 6901 JSON Pointer operations. Prefer typed edits."),
+    .array(z.object({ op: z.enum(["set", "add", "remove"]), path: z.string(), valueJson: z.string().default("null") }))
+    .default([]).describe("Escape hatch for anything the typed edits cannot express: RFC 6901 JSON Pointer operations. Prefer typed edits."),
 });
-export type Edits = z.infer<typeof EditsSchema>;
+export type Edits = z.output<typeof EditsSchema>;
 
 const snake = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 32);
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);

@@ -1,6 +1,6 @@
 import "server-only";
 import { STYLE_RULE, cleanDeep } from "@/lib/text";
-import { generateText, Output } from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { applyOps } from "@/lib/blueprint/apply";
 import { estimateChange } from "@/lib/blueprint/estimate";
@@ -62,7 +62,8 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
           maxOutputTokens: 8000,
           timeout: 70_000,
           maxRetries: 1,
-          providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
+          // The edit schema is too large for strict grammar mode; a JSON tool call plus zod validation is enough.
+          providerOptions: { anthropic: { effort: "low", structuredOutputMode: "jsonTool" } },
         });
         inputTokens += result.usage.inputTokens ?? 0;
         outputTokens += result.usage.outputTokens ?? 0;
@@ -86,7 +87,13 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         feedback = [applied.error, ...compiled.problems].join("; ");
         console.warn("[change] edits failed validation, retrying:", feedback);
       } catch (e) {
-        console.error("[change] model failed:", e instanceof Error ? e.message : e);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[change] model failed:", msg);
+        // A schema mismatch is worth one more try with the error; anything else (outage, timeout) falls back.
+        if (NoObjectGeneratedError.isInstance(e) && attempt === 0) {
+          feedback = `your output did not match the schema (${msg.slice(0, 300)})`;
+          continue;
+        }
         break;
       }
     }

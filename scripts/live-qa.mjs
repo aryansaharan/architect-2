@@ -19,8 +19,7 @@ async function step(name, fn) {
   catch (e) { log(name, `FAILED ${(e.message || e).toString().split("\n")[0]}`); await snap(`fail-${name}`); }
 }
 
-let ws = "";
-await step("demo", async () => { await page.goto(base + "/demo"); await page.waitForURL(/\/blueprint/, { timeout: 60000 }); ws = page.url().split("?")[0].replace(/\/blueprint$/, ""); });
+await step("demo", async () => { await page.goto(base + "/demo"); await page.waitForURL(/\/blueprint/, { timeout: 60000 }); });
 
 let proj = "";
 await step("plan", async () => {
@@ -80,7 +79,6 @@ for (const [i, c] of changes.entries()) {
 await step("agents-playground", async () => {
   await page.goto(proj + "/agents?tab=playground"); await page.waitForTimeout(1500);
   const header = (await page.locator("text=/Scripted|Live|Claude/").first().innerText().catch(() => "?")).slice(0, 80);
-  const starter = page.locator("button").filter({ hasText: /\?$|\.$/ }).first();
   const box = page.getByRole("textbox", { name: /Message/ });
   await box.fill("A guest called Maria Lopez wants to cancel tonight's booking for 4 at 8pm and get her $50 deposit back. Please handle it.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
