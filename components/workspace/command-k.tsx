@@ -33,6 +33,16 @@ export function CommandK() {
       }
       if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
       const { ws, router, base } = live.current;
+      if (e.key === "Escape") {
+        // Menus, popovers and dialogs close themselves on Esc and mark the event handled.
+        // Leave them (and modal cards like the repair choice) alone; otherwise close the inspector.
+        if (e.defaultPrevented || document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"], [aria-modal="true"]')) return;
+        if (ws.selected) {
+          e.preventDefault();
+          ws.select(null);
+        }
+        return;
+      }
       const k = e.key.toLowerCase();
       if (Date.now() - gAt.current < 1200) {
         gAt.current = 0;

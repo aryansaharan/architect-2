@@ -13,12 +13,17 @@ import { Segmented } from "@/components/arch/segmented";
 import { Button } from "@/components/ui/button";
 import { GitHubMark } from "@/components/brand/logo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TimeAgo } from "@/components/time-ago";
 import { connectGitHub, pullFromGitHub } from "@/lib/actions/github";
+import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 
 type Tree = { name: string; path: string; children?: Tree[]; file?: GeneratedFile };
+
+/** Same slug the GitHub connection uses for the repo name, so folder, zip and repo all match. */
+const projectSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
 
 function buildTree(files: GeneratedFile[]): Tree[] {
   const root: Tree = { name: "", path: "", children: [] };
@@ -54,6 +59,16 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
   const [openDirs, setOpenDirs] = useState<Set<string>>(() => new Set(["agents", "app", "app/(app)", ...files.filter((f) => f.path === active).map((f) => f.path.split("/").slice(0, -1).join("/"))]));
   const file = files.find((f) => f.path === active) ?? files[0];
   const diffs = useMemo(() => (compare.from && compare.to ? diffFiles(generateFiles(compare.from.blueprint), generateFiles(compare.to.blueprint)) : []), [compare]);
+  const [githubOpen, setGithubOpen] = useState(false);
+  // Folders for the phone file picker, root files first.
+  const folders = useMemo(() => {
+    const byDir = new Map<string, GeneratedFile[]>();
+    for (const f of files) {
+      const dir = f.path.split("/").slice(0, -1).join("/");
+      byDir.set(dir, [...(byDir.get(dir) ?? []), f]);
+    }
+    return [...byDir].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
+  }, [files]);
 
   const setCompare = (key: "from" | "to", id: string) => {
     const sp = new URLSearchParams(params.toString());
@@ -100,9 +115,31 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Phones: the file tree and save point pickers, as native selects. */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-3 py-2 md:hidden">
+          <Segmented ariaLabel="Code view" value={mode} onChange={setMode} options={[{ value: "files", label: `Files · ${files.length}` }, { value: "changes", label: "Changes" }]} />
+          {mode === "files" ? (
+            <select aria-label="File" value={file.path} onChange={(e) => setActive(e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 font-mono text-[12px]">
+              {folders.map(([dir, list]) => (
+                <optgroup key={dir} label={dir || "Project root"}>
+                  {list.map((f) => <option key={f.path} value={f.path}>{f.path.split("/").pop()}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          ) : (
+            <div className="flex w-full gap-2">
+              <select aria-label="From save point" value={compare.from?.meta.id ?? ""} onChange={(e) => setCompare("from", e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 text-[12px]">
+                {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>From #{c.seq} {c.label}</option>)}
+              </select>
+              <select aria-label="To save point" value={compare.to?.meta.id ?? ""} onChange={(e) => setCompare("to", e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 text-[12px]">
+                {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>To #{c.seq} {c.label}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
         {mode === "files" ? (
           <>
-            <div className="flex items-center gap-2 border-b border-hairline px-4 py-2">
+            <div className="flex items-center gap-2 border-b border-hairline px-4 py-2 max-md:flex-wrap">
               <FileCode2 className="size-3.5 text-muted-foreground" />
               <span className="truncate font-mono text-[12px]">{file.path}</span>
               {file.objectRef && (
@@ -111,6 +148,9 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
               <div className="ml-auto flex items-center gap-1.5">
                 <Button size="sm" variant="ghost" className="h-7" onClick={() => { void navigator.clipboard.writeText(file.content); toast.success("Copied"); }}><Copy /> Copy</Button>
                 <OpenIn />
+                <Button size="sm" variant="outline" className="h-7 xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
+                  <GitHubMark /> <span className="max-sm:sr-only">GitHub</span>
+                </Button>
               </div>
             </div>
             <CodeView code={file.content} lang={file.lang} className="min-h-0 flex-1" />
@@ -147,7 +187,14 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
         )}
       </div>
 
-      <GitHubPanel workOrders={workOrders} />
+      <GitHubPanel workOrders={workOrders} className="w-[290px] shrink-0 border-l border-hairline max-xl:hidden" />
+      {/* Below xl the panel has no room beside the code, so it opens as a sheet. */}
+      <Sheet open={githubOpen} onOpenChange={setGithubOpen}>
+        <SheetContent side="right" className="w-[320px] p-0">
+          <SheetTitle className="sr-only">GitHub and download</SheetTitle>
+          <GitHubPanel workOrders={workOrders} className="h-full" />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -180,6 +227,8 @@ function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: T
 function OpenIn() {
   const ws = useWorkspace();
   const repo = ws.project.settings.github?.repo;
+  // The folder you get from cloning the repo, or from unzipping "Download all source".
+  const folder = repo?.split("/")[1] ?? projectSlug(ws.project.name);
   const copyCmd = (cmd: string, label: string) => {
     void navigator.clipboard.writeText(cmd);
     toast.success(`${label} command copied`, { description: cmd });
@@ -191,7 +240,7 @@ function OpenIn() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuItem onSelect={() => copyCmd(`cursor ${repo ? `https://github.com/${repo}` : "."}`, "Cursor")}><ExternalLink /> Cursor</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copyCmd(`git clone https://github.com/${repo ?? "you/app"} && cd ${(repo ?? "you/app").split("/")[1]} && claude`, "Claude Code")}><Terminal /> Claude Code</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => copyCmd(repo ? `git clone https://github.com/${repo} && cd ${folder} && claude` : `unzip ${folder}.zip && cd ${folder} && claude`, "Claude Code")}><Terminal /> Claude Code</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => copyCmd(`code ${repo ? `https://github.com/${repo}` : "."}`, "VS Code")}><ExternalLink /> VS Code</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => copyCmd("npx @wonderwork/cli sync --watch", "Wonderwork CLI")}><RefreshCw /> Sync with your editor (CLI)</DropdownMenuItem>
       </DropdownMenuContent>
@@ -199,7 +248,7 @@ function OpenIn() {
   );
 }
 
-function GitHubPanel({ workOrders }: { workOrders: WorkOrderRow[] }) {
+function GitHubPanel({ workOrders, className }: { workOrders: WorkOrderRow[]; className?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -207,18 +256,21 @@ function GitHubPanel({ workOrders }: { workOrders: WorkOrderRow[] }) {
   const changes = workOrders.filter((w) => w.kind === "change" && (w.status === "done" || w.status === "proposed")).slice(0, 5);
 
   function exportBundle() {
+    const slug = projectSlug(ws.project.name);
     const all = generateFiles(ws.blueprint);
-    const text = all.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${ws.blueprint.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-source.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const bytes = zip(all.map((f) => ({ path: `${slug}/${f.path}`, content: f.content })));
+      downloadBlob(new Blob([bytes], { type: "application/zip" }), `${slug}.zip`);
+      toast.success(`Downloaded ${slug}.zip`, { description: `${all.length} files, in their folders.` });
+    } catch {
+      // Never leave someone without their code: one text file, each file headed by its path.
+      const text = all.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
+      downloadBlob(new Blob([text], { type: "text/plain" }), `${slug}-source.txt`);
+    }
   }
 
   return (
-    <aside aria-label="GitHub" className="w-[290px] shrink-0 overflow-y-auto border-l border-hairline p-4 max-xl:hidden">
+    <aside aria-label="GitHub" className={cn("overflow-y-auto p-4", className)}>
       <p className="flex items-center gap-2 text-[13px] font-semibold"><GitHubMark /> Your code on GitHub</p>
       {!gh?.connected ? (
         <div className="mt-3">

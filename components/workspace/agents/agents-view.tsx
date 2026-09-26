@@ -45,7 +45,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
     <div className="flex h-full min-h-0">
       <div className="flex w-[280px] shrink-0 flex-col border-r border-hairline max-md:hidden">
         <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="micro-label">Team · {agents.length} agents</h2>
+          <h2 className="micro-label">Team · {agents.length} agent{agents.length === 1 ? "" : "s"}</h2>
           <Button size="sm" variant="outline" className="h-7" onClick={() => setAdding(true)}><Plus /> Add</Button>
         </div>
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
@@ -91,6 +91,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
           <select aria-label="Agent" value={agent.id} onChange={(e) => pick(e.target.value)} className="ml-2 h-8 rounded-md border border-hairline bg-deep px-2 text-[12.5px] md:hidden">
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
+          <Button size="sm" variant="outline" className="h-8 md:hidden" onClick={() => setAdding(true)} aria-label="Add an agent"><Plus /> Add</Button>
           <Segmented<Tab>
             className="ml-auto max-lg:w-full max-lg:overflow-x-auto"
             ariaLabel="Agent view"
@@ -255,7 +256,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-2 px-6 py-6">
-        <p className="micro-label mb-2">Replay &amp; audit log · {runs.length} runs</p>
+        <p className="micro-label mb-2">Replay &amp; audit log · {runs.length} run{runs.length === 1 ? "" : "s"}</p>
         {runs.map((r) => {
           const expanded = open === r.id;
           const firstUser = r.transcript.find((t) => t.role === "user")?.text ?? "Conversation";
@@ -268,7 +269,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px]">“{firstUser}”</span>
                   <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-muted-foreground">
-                    <span>{r.tool_calls.length} tool calls</span>
+                    <span>{r.tool_calls.length} tool call{r.tool_calls.length === 1 ? "" : "s"}</span>
                     {approvals > 0 && <span className="text-read">{approvals} approved by a person</span>}
                     {denied > 0 && <span className="text-ask">{denied} denied</span>}
                     <span>{(r.input_tokens + r.output_tokens).toLocaleString()} tokens · {formatUsd(Number(r.cost_usd))}</span>

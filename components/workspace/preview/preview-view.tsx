@@ -54,6 +54,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
       comments={open.filter((c) => c.block_id === block.id && c.screen_id === screen.id)}
       draftPin={draftPin?.blockId === block.id ? draftPin : null}
       onTweak={() => setTweaking(block.id)}
+      onCloseTweak={() => setTweaking(null)}
       onPin={(x, y) => setDraftPin({ blockId: block.id, x, y })}
       onCancelPin={() => setDraftPin(null)}
       tweakPanel={
@@ -163,6 +164,7 @@ function BlockFrame({
   comments,
   draftPin,
   onTweak,
+  onCloseTweak,
   onPin,
   onCancelPin,
   tweakPanel,
@@ -175,6 +177,7 @@ function BlockFrame({
   comments: CommentRow[];
   draftPin: { x: number; y: number } | null;
   onTweak: () => void;
+  onCloseTweak: () => void;
   onPin: (x: number, y: number) => void;
   onCancelPin: () => void;
   tweakPanel: React.ReactNode;
@@ -190,6 +193,9 @@ function BlockFrame({
           className={cn("group/frame relative rounded-[calc(var(--app-radius)+6px)]", mode === "tweak" && "cursor-pointer", mode === "comment" && "cursor-crosshair")}
           onClickCapture={(e) => {
             if (mode === "use") return;
+            // This capture handler runs before anything inside the block. Clicks on a pin or
+            // on the draft note belong to them (open a thread, type, Pin it, Cancel).
+            if ((e.target as Element).closest("[data-pin], [data-pin-draft]")) return;
             e.preventDefault();
             e.stopPropagation();
             if (mode === "tweak") onTweak();
@@ -210,7 +216,7 @@ function BlockFrame({
           {draftPin && <DraftPin x={draftPin.x} y={draftPin.y} screenId={screen.id} blockId={block.id} onDone={onCancelPin} />}
         </div>
       </PopoverAnchor>
-      <PopoverContent side="right" align="start" className="w-auto border-0 bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent side="right" align="start" className="w-auto border-0 bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()} onEscapeKeyDown={onCloseTweak}>
         {tweakPanel}
       </PopoverContent>
     </Popover>
@@ -223,8 +229,8 @@ function CommentPin({ comment, n }: { comment: CommentRow; n: number }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   return (
-    <div className="absolute z-30" style={{ left: `${comment.x}%`, top: `${comment.y}%` }} onClickCapture={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((o) => !o)} className="grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full rounded-bl-none border-2 border-white bg-[#5b9cff] text-[11px] font-bold text-white shadow-lg" aria-label={`Comment ${n}: ${comment.body}`}>
+    <div data-pin className="absolute z-30" style={{ left: `${comment.x}%`, top: `${comment.y}%` }} onClick={(e) => e.stopPropagation()}>
+      <button type="button" onClick={() => setOpen((o) => !o)} className="grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full rounded-bl-none border-2 border-white bg-[#5b9cff] text-[11px] font-bold text-white shadow-lg" aria-label={`Comment ${n}: ${comment.body}`}>
         {n}
       </button>
       {open && (
@@ -251,13 +257,14 @@ function DraftPin({ x, y, screenId, blockId, onDone }: { x: number; y: number; s
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   return (
-    <div className="absolute z-40" style={{ left: `${x}%`, top: `${y}%` }} onClickCapture={(e) => e.stopPropagation()}>
+    <div data-pin-draft className="absolute z-40" style={{ left: `${x}%`, top: `${y}%` }} onClick={(e) => e.stopPropagation()}>
       <span className="block size-7 -translate-x-1/2 -translate-y-1/2 rounded-full rounded-bl-none border-2 border-white bg-amber shadow-lg" />
       <div className="panel-raised absolute left-4 top-2 w-72 rounded-xl p-3 text-foreground">
         <label htmlFor="pin-text" className="micro-label">Note for your team</label>
-        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} className="mt-1.5 w-full resize-none rounded-md border border-hairline bg-deep p-2 text-[13px] outline-none focus:border-amber/50" placeholder="What should change here?" />
+        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onDone()} className="mt-1.5 w-full resize-none rounded-md border border-hairline bg-deep p-2 text-[13px] outline-none focus:border-amber/50" placeholder="What should change here?" />
         <div className="mt-2 flex gap-1.5">
           <Button
+            type="button"
             size="sm"
             className="h-7"
             disabled={!text.trim() || pending}
@@ -273,7 +280,7 @@ function DraftPin({ x, y, screenId, blockId, onDone }: { x: number; y: number; s
           >
             {pending ? <Loader2 className="animate-spin" /> : null} Pin it
           </Button>
-          <Button size="sm" variant="ghost" className="h-7" onClick={onDone}><X /> Cancel</Button>
+          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={onDone}><X /> Cancel</Button>
         </div>
       </div>
     </div>

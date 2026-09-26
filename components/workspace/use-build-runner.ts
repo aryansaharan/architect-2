@@ -1,11 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
-import type { BuildState } from "@/lib/db/types";
+import type { BuildState, LedgerRow } from "@/lib/db/types";
 import { buildTimeline, type TimelineStep } from "@/lib/sim/buildTimeline";
-import type { RepairPlan } from "@/lib/sim/repair";
+import { planRepair, type RepairPlan } from "@/lib/sim/repair";
 import { completeBuild, resolveRepair, startBuild } from "@/lib/actions/build";
 
 export type BuildStatus = "idle" | "running" | "repair" | "finishing" | "done";
@@ -31,8 +31,32 @@ export type BuildRunner = {
 
 const refKey = (r: ObjectRef) => `${r.type}:${r.id}`;
 
+/**
+ * The fix the real build recorded (its "Our fix" history entry), provided by the shell.
+ * A replay runs on today's blueprint, where that fix is already in, so left alone the
+ * rehearsal would catch something else and the replay would tell a different story.
+ */
+export const RecordedRepairContext = createContext<LedgerRow | null>(null);
+
+/** Undo a recorded approval gate so the replay's rehearsal catches what the build caught. */
+function beforeRecordedFix(bp: Blueprint, fix: LedgerRow | null): Blueprint {
+  const agentId = fix?.object_ref?.type === "agent" ? fix.object_ref.id : null;
+  if (!agentId || planRepair(bp).objectRef.id === agentId) return bp;
+  // Builds record the plan id ("gate-<agent>-<tool>"); the seeded demo only records the agent.
+  const planId = typeof fix?.meta?.planId === "string" ? fix.meta.planId : "";
+  if (planId.startsWith("promise-")) return bp;
+  const toolId = planId.startsWith(`gate-${agentId}-`) ? planId.slice(`gate-${agentId}-`.length) : null;
+  const ai = bp.agents.findIndex((a) => a.id === agentId);
+  const ti = ai === -1 ? -1 : bp.agents[ai].tools.findIndex((t) => t.access === "irreversible" && t.permission === "ask" && (!toolId || t.id === toolId));
+  if (ti === -1) return bp;
+  const before = structuredClone(bp);
+  before.agents[ai].tools[ti].permission = "log"; // "Do it and tell me": what the gate replaced
+  return planRepair(before).objectRef.id === agentId ? before : bp;
+}
+
 export function useBuildRunner({ projectId, blueprint, buildState }: { projectId: string; blueprint: Blueprint; buildState: BuildState }): BuildRunner {
   const router = useRouter();
+  const recordedFix = useContext(RecordedRepairContext);
   const [status, setStatus] = useState<BuildStatus>("idle");
   const [mode, setMode] = useState<"build" | "replay">("build");
   const [steps, setSteps] = useState<TimelineStep[]>([]);
@@ -78,7 +102,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
       const replay = Boolean(opts?.replay);
       setMode(replay ? "replay" : "build");
       modeRef.current = replay ? "replay" : "build";
-      setSteps(buildTimeline(blueprint));
+      setSteps(buildTimeline(replay ? beforeRecordedFix(blueprint, recordedFix) : blueprint));
       setIndex(0);
       setRepairChoice(null);
       setSpeed(buildState === "building" && !replay ? 4 : 1);
@@ -91,7 +115,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
       }
       setStatus("running");
     },
-    [blueprint, buildState, projectId],
+    [blueprint, buildState, projectId, recordedFix],
   );
 
   const choose = useCallback(

@@ -8,13 +8,18 @@ import { Rail } from "./rail";
 import { Inspector } from "./inspector/inspector";
 import { HandoffDialog } from "./handoff-dialog";
 import { CommandK } from "./command-k";
+import { RecordedRepairContext } from "./use-build-runner";
 
 export function WorkspaceShell({ data, children }: { data: WorkspaceData; children: React.ReactNode }) {
+  // The build's recorded fix (newest first), so "Replay how it was built" matches the history.
+  const recordedFix = data.ledger.find((r) => r.kind === "repair" && r.blame === "system_fix") ?? null;
   return (
     <Suspense>
-      <WorkspaceProvider data={data}>
-        <ShellLayout>{children}</ShellLayout>
-      </WorkspaceProvider>
+      <RecordedRepairContext.Provider value={recordedFix}>
+        <WorkspaceProvider data={data}>
+          <ShellLayout>{children}</ShellLayout>
+        </WorkspaceProvider>
+      </RecordedRepairContext.Provider>
     </Suspense>
   );
 }

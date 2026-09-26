@@ -35,7 +35,7 @@ export function LogoMark({ className }: { className?: string }) {
 
 export function Logo({ href = "/", className, compact }: { href?: string; className?: string; compact?: boolean }) {
   return (
-    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none", className)} aria-label="Wonderwork home">
+    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber/60", className)} aria-label="Wonderwork home">
       <LogoMark />
       {!compact && (
         <span className="text-[15px] font-semibold tracking-tight text-foreground">Wonderwork</span>

@@ -1,14 +1,15 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 import {
-  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, ExternalLink, History, Home, LogOut, Eye, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
+  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Loader2, LogOut, Eye, Play, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -42,6 +43,9 @@ export function TopBar() {
   const pathname = usePathname();
   const base = `/p/${ws.project.id}`;
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
+  const replaying = building && ws.build.mode === "replay";
+  const onHandoffs = pathname.startsWith(`${base}/handoffs`);
+  const openHandoffs = ws.handoffs.filter((h) => h.status !== "resolved").length;
 
   return (
     <header className="relative flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70 md:h-12 md:flex-nowrap md:py-0">
@@ -52,7 +56,14 @@ export function TopBar() {
         <span className="text-hairline" aria-hidden>/</span>
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-[13.5px] font-medium" title={ws.project.name}>{ws.project.name}</h1>
-          <StatusBadge state={building ? "building" : ws.project.buildState} live={Boolean(ws.liveSlug)} />
+          {replaying ? (
+            // A replay re-tells the finished build. Nothing is built or charged, so don't say "Building".
+            <span className="inline-flex h-5 items-center gap-1 rounded-full border border-hairline px-2 text-[11px] font-medium text-muted-foreground">
+              <Play className="size-2.5" aria-hidden />Replaying
+            </span>
+          ) : (
+            <StatusBadge state={building ? "building" : ws.project.buildState} live={Boolean(ws.liveSlug)} />
+          )}
           {ws.project.isDemo && <span className="hidden rounded-full border border-hairline px-2 py-0.5 text-[10.5px] text-muted-foreground xl:inline">Demo project</span>}
         </div>
       </div>
@@ -103,16 +114,38 @@ export function TopBar() {
         </button>
         <div className="max-sm:hidden"><SavePoints /></div>
         <SpendMeter />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 max-lg:px-2" onClick={() => ws.openHandoff(ws.selected)}>
-              <UsersRound className="size-3.5" />
-              <span className="max-lg:sr-only">Ask a teammate</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Hand this to an engineer with full context</TooltipContent>
-        </Tooltip>
+        {/* Asking a teammate and seeing what you've asked live side by side. */}
+        <div className="flex items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-r-none max-lg:px-2" onClick={() => ws.openHandoff(ws.selected)}>
+                <UsersRound className="size-3.5" />
+                <span className="max-lg:sr-only">Ask a teammate</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Hand this to an engineer with full context</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="outline" size="sm" className={cn("relative h-8 w-8 rounded-l-none border-l-0 px-0 text-muted-foreground", onHandoffs && "bg-muted text-foreground")}>
+                <Link href={`${base}/handoffs`} aria-current={onHandoffs ? "page" : undefined} aria-label={openHandoffs ? `Handoffs, ${openHandoffs} open` : "Handoffs"}>
+                  <Inbox className="size-3.5" />
+                  {openHandoffs > 0 && (
+                    <span aria-hidden className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber px-1 font-mono text-[9.5px] font-semibold tabular-nums text-primary-foreground ring-2 ring-panel">
+                      {openHandoffs}
+                    </span>
+                  )}
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-2.5">
+              <span>{openHandoffs ? `Handoffs · ${openHandoffs} waiting on a teammate` : "Handoffs · what you've asked teammates"}</span>
+              <KbdGroup><Kbd>G</Kbd><Kbd>H</Kbd></KbdGroup>
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="max-sm:hidden"><ShareButton /></div>
+        <div className="sm:hidden"><MoreMenu /></div>
         <UserMenu />
       </div>
       <div aria-hidden className="solstice-line pointer-events-none absolute inset-x-0 -bottom-px" style={{ opacity: 0.4 }} />
@@ -122,8 +155,6 @@ export function TopBar() {
 
 function SavePoints() {
   const ws = useWorkspace();
-  const router = useRouter();
-  const [pending, start] = useTransition();
   const current = ws.checkpoints.find((c) => c.id === ws.project.currentCheckpointId) ?? ws.checkpoints[0];
   if (!ws.checkpoints.length) return null;
   return (
@@ -141,45 +172,109 @@ function SavePoints() {
           <span className="font-normal text-muted-foreground">Going back is always free</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <div className="max-h-72 overflow-y-auto">
-          {ws.checkpoints.map((c) => {
-            const isCurrent = c.id === current?.id;
-            return (
-              <DropdownMenuItem
-                key={c.id}
-                disabled={pending}
-                className="items-start gap-2.5 py-2"
-                onSelect={(e) => {
-                  if (isCurrent) {
-                    e.preventDefault();
-                    return;
-                  }
-                  start(async () => {
-                    const r = await restoreCheckpoint(ws.project.id, c.id);
-                    if (r.ok) toast.success(`Back at “${c.label}”`, { description: "Your previous state was kept as a save point." });
-                    else toast.error(r.error ?? "Could not restore");
-                    router.refresh();
-                  });
-                }}
-              >
-                <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded font-mono text-[10px]", isCurrent ? "bg-amber text-primary-foreground" : "bg-raised text-muted-foreground")}>{c.seq}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px]">{c.label}</span>
-                  <span className="block truncate text-[11.5px] text-muted-foreground">{c.summary ?? c.kind}</span>
-                </span>
-                <span className="flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">
-                  <TimeAgo iso={c.created_at} />
-                  {isCurrent ? <span className="text-amber">current</span> : <span className="inline-flex items-center gap-1"><Undo2 className="size-3" />restore</span>}
-                </span>
-              </DropdownMenuItem>
-            );
-          })}
-        </div>
+        <SavePointItems />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={`/p/${ws.project.id}/code?compare=1`}>
             <Code2 /> Compare save points
           </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Every save point as a menu item; picking one restores it. Shared by the desktop menu and the phone "More" menu. */
+function SavePointItems() {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const current = ws.checkpoints.find((c) => c.id === ws.project.currentCheckpointId) ?? ws.checkpoints[0];
+  return (
+    <div className="max-h-72 overflow-y-auto">
+      {ws.checkpoints.map((c) => {
+        const isCurrent = c.id === current?.id;
+        return (
+          <DropdownMenuItem
+            key={c.id}
+            disabled={pending}
+            className="items-start gap-2.5 py-2"
+            onSelect={(e) => {
+              if (isCurrent) {
+                e.preventDefault();
+                return;
+              }
+              start(async () => {
+                const r = await restoreCheckpoint(ws.project.id, c.id);
+                if (r.ok) toast.success(`Back at “${c.label}”`, { description: "Your previous state was kept as a save point." });
+                else toast.error(r.error ?? "Could not restore");
+                router.refresh();
+              });
+            }}
+          >
+            <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded font-mono text-[10px]", isCurrent ? "bg-amber text-primary-foreground" : "bg-raised text-muted-foreground")}>{c.seq}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px]">{c.label}</span>
+              <span className="block truncate text-[11.5px] text-muted-foreground">{c.summary ?? c.kind}</span>
+            </span>
+            <span className="flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">
+              <TimeAgo iso={c.created_at} />
+              {isCurrent ? <span className="text-amber">current</span> : <span className="inline-flex items-center gap-1"><Undo2 className="size-3" />restore</span>}
+            </span>
+          </DropdownMenuItem>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Phones have no room for Save points and Share in the bar, so they live in one overflow menu. */
+function MoreMenu() {
+  const ws = useWorkspace();
+  const base = `/p/${ws.project.id}`;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" className="size-8" aria-label="More: save points and share">
+          <Ellipsis className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1rem))]">
+        {ws.checkpoints.length > 0 && (
+          <>
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span><Term k="save-point">Save points</Term></span>
+              <span className="font-normal text-muted-foreground">Going back is free</span>
+            </DropdownMenuLabel>
+            <SavePointItems />
+            <DropdownMenuItem asChild>
+              <Link href={`${base}/code?compare=1`}><Code2 /> Compare save points</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuLabel>Share</DropdownMenuLabel>
+        {ws.liveSlug ? (
+          <>
+            <DropdownMenuItem
+              onSelect={() => {
+                void navigator.clipboard.writeText(`${window.location.origin}/live/${ws.liveSlug}`);
+                toast.success("Link copied", { description: "Anyone with the link can use the live version." });
+              }}
+            >
+              <Copy /> Copy the live link
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer"><ExternalLink /> Open the live version</a>
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href={`${base}/ship`}><Rocket /> Not live yet. Go live from Ship</Link>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem asChild>
+          <Link href="/settings#team"><UserRoundPlus /> Manage people and roles</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -279,10 +374,15 @@ export function UserMenu({ compact }: { compact?: boolean }) {
 }
 
 export function UserMenuView({ name, isAnonymous, avatarUrl, compact }: { name: string; isAnonymous: boolean; avatarUrl: string | null; compact?: boolean }) {
+  const pathname = usePathname();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [leaving, startLeaving] = useTransition();
+  const keepWork = useRef<HTMLAnchorElement>(null);
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className="ml-0.5 flex items-center gap-2 rounded-full outline-none" aria-label="Account">
+        <button type="button" className="ml-0.5 flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-amber/60" aria-label="Account">
           {isAnonymous && !compact && (
             <span className="hidden h-7 items-center rounded-full border border-amber/30 bg-amber-soft px-2.5 text-[11.5px] font-medium text-amber 2xl:inline-flex">Guest · keep this work</span>
           )}
@@ -310,8 +410,33 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact }: { name: 
         <DropdownMenuItem asChild><Link href="/home"><Home /> All projects</Link></DropdownMenuItem>
         <DropdownMenuItem asChild><Link href="/settings"><Settings /> Settings</Link></DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void signOut()}><LogOut /> Sign out</DropdownMenuItem>
+        {/* A guest's work only exists in this session, so check before ending it. */}
+        <DropdownMenuItem onSelect={() => (isAnonymous ? setConfirmSignOut(true) : void signOut())}><LogOut /> Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    {isAnonymous && (
+      <Dialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
+        {/* Focus the safe choice, not "Sign out anyway". */}
+        <DialogContent className="sm:max-w-md" onOpenAutoFocus={(e) => { e.preventDefault(); keepWork.current?.focus(); }}>
+          <DialogHeader>
+            <DialogTitle>Sign out of this guest session?</DialogTitle>
+            <DialogDescription>
+              As a guest, your projects belong to this session only. Signing out ends it, and its projects can&apos;t be opened again. Sign in first and everything comes with you.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+            <Button variant="ghost" disabled={leaving} onClick={() => startLeaving(async () => { await signOut(); })}>
+              {leaving ? <Loader2 className="animate-spin" /> : <LogOut />} Sign out anyway
+            </Button>
+            <Button asChild>
+              <Link ref={keepWork} href={`/login?next=${encodeURIComponent(pathname)}`} onClick={() => setConfirmSignOut(false)}>
+                <UserRoundPlus /> Keep my work
+              </Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 }

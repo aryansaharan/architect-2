@@ -13,6 +13,7 @@ import { canGoLive, preflight } from "@/lib/sim/preflight";
 import { generateFiles } from "@/lib/codegen/files";
 import { fixPreflight, goLive, rollbackTo, takeOffline } from "@/lib/actions/ship";
 import { creditsUsd } from "@/lib/format";
+import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 import { Term } from "@/components/arch/term";
@@ -23,6 +24,9 @@ const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag
   { id: "vercel", name: "Your Vercel team", icon: Server, body: "Push to your own Vercel project and keep your usual deploy previews.", tag: "Sandbox" },
   { id: "vpc", name: "Your VPC or on-prem", icon: Container, body: "Download a Docker bundle and run everything inside your network.", tag: "Sandbox" },
 ];
+
+/** A plain hostname: dot-separated labels of letters, digits and inner hyphens, ending in a real TLD. */
+const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 
 const STEPS = ["Packaging the current save point", "Provisioning the runtime", "Applying the database schema with row-level security", "Registering agents and their approval gates", "Warming up", "Checking the live URL answers"];
 
@@ -36,6 +40,8 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const blocking = checks.filter((c) => c.blocking && c.status === "fail").length;
   const [target, setTarget] = useState<Target>("architect_cloud");
   const [domain, setDomain] = useState("");
+  const [domainTouched, setDomainTouched] = useState(false);
+  const [confirmOffline, setConfirmOffline] = useState(false);
   const [deploying, setDeploying] = useState<number | null>(null);
   const [pending, start] = useTransition();
   const [users, setUsers] = useState(1000);
@@ -43,6 +49,9 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const live = deployments.find((d) => d.status === "live");
   const perConversation = bp.agents.reduce((s, a) => s + a.cost.creditsPerRun, 0) / Math.max(1, bp.agents.length);
   const monthly = users * 4 * perConversation;
+  // Forgive a pasted URL ("https://claims.example.com/"); anything else must be a real hostname.
+  const host = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const domainValid = !host || HOSTNAME.test(host);
 
   const fix = (action: Parameters<typeof fixPreflight>[1]) =>
     start(async () => {
@@ -59,7 +68,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
       if (i === 0) setTimeout(() => document.getElementById("deploy-progress")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
       await new Promise((r) => setTimeout(r, 650 + (i % 2) * 250));
     }
-    const r = await goLive(ws.project.id, target, domain || undefined);
+    const r = await goLive(ws.project.id, target, host || undefined);
     setDeploying(null);
     if (!r.ok) return void toast.error(r.error);
     if (target === "architect_cloud") setLaunched(r.slug ?? ws.liveSlug ?? "");
@@ -69,13 +78,13 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
 
   function downloadBundle() {
     const files = generateFiles(bp).filter((f) => ["docker-compose.yml", ".env.example", "README.md", "supabase/schema.sql"].includes(f.path) || f.path.startsWith("agents/"));
-    const text = files.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-bundle.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const slug = `${ws.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app"}-bundle`;
+    try {
+      downloadBlob(new Blob([zip(files.map((f) => ({ path: `${slug}/${f.path}`, content: f.content })))], { type: "application/zip" }), `${slug}.zip`);
+    } catch {
+      const text = files.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
+      downloadBlob(new Blob([text], { type: "text/plain" }), `${slug}.txt`);
+    }
   }
 
   return (
@@ -164,12 +173,26 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
             ))}
             <label className="block">
               <span className="micro-label flex items-center gap-1.5"><Globe className="size-3" />Custom domain · optional</span>
-              <Input className="mt-1.5 h-9" placeholder="claims.harbormutual.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
-              {domain && <span className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME to <span className="font-mono">cname.wonderwork.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>}
+              <Input
+                className="mt-1.5 h-9"
+                placeholder="claims.harbormutual.com"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                onBlur={() => setDomainTouched(true)}
+                aria-invalid={domainTouched && !domainValid ? true : undefined}
+                aria-describedby="domain-help"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              {domainTouched && !domainValid ? (
+                <span id="domain-help" className="mt-1 block text-[11.5px] text-ask">That isn&apos;t a domain. Use one like claims.yourcompany.com, without spaces or symbols.</span>
+              ) : host && domainValid ? (
+                <span id="domain-help" className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME for <span className="font-mono">{host}</span> to <span className="font-mono">cname.wonderwork.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>
+              ) : null}
             </label>
             <div className="flex gap-2 pt-1">
-              <Button size="lg" className="btn-solstice sheen h-10 flex-1 disabled:animate-none" disabled={!ready || deploying !== null} onClick={deploy}>
-                {deploying !== null ? <Loader2 className="animate-spin" /> : <Rocket />} {!ready ? `Fix ${blocking} blocking check${blocking === 1 ? "" : "s"} to go live` : live && target === "architect_cloud" ? "Update the live version" : "Go live"}
+              <Button size="lg" className="btn-solstice sheen h-10 flex-1 disabled:animate-none" disabled={!ready || !domainValid || deploying !== null} onClick={deploy}>
+                {deploying !== null ? <Loader2 className="animate-spin" /> : <Rocket />} {!ready ? `Fix ${blocking} blocking check${blocking === 1 ? "" : "s"} to go live` : !domainValid ? "Fix the custom domain to go live" : live && target === "architect_cloud" ? "Update the live version" : "Go live"}
               </Button>
               {target === "vpc" && <Button size="lg" variant="outline" className="h-10" onClick={downloadBundle}><Download /> Bundle</Button>}
             </div>
@@ -220,27 +243,57 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">Nothing deployed yet.</p>
             ) : (
               <ul className="divide-y divide-hairline">
-                {deployments.slice(0, 6).map((d) => (
-                  <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
-                    <span className={cn("size-2 shrink-0 rounded-full", d.status === "live" ? "bg-read" : d.status === "sandbox" ? "bg-change" : "bg-faint")} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block">{d.target === "architect_cloud" ? "Wonderwork Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
-                      <span className="block text-[11.5px] text-muted-foreground">{d.status === "live" ? "Serving now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · <TimeAgo iso={d.created_at} /></span>
-                    </span>
-                    {d.status === "rolled_back" && d.target === "architect_cloud" && live && (
-                      <Button size="sm" variant="ghost" className="h-7" disabled={pending} onClick={() => start(async () => { const r = await rollbackTo(ws.project.id, d.id); if (r.ok) toast.success("Rolled back", { description: "Instant and free." }); else toast.error(r.error); router.refresh(); })}>
-                        <Undo2 /> Roll back to this
-                      </Button>
-                    )}
-                  </li>
-                ))}
+                {deployments.slice(0, 6).map((d) => {
+                  const cp = ws.checkpoints.find((c) => c.id === d.checkpoint_id);
+                  return (
+                    <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
+                      <span className={cn("size-2 shrink-0 rounded-full", d.status === "live" ? "bg-read" : d.status === "sandbox" ? "bg-change" : "bg-faint")} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block">{d.target === "architect_cloud" ? "Wonderwork Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
+                        {cp && <span className="block truncate text-[11.5px] text-muted-foreground" title={cp.label}>Save point #{cp.seq} · {cp.label}</span>}
+                        <span className="block text-[11.5px] text-muted-foreground">{d.status === "live" ? "Serving now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · <TimeAgo iso={d.created_at} /></span>
+                      </span>
+                      {d.status === "rolled_back" && d.target === "architect_cloud" && live && (
+                        <Button size="sm" variant="ghost" className="h-7" disabled={pending} onClick={() => start(async () => { const r = await rollbackTo(ws.project.id, d.id); if (r.ok) toast.success("Rolled back", { description: "Instant and free." }); else toast.error(r.error); router.refresh(); })}>
+                          <Undo2 /> Roll back to this
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {live && (
               <div className="border-t border-hairline px-4 py-2.5">
-                <button className="text-[12px] text-muted-foreground hover:text-ask" disabled={pending} onClick={() => start(async () => { await takeOffline(ws.project.id); toast.success("Taken offline"); router.refresh(); })}>
-                  Take the live version offline
-                </button>
+                {confirmOffline ? (
+                  <div role="group" aria-label="Confirm taking the live version offline">
+                    <p className="text-[12.5px]">Take it offline? The link will show “not found” until you go live again. Your project and save points stay as they are.</p>
+                    <div className="mt-2 flex gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 border-ask/40 text-ask hover:bg-ask/10 hover:text-ask"
+                        disabled={pending}
+                        onClick={() =>
+                          start(async () => {
+                            const r = await takeOffline(ws.project.id);
+                            if (r.ok) toast.success("Taken offline", { description: "Go live again any time from here." });
+                            else toast.error(r.error);
+                            setConfirmOffline(false);
+                            router.refresh();
+                          })
+                        }
+                      >
+                        {pending ? <Loader2 className="animate-spin" /> : null} Take it offline
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7" disabled={pending} autoFocus onClick={() => setConfirmOffline(false)}>Keep it live</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="text-[12px] text-muted-foreground hover:text-ask" disabled={pending} onClick={() => setConfirmOffline(true)}>
+                    Take the live version offline
+                  </button>
+                )}
               </div>
             )}
           </section>

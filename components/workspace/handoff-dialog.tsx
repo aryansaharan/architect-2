@@ -20,7 +20,7 @@ const MATES = [
 ];
 
 function suggestion(type: string | undefined, label: string, missing: boolean) {
-  if (type === "connection") return missing ? `I don't have the key for ${label} . Can you connect the sandbox?` : `Can you check ${label} is set up the way we need?`;
+  if (type === "connection") return missing ? `I don't have the key for ${label}. Can you connect the sandbox?` : `Can you check ${label} is set up the way we need?`;
   if (type === "agent") return `Can you review ${label}? I want to be sure it's safe before it goes live.`;
   if (type === "screen" || type === "block") return `Can you adjust ${label}? Here's what I'm after: `;
   return "Can you take a look at this with me?";
