@@ -3,6 +3,8 @@ import { allBlocks, BLOCK_LABELS } from "@/lib/blueprint";
 import { list } from "@/lib/blueprint/describe";
 import { between } from "./hash";
 import { planRepair, type RepairPlan } from "./repair";
+import { rehearsalOutcome } from "./rehearse";
+import { applyOps } from "@/lib/blueprint/apply";
 
 export type Lane = "thought" | "did" | "checked";
 
@@ -112,12 +114,16 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
   const plan = planRepair(bp);
   steps.push({ kind: "repair", id: "repair", plan });
 
+  // Judge the re-run on the repaired plan with the same rules the build records (lib/actions/build.ts).
+  const fixed = applyOps(bp, plan.options[0].ops);
+  const after = fixed.ok ? fixed.blueprint : bp;
+  const passed = after.agents.reduce((n, a) => n + a.rehearsals.filter((r) => rehearsalOutcome(a, r).pass).length, 0);
   s({
     id: "rehearse-again",
     lane: "checked",
-    title: `Re-ran rehearsals · ${rehearsals} of ${rehearsals} passed`,
-    detail: "The fix held. Nothing else changed.",
-    tone: "ok",
+    title: `Re-ran rehearsals · ${passed} of ${rehearsals} passed`,
+    detail: passed === rehearsals ? "The fix held. Nothing else changed." : "Some still fail. Open Agents › Rehearsals after the build to see why.",
+    tone: passed === rehearsals ? "ok" : "warn",
     durationMs: 1600,
   });
   s({

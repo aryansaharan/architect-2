@@ -7,6 +7,7 @@ import { addCheckpoint, addLedger, updateProject } from "@/lib/db/writes";
 import { canGoLive, preflight, type PreflightFix } from "@/lib/sim/preflight";
 import { shortId } from "@/lib/sim/hash";
 import { estimate } from "@/lib/blueprint/estimate";
+import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import type { DeploymentRow } from "@/lib/db/types";
 
 type R = { ok: true; slug?: string; message?: string } | { ok: false; error: string };
@@ -34,6 +35,19 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
     const names = bp.connections.filter((c) => c.status === "missing").map((c) => c.name);
     bp.connections.forEach((c) => (c.status = "configured"));
     title = `Added sandbox keys for ${names.join(", ")}`;
+  } else if (action === "run_rehearsals") {
+    const now = new Date().toISOString();
+    let passed = 0;
+    let total = 0;
+    for (const agent of bp.agents) {
+      for (const r of agent.rehearsals) {
+        const out = rehearsalOutcome(agent, r);
+        total++;
+        if (out.pass) passed++;
+        r.history = [...r.history, { at: now, pass: out.pass, note: out.note }].slice(-10);
+      }
+    }
+    title = `Ran ${total} rehearsal${total === 1 ? "" : "s"}, ${passed} passed`;
   } else if (action === "set_budget") {
     await updateProject(supa, projectId, { settings: { ...project.settings, budgetCapCredits: 500 } });
     await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: "Set a 500-credit monthly cap", credits: 0 }]);

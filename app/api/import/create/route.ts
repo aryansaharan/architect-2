@@ -86,9 +86,9 @@ Use the repository's own names for agents and screens where the README or folder
         await addLedger(supa, project.id, [
           { lane: "thought", kind: "import", title: `Read ${report.repo.owner}/${report.repo.name}`, body: `${report.fileCount} files. Found ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"} on ${report.stack.map((s) => s.label).slice(0, 4).join(", ") || "an unknown stack"}.${report.cached ? " (Cached analysis: GitHub rate limit.)" : ""}`, credits: 0 },
           { lane: "checked", kind: "import", title: `Signed ${houseRules.length} House Rules`, body: houseRules.map((r) => `• ${r}`).join("\n"), credits: 0 },
-          { lane: "thought", kind: "work_order", title: `Mapped the repo into ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`, body: mode === "live" ? `Mapped with ${usage?.model}. The first change will open as a pull request. Nothing is pushed to main.` : "Offline mode: mapped onto the closest starter plan.", credits: usage?.credits ?? 0, checkpointId: cp.id },
+          { lane: "thought", kind: "work_order", title: `Mapped the repo into ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`, body: mode === "live" ? `Mapped with ${usage?.model}. Mapping is free. The first change will open as a pull request. Nothing is pushed to main.` : "Offline mode: mapped onto the closest starter plan.", credits: 0, checkpointId: cp.id },
         ]);
-        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "import", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: usage.credits, meta: { op: "import" } });
+        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "import", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "import", modelCredits: usage.credits } });
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[import] save failed", e);

@@ -2,7 +2,7 @@ import type { Blueprint } from "@/lib/blueprint/schema";
 import { signInMethods } from "@/lib/blueprint/describe";
 
 export type PreflightStatus = "pass" | "warn" | "fail";
-export type PreflightFix = "enable_auth" | "gate_irreversible" | "sandbox_keys" | "set_budget" | "build_first";
+export type PreflightFix = "enable_auth" | "gate_irreversible" | "sandbox_keys" | "set_budget" | "build_first" | "run_rehearsals";
 export type PreflightCheck = {
   id: "signin" | "permissions" | "rehearsals" | "keys" | "budget" | "residency";
   label: string;
@@ -23,10 +23,7 @@ export function preflight(
   const irreversible = bp.agents.flatMap((a) => a.tools.map((t) => ({ a, t }))).filter(({ t }) => t.access === "irreversible");
   const ungated = irreversible.filter(({ t }) => t.permission !== "ask");
   const missing = bp.connections.filter((c) => c.status === "missing");
-  const rehearsals = bp.agents.flatMap((a) => a.rehearsals);
-  const withHistory = rehearsals.filter((r) => r.history.length);
-  const passing = withHistory.filter((r) => r.history[r.history.length - 1].pass).length;
-  const rate = withHistory.length ? passing / withHistory.length : 1;
+  const reh = rehearsalSummary(bp);
   const built = opts.built ?? true;
   const region = opts.region ?? bp.meta.region;
 
@@ -55,14 +52,10 @@ export function preflight(
       id: "rehearsals",
       label: "Rehearsals pass",
       plain: "Every agent has played through its test conversations.",
-      status: !built ? "fail" : rate >= 0.8 ? "pass" : "fail",
-      detail: !built
-        ? "Build the project first. Rehearsals run as part of the build."
-        : withHistory.length
-          ? `${passing} of ${withHistory.length} passing (${Math.round(rate * 100)}%).`
-          : `${rehearsals.length} of ${rehearsals.length} passed during the last build.`,
+      status: !built || reh.rate < 0.8 ? "fail" : reh.failing || reh.notRun || reh.unrehearsed.length ? "warn" : "pass",
+      detail: !built ? "Build the project first. Rehearsals run as part of the build." : reh.detail,
       blocking: true,
-      fix: !built ? { label: "Build it", action: "build_first" } : undefined,
+      fix: !built ? { label: "Build it", action: "build_first" } : reh.notRun || reh.unrehearsed.length ? { label: "Run all rehearsals", action: "run_rehearsals" } : undefined,
     },
     {
       id: "keys",
@@ -91,6 +84,30 @@ export function preflight(
       blocking: false,
     },
   ];
+}
+
+/**
+ * Every agent's rehearsals, counted honestly: the latest result of each one.
+ * A rehearsal that has never run counts as not passing, and an agent with no
+ * results (or no rehearsals at all) is named as not rehearsed yet.
+ */
+export function rehearsalSummary(bp: Blueprint) {
+  const all = bp.agents.flatMap((a) => a.rehearsals);
+  const ran = all.filter((r) => r.history.length);
+  const passing = ran.filter((r) => r.history[r.history.length - 1].pass).length;
+  const failing = ran.length - passing;
+  const notRun = all.length - ran.length;
+  const unrehearsed = bp.agents.filter((a) => !a.rehearsals.some((r) => r.history.length)).map((a) => a.name);
+  const rate = all.length ? passing / all.length : 0;
+  const parts: string[] = [];
+  if (all.length && ran.length) parts.push(`${passing} of ${all.length} passing on their latest run (${Math.round(rate * 100)}%).`);
+  else if (all.length) parts.push(`None of the ${all.length} rehearsals has run yet.`);
+  else parts.push("No agent has any rehearsals yet. Add them in Agents › Rehearsals.");
+  if (failing) parts.push(`${failing} failing.`);
+  if (unrehearsed.length && unrehearsed.length < bp.agents.length) parts.push(`Not rehearsed yet: ${unrehearsed.join(", ")}.`);
+  else if (notRun && ran.length) parts.push(`${notRun} ${notRun === 1 ? "hasn't" : "haven't"} run yet.`);
+  if (all.length && (notRun || unrehearsed.length)) parts.push("Run them in Agents › Rehearsals.");
+  return { total: all.length, passing, failing, notRun, unrehearsed, rate, detail: parts.join(" ") };
 }
 
 export const canGoLive = (checks: PreflightCheck[]) => checks.every((c) => !c.blocking || c.status !== "fail");

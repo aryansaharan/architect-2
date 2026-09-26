@@ -84,7 +84,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
           <Button variant="ghost" className="ml-auto text-muted-foreground" onClick={() => plan(true)}>Skip, use sensible defaults</Button>
           <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(239_255_148/0.35),0_10px_30px_-10px_rgb(223_255_79/0.8)]" onClick={() => plan(false)}>Plan it <ArrowRight /></Button>
         </div>
-        <p className="mt-4 text-right text-[12px] text-faint">Planning is free to review. Nothing is built until you approve a Work Order.</p>
+        <p className="mt-4 text-right text-[12px] text-faint">Planning is free. Nothing is built until you approve a Work Order.</p>
       </div>
     );
   }

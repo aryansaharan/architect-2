@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Blueprint } from "@/lib/blueprint/schema";
 
 /**
  * What the model is asked to produce: the *decisions* (what data, which agents,
@@ -99,4 +100,25 @@ Principles:
 - Be honest about risk. Mark any tool that sends a message, moves money, creates or deletes an outside account, or publishes anything as "irreversible". Changing a record inside the app is "write". Looking something up is "read".
 - Prefer fewer, sharper agents with separated jobs over many overlapping ones.
 - Sample data must be realistic and specific to the brief, with fictional names.
-- Keep it buildable: 3–5 screens, 2–3 agents, 2–4 data types, 3–5 connections.`;
+- Keep it buildable: 3–5 screens, 2–3 agents, 2–4 data types, 3–5 connections.
+- Respect the answers to the quick questions. If they say nothing is connected yet ("Nothing yet", "Nowhere yet", "None yet"), never assume an outside system is already set up: plan only the outside systems the agents truly need (fewer is better). They will be shown as needing setup.`;
+
+/**
+ * True when the person answered the "what must it connect to?" question with
+ * "Nothing yet" (or "Nowhere yet" / "None yet"): see lib/blueprint/questions.ts.
+ */
+export function saysNothingConnected(answers: string): boolean {
+  return /\b(nothing|nowhere|none) yet\b/i.test(answers);
+}
+
+/** Extra prompt line for the planner when nothing is connected yet. */
+export const NOTHING_CONNECTED_NOTE = "Important: nothing is connected yet. Plan only the outside systems the agents truly need. Every one of them starts as needing setup; none is already connected.";
+
+/**
+ * Deterministic guard that holds even if the model ignores the prompt: when
+ * nothing is connected yet, every outside connection starts as "missing"
+ * (needs setup, runs on test data). Only the app's own database is ready.
+ */
+export function markNothingConnected(bp: Blueprint): Blueprint {
+  return { ...bp, connections: bp.connections.map((c) => (c.kind === "database" ? c : { ...c, status: "missing" as const })) };
+}

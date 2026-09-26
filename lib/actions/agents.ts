@@ -15,6 +15,8 @@ import { costOf } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import { modelBudgetOk } from "@/lib/llm/guard";
+import { FRAMEWORK_LABEL } from "@/lib/blueprint/describe";
+import { agentLocationError, agentNameFromLocation } from "@/lib/import/detect";
 
 type R = { ok: true; agentId?: string; summary?: string } | { ok: false; error: string };
 
@@ -194,9 +196,9 @@ export async function addAgentFromSource(projectId: string, input: { kind: "code
   const bp = structuredClone(project.blueprint);
   if (bp.agents.length >= 6) return { ok: false, error: "Six agents is the limit for one project" };
   const loc = input.location.trim().slice(0, 300);
-  if (!loc) return { ok: false, error: input.kind === "code" ? "Paste a repository path" : "Paste the endpoint URL" };
-  const base = input.name?.trim() || loc.split(/[/#?]/).filter(Boolean).pop()?.replace(/\.(py|ts|js)$/, "").replace(/[_-]+/g, " ") || "External agent";
-  const name = base.split(/\s+/).slice(0, 3).map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ");
+  const invalid = agentLocationError(input.kind, loc);
+  if (invalid) return { ok: false, error: invalid };
+  const name = input.name?.trim().slice(0, 40) || agentNameFromLocation(loc);
   const id = uniqueId(bp, kebab(name));
   let connId = bp.connections.find((c) => c.name === `${name} endpoint`)?.id;
   if (!connId && bp.connections.length < 8) {
@@ -206,7 +208,7 @@ export async function addAgentFromSource(projectId: string, input: { kind: "code
   const agent: Agent = {
     id,
     name,
-    role: input.kind === "code" ? `Imported ${input.framework ? input.framework.replace("_", " ") : ""} agent`.replace(/\s+/g, " ").trim() : `Remote agent (${(input.protocol ?? "http").toUpperCase()})`,
+    role: input.kind === "code" ? (input.framework ? `Imported from ${FRAMEWORK_LABEL[input.framework]}` : "Imported from your code") : `Remote agent (${(input.protocol ?? "http").toUpperCase()})`,
     avatarHue: hash(id) % 360,
     plain: input.kind === "code"
       ? `An agent you already had, brought in from ${loc}. Wonderwork runs it as-is and wraps every tool call with the permissions below.`

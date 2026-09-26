@@ -115,9 +115,70 @@ export function defaultHouseRules(report: Pick<ImportReport, "stack" | "framewor
     `Never change the framework${report.stack[0] ? ` (${report.stack.slice(0, 2).map((s) => s.label).join(" + ")})` : ""} without asking.`,
     "Every change ships as a pull request, never push to main.",
   ];
-  if (report.frameworks.some((f) => f.id !== "ai_sdk" && f.id !== "langchain")) rules.push(`Keep agents in ${report.frameworks.filter((f) => f.id !== "ai_sdk").map((f) => f.label).slice(0, 2).join(" / ")} : wrap them, don't rewrite them.`);
+  if (report.frameworks.some((f) => f.id !== "ai_sdk" && f.id !== "langchain")) rules.push(`Keep agents in ${report.frameworks.filter((f) => f.id !== "ai_sdk").map((f) => f.label).slice(0, 2).join(" / ")}: wrap them, don't rewrite them.`);
   if (report.tests.length) rules.push(`Run the existing tests (${report.tests.join(", ")}) before opening a pull request.`);
   if (report.coverage.unsure.length) rules.push(`Don't touch ${report.coverage.unsure[0].split(" · ")[0]} until someone explains it.`);
   rules.push("Don't touch .github/ or infrastructure files.");
   return rules;
+}
+
+/**
+ * Validates where an existing agent lives before it is added to a project
+ * (Agents › Add agent). Shared by the dialog (inline error) and the server action.
+ * Returns an error sentence, or null when the location is usable.
+ */
+export function agentLocationError(kind: "code" | "endpoint", location: string): string | null {
+  const loc = location.trim();
+  if (!loc) return kind === "code" ? "Paste a repository path." : "Paste the endpoint URL.";
+  if (kind === "endpoint") {
+    let url: URL;
+    try {
+      if (/\s/.test(loc)) throw new Error("spaces");
+      url = new URL(loc);
+    } catch {
+      return "Enter a full URL starting with https:// or http://, like https://agents.acme.com/mcp/fraud-review.";
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "The endpoint must start with https:// or http://.";
+    if (!/^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+|\[[0-9a-f:]+\])$/i.test(url.hostname)) return "That URL is missing a real host name, like agents.acme.com.";
+    return null;
+  }
+  if (/\s/.test(loc)) return "A repository path has no spaces, like github.com/acme/agents/tree/main/fraud_review.py.";
+  const parts = loc.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split("/").filter(Boolean);
+  if (parts.length < 2 || !parts.every((p) => /^[\w.@~+-]+$/.test(p))) return "Paste a repository path like github.com/acme/agents or github.com/acme/agents/tree/main/fraud_review.py.";
+  return null;
+}
+
+const GENERIC_SEGMENT = /^(agents?|src|lib|app|apps|main|master|tree|blob|index|mcp|a2a|api|v\d+|http|https|www|examples?|packages?|python|py|ts|js|node|server|service|run|invoke)$/i;
+const ACRONYMS: Record<string, string> = { ai: "AI", api: "API", crm: "CRM", hr: "HR", it: "IT", kyc: "KYC", llm: "LLM", mcp: "MCP", qa: "QA", sdk: "SDK", sla: "SLA", sql: "SQL", ui: "UI", openai: "OpenAI", github: "GitHub", hubspot: "HubSpot", localhost: "Local" };
+
+/**
+ * A readable display name for an imported or remote agent, from its repository
+ * path or URL: "github.com/acme/agents/tree/main/fraud_review.py" → "Fraud Review",
+ * "https://agents.acme.com/" → "Acme Agent". Generic segments (agents, src, main…) are skipped.
+ */
+export function agentNameFromLocation(location: string): string {
+  const loc = location.trim();
+  let host = "";
+  let path = loc;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(loc) ? loc : `https://${loc}`);
+    host = u.hostname;
+    path = u.pathname;
+  } catch {
+    /* keep the raw text */
+  }
+  const segments = path.split(/[/#?]/).filter(Boolean).map((p) => p.replace(/\.(py|ts|tsx|js|mjs|ya?ml|json|ipynb)$/i, ""));
+  const pick = [...segments].reverse().find((p) => !GENERIC_SEGMENT.test(p) && /[a-z]/i.test(p));
+  const hostWord = host.split(".").filter((p) => !/^(www|api|agents?|mcp|app|com|net|org|io|ai|dev|co|cloud|run)$/i.test(p))[0];
+  const words = (pick ?? hostWord ?? "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[\s_.-]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? (w === w.toUpperCase() && w.length <= 4 ? w : w[0].toUpperCase() + w.slice(1).toLowerCase()));
+  if (!words.length) return "External Agent";
+  const name = words.join(" ");
+  // One word ("Acme", "Triage") reads like a company or a verb, so it becomes "Acme Agent". Never "Agent Agent".
+  return words.length === 1 && !/agent|bot|assistant/i.test(name) ? `${name} Agent` : name;
 }

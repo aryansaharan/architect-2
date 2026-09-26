@@ -47,7 +47,7 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
       const tool = agent.tools[toolIdx];
       const value = relax ? (tool.access === "irreversible" ? "log" : "auto") : "ask";
       return {
-        summary: `${relax ? "Let" : "Make"} ${agent.name} ${relax ? "" : "ask before it can "}${tool.name.toLowerCase()}${relax ? " without asking" : ""}`,
+        summary: `${relax ? "Let" : "Make"} ${agent.name} ${relax ? "" : "ask before it can "}${tool.name.charAt(0).toLowerCase() + tool.name.slice(1)}${relax ? " without asking" : ""}`,
         rationale: relax && tool.access === "irreversible" ? "This action can't be undone. It will be logged, and Preflight will flag it before going live." : "Changes when this agent needs a person's approval.",
         operations: [{ op: "set", path: `/agents/${agentIdx}/tools/${toolIdx}/permission`, value }],
       };

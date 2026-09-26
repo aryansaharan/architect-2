@@ -6,6 +6,7 @@ import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
 import { applyOps, markBuilt } from "@/lib/blueprint/apply";
 import { planRepair } from "@/lib/sim/repair";
+import { rehearsalOutcome } from "@/lib/sim/rehearse";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -76,18 +77,22 @@ export async function completeBuild(projectId: string): Promise<Result> {
     if (project.build_state === "built") return { ok: true };
     const now = new Date().toISOString();
     const built = markBuilt(project.blueprint);
+    // The build's final rehearsal run, judged the same way as Agents › Rehearsals, so every screen reads the same results.
     let rehearsals = 0;
+    let passed = 0;
     for (const a of built.agents)
       for (const r of a.rehearsals) {
-        r.history = [...r.history, { at: now, pass: true, note: "Passed during build" }].slice(-10);
+        const out = rehearsalOutcome(a, r);
+        r.history = [...r.history, { at: now, pass: out.pass, note: out.pass ? "Passed during build" : out.note }].slice(-10);
         rehearsals++;
+        if (out.pass) passed++;
       }
     await updateProject(supa, projectId, { blueprint: built, build_state: "built" });
     const cp = await addCheckpoint(supa, projectId, {
       label: "Build complete",
       kind: "build",
       blueprint: built,
-      summary: `${built.screens.length} screens · ${built.agents.length} agents · ${rehearsals} rehearsals passed`,
+      summary: `${built.screens.length} screens · ${built.agents.length} agents · ${passed} of ${rehearsals} rehearsals passed`,
     });
     await addLedger(supa, projectId, [
       {
@@ -97,7 +102,7 @@ export async function completeBuild(projectId: string): Promise<Result> {
         body: built.screens.map((s) => s.title).join(", ") + ".",
         checkpointId: cp.id,
       },
-      { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsals} conversations · ${rehearsals} passed`, checkpointId: cp.id },
+      { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsals} conversations · ${passed} passed`, ...(passed < rehearsals ? { body: "Open Agents › Rehearsals to see what failed and fix it." } : {}), checkpointId: cp.id },
     ]);
     await supa.from("work_orders").update({ status: "done", resolved_at: now }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
     revalidatePath(`/p/${projectId}`, "layout");

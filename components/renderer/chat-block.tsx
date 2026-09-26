@@ -1,13 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { noEmDash } from "@/lib/text";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 import type { Agent, Block, Blueprint } from "@/lib/blueprint/schema";
-import { cn } from "@/lib/utils";
 import { useApp } from "./app-context";
 import { useAgentChat } from "@/components/agents/use-agent-chat";
 import { ApprovalCard, isToolPart, TraceRow } from "@/components/agents/chat-parts";
 import { Markdown } from "@/components/markdown";
+import { demoReply, type DemoChatContext } from "@/lib/sim/demo-chat";
 
 type ChatBlock = Extract<Block, { type: "chat" }>;
 
@@ -108,35 +108,72 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
   );
 }
 
-/** Public live version: no model calls from anonymous visitors: answers come from the agent's rehearsals. */
+/**
+ * Public live version: anonymous visitors never trigger model calls. Replies are
+ * matched to the question's intent and built from the app's sample data
+ * (lib/sim/demo-chat.ts), so they answer what was asked.
+ */
 function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined }) {
+  const app = useApp();
   const [log, setLog] = useState<{ role: "user" | "agent"; text: string }[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+  }, [log, busy]);
+
+  // The screen this chat sits on decides which records "today", "this claim" and so on refer to.
+  const screen = app.bp.screens.find((s) => [...s.regions.main, ...s.regions.side].some((b) => b.id === block.id));
+  const blocks = screen ? [...screen.regions.main, ...screen.regions.side] : [];
+  const detail = blocks.find((b) => b.type === "detail");
+  const withEntity = detail ?? blocks.find((b) => "entityId" in b && Boolean(b.entityId));
+  const entityId = withEntity && "entityId" in withEntity ? withEntity.entityId : undefined;
+  const ctx: DemoChatContext = { screenId: screen?.id, entityId, selected: detail && entityId ? (app.selectedRow[entityId] ?? 0) : undefined };
+
   const send = (t: string) => {
     const v = t.trim();
     if (!v || busy) return;
     setLog((l) => [...l, { role: "user", text: v }]);
     setText("");
     setBusy(true);
-    const r = agent?.rehearsals[log.length % Math.max(1, agent.rehearsals.length)];
+    const reply = demoReply(app.bp, agent, v, ctx);
     setTimeout(() => {
-      setLog((l) => [...l, { role: "agent", text: r ? `Here's how I'd handle that: ${r.expect} (This public demo answers from rehearsed examples. Sign in to talk to the real agent.)` : "Thanks, a colleague will follow up shortly." }]);
+      setLog((l) => [...l, { role: "agent", text: reply }]);
       setBusy(false);
     }, 700);
   };
+
+  // "Ask <agent>" buttons elsewhere on the screen route here, like in the builder preview.
+  const onAsk = useEffectEvent((prompt: string) => send(prompt));
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; prompt: string }>).detail;
+      if (d.agentId === block.agentId) onAsk(d.prompt);
+    };
+    window.addEventListener("architect:ask-agent", handler);
+    return () => window.removeEventListener("architect:ask-agent", handler);
+  }, [block.agentId]);
+
   return (
     <Shell block={block} agent={agent} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
+      <div ref={scroller} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
+        <p className="text-[11.5px] text-slate-400">Demo agent: answers come from the sample data.</p>
         {log.length === 0 &&
           block.starters.map((s) => (
             <button key={s} onClick={() => send(s)} className="block w-full rounded-[var(--app-radius)] border border-slate-200 px-3 py-2 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">{s}</button>
           ))}
-        {log.map((m, i) => (
-          <p key={i} className={cn("w-fit max-w-[88%] rounded-2xl px-3 py-2 text-[13px]", m.role === "user" ? "ml-auto rounded-br-md text-white" : "rounded-bl-md bg-slate-100 text-slate-800")} style={m.role === "user" ? { background: "var(--app-primary)" } : undefined}>
-            {m.text}
-          </p>
-        ))}
+        {log.map((m, i) =>
+          m.role === "user" ? (
+            <p key={i} className="ml-auto w-fit max-w-[88%] rounded-2xl rounded-br-md px-3 py-2 text-[13px] text-white" style={{ background: "var(--app-primary)" }}>
+              {noEmDash(m.text)}
+            </p>
+          ) : (
+            <div key={i} className="w-fit max-w-[92%] rounded-2xl rounded-bl-md bg-slate-100 px-3 py-2 text-[13px] text-slate-800">
+              <Markdown text={m.text} theme="app" />
+            </div>
+          ),
+        )}
         {busy && <p className="flex items-center gap-2 text-[12px] text-slate-400"><Loader2 className="size-3 animate-spin" />Typing…</p>}
       </div>
     </Shell>

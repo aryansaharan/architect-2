@@ -253,12 +253,13 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
             id: bid(id, "form"),
             title: s.purpose.slice(0, 60) || `New ${entity.name.toLowerCase()}`,
             entityId: entity.id,
-            fields: entity.fields.slice(0, 7).map((f) => ({
+            fields: entity.fields.slice(0, 7).map((f, k) => ({
               name: f.name,
               label: f.label ?? f.name,
               kind: f.type === "enum" ? "select" : f.type === "text" ? "textarea" : f.type === "date" ? "date" : f.type === "number" || f.type === "money" ? "number" : f.type === "boolean" ? "toggle" : "text",
               ...(f.type === "enum" && f.options ? { options: f.options } : {}),
-              required: false,
+              // The first field is the record's human-readable identifier, so a form can't be sent without it.
+              required: k === 0 && f.type !== "boolean",
             })),
             submitLabel: "Submit",
             onSubmit: { kind: "toast", message: `${entity.name} received. ${agent ? `${agent.name} will pick it up in a moment.` : "Thanks!"}` },

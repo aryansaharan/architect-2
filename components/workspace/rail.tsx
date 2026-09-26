@@ -302,12 +302,12 @@ function Composer() {
               submit();
             }
           }}
-          placeholder={building ? "Building… you can ask for changes when it's done." : effectiveScope ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…` : ws.project.buildState === "draft" ? "Change the plan before building…" : "Ask for a change…"}
+          placeholder={building ? (ws.build.mode === "replay" ? "Replaying… you can ask for changes when it ends." : "Building… you can ask for changes when it's done.") : effectiveScope ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…` : ws.project.buildState === "draft" ? "Change the plan before building…" : "Ask for a change…"}
           className="block w-full resize-none bg-transparent px-3 py-2.5 text-[13px] leading-relaxed outline-none placeholder:text-faint"
         />
         <div className="flex items-center justify-between px-2 pb-2">
           <span className="flex items-center gap-1 text-[10.5px] text-faint">
-            <CornerDownLeft className="size-3" /> to get a price first · nothing runs until you approve
+            <CornerDownLeft className="size-3" /> for a free quote · nothing changes until you approve
           </span>
           <Button size="icon-sm" className="size-7 rounded-lg" onClick={submit} disabled={!text.trim() || pending || building} aria-label="Get a Work Order">
             {pending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
@@ -318,6 +318,16 @@ function Composer() {
   );
 }
 
+/**
+ * A tool name used mid-sentence: only the leading verb is lowercased, so proper
+ * names keep their casing ("Post in Slack" → "post in Slack", "HubSpot sync" stays).
+ */
+function midSentence(bp: Blueprint, name: string): string {
+  const first = name.split(/\s+/)[0] ?? "";
+  const proper = bp.connections.some((c) => c.name.split(/[^A-Za-z0-9]+/).includes(first)) || bp.agents.some((a) => a.name.split(/\s+/).includes(first));
+  return !proper && /^[A-Z][a-z]/.test(first) ? name[0].toLowerCase() + name.slice(1) : name;
+}
+
 /** Starter requests for whatever is in scope. Each one works offline too (lib/change/rules.ts). */
 function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
   const out: string[] = [];
@@ -325,7 +335,7 @@ function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
   if (scope?.type === "agent") {
     const a = bp.agents.find((x) => x.id === scope.id);
     const t = a && gateable(a);
-    if (a && t) out.push(`Make ${a.name} ask before it can ${t.name.toLowerCase()}`);
+    if (a && t) out.push(`Make ${a.name} ask before it can ${midSentence(bp, t.name)}`);
   } else if (scope?.type === "screen" || scope?.type === "block") {
     const screen = scope.type === "screen" ? bp.screens.find((x) => x.id === scope.id) : bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id));
     if (screen?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority", "Sort it by amount");
@@ -333,7 +343,7 @@ function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
     if (bp.screens[0]?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority");
     const a = bp.agents.find((x) => gateable(x));
     const t = a && gateable(a);
-    if (a && t) out.push(`Make ${a.name} ask before it can ${t.name.toLowerCase()}`);
+    if (a && t) out.push(`Make ${a.name} ask before it can ${midSentence(bp, t.name)}`);
   }
   out.push(bp.meta.theme.primary.toLowerCase() === "#0f766e" ? "Make it indigo" : "Make it teal");
   return out.slice(0, 3);

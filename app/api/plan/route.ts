@@ -4,6 +4,7 @@ import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writ
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { modelBudgetOk } from "@/lib/llm/guard";
+import { NOTHING_CONNECTED_NOTE, markNothingConnected, saysNothingConnected } from "@/lib/llm/draft";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
   const brief = (body.brief ?? "").trim().slice(0, 2000);
   if (brief.length < 8) return Response.json({ error: "Describe what you want in a sentence or two" }, { status: 400 });
   const answers = (body.answers ?? "").slice(0, 600);
+  // "Connect to: Nothing yet" holds twice: in the prompt, and deterministically on the result (model or starter).
+  const nothingConnected = saysNothingConnected(answers);
   const supa = await createClient();
   const allowModel = await modelBudgetOk(supa, user);
 
@@ -23,11 +26,12 @@ export async function POST(req: Request) {
       const enc = new TextEncoder();
       const send = (e: PlanEvent) => controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
       const { blueprint, mode, usage, vertical } = await streamPlan({
-        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}`,
+        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : ""}`,
         userId: user.id,
         allowModel,
         send,
         fallback: () => starterFor(brief).blueprint,
+        adjust: nothingConnected ? (bp) => markNothingConnected(bp) : undefined,
         failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
       });
       try {
@@ -47,13 +51,14 @@ export async function POST(req: Request) {
             title: `Planned ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`,
             body:
               mode === "live"
-                ? `Planned with ${usage?.model}. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing runs until you approve.`
-                : `Offline mode: started from the closest starter plan. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.`,
-            credits: usage?.credits ?? 0,
+                ? `Planned with ${usage?.model}. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing is built until you approve.`
+                : `Offline mode: started from the closest starter plan. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.`,
+            credits: 0,
             checkpointId: cp.id,
           },
         ]);
-        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: usage.credits, meta: { op: "plan" } });
+        // Planning is free to you: 0 credits on your meter. Tokens and real cost are still recorded for our own metrics and the daily model budget.
+        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "plan", free: true, modelCredits: usage.credits } });
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[plan] save failed", e);

@@ -234,52 +234,109 @@ export function DetailBlock({ block }: { block: Extract<Block, { type: "detail" 
   );
 }
 
+type FormField = Extract<Block, { type: "form" }>["fields"][number];
+
+const isFilled = (v: string | boolean | undefined) => (typeof v === "boolean" ? v : Boolean(v?.trim()));
+
+function fieldError(f: FormField, v: string | boolean | undefined): string | null {
+  if (f.required && !isFilled(v)) return f.kind === "select" ? "Choose one." : f.kind === "file" ? "Add a file." : f.kind === "toggle" ? "Tick this to continue." : "Fill this in.";
+  if (f.kind === "number" && typeof v === "string" && v.trim() && !Number.isFinite(Number(v))) return "Enter a number.";
+  return null;
+}
+
 export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }) {
   const run = useRunAction();
   const [sent, setSent] = useState(false);
+  const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const fid = (name: string) => `f-${block.id}-${name}`;
+  const set = (name: string, v: string | boolean) => {
+    setValues((s) => ({ ...s, [name]: v }));
+    setErrors((s) => {
+      if (!(name in s)) return s;
+      const next = { ...s };
+      delete next[name];
+      return next;
+    });
+    setFormError(null);
+  };
+  const inputCls = (name: string) => cn("w-full rounded-[var(--app-radius)] border px-3 text-[13.5px] text-slate-900 outline-none", errors[name] ? "border-rose-400 focus:border-rose-500" : "border-slate-200 focus:border-slate-400");
+  const a11y = (name: string) => (errors[name] ? { "aria-invalid": true, "aria-describedby": `${fid(name)}-err` } : {});
+
   return (
     <Card title={block.title}>
       {sent ? (
         <div className="flex flex-col items-center px-6 py-12 text-center">
           <span className="grid size-10 place-items-center rounded-full text-white" style={{ background: "var(--app-primary)" }}><Check className="size-5" /></span>
           <p className="mt-3 text-[15px] font-semibold text-slate-900">Thanks, we&apos;ve got it.</p>
-          <button onClick={() => setSent(false)} className="mt-4 text-[12.5px] text-slate-500 underline underline-offset-4">Submit another</button>
+          <button onClick={() => { setSent(false); setValues({}); }} className="mt-4 text-[12.5px] text-slate-500 underline underline-offset-4">Submit another</button>
         </div>
       ) : (
         <form
+          noValidate
           className="space-y-4 p-4"
           onSubmit={(e) => {
             e.preventDefault();
+            const next: Record<string, string> = {};
+            for (const f of block.fields) {
+              const err = fieldError(f, values[f.name]);
+              if (err) next[f.name] = err;
+            }
+            const invalid = block.fields.find((f) => next[f.name]);
+            if (invalid) {
+              setErrors(next);
+              setFormError(null);
+              document.getElementById(fid(invalid.name))?.focus();
+              return;
+            }
+            // A form with no required fields still needs something in it before it counts as sent.
+            if (!block.fields.some((f) => isFilled(values[f.name]))) {
+              setFormError("Fill in at least one field first.");
+              return;
+            }
             setSent(true);
             run(block.onSubmit);
           }}
         >
-          {block.fields.map((f) => (
-            <div key={f.name}>
-              <label className="text-[13px] font-medium text-slate-700" htmlFor={`f-${block.id}-${f.name}`}>
-                {f.label}
-                {f.required && <span className="text-rose-500"> *</span>}
-              </label>
-              <div className="mt-1.5">
-                {f.kind === "textarea" ? (
-                  <textarea id={`f-${block.id}-${f.name}`} rows={3} className="w-full rounded-[var(--app-radius)] border border-slate-200 px-3 py-2 text-[13.5px] text-slate-900 outline-none focus:border-slate-400" />
-                ) : f.kind === "select" ? (
-                  <select id={`f-${block.id}-${f.name}`} className="h-9 w-full rounded-[var(--app-radius)] border border-slate-200 bg-white px-2.5 text-[13.5px] text-slate-900">
-                    {(f.options ?? []).map((o) => <option key={o}>{o}</option>)}
-                  </select>
-                ) : f.kind === "toggle" ? (
-                  <input id={`f-${block.id}-${f.name}`} type="checkbox" className="size-4 accent-[var(--app-primary)]" />
-                ) : f.kind === "file" ? (
-                  <div className="flex items-center gap-2 rounded-[var(--app-radius)] border border-dashed border-slate-300 px-3 py-3 text-[12.5px] text-slate-500"><Upload className="size-4" /> Drop files or click to upload</div>
-                ) : (
-                  <div className="relative">
-                    <input id={`f-${block.id}-${f.name}`} type={f.kind === "number" ? "number" : f.kind === "date" ? "date" : "text"} className="h-9 w-full rounded-[var(--app-radius)] border border-slate-200 px-3 text-[13.5px] text-slate-900 outline-none focus:border-slate-400" />
-                    {f.kind === "date" && <CalendarDays className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-slate-300" />}
-                  </div>
-                )}
+          {block.fields.map((f) => {
+            const v = values[f.name];
+            return (
+              <div key={f.name}>
+                <label className="text-[13px] font-medium text-slate-700" htmlFor={fid(f.name)}>
+                  {f.label}
+                  {f.required && <span className="text-rose-500" aria-hidden> *</span>}
+                  {f.required && <span className="sr-only"> (required)</span>}
+                </label>
+                <div className="mt-1.5">
+                  {f.kind === "textarea" ? (
+                    <textarea id={fid(f.name)} rows={3} value={typeof v === "string" ? v : ""} onChange={(e) => set(f.name, e.target.value)} className={cn(inputCls(f.name), "py-2")} {...a11y(f.name)} />
+                  ) : f.kind === "select" ? (
+                    <select id={fid(f.name)} value={typeof v === "string" ? v : ""} onChange={(e) => set(f.name, e.target.value)} className={cn(inputCls(f.name), "h-9 bg-white px-2.5", !v && "text-slate-400")} {...a11y(f.name)}>
+                      <option value="" disabled={f.required}>Choose…</option>
+                      {(f.options ?? []).map((o) => <option key={o} className="text-slate-900">{o}</option>)}
+                    </select>
+                  ) : f.kind === "toggle" ? (
+                    <input id={fid(f.name)} type="checkbox" checked={v === true} onChange={(e) => set(f.name, e.target.checked)} className="size-4 accent-[var(--app-primary)]" {...a11y(f.name)} />
+                  ) : f.kind === "file" ? (
+                    <label htmlFor={fid(f.name)} className={cn("flex cursor-pointer items-center gap-2 rounded-[var(--app-radius)] border border-dashed px-3 py-3 text-[12.5px] focus-within:border-slate-400", errors[f.name] ? "border-rose-400 text-rose-600" : "border-slate-300 text-slate-500")}>
+                      <Upload className="size-4 shrink-0" />
+                      <span className="truncate">{typeof v === "string" && v ? v : "Drop files or click to upload"}</span>
+                      <input id={fid(f.name)} type="file" multiple className="sr-only" onChange={(e) => set(f.name, [...(e.target.files ?? [])].map((x) => x.name).join(", "))} {...a11y(f.name)} />
+                    </label>
+                  ) : (
+                    <div className="relative">
+                      <input id={fid(f.name)} type={f.kind === "number" ? "number" : f.kind === "date" ? "date" : "text"} value={typeof v === "string" ? v : ""} onChange={(e) => set(f.name, e.target.value)} className={cn(inputCls(f.name), "h-9")} {...a11y(f.name)} />
+                      {f.kind === "date" && <CalendarDays className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-slate-300" />}
+                    </div>
+                  )}
+                </div>
+                {errors[f.name] && <p id={`${fid(f.name)}-err`} className="mt-1 text-[12px] text-rose-600">{errors[f.name]}</p>}
               </div>
-            </div>
-          ))}
+            );
+          })}
+          {formError && <p role="alert" className="text-[12.5px] text-rose-600">{formError}</p>}
+          {Object.keys(errors).length > 0 && <p role="alert" className="text-[12.5px] text-rose-600">Check the {Object.keys(errors).length === 1 ? "field" : `${Object.keys(errors).length} fields`} marked above.</p>}
           <button type="submit" className={cn(primaryBtn, "h-9 px-4")} style={{ background: "var(--app-primary)" }}>{block.submitLabel}</button>
         </form>
       )}

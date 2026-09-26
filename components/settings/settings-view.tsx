@@ -22,7 +22,8 @@ const SECTIONS = [
   { id: "account", label: "Account" },
 ];
 
-const KIND_LABEL: Record<string, string> = { llm: "Planning & quotes", build: "Builds", change: "Changes", agent_run: "Agent conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
+// Planning and quotes are logged at 0 credits (they're free), so paid "llm" events are agents drafted from a description.
+const KIND_LABEL: Record<string, string> = { llm: "Drafting new agents", build: "Builds", change: "Changes", agent_run: "Agent conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
 
 const CATALOG = [
   { provider: "github", name: "GitHub", body: "Two-way sync, branch per change, CI rehearsals." },
@@ -34,6 +35,21 @@ const CATALOG = [
   { provider: "notion", name: "Notion", body: "Knowledge bases and runbooks." },
   { provider: "mcp", name: "Any MCP server", body: "Bring tools from your own MCP servers." },
 ];
+
+/** Which catalog entry a project connection belongs to: by product name, or any MCP server by kind. */
+function providerOf(c: { name: string; kind: string }): string | null {
+  if (c.kind === "mcp") return "mcp";
+  const n = c.name.toLowerCase();
+  return CATALOG.find((x) => x.provider !== "mcp" && n.includes(x.name.toLowerCase()))?.provider ?? null;
+}
+
+function capError(v: string): string | null {
+  const n = Number(v);
+  if (!v.trim() || !Number.isFinite(n)) return "Enter a number of credits.";
+  if (Math.round(n) < 10) return "Minimum is 10 credits.";
+  if (Math.round(n) > 100000) return "Maximum is 100,000 credits.";
+  return null;
+}
 
 export function SettingsView({
   user,
@@ -52,7 +68,27 @@ export function SettingsView({
   const [pending, start] = useTransition();
   const [caps, setCaps] = useState<Record<string, string>>(Object.fromEntries(projects.map((p) => [p.id, String(p.cap)])));
   const [reveal, setReveal] = useState<string | null>(null);
+  const [invite, setInvite] = useState<{ link: string; copied: boolean } | null>(null);
+  // One source of truth for "connected": a sandbox connection on your account, or a project connection that has its key.
   const connected = new Set(integrations.map((i) => i.provider));
+  const connectedIn = (provider: string) => [...new Set(connections.filter((c) => c.status === "configured" && providerOf(c) === provider).map((c) => c.project))];
+  const isConnected = (c: { name: string; kind: string; status: string }) => {
+    const p = providerOf(c);
+    return c.status === "configured" || (p !== null && connected.has(p));
+  };
+
+  async function copyInvite() {
+    const link = `${window.location.origin}/login?next=%2Fhome&invite=${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(link);
+      setInvite({ link, copied: true });
+      toast.success("Invite link copied", { description: "Sandbox: it opens sign-in. Roles are simulated in this prototype." });
+    } catch {
+      setInvite({ link, copied: false });
+      toast.message("Copy the invite link below", { description: "Your browser didn't allow copying automatically." });
+    }
+  }
   const kinds = Object.entries(month.byKind).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
   const maxKind = Math.max(1, ...kinds.map(([, v]) => Math.abs(v)));
   const agentNames = Object.fromEntries(projects.flatMap((p) => p.agents.map((a) => [a.id, a.name])));
@@ -66,7 +102,7 @@ export function SettingsView({
       <main id="main" className="min-w-0 space-y-12">
         <section id="usage" className="scroll-mt-24">
           <h2 className="text-[20px] font-semibold">Usage &amp; budget</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">Every credit is attributed. Fixes for our own mistakes are free and never show up here.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
             <div className="panel rounded-xl p-4">
               <p className="micro-label">This month</p>
@@ -94,6 +130,7 @@ export function SettingsView({
             <ul className="divide-y divide-hairline">
               {projects.map((p) => {
                 const pct = Math.min(1, p.used / Math.max(1, p.cap));
+                const err = capError(caps[p.id] ?? "");
                 return (
                   <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 truncate text-[13px] hover:underline">{p.name}</Link>
@@ -103,9 +140,10 @@ export function SettingsView({
                     </span>
                     <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
                       Cap
-                      <Input type="number" min={10} className="h-8 w-24" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} />
+                      <Input type="number" min={10} max={100000} className="h-8 w-24" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} aria-invalid={err ? true : undefined} aria-describedby={err ? `cap-err-${p.id}` : undefined} />
                     </label>
-                    <Button size="sm" variant="outline" className="h-8" disabled={pending || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok) toast.success("Cap updated"); router.refresh(); })}>Save</Button>
+                    <Button size="sm" variant="outline" className="h-8" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok) toast.success(`Cap set to ${r.value} credits a month`); else toast.error(r.error); router.refresh(); })}>Save</Button>
+                    {err && <p id={`cap-err-${p.id}`} className="basis-full text-right text-[11.5px] text-ask">{err}</p>}
                   </li>
                 );
               })}
@@ -119,12 +157,17 @@ export function SettingsView({
           <p className="mt-1 text-[13px] text-muted-foreground">What your agents may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {CATALOG.map((c) => {
-              const on = connected.has(c.provider);
+              const account = connected.has(c.provider);
+              const via = connectedIn(c.provider);
+              const on = account || via.length > 0;
+              // Connected only inside a project: it's managed there, so this card shows it but doesn't toggle it.
+              const projectOnly = on && !account;
               return (
                 <div key={c.provider} className="panel flex flex-col rounded-xl p-4">
                   <p className="flex items-center gap-2 text-[13.5px] font-medium">{c.provider === "github" ? <GitHubMark /> : <Plug className="size-4 text-muted-foreground" />}{c.name}</p>
                   <p className="mt-1 flex-1 text-[12px] text-muted-foreground">{c.body}</p>
-                  <Button size="sm" variant={on ? "outline" : "default"} className="mt-3 h-8" disabled={pending} onClick={() => start(async () => { await toggleIntegration(c.provider, !on); toast.success(on ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
+                  {projectOnly && <p className="mt-2 truncate text-[11px] text-muted-foreground" title={via.join(", ")}>In {via[0]}{via.length > 1 ? ` and ${via.length - 1} more` : ""}</p>}
+                  <Button size="sm" variant={on ? "outline" : "default"} className="mt-3 h-8" disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
                     {on ? <><Check className="text-read" /> Connected</> : "Connect"}
                   </Button>
                 </div>
@@ -136,12 +179,13 @@ export function SettingsView({
               <p className="border-b border-hairline px-4 py-3 text-[13px] font-medium">Used by your projects</p>
               <ul className="divide-y divide-hairline">
                 {connections.map((c) => {
+                  const ok = isConnected(c);
                   return (
                     <li key={c.name} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
                       <ConnectionIcon kind={c.kind} className="size-3.5 text-muted-foreground" />
                       <span className="flex-1">{c.name}</span>
                       <span className="text-muted-foreground">{c.project}</span>
-                      <span className={c.status === "configured" ? "text-read" : "text-amber"}>{c.status === "configured" ? "connected" : "needs a key"}</span>
+                      <span className={ok ? "text-read" : "text-amber"}>{ok ? "connected" : "needs a key"}</span>
                     </li>
                   );
                 })}
@@ -186,7 +230,13 @@ export function SettingsView({
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Priya Raman · Platform engineer</span><span className="text-muted-foreground">Editor</span></li>
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Maya Singh · Claims lead</span><span className="text-muted-foreground">Viewer</span></li>
           </ul>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => toast.success("Invite link copied (sandbox)")}><UserRoundPlus /> Invite someone</Button>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => void copyInvite()}><UserRoundPlus /> Invite someone</Button>
+          {invite && (
+            <div className="mt-2.5 max-w-lg">
+              <label htmlFor="invite-link" className="text-[11.5px] text-muted-foreground">{invite.copied ? "Copied to your clipboard. Sandbox: it opens sign-in." : "Copy this link and send it. Sandbox: it opens sign-in."}</label>
+              <Input id="invite-link" readOnly value={invite.link} onFocus={(e) => e.currentTarget.select()} className="mt-1 h-8 font-mono text-[12px]" />
+            </div>
+          )}
         </section>
 
         <section id="deploy" className="scroll-mt-24">

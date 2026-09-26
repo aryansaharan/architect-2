@@ -8,8 +8,9 @@ export default function Privacy() {
       <p>Wonderwork is a prototype built by Aryan Saharan for a product-management assignment. This page explains what it stores and why.</p>
       <h2>What we collect</h2>
       <ul>
-        <li>If you sign in with Google, GitHub or an email link: your name, email address and profile picture, provided by that service.</li>
-        <li>If you try the demo without an account: an anonymous session identifier.</li>
+        <li>If you sign in with Google: your name, email address and profile picture, provided by Google.</li>
+        <li>If you sign in with an email link: your email address.</li>
+        <li>If you continue as a guest (no account): an anonymous session identifier.</li>
         <li>What you create: project descriptions, plans, comments, and conversations with agents in the playground.</li>
         <li>Usage records: model token counts and credits, used for the spend meter and daily limits.</li>
       </ul>

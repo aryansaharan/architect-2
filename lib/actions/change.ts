@@ -23,9 +23,17 @@ export async function requestChange(projectId: string, request: string, scope: O
   const text = request.trim().slice(0, 1000);
   if (!text) return { ok: false, error: "Describe the change first" };
 
+  // Quotes are free, but a project past its cap stays paused, exactly like agent runs (app/api/chat/route.ts).
+  const spent = await usageSummary(supa, { projectId });
+  const cap = project.settings.budgetCapCredits;
+  if (spent.credits >= cap) {
+    return { ok: false, error: `Paused: this project has used ${Math.round(spent.credits)} of its ${cap}-credit cap. Raise the cap in Settings to ask for more changes. Nothing was charged.` };
+  }
+
   const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: await modelBudgetOk(supa, user) });
   if (usage) {
-    await logUsage(supa, { userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: usage.credits, meta: { op: "change-quote" } });
+    // Free to you: 0 credits on your meter. Tokens and real cost are still recorded for our own metrics and the daily model budget.
+    await logUsage(supa, { userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "change-quote", free: true, modelCredits: usage.credits } });
   }
   const { data, error } = await supa
     .from("work_orders")
@@ -33,8 +41,7 @@ export async function requestChange(projectId: string, request: string, scope: O
     .select("*")
     .single();
   if (error) return { ok: false, error: error.message };
-  const spent = await usageSummary(supa, { projectId });
-  return { ok: true, workOrder: data as WorkOrderRow, overBudget: spent.credits + proposal.credits > project.settings.budgetCapCredits };
+  return { ok: true, workOrder: data as WorkOrderRow, overBudget: spent.credits + proposal.credits > cap };
 }
 
 export async function approveChange(projectId: string, workOrderId: string): Promise<{ ok: boolean; error?: string; label?: string }> {

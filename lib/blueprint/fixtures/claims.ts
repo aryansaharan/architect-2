@@ -38,9 +38,9 @@ export const claimsFixture: BlueprintInput = {
             type: "kpis",
             id: "intake-kpis",
             items: [
-              { label: "New today", value: "14", delta: "+3 vs. yesterday", tone: "neutral" },
+              { label: "New today", value: "5", delta: "$35,840 claimed", tone: "neutral" },
               { label: "Avg. triage time", value: "3m 12s", delta: "−41%", tone: "good" },
-              { label: "Flagged for fraud", value: "3", tone: "bad" },
+              { label: "Flagged for fraud", value: "2", tone: "bad" },
               { label: "SLA at risk", value: "2", tone: "bad" },
             ],
           },
