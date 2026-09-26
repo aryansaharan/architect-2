@@ -69,7 +69,7 @@ export default async function Landing() {
             ) : (
               <>
                 <Button asChild size="sm" variant="ghost"><Link href="/login">Sign in</Link></Button>
-                <Button asChild size="sm"><Link href="/demo">Try the demo</Link></Button>
+                <Button asChild size="sm"><Link href="/demo" prefetch={false}>Try the demo</Link></Button>
               </>
             )}
           </div>
@@ -98,7 +98,7 @@ export default async function Landing() {
               </p>
               <div className="fade-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "820ms" }}>
                 <Button asChild size="lg" className="btn-solstice sheen h-11 px-5 text-[14px]">
-                  <Link href="/demo">Try the demo · no account <ArrowRight /></Link>
+                  <Link href="/demo" prefetch={false}>Try the demo · no account <ArrowRight /></Link>
                 </Button>
                 {!user || user.isAnonymous ? <OAuthButton /> : null}
               </div>
@@ -350,7 +350,7 @@ export default async function Landing() {
             <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-72 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgb(223_255_79/0.16),transparent_65%)] blur-2xl" />
             <h2 className="font-display text-[48px] leading-tight">See it on a <span className="text-amber-grad">real project.</span></h2>
             <p className="mt-3 max-w-lg text-[15px] text-muted-foreground">A claims desk with three agents, a live URL, a caught mistake and a pending handoff. No account needed.</p>
-            <Button asChild size="lg" className="btn-solstice sheen mt-8 h-11 px-6 text-[14px]"><Link href="/demo">Open the demo <ArrowRight /></Link></Button>
+            <Button asChild size="lg" className="btn-solstice sheen mt-8 h-11 px-6 text-[14px]"><Link href="/demo" prefetch={false}>Open the demo <ArrowRight /></Link></Button>
           </Reveal>
         </section>
       </main>

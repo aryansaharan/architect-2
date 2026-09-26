@@ -21,6 +21,9 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState<string | null>(error ? (ERRORS[error] ?? ERRORS.auth) : null);
+  // Guests normally link a provider to keep their work. If that account already exists
+  // (or they choose to), sign in to it instead; the guest project stays with the guest session.
+  const [linking, setLinking] = useState(isGuest && error !== "identity_exists");
 
   const redirectTo = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
@@ -28,7 +31,7 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
     setPending(provider);
     setMessage(null);
     const supabase = createClient();
-    const { error } = isGuest
+    const { error } = linking
       ? await supabase.auth.linkIdentity({ provider, options: { redirectTo: redirectTo() } })
       : await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectTo() } });
     if (error) {
@@ -43,7 +46,7 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
     setPending("email");
     setMessage(null);
     const supabase = createClient();
-    const { error } = isGuest
+    const { error } = linking
       ? await supabase.auth.updateUser({ email }, { emailRedirectTo: redirectTo() })
       : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
     setPending(null);
@@ -56,8 +59,13 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
       <div className="space-y-2.5">
         <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
           {pending === "google" ? <Loader2 className="animate-spin" /> : <GoogleMark />}
-          {isGuest ? "Keep this work with Google" : "Continue with Google"}
+          {linking ? "Keep this work with Google" : "Continue with Google"}
         </Button>
+        {isGuest && (
+          <button type="button" onClick={() => { setLinking((l) => !l); setMessage(null); }} className="w-full text-center text-[12.5px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            {linking ? "Already have an account? Sign in to it instead" : "Keep this guest work instead"}
+          </button>
+        )}
       </div>
 
       <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
@@ -90,7 +98,7 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
           <p className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-4 text-amber" /> Just looking?</p>
           <p className="mt-1 text-[13px] text-muted-foreground">Open a finished project with real data, no account needed. You can keep it later.</p>
           <Button asChild className="mt-3 w-full" size="lg">
-            <Link href="/demo">Try the demo · no account <ArrowRight /></Link>
+            <Link href="/demo" prefetch={false}>Try the demo · no account <ArrowRight /></Link>
           </Button>
         </div>
       )}

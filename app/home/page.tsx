@@ -124,7 +124,7 @@ export default async function HomePage() {
         <section aria-labelledby="projects-heading" className="mt-12">
           <div className="flex items-baseline justify-between">
             <h2 id="projects-heading" className="micro-label">Your projects · {projects.length}</h2>
-            <Link href="/demo" className="text-[12.5px] text-muted-foreground hover:text-foreground">Open the demo project</Link>
+            <Link href="/demo" prefetch={false} className="text-[12.5px] text-muted-foreground hover:text-foreground">Open the demo project</Link>
           </div>
           {projects.length === 0 ? (
             <div className="mt-3 rounded-xl border border-dashed border-hairline p-10 text-center">
@@ -132,7 +132,7 @@ export default async function HomePage() {
               <p className="mt-3 text-[14px] font-medium">No projects yet</p>
               <p className="mt-1 text-[13px] text-muted-foreground">Describe one above, bring an existing repo, or open the finished demo to look around.</p>
               <div className="mt-4 flex justify-center gap-2">
-                <Button asChild variant="outline" size="sm"><Link href="/demo">Open the demo</Link></Button>
+                <Button asChild variant="outline" size="sm"><Link href="/demo" prefetch={false}>Open the demo</Link></Button>
                 <Button asChild variant="outline" size="sm"><Link href="/new?mode=import"><FolderGit2 /> Bring a repo</Link></Button>
               </div>
             </div>
