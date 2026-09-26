@@ -21,13 +21,13 @@ type Card = { id: string; x: number; y: number; w: number; h: number; title: str
 type Zone = { x: number; y: number; w: number; h: number; label: string; hint?: string; tone: Tone };
 
 const TONE: Record<Tone, string> = {
-  outside: "#a19dae",
-  people: "#ffd27a",
-  edge: "#ff9a4d",
-  control: "#ff4f8b",
-  sandbox: "#b06bff",
-  runtime: "#3dd68c",
-  data: "#5b9cff",
+  outside: "#9baaa2",
+  people: "#fff2a6",
+  edge: "#dfff4f",
+  control: "#8dff9e",
+  sandbox: "#3fe0c5",
+  runtime: "#6fb7ff",
+  data: "#ffb86b",
 };
 
 export const W = 1824;
@@ -284,8 +284,8 @@ function CardView({ c }: { c: Card }) {
       <div
         className="flex h-full flex-col rounded-[12px] border p-2.5"
         style={{
-          borderColor: `color-mix(in srgb, ${tone} 28%, #2c2938)`,
-          background: `linear-gradient(180deg, color-mix(in srgb, ${tone} 7%, #1a1824), #13121b)`,
+          borderColor: `color-mix(in srgb, ${tone} 28%, #22302c)`,
+          background: `linear-gradient(180deg, color-mix(in srgb, ${tone} 7%, #121b18), #0c1311)`,
           boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.8)`,
         }}
       >
@@ -293,13 +293,13 @@ function CardView({ c }: { c: Card }) {
           <span className="grid size-6 shrink-0 place-items-center rounded-md" style={{ background: `color-mix(in srgb, ${tone} 16%, transparent)`, color: tone }}>
             <I className="size-3.5" />
           </span>
-          <span className="truncate text-[12.5px] font-semibold leading-tight text-[#efedf4]">{c.title}</span>
+          <span className="truncate text-[12.5px] font-semibold leading-tight text-[#edf3ee]">{c.title}</span>
         </div>
-        <p className="mt-1.5 text-[10.5px] leading-[1.4] text-[#a19dae]">{c.sub}</p>
+        <p className="mt-1.5 text-[10.5px] leading-[1.4] text-[#9baaa2]">{c.sub}</p>
         {c.rows && (
           <ul className="mt-2 space-y-1.5">
             {c.rows.map((r) => (
-              <li key={r} className="rounded-md border px-2 py-1.5 font-mono text-[10px] text-[#d9d5e3]" style={{ borderColor: "#34313f", background: "#0c0b13" }}>
+              <li key={r} className="rounded-md border px-2 py-1.5 font-mono text-[10px] text-[#d3dfd8]" style={{ borderColor: "#2c3b36", background: "#040706" }}>
                 {r}
               </li>
             ))}
@@ -325,15 +325,15 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       <title id={`${id}-title`}>Wonderwork production architecture: people, edge, control plane, sandbox plane, runtime plane, and data platform, with every service connection and eight numbered flows.</title>
       <defs>
         <linearGradient id="sol-stroke" x1="0" y1="0" x2={W} y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#ffd27a" />
-          <stop offset="0.35" stopColor="#ff7438" />
-          <stop offset="0.65" stopColor="#ff4f8b" />
-          <stop offset="1" stopColor="#b06bff" />
+          <stop offset="0" stopColor="#fff2a6" />
+          <stop offset="0.35" stopColor="#dfff4f" />
+          <stop offset="0.65" stopColor="#8dff9e" />
+          <stop offset="1" stopColor="#3fe0c5" />
         </linearGradient>
         <linearGradient id="sol-badge" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffd27a" />
-          <stop offset="0.5" stopColor="#ff7438" />
-          <stop offset="1" stopColor="#ff4f8b" />
+          <stop offset="0" stopColor="#fff2a6" />
+          <stop offset="0.5" stopColor="#dfff4f" />
+          <stop offset="1" stopColor="#8dff9e" />
         </linearGradient>
         <filter id="edge-soft" x="-10%" y="-10%" width="120%" height="120%">
           <feGaussianBlur stdDeviation="2.4" />
@@ -342,15 +342,15 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
           <circle cx="1" cy="1" r="1" fill="rgb(255 255 255 / 0.05)" />
         </pattern>
       </defs>
-      <rect width={W} height={H} fill="#09080f" />
+      <rect width={W} height={H} fill="#060a09" />
       <rect width={W} height={H} fill="url(#arch-dots)" />
 
       {ZONES.map((z) => (
         <g key={z.label}>
-          <rect x={z.x} y={z.y} width={z.w} height={z.h} rx={18} fill={`color-mix(in srgb, ${TONE[z.tone]} 3%, transparent)`} stroke={`color-mix(in srgb, ${TONE[z.tone]} 30%, #24222f)`} strokeDasharray="4 5" />
+          <rect x={z.x} y={z.y} width={z.w} height={z.h} rx={18} fill={`color-mix(in srgb, ${TONE[z.tone]} 3%, transparent)`} stroke={`color-mix(in srgb, ${TONE[z.tone]} 30%, #1c2824)`} strokeDasharray="4 5" />
           <text x={z.x + 16} y={z.y + 22} fill={TONE[z.tone]} style={{ font: "600 11px var(--font-geist-mono), monospace", letterSpacing: "0.12em", textTransform: "uppercase" }}>
             {z.label.toUpperCase()}
-            {z.hint && <tspan fill="#716d80" style={{ letterSpacing: "0.04em" }}>{`  ·  ${z.hint}`}</tspan>}
+            {z.hint && <tspan fill="#6c7c74" style={{ letterSpacing: "0.04em" }}>{`  ·  ${z.hint}`}</tspan>}
           </text>
         </g>
       ))}
@@ -359,7 +359,7 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
         <g key={i}>
           <path d={e.d} fill="none" stroke={TONE[e.tone]} strokeOpacity={0.25} strokeWidth={5} filter="url(#edge-soft)" />
           <path d={e.d} fill="none" stroke={TONE[e.tone]} strokeOpacity={0.75} strokeWidth={1.5} strokeDasharray={e.dashed ? "5 5" : undefined} />
-          {animated && e.live && <path d={e.d} fill="none" stroke="#fff4ea" strokeOpacity={0.85} strokeWidth={1.4} strokeLinecap="round" className="flow" />}
+          {animated && e.live && <path d={e.d} fill="none" stroke="#fbffe0" strokeOpacity={0.85} strokeWidth={1.4} strokeLinecap="round" className="flow" />}
         </g>
       ))}
 
@@ -373,9 +373,9 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
 
       {BADGES.map((b) => (
         <g key={b.n}>
-          <circle cx={b.x} cy={b.y} r={13} fill="#09080f" />
+          <circle cx={b.x} cy={b.y} r={13} fill="#060a09" />
           <circle cx={b.x} cy={b.y} r={11} fill="url(#sol-badge)" />
-          <text x={b.x} y={b.y + 4} textAnchor="middle" fill="#1a0b07" style={{ font: "700 12px var(--font-geist-sans), sans-serif" }}>{b.n}</text>
+          <text x={b.x} y={b.y + 4} textAnchor="middle" fill="#0b1402" style={{ font: "700 12px var(--font-geist-sans), sans-serif" }}>{b.n}</text>
         </g>
       ))}
     </svg>
