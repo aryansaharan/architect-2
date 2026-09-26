@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useApp } from "./app-context";
 import { useAgentChat } from "@/components/agents/use-agent-chat";
 import { ApprovalCard, isToolPart, TraceRow } from "@/components/agents/chat-parts";
+import { Markdown } from "@/components/markdown";
 
 type ChatBlock = Extract<Block, { type: "chat" }>;
 
@@ -88,7 +89,7 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
           ) : (
             <div key={m.id} className="space-y-2">
               {m.parts.map((p, i) => {
-                if (p.type === "text") return p.text ? <p key={i} className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-slate-100 px-3 py-2 text-[13px] text-slate-800">{noEmDash(p.text)}</p> : null;
+                if (p.type === "text") return p.text ? <div key={i} className="max-w-[92%] rounded-2xl rounded-bl-md bg-slate-100 px-3 py-2 text-[13px]"><Markdown text={p.text} theme="app" /></div> : null;
                 if (isToolPart(p)) {
                   const tool = agent.tools.find((t) => t.id === p.type.slice(5));
                   if (p.state === "approval-requested" && p.approval && !p.approval.isAutomatic)

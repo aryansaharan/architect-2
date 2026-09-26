@@ -21,9 +21,9 @@ import { addRehearsal, runRehearsals } from "@/lib/actions/agents";
 import { setFramework } from "@/lib/actions/blueprint";
 import { creditsUsd, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { noEmDash } from "@/lib/text";
 import { useWorkspace } from "../context";
 import { AddAgentDialog } from "./add-agent-dialog";
+import { Markdown } from "@/components/markdown";
 
 type Tab = "overview" | "playground" | "rehearsals" | "replay" | "code";
 
@@ -282,7 +282,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                   {r.transcript.map((t, i) => (
                     <li key={`t${i}`} className="flex gap-2 text-[12.5px]">
                       <span className={cn("w-16 shrink-0 font-mono text-[11px]", t.role === "user" ? "text-muted-foreground" : "text-amber")}>{t.role === "user" ? "person" : "agent"}</span>
-                      <span className="leading-relaxed">{noEmDash(t.text)}</span>
+                      <Markdown text={t.text} className="min-w-0 flex-1 text-[12.5px]" />
                     </li>
                   ))}
                   {r.tool_calls.map((t) => {

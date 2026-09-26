@@ -11,6 +11,7 @@ import { setToolPermission } from "@/lib/actions/blueprint";
 import { cn } from "@/lib/utils";
 import { useAgentChat } from "./use-agent-chat";
 import { ApprovalCard, isToolPart, TraceRow } from "./chat-parts";
+import { Markdown } from "@/components/markdown";
 
 export function Playground({ projectId, agent, bp, llm, initialPrompt }: { projectId: string; agent: Agent; bp: Blueprint; llm: "live" | "offline"; initialPrompt?: string }) {
   const router = useRouter();
@@ -77,7 +78,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
               <Avatar name={agent.name} hue={agent.avatarHue} size={26} className="mt-0.5" />
               <div className="min-w-0 flex-1 space-y-2">
                 {m.parts.map((p, i) => {
-                  if (p.type === "text") return p.text ? <p key={i} className="whitespace-pre-wrap text-[13px] leading-relaxed">{noEmDash(p.text)}</p> : null;
+                  if (p.type === "text") return p.text ? <Markdown key={i} text={p.text} className="text-[13px]" /> : null;
                   if (isToolPart(p)) {
                     const tool = agent.tools.find((t) => t.id === p.type.slice(5));
                     if (p.state === "approval-requested" && p.approval && !p.approval.isAutomatic)
