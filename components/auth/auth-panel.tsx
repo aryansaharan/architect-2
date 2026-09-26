@@ -5,7 +5,7 @@ import { ArrowRight, Loader2, Mail, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GitHubMark, GoogleMark } from "@/components/brand/logo";
+import { GoogleMark } from "@/components/brand/logo";
 
 const ERRORS: Record<string, string> = {
   auth: "That sign-in link didn't work. Try again, or use the demo.",
@@ -57,10 +57,6 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
         <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
           {pending === "google" ? <Loader2 className="animate-spin" /> : <GoogleMark />}
           {isGuest ? "Keep this work with Google" : "Continue with Google"}
-        </Button>
-        <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("github")} disabled={!!pending}>
-          {pending === "github" ? <Loader2 className="animate-spin" /> : <GitHubMark />}
-          Continue with GitHub
         </Button>
       </div>
 

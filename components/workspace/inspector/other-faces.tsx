@@ -10,7 +10,7 @@ import { Avatar } from "@/components/arch/badges";
 import { ConnectionIcon } from "@/components/icon";
 import type { Block, Connection, Entity, Screen } from "@/lib/blueprint/schema";
 import { allBlocks, BLOCK_LABELS, blockTitle, relations } from "@/lib/blueprint";
-import { connectionSummary, entitySummary, list, screenSummary } from "@/lib/blueprint/describe";
+import { connectionSummary, entitySummary, list, screenSummary, signInMethods } from "@/lib/blueprint/describe";
 import { creditsUsd, formatValue } from "@/lib/format";
 import { setConnectionStatus, setTheme, updateScreenText } from "@/lib/actions/blueprint";
 import { cn } from "@/lib/utils";
@@ -285,7 +285,7 @@ export function BriefSpec() {
         {pending && <Loader2 className="mt-2 size-3.5 animate-spin text-muted-foreground" />}
       </Section>
       <Section title="Sign-in">
-        <p className="text-[12.5px]">{ws.blueprint.meta.auth.enabled ? `On · ${ws.blueprint.meta.auth.providers.join(", ")}` : "Off"}</p>
+        <p className="text-[12.5px]">{ws.blueprint.meta.auth.enabled ? `On · ${signInMethods(ws.blueprint.meta.auth.providers)}` : "Off"}</p>
       </Section>
       <Section title="Data region">
         <p className="text-[12.5px] uppercase">{ws.blueprint.meta.region}</p>

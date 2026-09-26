@@ -12,6 +12,7 @@ import { HomeComposer } from "@/components/home/home-composer";
 import { Button } from "@/components/ui/button";
 import { Spotlight } from "@/components/fx/spotlight";
 import { creditsUsd, formatCredits } from "@/lib/format";
+import { Greeting } from "@/components/home/greeting";
 
 export const metadata = { title: "Projects" };
 
@@ -34,8 +35,6 @@ export default async function HomePage() {
   const missingKeys = projects.flatMap((p) => p.blueprint.connections.filter((c) => c.status === "missing").map((c) => ({ p, c })));
   const cap = projects[0]?.settings.budgetCapCredits ?? 200;
   const first = user.name.split(" ")[0];
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="relative min-h-screen overflow-x-clip">
@@ -69,7 +68,7 @@ export default async function HomePage() {
         )}
 
         <section aria-labelledby="new-heading">
-          <p className="fade-up text-[13px] text-muted-foreground">{greeting}{user.isAnonymous ? "" : `, ${first}`}.</p>
+          <p className="fade-up text-[13px] text-muted-foreground"><Greeting name={user.isAnonymous ? undefined : first} /></p>
           <h1 id="new-heading" className="mt-1 font-display text-[44px] leading-tight tracking-tight">
             {"What should we".split(" ").map((w, i) => <span key={i} className="word-in mr-[0.25em]" style={{ animationDelay: `${80 + i * 70}ms` }}>{w}</span>)}
             <em className="word-in text-amber-grad" style={{ animationDelay: "380ms" }}>build?</em>

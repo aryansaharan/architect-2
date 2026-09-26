@@ -108,3 +108,10 @@ export function list(items: string[]): string {
 export function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
+
+const PROVIDER_LABEL: Record<string, string> = { google: "Google", email: "email link", sso: "company SSO" };
+/** "google, sso" → "Google or company SSO" */
+export function signInMethods(providers: string[]): string {
+  const names = providers.map((p) => PROVIDER_LABEL[p] ?? p);
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+}

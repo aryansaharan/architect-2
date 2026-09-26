@@ -1,4 +1,5 @@
 import type { Blueprint } from "@/lib/blueprint/schema";
+import { signInMethods } from "@/lib/blueprint/describe";
 
 export type PreflightStatus = "pass" | "warn" | "fail";
 export type PreflightFix = "enable_auth" | "gate_irreversible" | "sandbox_keys" | "set_budget" | "build_first";
@@ -35,7 +36,7 @@ export function preflight(
       label: "People must sign in",
       plain: "Only people you invite can open the team screens.",
       status: bp.meta.auth.enabled ? "pass" : "fail",
-      detail: bp.meta.auth.enabled ? `Sign-in with ${bp.meta.auth.providers.join(", ")}.` : "Anyone with the link could see your data.",
+      detail: bp.meta.auth.enabled ? `Sign in with ${signInMethods(bp.meta.auth.providers)}.` : "Anyone with the link could see your data.",
       blocking: true,
       fix: bp.meta.auth.enabled ? undefined : { label: "Turn on sign-in", action: "enable_auth" },
     },
