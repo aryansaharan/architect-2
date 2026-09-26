@@ -9,7 +9,7 @@ import type { ChangeProposal } from "@/lib/db/types";
 import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { ruleProposal } from "./rules";
-import { EditsSchema, blueprintIndex, compileEdits } from "./edits";
+import { EditsSchema, blueprintIndex, compileEdits, salvageEdits, type Edits } from "./edits";
 import { generateFiles } from "@/lib/codegen/files";
 import { diffFiles } from "@/lib/codegen/diff";
 
@@ -51,6 +51,24 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     let inputTokens = 0;
     let outputTokens = 0;
     let feedback = "";
+    type Usage = NonNullable<ProposeResult["usage"]>;
+    const finish = (out: Edits, usage: Usage): { result?: ProposeResult; feedback: string } => {
+      if (!out.feasible) {
+        return { result: { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live" }, usage }, feedback: "" };
+      }
+      const compiled = compileEdits(bp, out, scopeScreenId);
+      if (!compiled.ops.length) return { feedback: compiled.problems.join("; ") || "the edits changed nothing" };
+      const applied = applyOps(bp, compiled.ops);
+      if (applied.ok) {
+        const radius = blastRadius(bp, applied.blueprint);
+        const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
+        const rationale = compiled.problems.length ? `${out.rationale} (Skipped: ${compiled.problems.join("; ")}.)` : out.rationale;
+        return { result: { proposal: { summary: out.summary, rationale, operations: compiled.ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" }, usage }, feedback: "" };
+      }
+      const fb = [applied.error, ...compiled.problems].join("; ");
+      console.warn("[change] edits failed validation, retrying:", fb);
+      return { feedback: fb };
+    };
     // Up to two attempts: the second one sees exactly why the first failed.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -69,27 +87,27 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         outputTokens += result.usage.outputTokens ?? 0;
         const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
         const out = cleanDeep(result.output);
-        if (!out.feasible) {
-          return { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live" }, usage };
-        }
-        const compiled = compileEdits(bp, out, scopeScreenId);
-        if (!compiled.ops.length) {
-          feedback = compiled.problems.join("; ") || "the edits changed nothing";
-          continue;
-        }
-        const applied = applyOps(bp, compiled.ops);
-        if (applied.ok) {
-          const radius = blastRadius(bp, applied.blueprint);
-          const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
-          const rationale = compiled.problems.length ? `${out.rationale} (Skipped: ${compiled.problems.join("; ")}.)` : out.rationale;
-          return { proposal: { summary: out.summary, rationale, operations: compiled.ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" }, usage };
-        }
-        feedback = [applied.error, ...compiled.problems].join("; ");
-        console.warn("[change] edits failed validation, retrying:", feedback);
+        const done = finish(out, usage);
+        if (done.result) return done.result;
+        feedback = done.feedback;
+        continue;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error("[change] model failed:", msg);
-        // A schema mismatch is worth one more try with the error; anything else (outage, timeout) falls back.
+        // Near-miss JSON: repair it locally instead of failing the request.
+        if (NoObjectGeneratedError.isInstance(e) && e.text) {
+          let raw: unknown = null;
+          try { raw = JSON.parse(e.text); } catch { raw = null; }
+          const salvaged = salvageEdits(raw);
+          if (e.usage) { inputTokens += e.usage.inputTokens ?? 0; outputTokens += e.usage.outputTokens ?? 0; }
+          if (salvaged) {
+            const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
+            const done = finish(cleanDeep(salvaged), usage);
+            if (done.result) return done.result;
+            feedback = done.feedback;
+            continue;
+          }
+        }
+        console.error("[change] model failed:", msg, NoObjectGeneratedError.isInstance(e) ? (e.text ?? "").slice(0, 400) : "");
         if (NoObjectGeneratedError.isInstance(e) && attempt === 0) {
           feedback = `your output did not match the schema (${msg.slice(0, 300)})`;
           continue;

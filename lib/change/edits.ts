@@ -313,3 +313,39 @@ export function blueprintIndex(bp: Blueprint): string {
   lines.push(`Connections: ${bp.connections.map((c) => `${c.name} (${c.kind}, ${c.status})`).join("; ")}`);
   return lines.join("\n");
 }
+
+const FIELD_TYPES: Record<string, string> = { integer: "number", int: "number", float: "number", decimal: "number", currency: "money", price: "money", amount: "money", bool: "boolean", checkbox: "boolean", datetime: "date", time: "date", select: "enum", choice: "enum", status: "enum", longtext: "text", textarea: "text", str: "string", ref: "string" };
+const PERMISSIONS: Record<string, string> = { ask_first: "ask", approve: "ask", approval: "ask", require_approval: "ask", confirm: "ask", manual: "ask", notify: "log", tell: "log", tell_me: "log", logged: "log", auto_approve: "auto", allow: "auto", just_do_it: "auto" };
+const KINDS = ["queue", "dashboard", "detail", "form", "assistant", "report"];
+
+/** Repair near-miss model output (nulls, synonyms, stray casing) before validating. */
+export function salvageEdits(raw: unknown): Edits | null {
+  if (!raw || typeof raw !== "object") return null;
+  let o = raw as Record<string, unknown>;
+  // Some responses wrap the object once, e.g. { "blueprint_edits": { … } }.
+  const keys = Object.keys(o);
+  if (keys.length === 1 && o[keys[0]] && typeof o[keys[0]] === "object" && !Array.isArray(o[keys[0]])) o = o[keys[0]] as Record<string, unknown>;
+  const clean = (v: unknown): unknown => (v === null ? undefined : Array.isArray(v) ? v.map(clean) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null).map(([k, x]) => [k, clean(x)])) : v);
+  const x = clean(o) as Record<string, unknown>;
+  const arr = (k: string) => (Array.isArray(x[k]) ? (x[k] as Record<string, unknown>[]) : undefined);
+  arr("addFields")?.forEach((f) => { const t = String(f.type ?? "string").toLowerCase(); f.type = FIELD_TYPES[t] ?? t; });
+  arr("permissions")?.forEach((p) => { const v = String(p.permission ?? "ask").toLowerCase().replace(/\s+/g, "_"); p.permission = PERMISSIONS[v] ?? v; });
+  arr("supervision")?.forEach((s) => { const v = String(s.level ?? "spot_check").toLowerCase().replace(/[\s-]+/g, "_"); s.level = v.includes("approve") ? "approve_all" : v.includes("auto") || v.includes("own") ? "autonomous" : v.includes("spot") ? "spot_check" : v; });
+  arr("newScreens")?.forEach((s) => { const k = String(s.kind ?? "dashboard").toLowerCase(); s.kind = KINDS.includes(k) ? k : k.includes("list") || k.includes("table") ? "queue" : k.includes("chat") ? "assistant" : "dashboard"; if (s.audience) s.audience = String(s.audience).toLowerCase(); });
+  arr("renames")?.forEach((r) => { r.type = String(r.type ?? "project").toLowerCase(); });
+  if (x.theme && typeof x.theme === "object") {
+    const t = x.theme as Record<string, unknown>;
+    if (t.radius && !["keep", "sm", "md", "lg"].includes(String(t.radius))) t.radius = "keep";
+    if (t.density && !["keep", "compact", "comfortable"].includes(String(t.density))) t.density = "keep";
+  }
+  arr("addColumns")?.forEach((c) => { if (typeof c.first !== "boolean") c.first = String(c.first).toLowerCase() === "true"; });
+  if (typeof x.feasible !== "boolean") x.feasible = String(x.feasible).toLowerCase() !== "false";
+  x.summary ??= "Change the project";
+  x.rationale ??= "";
+  const parsed = EditsSchema.safeParse(x);
+  if (!parsed.success) {
+    console.warn("[change] salvage failed:", parsed.error.issues.slice(0, 4).map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+    return null;
+  }
+  return parsed.data;
+}
