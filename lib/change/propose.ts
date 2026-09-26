@@ -1,32 +1,28 @@
 import "server-only";
 import { STYLE_RULE, cleanDeep } from "@/lib/text";
 import { generateText, Output } from "ai";
-import { z } from "zod";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { applyOps } from "@/lib/blueprint/apply";
 import { estimateChange } from "@/lib/blueprint/estimate";
 import { objectLabel, resolveRef } from "@/lib/blueprint";
-import type { ChangeOperation, ChangeProposal } from "@/lib/db/types";
+import type { ChangeProposal } from "@/lib/db/types";
 import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { ruleProposal } from "./rules";
+import { EditsSchema, blueprintIndex, compileEdits } from "./edits";
 import { generateFiles } from "@/lib/codegen/files";
 import { diffFiles } from "@/lib/codegen/diff";
 
-const ProposalSchema = z.object({
-  feasible: z.boolean().describe("false if the request needs custom code or an outside system the blueprint can't express"),
-  summary: z.string().describe("Imperative, under 12 words, e.g. 'Add an SLA risk column to the intake table'"),
-  rationale: z.string().describe("One plain-English sentence explaining the change and its effect"),
-  operations: z
-    .array(
-      z.object({
-        op: z.enum(["set", "add", "remove"]),
-        path: z.string().describe("RFC 6901 JSON Pointer into the blueprint, e.g. /screens/0/regions/main/1/columns"),
-        valueJson: z.string().describe("The new value encoded as JSON (use \"null\" for remove)"),
-      }),
-    )
-    .describe("Minimal operations. Prefer 'set' on the smallest containing value. Keep all ids stable."),
-});
+const EDIT_INSTRUCTIONS = `You change Architect 2.0 projects. A project is a Blueprint: data types (entities with fields and sample records), screens made of blocks, AI agents with tools and rules, and connections.
+Given a request and a scope, return the smallest set of typed edits that fully does what was asked, inside the scope when one is given.
+- New detail shown in a table: addFields (with realistic sampleValues) plus addColumns.
+- "Ask before", "needs approval", "don't let it … without asking": permissions with permission "ask". "Just do it": "auto". "Tell me": "log". Name each tool, or use "*" or "irreversible".
+- New page or view: newScreens (pick the entity it shows and, if useful, the agent people talk to there).
+- Rules for how an agent behaves: rules. Test cases: rehearsals. Look and feel: theme (hex colours only).
+- Use ids or exact visible names from the blueprint map. Never invent ids for existing objects.
+- Use patches only when no typed edit fits.
+- Set feasible=false only when it truly needs custom code or an outside system the blueprint cannot express; explain what a person would need to do.
+${STYLE_RULE}`;
 
 export type ProposeResult = { proposal: ChangeProposal; usage?: { model: string; inputTokens: number; outputTokens: number; costUsd: number; credits: number } };
 
@@ -49,38 +45,50 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
   const m = opts.allowModel === false ? null : getModel();
   const scopeLabel = scope ? `${scope.type} "${objectLabel(bp, scope)}" (id ${scope.id})` : "the whole project";
   if (m) {
-    try {
-      const resolved = resolveRef(bp, scope);
-      const result = await generateText({
-        model: m.model,
-        instructions:
-          "You edit Architect 2.0 blueprints (JSON). Given a blueprint, a scope and a request, return the smallest set of JSON Pointer operations that implements the request inside the scope. Obey the blueprint's existing shapes exactly: block types kpis/table/list/detail/form/chat/timeline/text/actions; table columns must be field names of the table's entity (add the field to the entity first if needed, and add the value to its sample rows); tool permissions are auto/log/ask; supervision is autonomous/spot_check/approve_all. Never change ids. If the request needs something the blueprint can't express, set feasible=false and explain in rationale. " + STYLE_RULE,
-        prompt: `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nFull blueprint JSON:\n${JSON.stringify({ ...bp, estimate: undefined })}`,
-        output: Output.object({ schema: ProposalSchema, name: "change_proposal" }),
-        maxOutputTokens: 6000,
-        timeout: 60_000,
-        maxRetries: 1,
-        providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
-      });
-      const out = cleanDeep(result.output);
-      const inputTokens = result.usage.inputTokens ?? 0;
-      const outputTokens = result.usage.outputTokens ?? 0;
-      const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
-      if (out.feasible && out.operations.length) {
-        const ops: ChangeOperation[] = out.operations.map((o) => ({ op: o.op, path: o.path, value: o.op === "remove" ? undefined : safeJson(o.valueJson) }));
-        const applied = applyOps(bp, ops);
+    const resolved = resolveRef(bp, scope);
+    const scopeScreenId = scope?.type === "screen" ? scope.id : scope?.type === "block" ? bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id))?.id : undefined;
+    const base = `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nBlueprint map:\n${blueprintIndex(bp)}\n\nFull blueprint JSON (for reference and patches):\n${JSON.stringify({ ...bp, estimate: undefined })}`;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let feedback = "";
+    // Up to two attempts: the second one sees exactly why the first failed.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await generateText({
+          model: m.model,
+          instructions: EDIT_INSTRUCTIONS,
+          prompt: feedback ? `${base}\n\nYour previous edits could not be applied: ${feedback}\nFix them and return the complete set of edits again.` : base,
+          output: Output.object({ schema: EditsSchema, name: "blueprint_edits" }),
+          maxOutputTokens: 8000,
+          timeout: 70_000,
+          maxRetries: 1,
+          providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
+        });
+        inputTokens += result.usage.inputTokens ?? 0;
+        outputTokens += result.usage.outputTokens ?? 0;
+        const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
+        const out = cleanDeep(result.output);
+        if (!out.feasible) {
+          return { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live" }, usage };
+        }
+        const compiled = compileEdits(bp, out, scopeScreenId);
+        if (!compiled.ops.length) {
+          feedback = compiled.problems.join("; ") || "the edits changed nothing";
+          continue;
+        }
+        const applied = applyOps(bp, compiled.ops);
         if (applied.ok) {
           const radius = blastRadius(bp, applied.blueprint);
           const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
-          return { proposal: { summary: out.summary, rationale: out.rationale, operations: ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" }, usage };
+          const rationale = compiled.problems.length ? `${out.rationale} (Skipped: ${compiled.problems.join("; ")}.)` : out.rationale;
+          return { proposal: { summary: out.summary, rationale, operations: compiled.ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" }, usage };
         }
-        console.warn("[change] model ops failed validation:", applied.error);
+        feedback = [applied.error, ...compiled.problems].join("; ");
+        console.warn("[change] edits failed validation, retrying:", feedback);
+      } catch (e) {
+        console.error("[change] model failed:", e instanceof Error ? e.message : e);
+        break;
       }
-      if (!out.feasible) {
-        return { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live" }, usage };
-      }
-    } catch (e) {
-      console.error("[change] model failed, using rules:", e instanceof Error ? e.message : e);
     }
   }
   const rule = ruleProposal(bp, request, scope);
@@ -103,12 +111,4 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
       mode: "rules",
     },
   };
-}
-
-function safeJson(s: string): unknown {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return s;
-  }
 }

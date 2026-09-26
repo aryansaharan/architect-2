@@ -69,8 +69,9 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
   if (table && table.type === "table") {
     const ei = bp.entities.findIndex((e) => e.id === table.entityId);
     const entity = bp.entities[ei];
-    const col = lower.match(/(?:add|show) (?:a |an )?(?:column|field)?\s*(?:for|called|named)?\s*[“"']?([a-z][a-z0-9 _-]{1,30})[”"']?/i)?.[1]?.trim();
-    const sortBy = lower.match(/(?:sort|order|rank) (?:it |this |them )?by ([a-z][a-z0-9 _-]{1,30})/)?.[1]?.trim();
+    const STOP = String.raw`(?=[”"'.,!?]|\s+(?:to|in|on|into|onto|of|column|field|please)\b|$)`;
+    const col = lower.match(new RegExp(String.raw`(?:add|show) (?:a |an |the )?(?:column|field)?\s*(?:for|called|named|with)?\s*[“"']?([a-z][a-z0-9 _-]{0,29}?)` + STOP, "i"))?.[1]?.trim();
+    const sortBy = lower.match(new RegExp(String.raw`(?:sort|order|rank) (?:it |this |them |the table )?by ([a-z][a-z0-9 _-]{0,29}?)` + STOP))?.[1]?.trim();
     const target = sortBy ?? (lower.includes("column") || lower.includes("field") ? col : undefined);
     if (target) {
       const existing = entity.fields.find((f) => f.name === snake(target) || (f.label ?? "").toLowerCase() === target);
