@@ -271,6 +271,8 @@ export default async function Landing() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-6 py-8 text-[12.5px] text-muted-foreground">
           <Logo />
           <span>Built by Aryan Saharan for Lyzr&apos;s Architect 2.0 brief.</span>
+          <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link href="/terms" className="hover:text-foreground">Terms</Link>
           <a href={REPO_URL} className="ml-auto inline-flex items-center gap-1.5 hover:text-foreground" target="_blank" rel="noreferrer"><GitHubMark /> Source &amp; product notes</a>
         </div>
       </footer>
