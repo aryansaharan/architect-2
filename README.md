@@ -4,7 +4,7 @@
 
 A working prototype of the next Lyzr Architect, built for the *Technical Product Manager · Architect* take-home.
 
-**[Live demo](https://architect-2.vercel.app)** · **[Open the demo project — no account](https://architect-2.vercel.app/demo)** · **[2-minute walkthrough](#walkthrough)** · [Product decisions](DECISIONS.md)
+**[Live demo](https://architect-2-aryan.vercel.app)** · **[Open the demo project — no account](https://architect-2-aryan.vercel.app/demo)** · **[2-minute walkthrough](#walkthrough)** · [Product decisions](DECISIONS.md)
 
 ![The Blueprint: every screen, agent, kind of data and connection in one view](docs/screenshots/01-blueprint.png)
 
@@ -25,7 +25,7 @@ Four principles, each of them visible in the product:
 
 ## Try it in two minutes
 
-1. Open **[/demo](https://architect-2.vercel.app/demo)**. You get a guest session and a finished *Claims Triage Desk* with three agents, a live URL, a caught mistake and a pending handoff.
+1. Open **[/demo](https://architect-2-aryan.vercel.app/demo)**. You get a guest session and a finished *Claims Triage Desk* with three agents, a live URL, a caught mistake and a pending handoff.
 2. Click **Settlement** on the canvas → flip the Inspector between Plain, Spec and Code.
 3. **Preview** → switch to **Tweak** → click the claims table → rename or reorder columns. Free, and it makes a save point.
 4. **Agents → Settlement → Playground** → *"CLM-20935 for Grace Liu is approved at $1,640. Pay her by ACH."* Watch it look the claim up, then stop and ask before sending money.
