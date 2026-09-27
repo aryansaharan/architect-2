@@ -1,6 +1,6 @@
 import {
   Activity, Bot, BrainCircuit, Building2, CalendarClock, Cloud, Coins, Container, CreditCard, Database, DatabaseZap, FileSearch, FlaskConical, FolderKanban, GitBranch, Globe,
-  HardDrive, History, KeyRound, LayoutDashboard, Laptop, MessageSquare, Network, Package, Radio, Rocket, Router, Search, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
+  HardDrive, History, KeyRound, LayoutDashboard, Laptop, Mail, MessageSquare, Network, Package, Radio, Rocket, Router, Search, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -50,7 +50,7 @@ const ZONES: Zone[] = [
   { x: 576, y: 156, w: 560, h: 720, label: "Control plane", hint: "stateless · Kubernetes", tone: "control" },
   { x: 1176, y: 156, w: 292, h: 720, label: "Sandbox plane", hint: "untrusted code", tone: "sandbox" },
   { x: 1508, y: 156, w: 292, h: 720, label: "Runtime plane", hint: "live apps", tone: "runtime" },
-  { x: 24, y: 916, w: 1776, h: 206, label: "Data + platform", hint: "shared, multi-tenant", tone: "data" },
+  { x: 24, y: 916, w: 1776, h: 206, label: "Data + platform", hint: "one set per cell, except where a card says regional", tone: "data" },
   { x: 24, y: LEGEND_Y, w: 1776, h: LEGEND_H, label: "Legend", hint: "how to read this diagram", tone: "outside" },
 ];
 
@@ -70,8 +70,8 @@ export const CARDS: Card[] = [
   { id: "stripe", x: 592, y: 48, w: 176, h: 72, title: "Stripe", sub: "Plans and invoices", icon: CreditCard, tone: "outside" },
   { id: "providers", x: 784, y: 48, w: 336, h: 72, title: "Model providers", sub: "Anthropic · OpenAI · Google · open models (vLLM, Bedrock)", icon: BrainCircuit, tone: "outside", step: [2] },
   { id: "github", x: 1192, y: 48, w: 260, h: 72, title: "GitHub", sub: "Repos, pull requests, checks, webhooks", icon: GitBranch, tone: "outside", step: [6] },
-  { id: "vercel", x: 1524, y: 48, w: 124, h: 72, title: "Vercel", sub: "Deploy target", icon: Rocket, tone: "outside" },
-  { id: "slack", x: 1660, y: 48, w: 124, h: 72, title: "Notify", sub: "Slack, email pings", icon: MessageSquare, tone: "outside" },
+  { id: "vercel", x: 1524, y: 48, w: 112, h: 72, title: "Vercel", sub: "Deploy target", icon: Rocket, tone: "outside" },
+  { id: "slack", x: 1648, y: 48, w: 136, h: 72, title: "Slack + email", sub: "Approval messages", icon: Mail, tone: "outside" },
   // people
   { id: "studio", x: 40, y: 196, w: 204, h: 184, title: "Builder studio", sub: "One project for the people who describe apps and the people who code them", icon: LayoutDashboard, tone: "people", tags: ["Plain", "Spec", "Code"], step: [1] },
   { id: "teammates", x: 40, y: 396, w: 204, h: 96, title: "Teammates", sub: "Handoffs arrive with the object, history and diff", icon: Users, tone: "people" },
@@ -85,18 +85,18 @@ export const CARDS: Card[] = [
   { id: "approuter", x: 316, y: 692, w: 204, h: 108, title: "App router", sub: "Custom domains, automatic TLS, live traffic to the runtime", icon: Router, tone: "edge", step: [8] },
   // control plane, column 1
   { id: "budget", x: C1, y: 196, w: CW, h: 96, title: "Budget + billing", sub: "Quote before work, meter after, caps, refunds", icon: Coins, tone: "control" },
-  { id: "bff", x: C1, y: 308, w: CW, h: 88, title: "Web app + BFF", sub: "Next.js in each regional cluster: server actions, Supabase Auth", icon: LayoutDashboard, tone: "control" },
+  { id: "bff", x: C1, y: 308, w: CW, h: 88, title: "Web app + BFF", sub: "Next.js in each cell's cluster: server actions, Supabase Auth", icon: LayoutDashboard, tone: "control" },
   { id: "orchestrator", x: C1, y: 420, w: CW, h: 124, title: "Orchestrator", sub: "Temporal workflows for plan, build, repair, deploy and import. Durable, resumable, retried", icon: Workflow, tone: "control", step: [2] },
   { id: "project", x: C1, y: 560, w: CW, h: 96, title: "Project service", sub: "Blueprints, save points, Work Orders, diffs", icon: FolderKanban, tone: "control" },
-  { id: "policy", x: C1, y: 672, w: CW, h: 112, title: "Policy + approvals", sub: "Tool permissions, House Rules, approval inbox, audit log", icon: ShieldCheck, tone: "control" },
+  { id: "policy", x: C1, y: 672, w: CW, h: 112, title: "Policy + approvals", sub: "Tool permissions, House Rules, approvals, delegation grants, audit log", icon: ShieldCheck, tone: "control" },
   // control plane, column 2
-  { id: "gateway", x: C2, y: 196, w: CW, h: 112, title: "Model gateway", sub: "One API for every model: routing by task, fallbacks, prompt caching, BYOK, cost per call", icon: Zap, tone: "control", step: [2] },
+  { id: "gateway", x: C2, y: 196, w: CW, h: 112, title: "Model gateway", sub: "The studio's gateway: routing by task, eval-gated switches, cache-affine failover, BYOK, cost per call", icon: Zap, tone: "control", step: [2] },
   { id: "harness", x: C2, y: 324, w: CW, h: 172, title: "Agent harness", sub: "Planner, coder, verifier and repairer share one tool loop with step budgets and doom-loop detection", icon: Bot, tone: "control", tags: ["plan", "act", "verify", "repair"], step: [2, 3] },
   { id: "githubsvc", x: C2, y: 512, w: CW, h: 92, title: "GitHub service", sub: "GitHub App: a branch per Work Order, PRs, two-way sync", icon: GitBranch, tone: "control", step: [6] },
   { id: "deploy", x: C2, y: 620, w: CW, h: 92, title: "Deploy service", sub: "Immutable releases, preflight gates, instant rollback", icon: Rocket, tone: "control", step: [7] },
   { id: "import", x: C2, y: 728, w: CW, h: 96, title: "Import + analysis", sub: "Clone, detect stack and agents, coverage map, House Rules", icon: FileSearch, tone: "control" },
   // sandbox plane
-  { id: "manager", x: 1192, y: 196, w: 260, h: 108, title: "Sandbox manager", sub: "Schedules microVMs: warm pool, lazy snapshot restore, idle suspend. Secret-free work can burst to E2B", icon: Server, tone: "sandbox" },
+  { id: "manager", x: 1192, y: 196, w: 260, h: 108, title: "Sandbox manager", sub: "Schedules microVMs: warm pool, lazy snapshot restore, idle suspend. Eligible work can burst to E2B", icon: Server, tone: "sandbox" },
   {
     id: "vm", x: 1192, y: 320, w: 260, h: 340, title: "Project sandbox", sub: "Firecracker microVM per project · 2 vCPU · 4 GB · persistent disk", icon: Container, tone: "sandbox", step: [3],
     rows: ["Dev server · Next.js or Vite :3000", "Agent runtime · Python + Node", "Tests + rehearsal runner", "Language servers + repo map", "File watcher → events"],
@@ -104,22 +104,23 @@ export const CARDS: Card[] = [
   { id: "egress", x: 1192, y: 676, w: 260, h: 96, title: "Egress proxy", sub: "Allow-listed network. Secrets are added on the way out and never live in the VM", icon: KeyRound, tone: "sandbox" },
   { id: "mirror", x: 1192, y: 788, w: 260, h: 76, title: "Package mirror", sub: "npm and PyPI pull-through cache, scanned", icon: Package, tone: "sandbox" },
   // runtime plane
-  { id: "cloud", x: 1524, y: 196, w: 260, h: 116, title: "Prod Cloud", sub: "Live apps on Knative, each pod in its own microVM. Scale to zero, no secrets, no direct egress", icon: Cloud, tone: "runtime", step: [7, 8] },
-  { id: "agentgw", x: 1524, y: 328, w: 260, h: 164, title: "Agent gateway", sub: "The only way out of a live app. Holds the credentials, checks permissions and approval gates, caps budgets, traces every call", icon: ShieldCheck, tone: "runtime", tags: ["Read", "Change", "Ask first"], step: [8] },
-  { id: "jobs", x: 1524, y: 508, w: 260, h: 88, title: "Queues + schedules", sub: "Triggers, retries, long-running agent tasks", icon: CalendarClock, tone: "runtime" },
-  { id: "evals", x: 1524, y: 612, w: 260, h: 88, title: "Evals in production", sub: "Rehearsals replayed on real traces, drift alerts", icon: FlaskConical, tone: "runtime" },
-  { id: "selfhost", x: 1524, y: 716, w: 260, h: 108, title: "Your VPC or on-prem", sub: "Same runtime via Helm or Terraform, outbound-only tunnel", icon: Building2, tone: "runtime", step: [7] },
+  { id: "cloud", x: 1524, y: 196, w: 260, h: 100, title: "Prod Cloud", sub: "Live apps on Knative, each pod in its own microVM. Scale to zero, no secrets, no direct egress", icon: Cloud, tone: "runtime", step: [7, 8] },
+  { id: "agentgw", x: 1524, y: 314, w: 260, h: 152, title: "Agent gateway", sub: "The only way out of a live app. Holds the credentials, checks permissions and approval gates, caps budgets, traces every call. Its own model gateway, apart from the studio's", icon: ShieldCheck, tone: "runtime", tags: ["Read", "Change", "Ask first"], step: [8] },
+  { id: "notify", x: 1524, y: 480, w: 260, h: 72, title: "Notify", sub: "Approval and handoff pings, signed replies", icon: MessageSquare, tone: "runtime", step: [8] },
+  { id: "jobs", x: 1524, y: 566, w: 260, h: 84, title: "Queues + schedules", sub: "Triggers, retries, long-running agent tasks", icon: CalendarClock, tone: "runtime" },
+  { id: "evals", x: 1524, y: 664, w: 260, h: 84, title: "Evals in production", sub: "Rehearsals replayed on real traces, drift alerts", icon: FlaskConical, tone: "runtime" },
+  { id: "selfhost", x: 1524, y: 762, w: 260, h: 90, title: "Your VPC or on-prem", sub: "Same runtime via Helm or Terraform, outbound-only tunnel", icon: Building2, tone: "runtime", step: [7] },
   // data + platform
-  { id: "postgres", x: dataX(0), y: DATA_Y, w: DATA_W, h: 128, title: "Postgres", sub: "Supabase. Users, projects, Blueprints, ledger. Row-level security on every table", icon: Database, tone: "data" },
-  { id: "redis", x: dataX(1), y: DATA_Y, w: DATA_W, h: 128, title: "Redis", sub: "Sessions, rate limits, preview and app routing tables, locks", icon: Zap, tone: "data" },
+  { id: "postgres", x: dataX(0), y: DATA_Y, w: DATA_W, h: 128, title: "Postgres", sub: "Supabase, one per cell. Projects, Blueprints, ledger, grants. RLS on every table", icon: Database, tone: "data" },
+  { id: "redis", x: dataX(1), y: DATA_Y, w: DATA_W, h: 128, title: "Redis", sub: "Preview and app routes, locks, gateway pins. Rate limits are regional", icon: Zap, tone: "data" },
   { id: "nats", x: dataX(2), y: DATA_Y, w: DATA_W, h: 128, title: "NATS JetStream", sub: "Build events, usage, approvals. Replay from any sequence number", icon: Waypoints, tone: "data" },
-  { id: "temporal", x: dataX(3), y: DATA_Y, w: DATA_W, h: 128, title: "Temporal Cloud", sub: "Workflow history, timers and task queues. One namespace per cell", icon: History, tone: "data" },
+  { id: "temporal", x: dataX(3), y: DATA_Y, w: DATA_W, h: 128, title: "Temporal Cloud", sub: "Workflow history, timers, task queues. Studio and runtime namespaces", icon: History, tone: "data" },
   { id: "objects", x: dataX(4), y: DATA_Y, w: DATA_W, h: 128, title: "Object storage", sub: "Sandbox snapshots, build artefacts, OCI images, repo archives", icon: HardDrive, tone: "data" },
   { id: "vectors", x: dataX(5), y: DATA_Y, w: DATA_W, h: 128, title: "Vector index", sub: "Repo maps, docs and agent knowledge (pgvector)", icon: Search, tone: "data" },
-  { id: "vault", x: dataX(6), y: DATA_Y, w: DATA_W, h: 128, title: "Secrets vault", sub: "KMS-encrypted keys. Decrypted only by the egress proxy and the agent gateway", icon: KeyRound, tone: "data" },
+  { id: "vault", x: dataX(6), y: DATA_Y, w: DATA_W, h: 128, title: "Secrets vault", sub: "KMS-encrypted, regional keys. Only the egress proxy and the gateways decrypt", icon: KeyRound, tone: "data" },
   { id: "appdb", x: dataX(7), y: DATA_Y, w: DATA_W, h: 128, title: "App databases", sub: "Neon Postgres for live apps: a branch per app and per test version", icon: DatabaseZap, tone: "data" },
-  { id: "warehouse", x: dataX(8), y: DATA_Y, w: DATA_W, h: 128, title: "Usage warehouse", sub: "Tokens, credits and trace summaries (ClickHouse)", icon: Activity, tone: "data" },
-  { id: "otel", x: dataX(9), y: DATA_Y, w: DATA_W, h: 128, title: "Observability", sub: "OpenTelemetry traces, logs, LLM spans, SLOs", icon: Activity, tone: "data" },
+  { id: "warehouse", x: dataX(8), y: DATA_Y, w: DATA_W, h: 128, title: "Usage warehouse", sub: "Tokens, credits and trace summaries (ClickHouse). Regional", icon: Activity, tone: "data" },
+  { id: "otel", x: dataX(9), y: DATA_Y, w: DATA_W, h: 128, title: "Observability", sub: "OpenTelemetry traces, logs, LLM spans, SLOs. Regional", icon: Activity, tone: "data" },
 ];
 
 const byId = Object.fromEntries(CARDS.map((c) => [c.id, c]));
@@ -269,16 +270,18 @@ const EDGES: Edge[] = [
   // ── lanes above the planes ─────────────────────────────────────
   // GitHub: branch + PR, webhooks back
   { d: orth([gh, [1166, gh[1]], [1166, LANE_GH], [1322, LANE_GH], [1322, A("github", "b")[1]]]), tone: "control", flows: [6] },
-  // production agents call models only through the gateways (metering, caps)
-  { d: orth([ag, [1484, ag[1]], [1484, LANE_MODEL], [1080, LANE_MODEL], [1080, A("gateway", "t")[1]]]), tone: "runtime", flows: [8] },
+  // live apps' model calls leave through the runtime's own model gateway (inside the agent gateway tier), never the studio's
+  { d: orth([ag, [1484, ag[1]], [1484, LANE_MODEL], [1100, LANE_MODEL], [1100, A("providers", "b")[1]]]), tone: "runtime", flows: [8] },
 
   // ── inside the runtime plane ───────────────────────────────────
   // every outbound call from a live app leaves through the agent gateway; the pod has no other route
   { d: stack("cloud", "agentgw"), tone: "runtime", flows: [8], label: { x: A("cloud", "b")[0] + 8, y: A("cloud", "b")[1] + 11.5, text: "all outbound calls" } },
-  { d: stack("agentgw", "jobs"), tone: "runtime", flows: [8] }, // long-running and scheduled agent work
+  // "Ask first" approvals go to Notify (over NATS), which messages people on Slack and email
+  { d: stack("agentgw", "notify"), tone: "runtime", dashed: true, flows: [8] },
+  { d: orth([A("notify", "r"), [1792, A("notify", "r")[1]], [1792, A("slack", "r")[1]], A("slack", "r")]), tone: "runtime", dashed: true, flows: [8] },
+  // long-running and scheduled agent work, routed down the plane's left margin past Notify
+  { d: orth([A("agentgw", "l", 0.92), [1514, A("agentgw", "l", 0.92)[1]], [1514, A("jobs", "l")[1]], A("jobs", "l")]), tone: "runtime", flows: [8] },
   { d: stack("jobs", "evals"), tone: "runtime", flows: [8] }, // scheduled replays of real traces
-  // "Ask first" approvals go out to Slack and email
-  { d: orth([A("agentgw", "r", 0.2), [1792, A("agentgw", "r", 0.2)[1]], [1792, A("slack", "r")[1]], A("slack", "r")]), tone: "runtime", dashed: true, flows: [8] },
 
   // ── data platform: one bus, one trunk per plane ────────────────
   { d: line([dataCenters[0], BUS_Y], [dataCenters[dataCenters.length - 1], BUS_Y]), tone: "data" },
@@ -286,7 +289,7 @@ const EDGES: Edge[] = [
   trunk(408, "edge", "Redis routes · NATS fan-out"),
   trunk(712, "control", "Postgres RLS · Temporal · S3 · vault · pgvector"),
   trunk(1290, "sandbox", "snapshots · egress secrets · events"),
-  trunk(1650, "runtime", "Neon · vault · traces"),
+  trunk(1662, "runtime", "Neon · vault · NATS"),
 ];
 
 export const FLOWS: { n: number; title: string; body: string }[] = [
@@ -297,7 +300,7 @@ export const FLOWS: { n: number; title: string; body: string }[] = [
   { n: 5, title: "Show the work", body: "File, test and step events stream back through the realtime hub, so people see progress in plain English, not a spinner." },
   { n: 6, title: "Branch + PR", body: "Each Work Order becomes a branch and a pull request through the GitHub App. Engineers' pushes sync back into the Blueprint or become code they own." },
   { n: 7, title: "Ship", body: "Preflight passes, the deploy service builds one immutable release and rolls it out to Prod Cloud, Vercel or your VPC." },
-  { n: 8, title: "Governed agents", body: "In production every outbound call goes through the agent gateway, which holds the credentials: permissions, approval gates, budget caps and traces." },
+  { n: 8, title: "Governed agents", body: "The agent gateway is every live app's only way out: credentials, approval gates, caps and traces. Model calls use the runtime's own model gateway." },
 ];
 
 /** Each numbered badge: where it sits, and the transport label beside it. */
@@ -323,7 +326,7 @@ const LEGEND_TONES: { tone: Tone; name: string; meaning: string }[] = [
   { tone: "outside", name: "Outside", meaning: "identity federation and billing" },
 ];
 
-const LABEL_FONT = { font: "500 9.5px var(--font-geist-mono), monospace", letterSpacing: "0.04em" };
+const LABEL_FONT = { font: "500 10.5px var(--font-geist-mono), monospace", letterSpacing: "0.04em" };
 
 /** Hover and focus behaviour for the numbered badges, as scoped CSS. */
 function interactionCss(id: string) {
@@ -362,11 +365,11 @@ function CardView({ c }: { c: Card }) {
           </span>
           <span className="truncate text-[12.5px] font-semibold leading-tight text-[#edf3ee]">{c.title}</span>
         </div>
-        <p className="mt-1.5 text-[10.5px] leading-[1.4] text-[#9baaa2]">{c.sub}</p>
+        <p className="mt-1.5 text-[11px] leading-[1.4] text-[#9baaa2]">{c.sub}</p>
         {c.rows && (
           <ul className="mt-2 space-y-1.5">
             {c.rows.map((r) => (
-              <li key={r} className="rounded-md border px-2 py-1.5 font-mono text-[10px] text-[#d3dfd8]" style={{ borderColor: "#2c3b36", background: "#040706" }}>
+              <li key={r} className="rounded-md border px-2 py-1.5 font-mono text-[10.5px] text-[#d3dfd8]" style={{ borderColor: "#2c3b36", background: "#040706" }}>
                 {r}
               </li>
             ))}
@@ -375,7 +378,7 @@ function CardView({ c }: { c: Card }) {
         {c.tags && (
           <div className="mt-auto flex flex-wrap gap-1 pt-1.5">
             {c.tags.map((t) => (
-              <span key={t} className="rounded-full border px-1.5 py-px font-mono text-[9.5px]" style={{ borderColor: `color-mix(in srgb, ${tone} 35%, transparent)`, color: tone }}>
+              <span key={t} className="rounded-full border px-1.5 py-px font-mono text-[10.5px]" style={{ borderColor: `color-mix(in srgb, ${tone} 35%, transparent)`, color: tone }}>
                 {t}
               </span>
             ))}
@@ -397,19 +400,19 @@ function LineSample({ tone = "outside", dashed, pulse }: { tone?: Tone; dashed?:
 }
 
 function Legend({ animated, interactive }: { animated: boolean; interactive: boolean }) {
-  const head = "mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#6c7c74]";
+  const head = "mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#6c7c74]";
   const row = "flex items-center gap-2";
   const name = "text-[#edf3ee]";
   return (
     <foreignObject x={40} y={LEGEND_Y + 34} width={W - 80} height={LEGEND_H - 42}>
-      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1.25fr)] gap-x-10 text-[10.5px] leading-[1.3] text-[#9baaa2]">
+      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1.25fr)] gap-x-10 text-[11px] leading-[1.3] text-[#9baaa2]">
         <div>
           <p className={head}>Line style</p>
           <ul className="space-y-[3px]">
             <li className={row}><LineSample /><span><span className={name}>Solid</span>: request and response over HTTPS, gRPC or vsock</span></li>
             <li className={row}><LineSample dashed /><span><span className={name}>Dashed</span>: asynchronous events, webhooks, approval messages</span></li>
             {animated && <li className={row}><LineSample tone="edge" pulse /><span><span className={name}>Moving light</span>: the hot path of a request</span></li>}
-            <li className={row}><span className="w-[34px] shrink-0 font-mono text-[9.5px] text-[#d3dfd8]">gRPC</span><span><span className={name}>Mono label</span>: the transport, or what a trunk carries</span></li>
+            <li className={row}><span className="w-[34px] shrink-0 font-mono text-[10.5px] text-[#d3dfd8]">gRPC</span><span><span className={name}>Mono label</span>: the transport, or what a trunk carries</span></li>
           </ul>
         </div>
         <div>
@@ -452,8 +455,8 @@ function Readout({ id }: { id: string }) {
         }}
       >
         <div className="arch-readout-hint">
-          <p className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#6c7c74]">Trace a flow</p>
-          <p className="mt-1.5 text-[10.5px] leading-[1.4] text-[#9baaa2]">Hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#6c7c74]">Trace a flow</p>
+          <p className="mt-1.5 text-[11px] leading-[1.4] text-[#9baaa2]">Hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
         </div>
         {STEPS.map((s) => {
           const f = FLOWS[s.n - 1];
@@ -463,8 +466,8 @@ function Readout({ id }: { id: string }) {
                 <span className="grid size-[18px] shrink-0 place-items-center rounded-full text-[10.5px] font-bold text-[#0b1402]" style={{ background: BADGE_BG }}>{s.n}</span>
                 {f.title}
               </p>
-              <p id={`${id}-flow-${s.n}-via`} className="mt-1 font-mono text-[9px]" style={{ color: TONE[s.tone] }}>{s.transport}</p>
-              <p id={`${id}-flow-${s.n}-text`} className="mt-1 text-[10px] leading-[1.35] text-[#9baaa2]">{f.body}</p>
+              <p id={`${id}-flow-${s.n}-via`} className="mt-1 font-mono text-[10.5px] leading-tight" style={{ color: TONE[s.tone] }}>{s.transport}</p>
+              <p id={`${id}-flow-${s.n}-text`} className="mt-1 text-[10.5px] leading-[1.35] text-[#9baaa2]">{f.body}</p>
             </div>
           );
         })}

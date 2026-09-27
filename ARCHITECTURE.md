@@ -2,17 +2,21 @@
 
 How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, service by service, with the reasoning behind each choice.
 
+Sections 1 to 16 describe the target platform, sized for 5,000 people in the studio at once. That is not what we build first. [Section 18](#18-phasing-buy-first-build-when-it-pays) says what runs at launch, the numeric trigger for each build-out, and what each phase costs to run and staff.
+
 - Interactive version: **[architect-2-aryan.vercel.app/architecture](https://architect-2-aryan.vercel.app/architecture)**. Hover over or focus (Tab) a numbered badge to highlight that flow's lines and read the step.
 - Diagram files: [`public/docs/architecture-diagram.png`](public/docs/architecture-diagram.png) · [`public/docs/architecture.pdf`](public/docs/architecture.pdf)
 - Product decisions: [`DECISIONS.md`](DECISIONS.md) · Market research: [`RESEARCH.md`](RESEARCH.md)
 
 ![Prod AI production architecture](public/docs/architecture-diagram.png)
 
-**Reading the diagram.** The legend at the bottom explains every line style and colour. Each service is a card and each line is a real call path. Solid lines are request and response (HTTPS, gRPC, vsock); dashed lines are asynchronous (events, webhooks, approval messages); a line's colour is the plane it belongs to. Short vertical lines join neighbours in a column (BFF → Orchestrator). Long routes run in the gutters between planes and in the two bands above and below the planes. Each plane reaches the data platform through one labelled trunk into a shared data bus, so the picture shows which plane uses which store without drawing 30 separate lines. The shared infrastructure sits there too: NATS JetStream, Temporal Cloud and the per-app Neon databases. The Orchestrator → Agent harness line also stands for the orchestrator's other activity workers (Deploy, Import, GitHub service), which pull work from Temporal task queues ([section 5](#5-communication-and-protocols)). The numbered badges match the eight steps in [section 3](#3-prompt-to-production), and the mono label next to each badge names its transport.
+**Reading the diagram.** The legend at the bottom explains every line style and colour. Each service is a card and each line is a real call path. Solid lines are request and response (HTTPS, gRPC, vsock); dashed lines are asynchronous (events, webhooks, approval messages); a line's colour is the plane it belongs to. Short vertical lines join neighbours in a column (BFF → Orchestrator). Long routes run in the gutters between planes and in the two bands above and below the planes. Each plane reaches the data platform through one labelled trunk into a shared data bus, so the picture shows which plane uses which store without drawing 30 separate lines. The infrastructure sits there too (NATS JetStream, Temporal Cloud, the per-app Neon databases). Everything in that row is deployed once per cell, except the usage warehouse and observability, which are regional ([section 14](#blast-radius-what-is-shared-and-what-fails)). The line from the agent gateway to the model providers is the runtime's own deployment of the model gateway, separate from the studio's, so live apps keep running when the studio degrades ([section 9](#9-the-model-gateway)). Notify, the internal service that sends approval and handoff messages, sits in the runtime plane; Slack and email are the outside services it calls. The Orchestrator → Agent harness line also stands for the orchestrator's other activity workers (Deploy, Import, GitHub service), which pull work from Temporal task queues ([section 5](#5-communication-and-protocols)). The numbered badges match the eight steps in [section 3](#3-prompt-to-production), and the mono label next to each badge names its transport.
 
 ---
 
 ## Contents
+
+- [Decisions at a glance](#decisions-at-a-glance)
 
 1. [Design principles](#1-design-principles)
 2. [The planes at a glance](#2-the-planes-at-a-glance)
@@ -22,7 +26,7 @@ How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, se
 6. [Sandboxing](#6-sandboxing)
 7. [The agent harness](#7-the-agent-harness)
 8. [Blueprint and code: keeping them in sync](#8-blueprint-and-code-keeping-them-in-sync)
-9. [Model-agnostic switching](#9-model-agnostic-switching)
+9. [The model gateway](#9-the-model-gateway)
 10. [Frontend, sandbox and backend communication, with live preview](#10-frontend-sandbox-and-backend-communication-with-live-preview)
 11. [The proxy layer](#11-the-proxy-layer)
 12. [GitHub integration](#12-github-integration)
@@ -31,7 +35,25 @@ How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, se
 15. [Model unit economics](#15-model-unit-economics)
 16. [Security, tenancy and observability](#16-security-tenancy-and-observability)
 17. [What the prototype runs today](#17-what-the-prototype-runs-today)
-18. [Trade-offs and alternatives considered](#18-trade-offs-and-alternatives-considered)
+18. [Phasing: buy first, build when it pays](#18-phasing-buy-first-build-when-it-pays)
+19. [Trade-offs and alternatives considered](#19-trade-offs-and-alternatives-considered)
+
+## Decisions at a glance
+
+The ten choices that shape everything else, each with the alternative I rejected.
+
+| # | Decision | Rejected alternative | Details |
+|---|---|---|---|
+| 1 | **Buy first, build at numeric triggers.** Launch on E2B, Vercel, Supabase, Neon, Temporal Cloud and Fly Machines; build our own fleet, runtime, cells and regions only when a stated spend, latency, residency or egress trigger fires | Building the year-3 platform before the first thousand builders | [18](#18-phasing-buy-first-build-when-it-pays) |
+| 2 | **The model decides, code does the rest.** The planner returns a small decision-only draft; code expands, validates, prices and renders it | Letting the model write the finished app, layout or price | [7](#7-the-agent-harness) |
+| 3 | **A nine-block Blueprint is the source of truth,** with one owner per region of code and a three-way reconcile; custom blocks and code ownership are the escape hatches | Code-first generation with no structured model, which cannot be previewed, tweaked or priced without a build | [8](#8-blueprint-and-code-keeping-them-in-sync) |
+| 4 | **One Firecracker microVM per project, with no secrets inside.** Our egress proxy adds credentials on the way out | Containers on a shared kernel; secrets as environment variables | [6](#6-sandboxing) |
+| 5 | **Durable workflows (Temporal)** for plans, builds, repairs, deploys, and approvals that wait days | A queue plus a hand-built state table | [19](#19-trade-offs-and-alternatives-considered) |
+| 6 | **One model gateway service, two deployments.** Routing by task, eval-gated switches, failover in the middle of a tool loop with cache affinity; the runtime's copy serves live apps apart from the studio's | Provider SDKs in every service, or a hosted router that cannot see budgets | [9](#9-the-model-gateway) |
+| 7 | **Governance enforced by the network.** Live apps hold no credentials and can reach only the agent gateway | A sidecar, or checks in generated code, both of which app code can route around | [11](#11-the-proxy-layer) |
+| 8 | **Background work runs on revocable delegation grants,** exchanged for 5-minute tokens scoped to one project and one action, with the person carried as a claim for row-level security and audit | Forwarding the person's login token (it expires in an hour), or a service key that bypasses row-level security | [5](#identity-for-background-work) |
+| 9 | **Cells are the blast-radius unit.** Each cell has its own Postgres, NATS, Temporal namespaces, sandbox pool and runtime; only identity and a thin directory are shared per region | One Postgres per region shared by every cell in it | [14](#blast-radius-what-is-shared-and-what-fails) |
+| 10 | **Price before work, and our fixes are free.** Quotes come from the Blueprint diff; repairs of our own mistakes are posted to a platform account, with caps | Metering tokens after the fact and billing people for our repair loops | [15](#15-model-unit-economics) |
 
 ## 1. Design principles
 
@@ -47,15 +69,15 @@ How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, se
 | Plane | What lives there | Why it is separate |
 |---|---|---|
 | **Edge** | CDN + WAF (Cloudflare), regional API gateway, preview proxy, realtime hub, app router | Latency sensitive, terminates TLS and WebSockets, enforces rate limits before anything expensive happens |
-| **Control plane** | Web app + BFF, project service, orchestrator, agent harness, model gateway, GitHub service, deploy service, import, budget, policy | Stateless and horizontally scalable, in each regional Kubernetes cluster. Owns decisions, never runs user code |
+| **Control plane** | Web app + BFF, project service, orchestrator, agent harness, model gateway (the studio's deployment), GitHub service, deploy service, import, budget, policy | Stateless and horizontally scalable, in each cell's control-plane cluster. Owns decisions, never runs user code |
 | **Sandbox plane** | Sandbox manager, one Firecracker microVM per project, egress proxy, package mirror | Runs untrusted code with hard isolation and its own capacity model |
-| **Runtime plane** | Prod Cloud (live apps, one microVM per pod), agent gateway (their only way out), queues and schedules, production evals, self-hosted runtime | Serves end users with production SLOs, separate from build traffic |
-| **Data + platform** | Postgres (Supabase), Redis, NATS JetStream, Temporal Cloud, object storage, vector index, secrets vault, Neon app databases, usage warehouse, observability | Shared services with their own scaling and backup policies |
+| **Runtime plane** | Prod Cloud (live apps, one microVM per pod), agent gateway (their only way out), the runtime's model gateway, Notify, queues and schedules, production evals, self-hosted runtime | Serves end users with a 99.95% target, separate from build traffic, and keeps serving when the studio degrades |
+| **Data + platform** | Per cell: Postgres (Supabase), Redis, NATS JetStream, Temporal namespaces, object storage, vector index. Per region: identity and the cell directory, KMS keys, usage warehouse, observability. Per app: a Neon database | Stateful services with their own scaling and backup policies, deployed per cell so a failure stays inside one cell |
 
-**Where the studio runs, and why not on Vercel.** The prototype runs on Vercel. In production the studio's Next.js app, which is also the BFF, runs as a container (`output: "standalone"`) in each regional Kubernetes cluster, next to the services it calls. The request path is: browser → Cloudflare (WAF, static assets, region steering from the JWT's region claim) → the regional API gateway (Envoy, the only public entry into a region) → BFF → services over mTLS gRPC, with the gateway choosing the cell from the workspace id. Vercel keeps what holds no tenant data (the marketing site and docs) and stays a deploy target for customers' apps. I considered keeping the BFF on Vercel, calling a regional gateway over HTTPS through Vercel Secure Compute with signed service tokens, and rejected it for three reasons:
+**Where the studio runs, and why not on Vercel.** The prototype runs on Vercel, and so does the launch version (phases 0 and 1 in [section 18](#18-phasing-buy-first-build-when-it-pays)). From phase 2, when the first services move behind the mesh, the studio's Next.js app, which is also the BFF, runs as a container (`output: "standalone"`) in each cell's control-plane cluster, next to the services it calls. The request path is: browser → Cloudflare (WAF, static assets, region steering from the JWT's region claim) → the regional API gateway (Envoy, the only public entry into a region) → BFF → services over mTLS gRPC, with the gateway choosing the cell from the workspace id. Vercel keeps what holds no tenant data (the marketing site and docs) and stays a deploy target for customers' apps. I considered keeping the BFF on Vercel, calling a regional gateway over HTTPS through Vercel Secure Compute with signed service tokens, and rejected it for three reasons:
 
 1. **Identity.** Vercel Functions cannot hold our SPIFFE workload identities, so every call into a cell would need a token exchange at the gateway. That is a second trust domain to secure, on the hottest path in the product.
-2. **Residency.** An EU workspace's brief and Blueprint must be processed in the EU. On Vercel that means one project per region with pinned function regions; in the regional cluster it is true by construction.
+2. **Residency.** An EU workspace's brief and Blueprint must be processed in the EU. On Vercel that means one project per region with pinned function regions; in a cell's cluster, which lives in one region, it is true by construction.
 3. **Long-lived connections.** Planning streams and workflow signals are simpler in a pod than in a function with a duration limit.
 
 What I give up is Vercel's zero-ops hosting and per-PR previews for the studio. Per-branch namespaces on the dev cluster replace the previews ([section 13](#13-deployment)).
@@ -65,7 +87,7 @@ What I give up is Vercel's zero-ops hosting and per-PR previews for the studio. 
 One request, end to end. The eight steps match the eight numbered badges on the diagram and the flow cards on the [architecture page](https://architect-2-aryan.vercel.app/architecture). Latencies are design targets.
 
 **Step 1. Describe.**
-- **Services:** Builder studio → CDN + WAF (Cloudflare) → API gateway (regional Envoy) → Web app + BFF (in the regional cluster) → Project service, Budget + billing.
+- **Services:** Builder studio → CDN + WAF (Cloudflare) → API gateway (regional Envoy) → Web app + BFF (in the workspace's cell) → Project service, Budget + billing.
 - **Transport:** HTTPS POST (server action) with an idempotency key to the regional API gateway, then mTLS inside the cluster; the plan streams back over SSE from the BFF.
 - **Data:** the brief (a few KB of text) plus answers to three clarifying questions. The BFF creates the project row and the Work Order in `draft`.
 - **User sees:** the plan appear line by line, first event in under 2 s. Nothing runs and nothing is charged until they approve.
@@ -102,13 +124,13 @@ One request, end to end. The eight steps match the eight numbered badges on the 
 
 **Step 7. Ship.**
 - **Services:** Builder studio → BFF → Deploy service (preflight reads Policy, Budget and the vault) → Orchestrator (`DeployWorkflow`) → Project sandbox (build) → object storage (OCI registry) → Prod Cloud, Vercel, or the runtime in your VPC.
-- **Transport:** HTTPS for "Go live"; gRPC between services; the Knative API on the regional runtime cluster for Prod Cloud, the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
+- **Transport:** HTTPS for "Go live"; gRPC between services; the Knative API on the cell's runtime cluster for Prod Cloud (the Fly Machines API before phase 2), the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
 - **Data:** one immutable release (OCI image digest, static assets, migration plan, secret *references* only). Migrations use expand-and-contract, so the old release keeps working during the rollout.
 - **User sees:** the **preflight** checklist (sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen, no open conflict cards). Blocking checks disable the button and name the blocker. Then a canary rollout (5% → 50% → 100%) and the **live URL** (`{app}.prodai.app` or a custom domain), with "Update the live version" and one-click rollback.
 
 **Step 8. Governed agents.**
-- **Services:** People using live apps → CDN + WAF → App router → Prod Cloud → Agent gateway → Model gateway, third-party APIs, Queues + schedules, Notify, Evals in production.
-- **Transport:** HTTPS and WebSocket from end users. Every outbound call the app makes (tool calls, model calls, plain API calls) goes to the cell's agent gateway, the only egress route the pod has: gRPC for declared tools, an HTTPS proxy for everything else. "Ask first" approvals go out as Slack and email messages and come back as a Temporal signal.
+- **Services:** People using live apps → CDN + WAF → App router → Prod Cloud → Agent gateway → the runtime's model gateway (then Model providers), third-party APIs, Queues + schedules, Notify, Evals in production. Nothing on this path runs in the control plane.
+- **Transport:** HTTPS and WebSocket from end users. Every outbound call the app makes (tool calls, model calls, plain API calls) goes to the cell's agent gateway, the only egress route the pod has: gRPC for declared tools, an HTTPS proxy for everything else. "Ask first" approvals go out through Notify as Slack and email messages and come back as a Temporal signal.
 - **Data:** each call with its risk level (Read, Change, Can't undo), the caller and the arguments; budget checks against the app's cap; the credential, added by the gateway only after the check passes; OpenTelemetry traces and usage events. Sampled traces are replayed against the rehearsal suite on a schedule.
 - **User sees:** a working app for end users. For the builder: an approvals inbox, per-app spend, agent replays, drift alerts and any blocked egress attempts.
 
@@ -130,22 +152,22 @@ Each row names a concrete choice, why, and what I rejected.
 
 | Service | Responsibility | Choice | Why | Rejected |
 |---|---|---|---|---|
-| Web app + BFF | Studio UI, server actions, session handling | Next.js (App Router) as a standalone container in each regional cluster, inside the service mesh | Server components give real first paint; server actions keep mutations close to the UI; in the cluster it holds a workload identity, calls Temporal and services over mTLS, and stays in-region by construction ([section 2](#2-the-planes-at-a-glance)) | Keeping it on Vercel: needs a Secure Compute or public path into every cell plus a token exchange, and one Vercel project per region for residency. SPA + separate REST API: two deploys and a slower first paint |
+| Web app + BFF | Studio UI, server actions, session handling | Next.js (App Router) as a standalone container in each cell's cluster, inside the service mesh (on Vercel until phase 2) | Server components give real first paint; server actions keep mutations close to the UI; in the cluster it holds a workload identity, calls Temporal and services over mTLS, and stays in-region by construction ([section 2](#2-the-planes-at-a-glance)) | Keeping it on Vercel: needs a Secure Compute or public path into every cell plus a token exchange, and one Vercel project per region for residency. SPA + separate REST API: two deploys and a slower first paint |
 | Project service | Blueprints, save points, Work Orders, diffs, comments, handoffs, ownership map | Postgres with row-level security | Save points are snapshots of JSON, so restore is instant and free; RLS keeps tenants apart even if application code has a bug | Git as the only store: slow restores, and non-technical edits would need commits |
-| Orchestrator | Plan, build, repair, reconcile, deploy and import workflows | Temporal (Temporal Cloud) | Durable execution with retries, timeouts, heartbeats and signals (for example "the person approved the repair") without a hand-built state machine | A queue plus a state table (see [section 18](#18-trade-offs-and-alternatives-considered)); AWS Step Functions: AWS-only and harder to test locally |
+| Orchestrator | Plan, build, repair, reconcile, deploy and import workflows | Temporal (Temporal Cloud) | Durable execution with retries, timeouts, heartbeats and signals (for example "the person approved the repair") without a hand-built state machine | A queue plus a state table (see [section 19](#19-trade-offs-and-alternatives-considered)); AWS Step Functions: AWS-only and harder to test locally |
 | Agent harness | Planner, coder, verifier, repairer | Stateless workers pulling Temporal activities, running one shared tool loop | One loop, four roles, explicit budgets; see [section 7](#7-the-agent-harness) | A multi-agent chat framework: harder to budget, replay and stop |
-| Model gateway | One API for every model, routing, fallbacks, caching, metering | Vercel AI SDK provider registry behind an internal service | Provider-agnostic calls with typed tools and structured output; see [section 9](#9-model-agnostic-switching) | Provider SDKs called from each service: no single place for failover, caps or caching |
+| Model gateway | One API for every model: routing by task, eval-gated switches, failover, rate budgets, BYOK, metering | A stateless gRPC service per cell (TypeScript, reusing the AI SDK's provider adapters), with session pins and rate buckets in Redis; the runtime runs a second deployment for live apps | One place for failover in the middle of a tool loop, cache affinity, shared rate budgets, key custody and cause-tagged metering; see [section 9](#9-the-model-gateway) | Provider SDKs called from each service: no single place for failover, caps or caching. A hosted router: cannot see Work Order budgets or cause tags, and adds a sub-processor on every call |
 | GitHub service | GitHub App, branches, PRs, checks, webhooks, sync | GitHub App + webhook consumer | Fine-grained, per-repo permissions and short-lived tokens instead of personal OAuth tokens | An OAuth app with user tokens: broad scopes, long-lived credentials |
-| Deploy service | Preflight, builds, releases, rollouts, rollback, custom domains | Nixpacks or Buildpacks, OCI registry, Knative on the regional runtime cluster | Build once, promote the same artefact; rollback is a pointer switch | Rebuilding per environment: what you tested is not what you ship |
+| Deploy service | Preflight, builds, releases, rollouts, rollback, custom domains | Nixpacks or Buildpacks, OCI registry, Knative on each cell's runtime cluster | Build once, promote the same artefact; rollback is a pointer switch | Rebuilding per environment: what you tested is not what you ship |
 | Import + analysis | Clone, detect stack and agent frameworks, coverage map, House Rules | Runs inside a sandbox, using the GitHub App token for private repos | Reading an unknown repo is untrusted work too (install scripts, build hooks) | Analysing in the control plane: one malicious `postinstall` away from our credentials |
 | Budget + billing | Quotes, holds, metering, caps, refunds | Postgres double-entry ledger + ClickHouse usage events + Stripe | Credits are a ledger, so refunds for "our fix" are exact and auditable | Stripe as the balance of record: too slow and coarse for per-call caps |
-| Policy + approvals | Tool permissions, House Rules, approval inbox, audit log | Policies in Postgres, compiled into bundles evaluated in-process by the harness and the agent gateway | One place to answer "who allowed this agent to do that", with sub-millisecond checks on every call | OPA or Cedar as a network service: an extra hop on every tool call for three risk levels plus path rules |
+| Policy + approvals | Tool permissions, House Rules, approval inbox, audit log, delegation grants and the tokens minted from them | Policies in Postgres, compiled into bundles evaluated in-process by the harness and the agent gateway; a token endpoint that mints 5-minute delegated tokens for background work ([section 5](#identity-for-background-work)) | One place to answer "who allowed this agent to do that", with sub-millisecond checks on every call | OPA or Cedar as a network service: an extra hop on every tool call for three risk levels plus path rules |
 
 **Sandbox plane**
 
 | Service | Responsibility | Choice | Why | Rejected |
 |---|---|---|---|---|
-| Sandbox manager | Creates, snapshots, suspends, resumes microVMs; warm pools | Firecracker on bare-metal hosts; E2B as burst capacity, restricted to secret-free work | Strong isolation with about 150 ms resume on the same host and lazy restore across hosts; see [section 6](#6-sandboxing) | Kubernetes pods: a shared kernel between tenants |
+| Sandbox manager | Creates, snapshots, suspends, resumes microVMs; warm pools | Firecracker on bare-metal hosts; E2B as burst capacity for eligible work, behind our egress proxy (and as the only backend in phases 0 and 1) | Strong isolation with about 150 ms resume on the same host and lazy restore across hosts; see [section 6](#6-sandboxing) | Kubernetes pods: a shared kernel between tenants |
 | Project sandbox | Dev server, agent runtime, tests, language servers | One Firecracker microVM per project, persistent volume, in-VM agent on vsock | Real ports, Python and Node, state that survives between prompts | Browser WebContainers: Node only, no long-running Python agents |
 | Egress proxy | All outbound traffic from sandboxes; secret injection | Envoy per sandbox host; nftables on each VM's tap device forces traffic through it | L7 allow-list by hostname, and real secrets are swapped in on the way out so they never enter the VM | IP allow-lists only: cannot filter by hostname or inject secrets; secrets as env vars in the VM: readable by any generated code |
 | Package mirror | npm and PyPI packages for every sandbox | A pull-through cache per region (AWS CodeArtifact with npmjs and PyPI upstreams), reached only through the egress proxy; new versions pass OSV and malware scanning before they are served | Fast installs that survive upstream outages, and one place to block a compromised package for every tenant at once | Letting sandboxes reach public registries directly: slower, no central block list, and every install goes to the internet |
@@ -154,31 +176,33 @@ Each row names a concrete choice, why, and what I rejected.
 
 | Service | Responsibility | Choice | Why | Rejected |
 |---|---|---|---|---|
-| Prod Cloud | Hosts live apps with scale to zero | Knative Serving on a regional Kubernetes cluster (EKS) with Cilium; each pod runs in its own Firecracker microVM through Kata Containers on bare-metal nodes; a Neon Postgres branch per app | Scale to zero, traffic-split canaries, and the default-deny network the agent gateway's enforcement needs ([section 11](#11-the-proxy-layer)); the same Helm chart runs in a customer's VPC. Cold start from zero is about 1-2 s with images pre-pulled; apps that cannot accept that keep one warm replica | Fly Machines (my first choice, for sub-second starts): no per-app egress policy, so a live app could call any host directly. AWS Lambda: 15-minute limit and no long-lived WebSockets for agent tasks |
-| Agent gateway | The only egress from live apps: holds app credentials, enforces permissions and approvals, meters model use | An Envoy-based egress tier per cell with an in-process policy filter, on dedicated nodes; live-app pods are default-deny and can reach only the gateway, DNS, the telemetry collector and their own database | The product promise ("anything that can't be undone asks a person") has to hold in production, even for hand-written code that ignores our SDK | A sidecar in the app's pod (my first design): it shares the pod's network namespace, so anything the sidecar can reach, the app can reach. Checks inside generated agent code: an engineer can edit them away |
-| Queues + schedules | Triggers, retries, long-running and scheduled agent tasks | Temporal task queues and Schedules (a namespace per cell); NATS JetStream for event triggers | Agent tasks can wait days for an approval and survive restarts; one engine for studio and runtime workflows | Cron in the app container: lost when the app scales to zero; SQS alone: no durable waiting for a person |
-| Evals in production | Replays rehearsals on real traces, alerts on drift | Scheduled Temporal jobs that sample traces (every "Ask first" call plus 5% of the rest), run the rehearsal suite with deterministic checks and an LLM judge through the Batch API, and write scores to ClickHouse | Catches drift from real inputs and silent model updates; the same suite gates model switches ([section 9](#9-model-agnostic-switching)) | Pre-launch evals only: miss what real users actually send |
-| Your VPC or on-prem | The same runtime in the customer's network | Helm chart (runtime, agent gateway, Cilium policies, OpenTelemetry collector) plus a Terraform module for EKS, GKE or AKS; an outbound-only mTLS tunnel to our control plane. The runtime refuses to register until a canary pod proves direct egress is blocked | Data, traces and model calls stay in the customer's network; security teams approve outbound 443 far more easily than inbound access | Shipping the whole control plane on-prem: every upgrade becomes a customer project; an inbound VPN: usually a security-review blocker |
+| Prod Cloud | Hosts live apps with scale to zero | Knative Serving on each cell's runtime cluster (EKS) with Cilium; each pod runs in its own Firecracker microVM through Kata Containers on bare-metal nodes; a Neon Postgres branch per app | Scale to zero, traffic-split canaries, and the default-deny network the agent gateway's enforcement needs ([section 11](#11-the-proxy-layer)); the same Helm chart runs in a customer's VPC. Cold start from zero is about 1-2 s with images pre-pulled; apps that cannot accept that keep one warm replica | Fly Machines (my first choice, for sub-second starts): no per-app egress policy, so a live app could call any host directly. It is still the launch runtime, labelled "egress not enforced", until the trigger in [section 18](#18-phasing-buy-first-build-when-it-pays) fires. AWS Lambda: 15-minute limit and no long-lived WebSockets for agent tasks |
+| Agent gateway | The only egress from live apps: holds app credentials, enforces permissions and approvals, meters model use | An Envoy-based egress tier per cell with an in-process policy filter, on dedicated nodes; live-app pods are default-deny and can reach only the gateway, DNS, the telemetry collector and their own database. Model calls go on to the runtime's model gateway | The product promise ("anything that can't be undone asks a person") has to hold in production, even for hand-written code that ignores our SDK | A sidecar in the app's pod (my first design): it shares the pod's network namespace, so anything the sidecar can reach, the app can reach. Checks inside generated agent code: an engineer can edit them away |
+| Runtime model gateway | Model calls from live apps: routing, provider budgets, the app's cap, metering | A second deployment of the model gateway build on the runtime cluster, with its own provider accounts, rate buckets, autoscaling and release train ([section 9](#9-the-model-gateway)) | Live apps promise 99.95% and the studio 99.9%; a studio traffic spike, a bad studio deploy or a control-plane outage cannot reach live apps' model calls | Forwarding live apps' model calls to the studio's gateway (my earlier design): it put the control plane on every live request |
+| Notify | Slack and email for approvals and handoffs | A small service in the runtime plane subscribed to `approvals.*` and `handoffs.*` on the cell's NATS; a Slack app plus transactional email; signed Slack button clicks become Temporal signals | Approvals reach people where they already work, and live apps' "Ask first" messages still go out when the studio is down | Email only: approvals sit unread and agents wait. Notify in the control plane: live apps' approvals would depend on the studio |
+| Queues + schedules | Triggers, retries, long-running and scheduled agent tasks | Temporal task queues and Schedules in a runtime namespace per cell, separate from the studio's; NATS JetStream for event triggers | Agent tasks can wait days for an approval and survive restarts; one engine for studio and runtime workflows, in separate namespaces so neither can exhaust the other's limits | Cron in the app container: lost when the app scales to zero; SQS alone: no durable waiting for a person |
+| Evals in production | Replays rehearsals on real traces, alerts on drift | Scheduled Temporal jobs that sample traces (every "Ask first" call plus 5% of the rest), run the rehearsal suite with deterministic checks and an LLM judge through the Batch API, and write scores to ClickHouse | Catches drift from real inputs and silent model updates; the same suite gates model switches ([section 9](#9-the-model-gateway)) | Pre-launch evals only: miss what real users actually send |
+| Your VPC or on-prem | The same runtime in the customer's network | Helm chart (runtime, agent gateway, runtime model gateway, Cilium policies, OpenTelemetry collector) plus a Terraform module for EKS, GKE or AKS; an outbound-only mTLS tunnel to our control plane. The runtime refuses to register until a canary pod proves direct egress is blocked | Data, traces and model calls stay in the customer's network; security teams approve outbound 443 far more easily than inbound access | Shipping the whole control plane on-prem: every upgrade becomes a customer project; an inbound VPN: usually a security-review blocker |
 
 **Data + platform**
 
 | Store | Holds | Choice | Why | Rejected |
 |---|---|---|---|---|
-| Postgres | Users, projects, Blueprints, Work Orders, ledger, events, audit | Supabase Postgres per region, RLS on every table, Supavisor pooling, point-in-time recovery | Already the prototype's database; RLS is the second wall between tenants | DynamoDB: no joins or RLS, and the Blueprint model is relational |
-| Redis | Rate-limit buckets, preview and app routing tables, locks, session cache | Managed Valkey/Redis per region (ElastiCache) | Atomic Lua scripts for token buckets, microsecond lookups on the preview path | Rate limiting in Postgres: write amplification at thousands of requests a second |
+| Postgres | Projects, Blueprints, Work Orders, delegation grants, ledger, events, audit | A Supabase Postgres project per cell, RLS on every table, Supavisor pooling, point-in-time recovery, logical replication to a standby in the paired region | Already the prototype's database; RLS is the second wall between tenants; one database per cell keeps a noisy tenant, a bad migration or a failover inside one cell ([section 14](#blast-radius-what-is-shared-and-what-fails)) | DynamoDB: no joins or RLS, and the Blueprint model is relational. One Postgres per region shared by its cells: it would make the region, not the cell, the blast radius |
+| Identity + directory | Users, sessions, workspace memberships, SSO settings, `workspace → cell` | Supabase Auth in a small regional project; a thin global directory holds only `workspace → region` and a hash of each sign-in email → region | A person in two workspaces in different cells has one account; the data is small, read-mostly and cached at the API gateway | Auth per cell: two accounts for one person. A global identity store: personal data outside its region |
+| Redis | Rate-limit buckets, preview and app routing tables, locks, session cache, gateway session pins | Managed Valkey/Redis (ElastiCache): a small regional one for the API gateway's rate limits, and per cell one for the studio and one for the runtime | Atomic Lua scripts for token buckets, microsecond lookups on the preview path | Rate limiting in Postgres: write amplification at thousands of requests a second |
 | Event bus | Build events, usage events, approvals, handoffs | NATS JetStream, one cluster per cell (3 replicas), 7-day retention on `usage.*` | Replay by sequence for reconnecting tabs and for rebuilding ClickHouse; per-subject permissions per project | Kafka: heavier to run per cell, and coarser per-tenant auth |
-| Workflow state | Workflow histories, timers, task queues | Temporal Cloud, one namespace per cell, replicated to the standby region | Durable execution without running Temporal's own database per cell | Self-hosted Temporal: a stateful cluster per cell to operate and upgrade |
-| Object storage | Sandbox snapshots, build artefacts, OCI images, repo archives, last-generated code per release | S3 with versioning, lifecycle rules and same-jurisdiction replication; the registry stores its layers here | Snapshots must outlive any host so a VM can resume anywhere | Snapshots on host disks only: lost with the host and pins VMs to one machine |
-| Vector index | Repo maps, framework docs, agent knowledge | pgvector (HNSW) in the regional Postgres | Same RLS, backups and region as the rest of the data; no second system to keep in sync | A dedicated vector database: another tenant boundary to secure, not needed at this scale |
-| Secrets vault | Connection keys, BYOK model keys, platform credentials | AWS KMS envelope encryption: per-tenant data keys, ciphertext in Postgres; AWS Secrets Manager for platform secrets | Decryption happens only in the sandbox egress proxy and the agent gateway, and every decrypt is logged | A single platform-wide key: one leak exposes every tenant |
+| Workflow state | Workflow histories, timers, task queues | Temporal Cloud, two namespaces per cell (studio and runtime), replicated to the standby region | Durable execution without running Temporal's own database per cell | Self-hosted Temporal: a stateful cluster per cell to operate and upgrade |
+| Object storage | Sandbox snapshots, build artefacts, OCI images, repo archives, last-generated code per release | S3, a bucket per cell, with versioning, lifecycle rules and same-jurisdiction replication; the registry stores its layers here | Snapshots must outlive any host so a VM can resume anywhere | Snapshots on host disks only: lost with the host and pins VMs to one machine |
+| Vector index | Repo maps, framework docs, agent knowledge | pgvector (HNSW) in the cell's Postgres | Same RLS, backups and region as the rest of the data; no second system to keep in sync | A dedicated vector database: another tenant boundary to secure, not needed at this scale |
+| Secrets vault | Connection keys, BYOK model keys, platform credentials | AWS KMS envelope encryption: per-tenant data keys, ciphertext in Postgres; AWS Secrets Manager for platform secrets | Decryption happens only in the sandbox egress proxy, the agent gateway and the model gateways (BYOK model keys only), and every decrypt is logged | A single platform-wide key: one leak exposes every tenant |
 | App databases | Each live app's own data | Neon Postgres: a project per app, a branch per test version, reached over PrivateLink | Branching makes test versions and migrations cheap; scale to zero matches app traffic | One shared Postgres for all live apps: noisy neighbours and one blast radius |
-| Usage warehouse | Tokens, credits, sandbox minutes, trace summaries | ClickHouse Cloud, batch-ingested from NATS JetStream | Fast aggregates for spend meters and cost dashboards without scanning Postgres | Analytics on Postgres: large scans compete with the studio's writes |
-| Observability | Traces, metrics, logs, LLM spans, SLOs | OpenTelemetry collectors → Grafana Tempo, Mimir and Loki; Sentry for browser errors | One trace from a click to a sandbox command; open formats avoid lock-in | Per-host-priced APM: cost grows with thousands of sandboxes |
-| Notify | Slack and email for approvals and handoffs | A small service subscribed to `approvals.*` and `handoffs.*` on NATS; Slack app + transactional email | Approvals reach people where they already work; Slack button clicks come back signed | Email only: approvals sit unread and agents wait |
+| Usage warehouse | Tokens, credits, sandbox minutes, trace summaries | ClickHouse Cloud per region, batch-ingested from each cell's NATS JetStream | Fast aggregates for spend meters and cost dashboards without scanning Postgres; off the request path, so an outage delays dashboards, never requests | Analytics on Postgres: large scans compete with the studio's writes |
+| Observability | Traces, metrics, logs, LLM spans, SLOs | OpenTelemetry collectors → Grafana Tempo, Mimir and Loki per region; Sentry for browser errors | One trace from a click to a sandbox command; open formats avoid lock-in | Per-host-priced APM: cost grows with thousands of sandboxes |
 
 ## 5. Communication and protocols
 
-Rules that apply to every row: service-to-service traffic is mTLS with workload identities; the end user's identity travels with each request, so Postgres RLS applies to service calls too; every mutating call carries an idempotency key; every hop propagates a W3C `traceparent`. The mono labels on the diagram's numbered flows are the transports in this table.
+Rules that apply to every row: service-to-service traffic is mTLS with workload identities; a person's identity travels with each request, so Postgres RLS applies to service calls too (their session token while they wait on the result, and a short-lived delegated token for work that runs after they leave: see [Identity for background work](#identity-for-background-work) below); every mutating call carries an idempotency key; every hop propagates a W3C `traceparent`. The mono labels on the diagram's numbered flows are the transports in this table.
 
 | From → to | Transport | Sync or async | Auth | Why |
 |---|---|---|---|---|
@@ -187,23 +211,79 @@ Rules that apply to every row: service-to-service traffic is mTLS with workload 
 | Realtime hub → Studio (build, deploy, logs, presence) | WebSocket, SSE fallback; every message has a `seq` | Async stream | 5-minute JWT scoped to one project, minted by the BFF | A reconnecting tab resumes from its last `seq`; JetStream replays the gap |
 | Studio → Preview proxy → sandbox dev server | HTTPS + WebSocket upgrade (HMR) on `*.prodai-preview.dev`; plain HTTP on the host's private network to the VM | Sync | Signed, project-scoped preview cookie checked at the proxy; the VM sees no credentials | Separate registrable domain, so preview code cannot read studio cookies |
 | BFF → Orchestrator | gRPC (Temporal SDK): start, signal, query | Sync call, async workflow | mTLS, one Temporal namespace per cell | Durable workflows; approvals arrive as signals |
-| BFF → Project service, Budget, Policy | gRPC (Connect) | Sync | mTLS + the user's JWT forwarded, so RLS applies | Typed contracts; the database enforces tenancy even if a service has a bug |
-| Orchestrator → Agent harness, Deploy, Import, GitHub service | Temporal task queues (activities with heartbeats) | Async | mTLS | Workers pull work, so scaling means adding workers; a dead worker is detected by a missed heartbeat |
+| BFF → Project service, Budget, Policy | gRPC (Connect) | Sync | mTLS + the user's session JWT forwarded, so RLS applies | Typed contracts; the database enforces tenancy even if a service has a bug |
+| Orchestrator → Agent harness, Deploy, Import, GitHub service | Temporal task queues (activities with heartbeats) | Async | mTLS; each activity mints a 5-minute delegated token from the Work Order's grant | Workers pull work, so scaling means adding workers; a dead worker is detected by a missed heartbeat |
 | Agent harness → Model gateway | gRPC server stream | Sync, streamed | mTLS + a budget token for the Work Order | Every call is routed, priced and capped in one place |
 | Model gateway → Model providers | HTTPS provider APIs with SSE streaming | Sync, streamed | Platform keys from the vault, or the customer's BYOK key; fixed egress IPs for private endpoints | Providers only speak HTTPS; fixed IPs let customers allow-list us |
 | Agent harness → Sandbox manager | gRPC: acquire, snapshot, suspend, resume | Sync | mTLS | Lifecycle calls are short and must fail fast |
 | Agent harness → in-VM agent | **vsock** (Firecracker virtio-vsock, host side is a Unix socket) carrying gRPC: `fs.patch`, `shell.run`, `test.run` | Sync request, streamed output | Per-VM token injected at boot; reachable only from the host | Needs no guest networking, so nothing on the internet or in another VM can reach the agent |
 | Sandbox → Realtime hub | vsock to the host daemon → NATS JetStream subjects `proj.{id}.build.*` | Async | The host daemon holds a per-project NATS credential; the VM holds none | Events leave the VM without giving it credentials |
 | Sandbox → Egress proxy → package mirror, declared APIs | All traffic forced through Envoy by nftables; SNI allow-list; registry hostnames routed to the regional package mirror; TLS terminated only for declared connections (the VM trusts a per-project CA) so placeholders can be swapped for real keys | Sync | Per-project allow-list and secrets | Registries and declared APIs work; secrets never enter the VM |
-| GitHub → GitHub service (webhooks) | HTTPS POST via the API gateway | Async: ack within GitHub's 10-second window, then a workflow does the work | `X-Hub-Signature-256` HMAC, deduplicated by `X-GitHub-Delivery` | Pushes from engineers must never be processed twice or dropped |
+| GitHub → GitHub service (webhooks) | HTTPS POST via the API gateway | Async: ack within GitHub's 10-second window, then a workflow does the work | `X-Hub-Signature-256` HMAC, deduplicated by `X-GitHub-Delivery`; the reconcile runs under the repository's sync grant | Pushes from engineers must never be processed twice or dropped |
 | GitHub service → GitHub | git over HTTPS, REST and GraphQL | Sync | GitHub App installation token (expires after 1 hour); the app's JWT is signed inside KMS | No stored personal tokens; the App private key never leaves KMS |
 | Stripe → Budget + billing (webhooks) | HTTPS POST via the API gateway | Async | `Stripe-Signature` (timestamped HMAC, 5-minute tolerance), deduplicated by event id | Payment state changes are applied exactly once |
 | Budget + billing → Stripe | HTTPS API: meter events, invoices | Async, batched | Restricted API key; `Idempotency-Key` on every write | Usage is metered continuously without double charges |
-| Deploy service → Prod Cloud, Vercel, your VPC | Knative API on the regional runtime cluster; Vercel REST API; commands down an outbound-only mTLS tunnel (gRPC bidirectional stream) | Async (deploy workflow) | Workload identity on the runtime cluster; the customer's Vercel integration token; per-cluster tunnel certificate | Same release, three targets; the VPC never accepts inbound connections |
+| Deploy service → Prod Cloud, Vercel, your VPC | Knative API on the cell's runtime cluster; Vercel REST API; commands down an outbound-only mTLS tunnel (gRPC bidirectional stream) | Async (deploy workflow) | Workload identity on the runtime cluster; the customer's Vercel integration token; per-cluster tunnel certificate | Same release, three targets; the VPC never accepts inbound connections |
 | End users → App router → Prod Cloud | HTTPS and WebSocket | Sync | The app's own sign-in | Standard web traffic, routed by host name to the current release |
-| Live app → Agent gateway → Model gateway, third-party APIs | Every outbound connection from the pod goes to the cell's agent gateway: gRPC `Invoke` for declared tools, an HTTPS proxy for everything else. A default-deny Cilium policy drops any other traffic | Sync; "Ask first" waits on a Temporal signal | Workload identity per app (SPIFFE); the gateway holds the app's credentials and adds them after the policy check | Every production call is checked, metered and traced, and code cannot route around it |
-| Agent gateway, Policy → Notify → Slack, email | NATS `approvals.*` → Slack Web API and email | Async | Slack bot token from the vault; button clicks come back with Slack's signing secret | People approve where they already work |
+| Live app → Agent gateway → runtime model gateway, third-party APIs | Every outbound connection from the pod goes to the cell's agent gateway: gRPC `Invoke` for declared tools, an HTTPS proxy for everything else (model clients included). A default-deny Cilium policy drops any other traffic | Sync; "Ask first" waits on a Temporal signal | Workload identity per app (SPIFFE); the gateway holds the app's credentials and adds them after the policy check | Every production call is checked, metered and traced, and code cannot route around it |
+| Agent gateway, Policy → Notify → Slack, email | NATS `approvals.*` and `handoffs.*` → Notify (runtime plane) → Slack Web API and email | Async | Slack bot token from the vault; button clicks come back with Slack's signing secret and a Slack user linked to a workspace member | People approve where they already work, even while the studio is down |
 | Every service → Observability, Usage warehouse | OTLP/gRPC to a node-local collector; NATS `usage.*` batched into ClickHouse | Async, batched | mTLS | Telemetry never blocks a request |
+
+### Identity for background work
+
+Forwarding the person's session token works while they wait on a request. It breaks for everything else. Supabase session tokens expire after about an hour, but an "Ask first" approval or a paused Work Order can wait days, Temporal retries an activity long after the click that started it, schedules fire at 3 a.m., and a sync started by a GitHub webhook has no Prod AI session at all. The answer is not a platform key that bypasses row-level security. Background workers act for a person through a stored, revocable **delegation grant**, and exchange it for a token that lives five minutes and can do one thing in one project.
+
+**Grants.** A grant is a row in the cell's Postgres, created by an explicit act of a person, naming what it allows:
+
+| Created when | Grantor | Actions | Lifetime |
+|---|---|---|---|
+| A person approves a Work Order | The approver | `build.run`, `sandbox.use` and `repo.push` on that project; `deploy.test` if the Work Order includes it | Until the Work Order ends, at most 14 days |
+| A person turns on GitHub sync for a repository | The project admin who connected it | `repo.sync` and `blueprint.reconcile` on that project | While the GitHub App installation exists and the grantor stays an admin; renewed yearly |
+| A person clicks "Update the live version" | That person | `deploy.live` for that release | Until the rollout ends |
+| A person turns on a scheduled job (evals, a nightly import) | That person | That job's action on that project | 90 days, renewable in one click |
+
+A grant stores the grantor, workspace, project, actions, reason (Work Order, installation or schedule id), expiry, revocation time and last use. Workflows hold a grant id, never a token.
+
+**Minting.** Before each activity touches data, the worker calls the token endpoint in Policy + approvals over mTLS, with its workload identity, the grant id and the one action it is about to take. The endpoint checks that the grant is active, that the action is in it, that this workload may request this action (the harness can ask for `build.run`, never `deploy.live`), and, live, that the grantor is still a member whose role allows the action. It returns a JWT signed with a KMS key and valid for 5 minutes:
+
+```jsonc
+{
+  "sub": "user_8c1f",                                        // the grantor: auth.uid() still names a person
+  "act": { "sub": "spiffe://prodai/us-1/cell-3/harness" },   // the worker acting for them (RFC 8693)
+  "token_use": "delegated",
+  "workspace_id": "ws_41",
+  "project_id": "prj_7f3a",
+  "actions": ["build.run"],
+  "grant_id": "gr_2291",
+  "initiator": "github:sam",                                 // webhook-started work: who pushed
+  "exp": 1790000300
+}
+```
+
+**How row-level security accepts these tokens.** Services verify every token against the signing keys of the two issuers they trust: the regional identity service for sessions and the token endpoint for delegated tokens. Each transaction then runs `SET LOCAL ROLE authenticated` and `set_config('request.jwt.claims', <claims>, true)`, the mechanism Supabase itself uses, so `auth.uid()` and `auth.jwt()` work unchanged in policies. A policy accepts a delegated token only inside its project and for its actions, on top of the usual membership check:
+
+```sql
+create policy work_orders_write on work_orders for update using (
+  is_member(auth.uid(), project_id)
+  and (
+    auth.jwt()->>'token_use' = 'session'
+    or (auth.jwt()->>'token_use' = 'delegated'
+        and project_id = (auth.jwt()->>'project_id')::uuid
+        and auth.jwt()->'actions' ? 'build.run'
+        and not is_revoked((auth.jwt()->>'grant_id')::uuid))
+  )
+);
+```
+
+A delegated token can never reach another project, even one its grantor can see, and every row it writes is attributed to a person. No worker holds the Supabase `service_role` key, which bypasses RLS; only migrations use it. Work with no person behind it (codegen upgrades, retention jobs) runs as a named service principal that policies admit on specific tables only.
+
+**Revocation.** Workspace settings list every grant (what, where, granted by, expiry, last use) with a Revoke button. Revoking stops new mints at once. Tokens already issued fail on their next statement against sensitive tables (the ledger, deploys, secret metadata), which check `is_revoked`, and everywhere else within their 5 minutes. Grants are revoked automatically when the grantor leaves the workspace (including SCIM deprovisioning) or loses the role, and when the project is transferred. A workflow whose grant is revoked fails its next mint with a typed error and pauses on a card ("Aryan's approval was revoked; approve again to continue") instead of retrying. A revoked sync grant pauses sync with "Reconnect GitHub sync", and any project admin can grant it again.
+
+**Webhook-started work.** A GitHub push arrives with no Prod AI session. The GitHub service maps the installation and repository to the project, finds its active sync grant and runs the `ReconcileWorkflow` under it: `sub` is the admin who connected the repository, and `initiator` is the pusher's GitHub login, linked to a workspace member if they have connected their GitHub account. The audit log reads "Reconciled by Prod AI for Aryan (sync grant), triggered by Sam's push".
+
+**Approvals that wait days.** The workflow waits on a Temporal signal and holds only the grant id. The signal carries the approver's identity (verified by the BFF, or by Slack's signing secret plus a linked Slack account), which is recorded; the next activity mints a fresh token and carries on. Nothing in the workflow expires except the grant.
+
+Live apps are different: they act with their own workload identity at the agent gateway, and the end user's id from the app's own sign-in travels as a claim for the app's audit trail ([section 11](#11-the-proxy-layer)).
 
 ## 6. Sandboxing
 
@@ -243,20 +323,20 @@ These are design estimates for load tests to confirm. Host affinity keeps most r
 - Per-VM network namespace, seccomp-filtered jailer, read-only base image, no host mounts. The in-VM agent is reachable only over vsock from the host.
 - Abuse controls: CPU-pattern detection for crypto mining, outbound rate limits, per-tenant quotas.
 
-**Burst capacity (E2B), and what it does not guarantee.** When our fleet is full, some work runs on E2B. E2B also uses Firecracker, so the kernel boundary between tenants holds. Three of our controls do not, because they live on hosts we operate:
+**Burst capacity (E2B), and what it does not guarantee.** When our fleet is full, eligible work runs on E2B, which is also where every sandbox runs in phases 0 and 1 ([section 18](#18-phasing-buy-first-build-when-it-pays)). E2B also uses Firecracker, so the kernel boundary between tenants holds. The two controls principle 3 depends on hold too, because they live in our egress proxy rather than on the host: each E2B sandbox is created with outbound rules that deny all traffic except our regional egress proxy's fixed addresses (`denyOut` everything, `allowOut` the proxy), `HTTPS_PROXY` points at that proxy, and the VM trusts the project's CA. Placeholders are swapped for real secrets and hostnames are allow-listed exactly as on our fleet, and the secrets stay in our KMS rather than in E2B's secret store. What does not hold is what lives on hosts we operate:
 
-- *No vsock agent of ours.* The harness drives the VM through E2B's HTTPS API, and build events come back through that API instead of vsock into NATS on our host.
-- *No Envoy egress proxy on the VM's tap device.* No secret injection by placeholder, and no hostname allow-list that we enforce: egress is limited only by the provider's network settings.
-- *No per-project CA*, so no TLS termination for declared connections.
+- *We don't run the host.* The hypervisor, jailer settings, host kernel patching and host-level abuse detection are E2B's, and E2B is listed as a sub-processor.
+- *No vsock agent.* Our in-VM agent listens on a port reached through E2B's API with a per-VM token, and build events come back over HTTPS instead of vsock into NATS, a second or two later.
+- *Snapshots live at E2B*, so a project that returns to our fleet resumes from its last git commit, not from memory.
+- *One more network hop* on every outbound connection, from E2B to our proxy.
 
-Without injection, any secret the work needs would have to sit inside the VM, which principle 3 forbids. So eligibility is a scheduler rule computed from project facts, never a runtime judgement. A step may burst only if all of these hold:
+So eligibility is a scheduler rule computed from project facts, never a runtime judgement. A step may burst only if all of these hold:
 
-- the project has no connected secrets and no BYOK key in scope;
-- the sandbox holds no private repository, uploaded customer file or production data;
 - the workspace has no data-residency pin and no contract that excludes sub-processors;
-- the step does not produce a release artefact (deploy builds always run on our fleet, so every shipped image is built where we control the supply chain).
+- the sandbox holds no production data (for example a branch of a live app's database);
+- the step does not produce a release artefact (once our fleet exists, deploy builds always run on it, so every shipped image is built where we control the supply chain; in phases 0 and 1 they run on E2B from a pinned base template, and we scan and sign the image after the build).
 
-In practice that means new projects' first builds and read-only previews of public templates, which is also where demand spikes (launches, workshops). Everything else waits for our fleet, and the Work Order shows an honest queue time instead of silently running with weaker guarantees. On burst, the guarantees that degrade are stated on the Work Order step and in the security documentation: egress filtering is the provider's, not ours; events arrive a second or two later; snapshots live at E2B, so a project that returns to our fleet resumes from its last git commit, not from memory; and E2B is listed as a sub-processor.
+In practice most studio work qualifies, which matters most at demand spikes (launches, workshops). Enterprise workspaces with residency or sub-processor terms wait for our fleet, and the Work Order shows an honest queue time instead of silently running elsewhere. On burst, the guarantees that degrade are stated on the Work Order step and in the security documentation.
 
 ## 7. The agent harness
 
@@ -292,7 +372,7 @@ flowchart LR
 
 **Error recovery.**
 
-- *Transient* (429, 5xx, timeouts): retried by the orchestrator with backoff, then failed over to another provider by the model gateway.
+- *Transient* (429, 5xx, timeouts): retried with backoff, then failed over by the model gateway, first to the same model on another platform and then, only where an eval gate allows it, to another model family. Completed turns and tool results are kept; only the interrupted turn is re-run ([section 9](#9-the-model-gateway)).
 - *Invalid output* (schema mismatch): near-miss JSON is repaired locally (nulls, synonyms, casing); otherwise the model is re-asked once with the exact validation error, then the step falls back to a rule-based path. The prototype does exactly this for change requests (`lib/change/edits.ts`, `lib/change/propose.ts`).
 - *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Prod AI caught a problem" card, and the fix is labelled **Our fix · free**.
 - *Doom loops*: errors are normalised (paths, line numbers and ids stripped) and hashed. The same signature twice, or three attempts, stops the loop, restores the last save point and opens a handoff with the full context.
@@ -303,7 +383,31 @@ flowchart LR
 
 ## 8. Blueprint and code: keeping them in sync
 
-Prod AI's core claim is that a person editing the Blueprint and an engineer editing the repository are working on the same project. That holds only if every region of code has exactly one owner at any moment, and the system always knows which. This section is the mechanism.
+Prod AI's core claim is that a person editing the Blueprint and an engineer editing the repository are working on the same project. That holds only if every region of code has exactly one owner at any moment, and the system always knows which. This section first defends the Blueprint's deliberately small vocabulary, then describes the sync mechanism.
+
+### Why a nine-block vocabulary
+
+A screen in the Blueprint is a layout (dashboard, split, single or form) holding at most five main blocks and three side blocks, and each block is one of nine types: `kpis`, `table`, `list`, `detail`, `form`, `chat`, `timeline`, `text` and `actions` (`lib/blueprint/schema.ts`). Actions are a closed set too: navigate, show a message, run an agent, open a record. That constraint carries most of the product:
+
+- **Previewable.** Any valid Blueprint renders in milliseconds with no build and no sandbox, so a plan can be shown as a working app before anything is approved or charged.
+- **Tweakable.** Every block's props are typed, so clicking a block offers real controls (fields, columns, labels, filters) that apply instantly and cost nothing, instead of a prompt.
+- **Diffable.** A change is a list of typed operations on known blocks, so a Work Order can state its blast radius, be priced from the diff ([section 15](#15-model-unit-economics)) and be undone exactly from a save point.
+- **Safe.** The model cannot put code on the preview path. Every prop is validated with zod, text renders through a markdown renderer that never injects HTML, and actions cannot call arbitrary URLs.
+
+**How much of real demand it covers.** My estimate, to be measured rather than trusted: about 70-80% of screens in the apps we target (internal tools and agentic business apps: queues, records, approvals, forms, agent chats, simple dashboards), and about half of those apps end to end with no custom block at first build. The reasoning: those apps are mostly create, read, update and delete over a few entities plus an agent, which the nine blocks express. The largest gaps are charts beyond KPI tiles, calendars and boards (kanban), maps and rich editors. Consumer apps and anything canvas-like fall mostly outside, perhaps 20-30% of their screens. Three measurements replace the estimate within weeks of launch:
+
+1. *Planner fit.* For every brief, the planner tags each requested screen or feature as expressible, expressible with a custom block, or needing code. The share in the first bucket, split by app category, is the coverage number.
+2. *Ownership at day 30.* The share of screens still Blueprint-owned 30 days after first ship, read from the ownership map. The target is at least 70% in the target segment; below 50% means the vocabulary is too narrow.
+3. *Where people leave.* Which block types are most often moved to code, and which requests most often end as "Ask" instead of "Tweak". The top clusters choose the next blocks to add (charts and boards are the likely first two).
+
+**The escape hatch.** A small vocabulary is only acceptable if leaving it is cheap and local:
+
+- *Custom blocks.* An engineer, or the coder agent, registers a React component as a block: a file under `blocks/custom/` with a zod props schema, sample props and a default size. The project's vocabulary then includes it. It gets Tweak controls generated from its props schema, appears in diffs and Work Orders like any other block, and renders wherever real code runs (the sandbox preview and the live app). The studio's instant plan preview shows it as a placeholder with its last sandbox screenshot.
+- *Code-owned objects.* A screen or block whose code a person has taken over ([below](#the-sync-mechanism)) stays in the Blueprint as a named object with its route, data and agent links, so pricing, blast radius and navigation still work. It keeps **Ask** (a click resolves to a file and line and becomes a small Work Order for the coder agent) but loses **Tweak**, because the Blueprint no longer writes that code.
+
+**What the prototype does.** In the prototype, both the preview and the public `/live` site are drawn by the spec renderer (`components/renderer/*`) straight from the Blueprint. The generated Next.js code is real (the Code face shows it and it downloads as a zip), but it is not what runs. "The preview is the live app" holds today because both use the same renderer, not because the generated app was executed. In production the preview is the generated app running in the sandbox ([section 10](#10-frontend-sandbox-and-backend-communication-with-live-preview)), and the spec renderer remains as the instant preview of a plan before its first build.
+
+### The sync mechanism
 
 **Ground rules.**
 
@@ -380,23 +484,91 @@ The UI only offers controls it can honour. A node that maps to a block gets **Tw
 
 **In the prototype today**, codegen emits whole files from the Blueprint (`lib/codegen/*`), import writes House Rules and holds back the files they protect (`lib/import/*`), and comment pins resolve to block ids in the spec renderer. Region markers, the ownership map, the reconcile workflow, reverse sync and the conflict card are production design.
 
-## 9. Model-agnostic switching
+## 9. The model gateway
 
-All model traffic goes through the **model gateway**. Callers ask for a *task*, not a model:
+All model traffic goes through the **model gateway**. It is a service, not a library: stateless gRPC pods in each cell, with routing state (session pins, rate buckets, circuit breakers) in the cell's Redis. It is written in TypeScript so it can reuse the AI SDK's provider adapters, which already translate tools and streams for many providers. The service adds what a library linked into each caller cannot: one rate budget per provider shared by every caller, custody of platform and BYOK keys, session-affine routing, failover state, metering with cause tags, and eval-gated switches.
+
+Callers ask for a *task*, never a model. `session` is the Work Order step or the agent run; it keys cache affinity and idempotency.
 
 ```ts
-gateway.generate({ task: "plan", schema: DraftSchema, prompt, budget })
-gateway.stream({ task: "agent-chat", tools, toolApproval, messages })
+gateway.generate({ task: "plan", schema: DraftSchema, prompt, budget, session })
+gateway.stream({ task: "coder", tools, messages, budget, session })
 ```
 
-- **Provider registry.** Anthropic, OpenAI, Google, and open models served by vLLM, Bedrock, Vertex or Groq, all behind the Vercel AI SDK interface. The prototype already isolates this behind one `getModel()` seam (`lib/llm/provider.ts`), so adding providers is configuration.
-- **Capability matrix.** For each model: tool calling, structured output mode, context window, vision, price per million tokens, p50/p95 latency. Routing refuses a model that lacks a capability the task needs.
-- **Routing policy per task.** Planning and repair use a frontier model (for example Claude Opus 5). Code edits use a strong mid-tier model (for example Claude Sonnet 5). Summaries, classification and naming use a small model. Embeddings use a dedicated model. The cost of this mix is worked through in [section 15](#15-model-unit-economics).
-- **Failover chain.** On rate limits or outages, the gateway retries with the next model in the chain that satisfies the task's capabilities, and records the switch in the trace.
-- **Customer control.** Workspaces can bring their own keys, pin a provider for data-residency reasons, or point at a private endpoint (Bedrock, Azure OpenAI, a self-hosted vLLM cluster).
-- **Prompt adapters.** Per model family, not per call site: system-prompt placement, tool schema dialect, JSON mode.
-- **Eval-gated switches.** A model can only become the default for a task after it passes the golden rehearsal suite for that task (plan validity, repair success, agent safety). No silent regressions.
-- **Metering and caching.** Every call records tokens, cost and latency against the project and the person (the prototype does this today in `lib/llm/pricing.ts` and `usage_events`). Prompt caching is on by default for the long, stable prefix (instructions + tools + Blueprint).
+The capability matrix records, for each model: tool calling, structured-output mode, context window, vision, prices, cache mechanics and measured p50/p95 latency. Routing never picks a model that lacks a capability the task needs.
+
+**Two deployments of one build.** The studio's gateway runs in the control plane. Live apps use a second deployment on each cell's runtime cluster, reached through the agent gateway. The two have separate provider accounts (so separate rate limits at the providers), separate token buckets, separate autoscaling, and separate release trains: a gateway release reaches the runtime a week after the studio. A traffic spike in the studio, a bad studio deploy or a control-plane outage therefore cannot touch live apps' model calls, which is what lets live apps promise 99.95% while the studio promises 99.9% ([section 14](#blast-radius-what-is-shared-and-what-fails)). The runtime deployment reads each app's model policy from cached, compiled bundles and enforces the app's cap from local counters, reconciled to the ledger through NATS.
+
+**Routing policy by task.** Each task has a default, an automatic first failover to the same model on another platform, and a second failover to another model family that is used only if that model currently passes the task's eval gate.
+
+| Task | Default | Failover 1: same model, another platform | Failover 2: another family, if it passes the gate | Gate measures |
+|---|---|---|---|---|
+| Plan | Claude Opus 5 (Anthropic API) | Opus 5 on Bedrock or Vertex | Gemini 3.1 Pro or GPT-6 Astra | Valid drafts, clarifying-question quality, quote error |
+| Repair diagnosis | Claude Opus 5 | Opus 5 on Bedrock or Vertex | GPT-6 Astra | Repairs that converge within 3 cycles |
+| Coder loop | Claude Sonnet 5 | Sonnet 5 on Bedrock or Vertex | GPT-6 Sol, at a turn boundary only | First-pass verifier success, turns per step |
+| Change requests | Claude Sonnet 5 | Sonnet 5 on Bedrock or Vertex | GPT-6 Sol or Gemini 3.1 Pro | Typed-edit accuracy on recorded changes |
+| Narration, summaries, naming | Claude Haiku 4.5 | Haiku 4.5 on Bedrock or Vertex | Gemini 3.8 Flash, or an open model on vLLM | Judge score, length, latency |
+| LLM judge for evals | Claude Sonnet 5 through the Batch API | Another platform's batch endpoint | None: changing the judge re-baselines every score | Agreement with human labels |
+| Live agents | The model pinned in the app's Blueprint | Same model elsewhere (for example an in-region endpoint) | Only if the builder opted in and the app's rehearsals pass on it | The app's own rehearsal suite |
+| Embeddings | One model per index | None | None: a new model means re-indexing, run as a migration | Retrieval recall |
+
+Failover 1 is safe to automate because it is the same weights, the same tool format and the same behaviour; only the prompt cache is lost. Routing always names fixed model versions, never floating aliases, and a provider moving an alias is treated as a model switch. Bedrock and Vertex also give in-region endpoints, which is how a residency pin is honoured ([section 13](#13-deployment)).
+
+**Eval gates before switching.** A model becomes a task's default, or a failover-2 candidate, only after three stages:
+
+1. *Offline.* The task's golden suite: about 400 real briefs for planning, 300 recorded repair cases replayed in sandboxes from their snapshots, 500 change requests with expected typed edits, and the agent safety rehearsals ("Ask first" honoured, no irreversible call without approval). To pass, no quality metric may be worse than the incumbent's by more than 1 percentage point at 95% confidence, safety may not regress at all, and cost per completed task (not per call) may rise at most 10% unless quality improves.
+2. *Shadow.* 2% of real traffic is mirrored for a week. Outputs are validated and scored but never shown, and tool calls run as dry runs against a snapshot.
+3. *Canary.* 5% of real sessions for a week, rolled back automatically if repair cycles per build, quote error or user-visible failures cross their thresholds.
+
+The same suite reruns weekly against every default model, which catches silent provider changes ([section 4](#4-services-and-the-reasoning-behind-them), Evals in production).
+
+**Failover in the middle of a tool loop.** A coder step is 5 to 30 model turns with tool calls in between. Three mechanisms make switching providers mid-loop safe:
+
+1. *A provider-neutral transcript.* The harness stores the loop in our own format: text, tool calls (our id, tool name, JSON arguments) and tool results (our id, output, error flag). Adapters translate on every call: Anthropic `tool_use` and `tool_result` blocks, OpenAI function calls paired by `call_id`, Gemini `functionCall` and `functionResponse` parts. Our ids are mapped to each provider's id format and back. Tool schemas stay within a JSON Schema subset every provider accepts (no unions at the root, no recursive references), lowered per provider by the adapter. Provider-specific reasoning (Anthropic thinking blocks, OpenAI reasoning items) is kept for the model that produced it and dropped on a switch: it is not portable, and the visible transcript and tool results carry the state.
+2. *Idempotent tool execution.* A tool runs only after the model's turn has fully arrived and its arguments validate; a half-streamed tool call is never executed. Each executed call is journaled in the step's Temporal checkpoint before the next model call. Mutating tools (`fs.patch`, `shell.run`, `git.commit`, and the agent gateway's `Invoke` in production) carry an idempotency key, `hash(work order, step, tool call id)`, and the in-VM agent (or the gateway) keeps the keys it has executed and returns the recorded result for a repeat. A retried activity never applies a patch twice or re-runs a migration.
+3. *Resume from the last completed turn.* A provider error, a 5xx mid-stream or a stall (no token for 20 seconds) discards only that turn's partial output, which is never shown as final (the build console says "switched model, retrying this step"). Completed turns and tool results are kept, and the turn is re-sent to the next model in the chain with the translated transcript. Tokens spent on the abandoned stream are tagged `failover` and absorbed by the platform, like `repair.ours`.
+
+A switch to another family happens only at a turn boundary, and a switched session stays on its fallback until the step ends. Bouncing between providers inside one step would lose the cache on every call and mix tool-calling styles. If no gated fallback exists for a task, the step waits with backoff (up to 10 minutes, with the wait shown on the Work Order) instead of running on an unproven model.
+
+**Prompt-cache loss, and how routing keeps cache affinity.** Prompt caches belong to one provider, one model and one account or region, so a switch pays full price for the prefix and a slower first token. A coder turn of 10k input tokens, 7.2k of them cached, costs about $0.017 on Sonnet 5; the first turn after a switch costs about $0.034 (the whole prefix uncached, plus writing it to the new provider's cache). One switch per build is noise, about $0.02. A router that sprays turns across keys, regions or providers would lose most of the 39% that caching saves ([section 15](#15-model-unit-economics)). So:
+
+- *Session pins.* The first call of a session picks (provider, model, region, key) by health and remaining budget, and the pin is stored in Redis under the session id with a TTL a little longer than the cache's. Every later call in the session uses the pin. Load spreads across keys and regions when sessions start, never call by call.
+- *Byte-stable prefixes.* Adapters render the stable prefix (instructions, tools in a fixed order, the Blueprint as canonical JSON with sorted keys) identically on every call, so each provider's cache works: explicit breakpoints on Anthropic, automatic prefix caching on OpenAI, implicit caching on Gemini (with explicit caches for large Blueprints), prefix caching in vLLM.
+- *Planned switches warm up first.* When routing moves a task on purpose (a new default, a key rotation), the gateway writes the shared prefix into the new provider's cache before moving sessions, and moves them at step boundaries.
+- *Measured.* Cache hit rate per task and provider is a gateway metric; a task that should run above 70% and drops below 60% pages its owner.
+
+**Per-provider rate-limit budgets.** Each (provider, model, region, key) has token buckets for requests, input tokens and output tokens per minute, seeded from contracted limits and corrected from the rate-limit headers on every response. The buckets live in Redis and are shared by all gateway pods in the cell. Capacity is split by priority: a person waiting (plans, change quotes, agent chat) has 30% reserved, build loops share the rest, and evals run on batch endpoints at half price, on idle capacity only. Within a class, weighted fair queueing caps any one workspace at 10% of a key's tokens per minute, so one tenant's large build cannot starve the rest. When an interactive call finds its bucket empty for more than 2 seconds, the gateway takes failover 1 instead of queueing. Provisioned throughput covers the planner tier's baseline.
+
+**BYOK.** A workspace can bring keys for any supported provider, stored as in [section 13](#13-deployment) (a per-tenant data key under KMS, with an encryption context). The gateway decrypts a key in memory for the call and never logs it. BYOK traffic has its own buckets, because the customer's rate limits are not ours, and is metered for showback but not charged for tokens. It fails over only to other keys the customer supplied; falling back to our keys is off by default, because our data-processing terms differ from the customer's own. A key is checked with a minimal call when saved and re-checked on a 401. A rejected key pauses the Work Order with "Your Anthropic key was rejected" and never switches silently to our account.
+
+**Streaming normalisation.** Providers stream differently: Anthropic's content-block deltas, OpenAI's response and function-call-argument deltas, Gemini's chunked candidates. The gateway emits one internal stream over gRPC: `text.delta`, `tool_call.start {id, name}`, `tool_call.delta`, `tool_call.end {arguments}` (validated against the tool's schema before it is emitted), `usage {input, cached_input, cache_write, output}` and `finish {stop | tool_calls | length | refusal | error}`. Each provider's usage fields map onto the same four numbers, so metering and quotes work identically everywhere. The BFF turns the internal stream into the AI SDK UI message stream the browser reads.
+
+**Structured output when a provider lacks JSON Schema support.** The capability matrix records each model's structured-output mode (schema-constrained decoding, JSON mode without a schema, tool calls only, or none), and the gateway uses the strongest available:
+
+1. *Native:* constrained decoding with the task's schema (strict structured outputs on Anthropic and OpenAI, a response schema on Gemini, guided decoding in vLLM).
+2. *Lowered schema:* where a provider supports only a subset (unions, recursive references, numeric bounds), the adapter sends a simplified schema and the full zod schema validates the result.
+3. *JSON mode, or a single tool whose input is the schema,* plus local repair of near-miss JSON ([section 7](#7-the-agent-harness)).
+4. *One re-ask* with the exact validation error, then the task's rule-based fallback.
+
+Whatever the provider, callers receive a validated object or a typed error, never unvalidated JSON.
+
+**Cost across providers.** List prices in US dollars per million tokens, as published on 27 September 2026, except the vLLM row. Prices change often, so the gateway reads them from configuration, never from code. "One coder turn" is the section 15 shape: 10k input tokens (7.2k cached) and 1k output, before cache-write premiums.
+
+| Provider | Model | Tier | Input | Cached input | Output | Cache notes | One coder turn | 25 coder turns |
+|---|---|---|---|---|---|---|---|---|
+| Anthropic | Claude Opus 5 | Frontier | $5.00 | $0.50 | $25.00 | Explicit breakpoints; writes cost 1.25x input | $0.043 | $1.07 |
+| Anthropic | Claude Sonnet 5 | Mid | $2.00 | $0.20 | $10.00 | Same | $0.017 | $0.43 |
+| Anthropic | Claude Haiku 4.5 | Small | $1.00 | $0.10 | $5.00 | Same | $0.0085 | $0.21 |
+| OpenAI | GPT-6 Astra | Frontier | $10.00 | $1.00 | $50.00 | Automatic, no write premium | $0.085 | $2.13 |
+| OpenAI | GPT-6 Sol | Mid | $2.00 | $0.20 | $10.00 | Same | $0.017 | $0.43 |
+| OpenAI | GPT-6 Luna | Small | $0.10 | $0.01 | $0.50 | Same | $0.0009 | $0.02 |
+| Google | Gemini 3.1 Pro (preview) | Frontier | $2.00 | $0.20 | $12.00 | Implicit; explicit caches also bill storage ($4.50 per million tokens per hour) | $0.019 | $0.48 |
+| Google | Gemini 3.8 Flash | Mid | $0.75 | $0.075 | $3.75 | Introductory price to 31 December 2026, then $1.50, $0.15 and $7.50 | $0.0064 | $0.16 |
+| Self-hosted | gpt-oss-120b on vLLM | Small to mid | ~$0.10 | ~$0.01 | ~$0.90 | **Illustrative, not a list price** (derivation below) | $0.0013 | $0.03 |
+
+The vLLM row assumes one H100 at $4 an hour on a reservation, serving gpt-oss-120b at about 2,000 output tokens a second in aggregate under agent-loop concurrency, 60% utilised: $4 ÷ (2,000 × 3,600 × 0.6) ≈ $0.93 per million output tokens. Prefill is roughly ten times cheaper per token, and prefix-cache hits cost little beyond GPU memory. At 20% utilisation the same GPU costs three times as much per token, so self-hosting pays only for steady, high-volume tasks (narration, summaries, classification) or for customers who require it. Two things follow from the table. Mid-tier list prices have converged (Sonnet 5 and GPT-6 Sol are identical per token), so price is rarely the reason to switch; resilience, residency and customer choice are. And price per token is not cost per task: a model at half the price that adds half a repair cycle per build (about $0.24 each) saves nothing, which is why the gate compares cost per completed Work Order.
+
+**What the prototype runs, and what production runs.** The prototype has one provider: Anthropic, through the AI SDK, behind the `getModel()` seam (`lib/llm/provider.ts`), with per-call token and cost metering (`lib/llm/pricing.ts`, `usage_events`) and daily budgets per person (`lib/llm/guard.ts`). Every framework's agent runs on Claude through one playground: `app/api/chat/route.ts` runs a single AI SDK tool loop, whichever of the six frameworks the agent is generated for. The generated framework code (a LangGraph graph using `ChatAnthropic`, a CrewAI crew, an OpenAI Agents SDK agent and so on) is shown and downloadable but not executed, and today it names Claude models. In production that generated code is what runs: in the sandbox for rehearsals and in the runtime for live apps, each framework with its own native model client. Those clients point at the gateway, not at providers. The gateway exposes provider-compatible endpoints (Anthropic Messages, OpenAI Chat Completions and Responses, Gemini), the base URL comes from the environment, and the API key is a placeholder that the sandbox egress proxy or the agent gateway replaces with the workload's identity. The gateway then applies the app's model policy: the model named in code is a request, which a residency pin can map to the same model on an in-region endpoint, or refuse. No framework needs our SDK, and hand-written code gets the same routing, caps and metering.
 
 ## 10. Frontend, sandbox and backend communication, with live preview
 
@@ -444,11 +616,11 @@ There are three proxies, each with one job.
 
 **Egress proxy (outbound from sandboxes).** Sits on every sandbox host. nftables rules on each VM's tap device send all traffic to it, so code cannot bypass it. Hostname allow-list per project (from SNI), registry hostnames routed to the regional package mirror, secret injection by placeholder ([section 6](#6-sandboxing)) for declared connections only, request logging, metadata endpoint and private-range blocking.
 
-**Agent gateway (outbound from live apps).** Every tool call from a production agent is checked against its permission (Read, Change, Can't undo) and its supervision level. "Ask first" tools create an approval request (web, Slack or email) and the workflow waits on a signal. Model calls from live agents are forwarded to the model gateway so they count against the app's budget cap. Every call produces a trace for replay and for production evals.
+**Agent gateway (outbound from live apps).** Every tool call from a production agent is checked against its permission (Read, Change, Can't undo) and its supervision level. "Ask first" tools create an approval request (web, or Slack and email through Notify) and the workflow waits on a signal. Model calls from live agents are forwarded to the runtime's own model gateway, a separate deployment from the studio's ([section 9](#9-the-model-gateway)), so they count against the app's budget cap and never depend on the control plane. Every call produces a trace for replay and for production evals.
 
 *How enforcement actually works.* My first design put this gateway in a sidecar next to each app and trusted the app to call it. That is bypassable. A LangGraph or CrewAI tool running in-process can import the Stripe SDK and call `api.stripe.com` directly, and a sidecar shares the pod's network namespace, so anything the sidecar can reach, the app can reach too. Enforcement therefore rests on two controls that the app's code cannot change:
 
-1. **No credentials in the app.** Live-app pods hold no provider secrets: no Stripe, Slack, CRM or model keys. Environment variables contain placeholders (`PRODAI_SECRET_stripe`), so SDKs initialise unchanged. Real credentials are decrypted only inside the agent gateway, under a KMS grant bound to the encryption context `{tenant, app}`. The gateway attaches a credential only after the policy check passes, in one of two ways: it injects the secret at the proxy for API keys, or it performs a token exchange for OAuth-style connections (it trades the app's workload identity for a short-lived, scoped provider token, such as a GitHub App installation token or a Google access token minted from a stored refresh token).
+1. **No credentials in the app.** Live-app pods hold no provider secrets: no Stripe, Slack, CRM or model keys. Environment variables contain placeholders (`PRODAI_SECRET_stripe`), so SDKs initialise unchanged. Real credentials are decrypted only inside the agent gateway (model keys in the runtime's model gateway behind it), under a KMS grant bound to the encryption context `{tenant, app}`. The gateway attaches a credential only after the policy check passes, in one of two ways: it injects the secret at the proxy for API keys, or it performs a token exchange for OAuth-style connections (it trades the app's workload identity for a short-lived, scoped provider token, such as a GitHub App installation token or a Google access token minted from a stored refresh token).
 2. **No route around the gateway.** Egress from live-app pods is denied by default. A Cilium network policy per app namespace allows exactly four destinations: the cell's agent gateway, cluster DNS (with Cilium's DNS proxy answering only for allowed names), the OpenTelemetry collector, and the app's own Neon database over PrivateLink. Nothing else leaves the pod, including connections to raw IP addresses. The gateway is its own workload on dedicated nodes, the only runtime component with a NAT route to the internet, with fixed egress IPs that customers can allow-list. Because each pod runs in its own microVM, the policy is enforced on the pod's interface outside the VM, where code inside cannot touch it.
 
 *How a call reaches the gateway.* Tools declared in the Blueprint are generated as thin clients that call the gateway's `Invoke(tool, args)` gRPC API, so the gateway sees a named tool with its risk level. Any other outbound HTTP (hand-written code, a third-party SDK) goes through the gateway as an HTTPS proxy: `HTTPS_PROXY` is set in the pod, and the runtime image trusts a per-app CA. For hosts that belong to a declared connection, the gateway terminates TLS, maps method and path to an operation and its risk, applies policy, injects the credential and forwards. An unknown operation on a declared host is treated as Can't undo, so it asks first. Undeclared hosts are refused, unless the builder added them to the app's allow-list, in which case they pass through without credentials and are logged.
@@ -459,7 +631,7 @@ There are three proxies, each with one job.
 
 *The app's own database* is the one direct route, so irreversible data changes get the same treatment. Agent workers run as a separate deployment with a Postgres role that cannot `DELETE`, `TRUNCATE` or `DROP` on tables the Blueprint marks as protected. Destructive operations are exposed as gateway actions that hold the privileged role and ask first.
 
-*Where we cannot enforce the network.* On the Vercel target, and in a customer cluster that does not enforce network policies, only the first control holds: the app holds no credentials and calls our gateway endpoint with its deployment's OIDC token. Preflight labels such targets "credentials enforced, egress not enforced", and the runtime Helm chart refuses to register with the control plane until a canary pod proves that direct egress is blocked.
+*Where we cannot enforce the network.* On the Vercel target, on the Fly Machines runtime we launch with ([section 18](#18-phasing-buy-first-build-when-it-pays)), and in a customer cluster that does not enforce network policies, only the first control holds: the app holds no credentials and calls our gateway endpoint with its deployment's OIDC token. Preflight labels such targets "credentials enforced, egress not enforced", and the runtime Helm chart refuses to register with the control plane until a canary pod proves that direct egress is blocked.
 
 ## 12. GitHub integration
 
@@ -494,9 +666,9 @@ sequenceDiagram
 1. **Preflight** (the prototype's Ship tab): sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen, no open conflict cards. Blocking checks disable the button and name the blocker.
 2. **Build once**: Nixpacks or Buildpacks inside the sandbox produce an OCI image plus static assets; the release id is immutable.
 3. **Targets**:
-   - *Prod Cloud*: Knative on the regional runtime cluster, with each pod in its own Firecracker microVM (Kata Containers) and default-deny egress (Cilium). Scale to zero, a Postgres branch per app (Neon), credentials held only by the agent gateway, custom domains with automatic TLS.
+   - *Prod Cloud*: Knative on the cell's runtime cluster (Fly Machines until the phase 2 trigger), with each pod in its own Firecracker microVM (Kata Containers) and default-deny egress (Cilium). Scale to zero, a Postgres branch per app (Neon), credentials held only by the agent gateway, custom domains with automatic TLS.
    - *Vercel*: deploy through the Vercel API into the customer's team, env vars synced as placeholders; tool calls still go through our agent gateway ([section 11](#11-the-proxy-layer) covers what that target cannot enforce).
-   - *Customer VPC or on-prem*: Helm chart or Terraform module for the runtime and agent gateway, connected to the control plane through an outbound-only tunnel. Data and traces stay in the customer's network.
+   - *Customer VPC or on-prem*: Helm chart or Terraform module for the runtime, the agent gateway and the runtime's model gateway, connected to the control plane through an outbound-only tunnel. Data and traces stay in the customer's network.
 4. **Rollout**: canary 5% → 50% → 100% (Knative traffic splitting) with automatic rollback on error rate or latency SLO breach.
 5. **Rollback** is instant: the router points at the previous release. Database migrations use expand-and-contract so old releases keep working.
 
@@ -507,33 +679,34 @@ sequenceDiagram
 | Module | Creates |
 |---|---|
 | `network` | VPC, private subnets, NAT gateways with static egress IPs, PrivateLink endpoints |
-| `eks` | Two clusters per cell: control plane (studio BFF and services) and runtime (Knative, Kata on bare-metal node pools, Cilium, agent gateway nodes); Karpenter autoscaling |
+| `eks` | Two clusters per cell: control plane (studio BFF and services) and runtime (Knative, Kata on bare-metal node pools, Cilium, agent gateway and runtime model gateway nodes); Karpenter autoscaling |
 | `sandbox_fleet` | Bare-metal groups for Firecracker (for example `m7i.metal-24xl`: 96 vCPU, 384 GiB, matching the capacity model), host daemon and egress proxy images, the regional package mirror |
-| `data` | Supabase project, ElastiCache, NATS, S3 buckets with lifecycle and replication, KMS keys |
-| `temporal` | Temporal Cloud namespaces, one per cell |
-| `clickhouse`, `observability` | ClickHouse Cloud service; Grafana stack, alert rules, SLO dashboards |
+| `data` | Per cell: a Supabase project with its standby, ElastiCache for the studio and the runtime, NATS, S3 buckets with lifecycle and replication |
+| `regional` | The identity project and `workspace → cell` directory, the rate-limit Redis, KMS keys, the package mirror |
+| `temporal` | Temporal Cloud namespaces, two per cell (studio and runtime) |
+| `clickhouse`, `observability` | ClickHouse Cloud service per region; Grafana stack, alert rules, SLO dashboards |
 | `edge` | Cloudflare zones, WAF rules, custom-hostname setup, regional Envoy gateways; the Vercel project for the marketing site and docs |
-| `cell` | Composes the modules above into one cell; a region is a list of cells |
+| `cell` | Composes `eks`, `sandbox_fleet`, `data` and `temporal` into one cell; a region is its `regional` module plus a list of cells |
 
 Kubernetes workloads ship as Helm charts, deployed by Argo CD ApplicationSets (one Application per cell).
 
 *Environments.* Separate cloud accounts, GitHub Apps and Stripe modes per environment.
 - **dev**: a preview environment per PR (the studio image and changed services deployed into a namespace per branch on the shared dev cluster).
 - **staging**: production-shaped, one region, Stripe test mode, synthetic studio journeys running around the clock.
-- **prod**: US, EU and India regions, each split into cells.
+- **prod**: US, EU and India regions, each split into cells (phase 3; phases 0 to 2 run in one US region, [section 18](#18-phasing-buy-first-build-when-it-pays)).
 
-*Region strategy.* Each region is a full, independent stack: control plane (including the studio BFF), sandbox fleet, runtime and data. A thin global layer holds only the tenant directory (which region a workspace lives in), billing roll-ups and the marketing site. A workspace is pinned to its home region at signup for data residency; Cloudflare reads a region claim in the JWT and sends requests there. Model calls use in-region endpoints (Bedrock or Vertex) where residency is required. Each region has a warm-standby pair in the same jurisdiction (for example us-east-1 with us-west-2, eu-central-1 with eu-west-1, ap-south-1 with ap-south-2).
+*Region strategy.* Each region is a full, independent stack: a small regional tier (identity, the `workspace → cell` directory, the API gateway, the package mirror, the usage warehouse, observability) and a list of cells, each with its own control plane (including the studio BFF), sandbox fleet, runtime and data ([section 14](#blast-radius-what-is-shared-and-what-fails)). A thin global layer holds only the tenant directory (which region a workspace lives in, and a hash of each sign-in email so a login finds its region), billing roll-ups and the marketing site. A workspace is pinned to its home region at signup for data residency; Cloudflare reads a region claim in the JWT and sends requests there. Model calls use in-region endpoints (Bedrock or Vertex) where residency is required. Each region has a warm-standby pair in the same jurisdiction (for example us-east-1 with us-west-2, eu-central-1 with eu-west-1, ap-south-1 with ap-south-2).
 
 *CI/CD for the platform.* Today the repo's CI (`.github/workflows/ci.yml`) runs typecheck, lint, fixture checks and a production build on every push and pull request. The Playwright smoke suite (`npm run test:e2e`) runs separately against a local server or the live URL (`BASE_URL`). The production pipeline adds:
 1. Unit tests, Playwright against the PR's preview environment, and `terraform plan` posted to the PR with policy checks (Checkov).
 2. Container builds with an SBOM, a Trivy scan and cosign signatures; only signed images are admitted to clusters.
 3. Merge → Argo CD syncs staging → the golden rehearsal suite and synthetic journeys must pass.
-4. Production rolls out **cell by cell**: one canary cell, then 25%, then all, with automatic rollback on SLO burn. Product changes ship dark behind feature flags; migrations run as a separate expand-and-contract step.
+4. Production rolls out **cell by cell**: one canary cell, then 25%, then all, with automatic rollback on SLO burn. Product changes ship dark behind feature flags; migrations run as a separate expand-and-contract step, also cell by cell, because each cell has its own database. The regional tier changes last, after every cell has taken the release.
 5. CI assumes cloud roles through GitHub OIDC; no long-lived cloud keys exist in CI. Sandbox base images rebuild weekly and on any critical CVE, and roll into warm pools gradually.
 
 *Secrets and key management.*
 - One KMS key per region per environment. Each tenant has a data key (AES-256-GCM), wrapped by the regional KMS key. User secrets (connection keys, BYOK model keys) are stored as ciphertext plus the wrapped data key in Postgres.
-- Decrypt calls carry an encryption context of `{tenant_id, secret_id}`, so a ciphertext copied to another tenant will not decrypt. Only the sandbox egress proxy and the agent gateway hold decrypt permission, and every decrypt lands in the audit trail (CloudTrail).
+- Decrypt calls carry an encryption context of `{tenant_id, secret_id}`, so a ciphertext copied to another tenant will not decrypt. Only the sandbox egress proxy and the agent gateway hold decrypt permission, plus the model gateways for BYOK model keys (a KMS grant limited to that kind of secret), and every decrypt lands in the audit trail (CloudTrail).
 - Rotation: KMS keys rotate yearly; data keys can be re-wrapped at any time without re-encrypting secrets. Deleting a tenant's data key crypto-shreds every secret it protected.
 - Enterprise workspaces can bring their own KMS key through a cross-account grant, and revoke it.
 - Platform secrets live in AWS Secrets Manager and reach pods through External Secrets Operator.
@@ -542,7 +715,8 @@ Kubernetes workloads ship as Helm charts, deployed by Argo CD ApplicationSets (o
 
 | Component | Backup | RPO | RTO |
 |---|---|---|---|
-| Postgres (projects, ledger, audit) | Point-in-time recovery plus a nightly logical dump copied to the standby region | 5 min | 1 h (regional failover) |
+| Postgres, per cell (projects, ledger, audit, grants) | Point-in-time recovery in-region; logical replication to a standby project in the paired region, promoted by runbook; a nightly logical dump as the last resort | 5 min in-region; replication lag (seconds) across regions | 1 h per cell, independently of other cells |
+| Identity and directory, per region | The same as a cell's Postgres | Seconds | 30 min; signed-in people are unaffected meanwhile |
 | Temporal workflows | Temporal Cloud namespace replicated to the standby region | Seconds (replication lag) | 15 min |
 | Object storage (snapshots, releases) | S3 versioning plus replication with Replication Time Control (15-minute replication target) | 15 min | 1 h |
 | Usage warehouse | Daily ClickHouse backups to S3; JetStream keeps 7 days of `usage.*` for replay. The ledger in Postgres, not ClickHouse, is the record for money | 24 h (rebuilt by replay) | 4 h |
@@ -553,14 +727,14 @@ Kubernetes workloads ship as Helm charts, deployed by Argo CD ApplicationSets (o
 Restores are tested monthly and failover is rehearsed in a quarterly game day.
 
 *Observability.*
-- **Traces:** OpenTelemetry from the browser click through the BFF, Temporal (trace context in workflow headers), the harness, the model gateway and into the VM over vsock. LLM calls are spans with model, tokens and cost attributes.
+- **Traces:** OpenTelemetry from the browser click through the BFF, Temporal (trace context in workflow headers), the harness, the model gateway and into the VM over vsock. Traces from live apps run through the agent gateway and the runtime's model gateway. LLM calls are spans with model, tokens and cost attributes.
 - **Metrics:** request rate, errors and duration per service. Plus sandbox pool depth, resume p95 (same host and cross host), host memory, tokens per minute per provider, 429 rate, failover count, prompt-cache hit rate, repair cycles per build, quote accuracy and queue depth.
 - **Logs:** structured JSON tagged with tenant, project and Work Order ids, with PII redacted at the collector.
 - **SLOs** (see [section 14](#14-scaling-to-thousands-of-concurrent-users)) use multi-window burn-rate alerts. 2% of the monthly error budget burned in 1 hour pages someone; 10% in 3 days opens a ticket.
 
 *Cost controls.*
 - **Models** are the largest line; the unit economics are in [section 15](#15-model-unit-economics). Levers: deterministic codegen for most files, prompt caching of the stable prefix, task routing to cheaper models, and per-tenant caps enforced in the gateway rather than reported after the fact. Provider-level spend alarms fire on anomalies.
-- **Sandboxes:** idle suspend after 10 minutes, 4:1 CPU overcommit and bin-packing by memory. At 25% memory headroom one 384 GiB host holds about 72 awake sandboxes: roughly 7 cents per awake sandbox-hour at on-demand prices before savings plans. The baseline fleet runs on savings plans; bursts go to E2B only for eligible, secret-free work ([section 6](#6-sandboxing)). Spot capacity is used for CI and eval batches, never for sandboxes, because an interruption loses in-memory state.
+- **Sandboxes:** idle suspend after 10 minutes, 4:1 CPU overcommit and bin-packing by memory. At 25% memory headroom one 384 GiB host holds about 72 awake sandboxes: roughly 7 cents per awake sandbox-hour at on-demand prices before savings plans. The baseline fleet runs on savings plans; bursts go to E2B only for eligible work ([section 6](#6-sandboxing)). Spot capacity is used for CI and eval batches, never for sandboxes, because an interruption loses in-memory state.
 - **Storage:** S3 Intelligent-Tiering for snapshots, with lifecycle deletion after 14 idle days (the disk image and git history are kept).
 - **Showback:** daily cost per tenant (tokens, sandbox minutes, storage, absorbed repairs) from the usage warehouse, compared with revenue. An alert fires when a tenant's gross margin falls below target. AWS Budgets and Cost Anomaly Detection cover each environment.
 
@@ -573,19 +747,34 @@ Restores are tested monthly and failover is rehearsed in a quarterly game day.
 | Awake sandboxes | ~30% of people have work running, the rest are snapshotted | ~1,500 microVMs |
 | Sandbox hosts | 4 GB each, memory bound, 384 GB per host, 25% headroom | ~20 bare-metal hosts per region at peak |
 | Model traffic | ~20% actively generating, ~2 calls a minute, ~8k input and ~1k output tokens per call | ~16M input and ~2M output tokens a minute, about 70% of input served from prompt cache; about $2,100 an hour at list prices ([section 15](#15-model-unit-economics)) |
-| Realtime | One connection per open studio | 5,000 connections; one NATS cluster with WebSocket gateways handles 100k+ |
-| Database writes | ~1 build event per second per active build, batched | ~1,000 writes a second, well within one Postgres primary |
+| Realtime | One connection per open studio | 5,000 connections, about 1,000 per cell; one NATS cluster with WebSocket gateways handles 100k+ |
+| Database writes | ~1 build event per second per active build, batched | ~1,000 writes a second across the region, about 200 per cell's Postgres primary |
 
 **How each bottleneck is handled.**
 
 - **Control plane**: stateless pods autoscale on CPU and queue depth. Long work lives in Temporal, so scaling down never kills a build.
-- **Sandboxes**: warm pools per stack, bin-packing by memory, host affinity for resumes, idle suspend after 10 minutes, per-tenant concurrency quotas. When the fleet is full, eligible secret-free work bursts to E2B and everything else queues with an honest ETA ([section 6](#6-sandboxing)).
-- **Models**: the gateway keeps token buckets per provider, key and region, queues by priority (a person waiting beats a background eval), fails over between providers, and uses provisioned throughput for the planner tier. Cheaper models take low-risk steps.
-- **Cells**: tenants are sharded into cells of about 1,000 active users, each with its own sandbox pool, queues and Temporal namespace. A bad deploy or a noisy tenant affects one cell, not everyone.
+- **Sandboxes**: warm pools per stack, bin-packing by memory, host affinity for resumes, idle suspend after 10 minutes, per-tenant concurrency quotas. When the fleet is full, eligible work bursts to E2B and everything else queues with an honest ETA ([section 6](#6-sandboxing)).
+- **Models**: the gateway keeps token buckets per provider, key and region, queues by priority (a person waiting beats a background eval), fails over between providers with session affinity, and uses provisioned throughput for the planner tier ([section 9](#9-the-model-gateway)). Cheaper models take low-risk steps.
+- **Cells**: tenants are sharded into cells of about 1,000 concurrently active builders, each with its own Postgres, Redis, NATS, Temporal namespaces, sandbox pool and runtime. A bad deploy, a bad migration or a noisy tenant affects one cell, not everyone (below).
 - **Database**: connection pooling (Supavisor), read replicas for dashboards, monthly partitions for events and usage, usage analytics in ClickHouse rather than Postgres.
 - **Cost**: budgets and caps per person and per app, prompt caching, deterministic codegen for most files, and snapshots instead of idle machines.
 
-**SLOs**: studio actions p95 under 300 ms, first plan event under 2 s, sandbox resume p95 under 1 s on the same host and under 3 s across hosts, preview availability 99.9%, live apps 99.95%.
+**SLOs**: studio actions p95 under 300 ms, first plan event under 2 s, sandbox resume p95 under 1 s on the same host and under 3 s across hosts, studio and preview availability 99.9%, live apps 99.95%.
+
+### Blast radius: what is shared and what fails
+
+Cells are the blast-radius unit, so everything stateful on a request's path after sign-in is per cell. My earlier draft shared one Postgres per region across its cells, which quietly made the region the blast radius: one noisy tenant's queries, one bad migration or one database failover would reach every cell. Each cell now has its own Postgres, and only a thin, read-mostly tier is shared:
+
+| Scope | What lives there | If it fails |
+|---|---|---|
+| Global | Tenant directory (`workspace → region`, a hash of each sign-in email → region), billing roll-ups, marketing site | New sign-ups and first sign-ins on a new device cannot find their region. Signed-in sessions carry the region in the JWT and are unaffected |
+| Region | Identity (users, memberships, SSO) and the `workspace → cell` directory; the API gateway, app router and preview proxy (stateless Envoy); the rate-limit Redis; package mirror; usage warehouse; observability | New sign-ins fail; signed-in people keep working for their token's lifetime, because the gateway caches the directory and verifies tokens locally. A warehouse or observability outage delays spend meters and dashboards, never requests: caps are enforced from the ledger and gateway counters |
+| Cell | Studio services, Postgres, Redis, NATS, Temporal namespaces, sandbox pool, runtime cluster, agent gateway, runtime model gateway, Notify | That cell's tenants only, about 1,000 concurrently active builders and their live apps. Each cell's Postgres fails over to its standby on its own |
+| App | Pods and the Neon database | One app |
+
+Identity is the one stateful service shared by a region's cells, deliberately: per-cell identity would give a person in two workspaces two accounts, and the data is small, read-mostly and cacheable. The stateless regional edge runs in every availability zone and takes each release last. A cell's tenants cannot be moved in seconds, so rebalancing is a planned copy of one workspace's rows with a few minutes of read-only time; new workspaces go to the least-loaded cell.
+
+**Live apps when the studio degrades.** Live apps promise 99.95%, higher than the studio's 99.9%, so their request path avoids the control plane entirely. It uses Cloudflare, the regional app router (routes cached, last known good), the cell's runtime cluster, the agent gateway, the runtime's model gateway, the runtime Temporal namespace and Redis, Neon and KMS. The agent gateway evaluates compiled policy bundles it caches: refreshed every minute, still valid for 24 hours if the Policy service is unreachable, and after that failing closed for Change and Can't-undo tools while reads continue. Budget caps are enforced from counters in the runtime's Redis and reconciled to the ledger through NATS, so a studio or cell-database outage delays billing, not traffic. What a studio outage does cost live apps is the web approvals inbox; "Ask first" approvals still arrive in Slack and email, because Notify runs in the runtime plane, and they wait durably either way.
 
 ## 15. Model unit economics
 
@@ -599,9 +788,9 @@ Models are the largest variable cost, so every number here ties back to the capa
 | Claude Sonnet 5 | Mid-tier: coder loop, change requests, default for live agents | $2.00 | $2.50 | $0.20 | $10.00 |
 | Claude Haiku 4.5 | Small: step narration, summaries, naming | $1.00 | $1.25 | $0.10 | $5.00 |
 
-Output includes thinking tokens. Other providers enter through the model gateway's capability matrix with their own prices. Prompt caching is the only discount counted here; provisioned throughput and committed-use discounts are upside.
+Output includes thinking tokens. Other providers enter through the model gateway's capability matrix with their own prices; [section 9](#9-the-model-gateway) compares them. Prompt caching is the only discount counted here; provisioned throughput and committed-use discounts are upside.
 
-**Tokens and cost per unit of work.** "Routed" is the production mix from [section 9](#9-model-agnostic-switching). The other columns run every call on one model, and the last column shows the routed mix with caching turned off.
+**Tokens and cost per unit of work.** "Routed" is the production mix from [section 9](#9-the-model-gateway). The other columns run every call on one model, and the last column shows the routed mix with caching turned off.
 
 | Unit of work | What runs | Calls | Input tokens (cached) | Output tokens | Routed | All Sonnet 5 | All Opus 5 | Routed, no caching |
 |---|---|---|---|---|---|---|---|---|
@@ -647,8 +836,10 @@ With every cap hit, the worst build costs $1.15, of which $0.71 is ours.
 
 - **Tenancy**: row-level security on every table (in the prototype today), per-tenant encryption keys for secrets, per-project sandboxes and networks.
 - **Runtime isolation**: each live-app pod runs in its own microVM, holds no provider credentials, and has default-deny egress; the agent gateway is its only way out, and a bypass attempt fails closed ([section 11](#11-the-proxy-layer)).
-- **Supply chain**: sandboxes install packages only through the scanned package mirror; platform images are signed and admitted by signature; every shipped release is built on our own fleet.
+- **Supply chain**: sandboxes install packages only through the scanned package mirror; platform images are signed and admitted by signature; from phase 2 every shipped release is built on our own fleet.
 - **Identity**: Supabase Auth with Google, email and guest sessions that can be upgraded without losing work (real today); SAML SSO and SCIM for enterprise.
+- **Background identity**: workers never forward session tokens or hold the `service_role` key. They act through revocable delegation grants, exchanged for 5-minute tokens scoped to one project and one action, with the person as a claim for RLS and audit ([section 5](#identity-for-background-work)).
+- **Blast radius**: cells, each with its own database, runtime and gateways; only identity and a thin directory are shared per region ([section 14](#blast-radius-what-is-shared-and-what-fails)).
 - **Audit**: every approval, permission change, ownership change, deploy and rollback is an append-only audit event, visible in the studio's activity feed.
 - **Observability**: OpenTelemetry traces from the browser action through the workflow, each model call (tokens, cost, latency) and each sandbox command. Per-project cost dashboards come from the usage warehouse. Agent replays in the product are built from the same traces.
 
@@ -656,25 +847,80 @@ With every cap hit, the worst build costs $1.15, of which $0.71 is ours.
 
 | Part | In the live prototype | In production |
 |---|---|---|
-| Studio, auth, data | **Real.** Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with RLS on every table | The same app as a container in each regional cluster behind Cloudflare; adds SAML SSO, SCIM, regions |
+| Studio, auth, data | **Real.** Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with RLS on every table | On Vercel through phase 1, then a container in each cell's cluster behind Cloudflare, with a Postgres per cell; adds SAML SSO, SCIM, regions |
 | Planner | **Real.** Claude plans a structured draft, streamed live; code expands and validates it; starter plans when no model is available | Same contract, through the model gateway |
-| Model gateway | **Real, single provider.** `getModel()` seam, env-based switch, per-call token and cost metering, daily budgets per person | Multi-provider routing, failover, BYOK, caching |
+| Model gateway | **Real, single provider.** `getModel()` seam, env-based switch, per-call token and cost metering, daily budgets per person | A gateway service: routing by task, eval-gated switches, failover in the middle of a tool loop, session-affine caching, rate budgets, BYOK; a separate runtime deployment for live apps ([section 9](#9-the-model-gateway)) |
 | Quotes | **Real.** Credits computed from the Blueprint by code (`lib/blueprint/estimate.ts`), never by the model | Fitted per-operation coefficients, p50 shown and p90 held, settlement against metered usage, weekly reconcile ([section 15](#15-model-unit-economics)) |
 | Change requests | **Real.** Claude returns typed edits (fields, columns, permissions, rules, rehearsals, screens, theme); code resolves names, fills sample data and emits validated operations; one self-repair retry with the exact error; questions get answers instead of changes; priced Work Order; save point | Same, executed by the harness in a sandbox |
-| Agent playground + approvals | **Real.** Agents run on Claude with tools; "Ask first" tools pause for a person (AI SDK tool approval) | Same policy, enforced by the agent gateway: no credentials in the app, default-deny egress |
+| Agent playground + approvals | **Real.** Every agent runs on Claude through one AI SDK tool loop, whichever framework it is generated for; "Ask first" tools pause for a person (AI SDK tool approval). The generated framework code is shown and downloadable, not executed | The generated framework code runs in the sandbox and the runtime with its own model client, routed through the gateways; the same policy, enforced by the agent gateway: no credentials in the app, default-deny egress |
 | Build + repair | **Simulated, labelled.** Deterministic build timeline; the repair decision is real and changes the Blueprint | Full tool loop in microVMs |
-| Sandbox + live preview | **Simulated, labelled.** Preview renders the Blueprint with a spec renderer; no untrusted code runs | Firecracker microVMs behind the preview proxy |
+| Sandbox + live preview | **Simulated, labelled.** Preview and `/live` render the Blueprint with the spec renderer; the generated Next.js code is not executed, and no untrusted code runs | The generated app running in E2B sandboxes (phases 0 and 1), then in our Firecracker microVMs, behind the preview proxy |
 | GitHub | **Partly real.** Public repo reads, stack and agent detection, House Rules; pushes and PRs are sandboxed | GitHub App with region-level ownership and three-way reconcile ([section 8](#8-blueprint-and-code-keeping-them-in-sync)) |
-| Deploy | **Real for Prod Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases on Knative, canary, instant rollback |
+| Deploy | **Real for Prod Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases on Fly Machines at launch, then Knative; canary, instant rollback |
+| Background identity | **Not needed yet.** Every write is a server action under the person's own session | Delegation grants and 5-minute tokens for workflows, schedules and webhooks ([section 5](#identity-for-background-work)) |
 
-## 18. Trade-offs and alternatives considered
+## 18. Phasing: buy first, build when it pays
 
-- **Build vs buy sandboxes.** E2B, Daytona and Modal would get us to market faster. We run our own Firecracker fleet because secret injection, the egress allow-list and the vsock agent need hosts we control, and we use E2B only as burst capacity for secret-free work ([section 6](#6-sandboxing)).
+Sections 1 to 16 describe a year-3 platform: our own Firecracker fleet, Kata and Knative, two Kubernetes clusters per cell, NATS, ClickHouse, three regions. Building it before there are customers would spend a year and a platform team on problems we do not have yet. So we buy managed services first and replace each one only when a stated, measured trigger says it pays.
+
+From day one we build only what is the product, or what no vendor can see: the Blueprint and codegen, the harness, the ledger and quotes, delegation grants, a thin model gateway (it holds budgets, cause tags and BYOK keys, which no hosted router knows about) and the agent gateway (it holds every live app's credentials). The seams exist from day one too, so each later move is a backend swap rather than a rewrite: the sandbox manager's gRPC interface (`Acquire`, `Snapshot`, `Suspend`, `Resume`) first fronts E2B's API, the harness talks to our own in-VM agent wherever it runs, deploy targets sit behind one interface, and the gateway API never changes.
+
+**Phase 0 and 1: launch to about 1,000 active builders.** Phase 0 is the prototype made real: the simulated build and preview are replaced by real sandboxes, sandboxed GitHub pushes by the GitHub App, and published snapshots by deployed apps.
+
+| Concern | What we run | Why, for now |
+|---|---|---|
+| Studio (BFF) | Next.js on Vercel, as the prototype does | No mesh to join yet; per-PR previews for a small team |
+| Services | One managed Kubernetes cluster (EKS Auto Mode) running the harness, deploy, GitHub and import workers, the model gateway (studio and runtime deployments), the agent gateway, the egress proxy and Notify | A handful of deployments; a second cluster only when the runtime moves |
+| Workflows and queues | Temporal Cloud, one namespace | It is the managed queue. Durable approvals are the product, so there is no simpler queue to start with |
+| Events to the browser | Redis Streams (Upstash) with SSE from the BFF; stream ids give replay from a sequence number | At this volume a managed stream does what NATS does, with nothing to run |
+| Sandboxes and preview | E2B, with outbound traffic locked to our egress proxy ([section 6](#6-sandboxing)); our preview proxy in front of E2B's per-port sandbox URLs | Firecracker isolation and memory snapshots without running hosts. Our proxies keep secret injection, the allow-list and the separate preview domain. Fly Machines was the alternative, but it cannot restrict egress, so secrets could not stay out of the VM |
+| Live apps | Fly Machines (a Firecracker VM per instance, stopped when idle, started on request), calling our agent gateway with an OIDC token. Preflight labels them "credentials enforced, egress not enforced" ([section 11](#11-the-proxy-layer)) | Sub-second starts and scale to zero with nothing to operate; the agent gateway still holds every credential |
+| Data | One Supabase project (RLS, as today); `usage_events` in Postgres with monthly partitions (as today); Neon for app databases; S3 | There is one cell, so one database is the cell's database |
+| Edge | Cloudflare for every hostname, including custom hostnames for live apps | The target design already; cheap from day one |
+
+**Phase 2: own the sandboxes, the preview and the runtime, still in one region.** The sandbox fleet and preview proxy move onto our Firecracker hosts, with E2B kept as burst capacity. Live apps move to Knative with Kata and Cilium, which makes egress enforced. The studio BFF moves into the cluster, NATS replaces Redis Streams, ClickHouse takes usage analytics out of Postgres, and Temporal splits into studio and runtime namespaces. Each move has its own trigger; any one condition fires it, sustained for two consecutive months unless stated.
+
+| Move | Triggers | Why those numbers |
+|---|---|---|
+| Sandboxes and preview to our fleet | (1) Managed sandbox spend above **$150k a month**. (2) p95 from opening a project to the first preview byte above **3 s** (our cross-host SLO), or p95 cold create above **5 s**, for two consecutive weeks. (3) Enterprise deals that exclude code-execution sub-processors or need a region E2B does not serve: **two signed, or one above $250k ARR**. (4) Peak awake sandboxes above **80%** of the provider's contracted concurrency for two weeks | A 2 vCPU, 4 GiB sandbox costs about $0.17 an awake hour at E2B's published per-second prices and about $0.08 on our fleet with warm pools and headroom ([section 13](#13-deployment)), so owning saves about half the spend. It also costs about $75k a month before it saves anything (three engineers and a minimum of six hosts across availability zones), so break-even is about $145k. At section 15's usage that is about 135,000 active builders: cost alone moves us late, because sandboxes are about 5% of variable cost. Latency, sub-processor terms and concurrency will almost certainly fire first |
+| Live apps to Knative, Kata and Cilium | (1) A signed contract, or a security review on a deal above **$100k ARR**, that requires enforced egress for live agents. (2) More than **500** live apps with a Can't-undo tool in production. (3) Managed runtime spend above **$80k a month** | "Egress not enforced" is honest, but some buyers will not sign it. At hundreds of apps with irreversible tools, some app's code will call a host its builder never declared (a data leak rather than a credential leak, since apps hold no credentials), and only enforced egress stops that. The runtime cluster costs about $40k a month before it saves anything (bare-metal Kata nodes, gateway nodes, one and a half engineers) and runs the same load for about half |
+| Studio BFF into the cluster | Ships with the first service behind the mesh (the sandbox fleet's control API) | Each call from Vercel into the mesh would otherwise need the token exchange in [section 2](#2-the-planes-at-a-glance) |
+| NATS replaces Redis Streams | Above **2,000 events a second** at peak, or customer-visible streams that need per-subject tenant permissions | Redis Streams has no per-tenant subject permissions |
+| ClickHouse for usage analytics | `usage_events` above **50M rows a month**, or spend-meter queries above **500 ms p95** | Past that, analytics scans compete with the studio's writes |
+
+**Phase 3: cells and regions.** The single region splits into cells of about 1,000 concurrently active builders, each with its own Postgres and runtime ([section 14](#blast-radius-what-is-shared-and-what-fails)), and new regions open as residency demands. Any one trigger fires it:
+
+- **Residency:** the first signed contract that requires EU or India data residency stands up that region, starting as one cell with its warm standby.
+- **Scale:** a cell above **1,000 concurrently active builders** at peak, its Postgres primary above **60% CPU** at peak for a week, or its Temporal namespace above **70%** of its action limit splits into a new cell.
+- **Blast radius:** **two incidents in a quarter** in which one tenant or one deploy degraded everyone brings the first split forward, whatever the scale.
+
+**What each phase costs to run and staff.** Estimates at list prices, rounded, excluding salaries in the infrastructure lines (an engineer is taken as about $20k a month fully loaded where a trigger depends on it).
+
+| | Phase 0 and 1 | Phase 2 | Phase 3 |
+|---|---|---|---|
+| Active builders | Up to about 1,000 | About 1,000 to 10,000 | 10,000 and up (sized here at 50,000) |
+| Footprint | Vercel, one managed cluster, E2B, Fly Machines, Supabase, Temporal Cloud, Neon | One region, one cell (10,000 builders at about 22 studio hours a month each is about 300 people at once on average, about 900 at peak): its two EKS clusters, our sandbox fleet, the runtime cluster, NATS, ClickHouse | Three regions with warm standbys, about 8 cells |
+| Platform infrastructure a month | About $20k | About $100k at 10,000 builders | About $400k at 50,000 builders |
+| Infrastructure per active builder a month | About $20 (fixed costs dominate) | About $10 | About $8 |
+| Model spend a month, at section 15's $9.30 per builder | About $9k | About $93k at 10,000 builders | About $465k |
+| Engineers | 5-6: two on product, one on the harness and evals, one on the Blueprint and codegen, one or two on platform (gateways, deploy, on-call) | 12-15: adds a sandbox fleet team (3), runtime and gateways (2), SRE (2), security (1) | 25-35: adds on-call per region, a data platform team, compliance, a second sandbox team |
+
+Phase 0 and 1 in detail, per month: Vercel about $1k; the managed cluster about $4k; E2B about $2k (Pro plan, a concurrency add-on and about 6,600 sandbox hours); Fly Machines about $3k; Supabase about $1k; Temporal Cloud about $1k; Neon about $2k; Cloudflare about $1k; observability about $2k; Redis, S3 and the rest about $2k. In phase 0 and 1 infrastructure costs more per builder than models do, and nearly all of it is fixed: exactly the situation in which buying beats building.
+
+What does not change across phases: the Blueprint, Work Orders and their prices, the harness contract, the gateway API, the ledger, delegation grants and the agent gateway's policy model. Phases swap what runs underneath them.
+
+## 19. Trade-offs and alternatives considered
+
+- **Build vs buy, and when.** Building the whole platform first would delay launch by about a year and needs a platform team before there is revenue. Buying everything forever would leave us short of the isolation, latency and residency that enterprise buyers need. We buy first and build each part when its trigger fires ([section 18](#18-phasing-buy-first-build-when-it-pays)).
+- **Build vs buy sandboxes.** E2B runs every sandbox until one of section 18's triggers fires, with our egress proxy keeping secrets out of the VM. We then run our own Firecracker fleet, because host affinity, lazy restore, the vsock agent and execution without a sub-processor need hosts we control, and keep E2B as burst capacity for eligible work ([section 6](#6-sandboxing)).
 - **Temporal vs a queue.** A plain queue plus a state table is simpler on day one, but builds with human approvals in the middle are exactly what durable workflows are for.
 - **Blueprint-first vs code-first.** Code-first (like IDE agents) is more flexible; Blueprint-first is what lets non-technical people review a plan, price it and roll it back. We keep both by giving every region of code one owner and reconciling edits with a three-way merge, and by letting custom code live outside the Blueprint under House Rules ([section 8](#8-blueprint-and-code-keeping-them-in-sync)).
 - **Agent gateway as a sidecar vs an egress tier.** A sidecar is simpler and adds no network hop. An egress tier per cell adds about a millisecond and a component to scale, but it is the only placement that the app's own code cannot route around.
-- **Prod Cloud on our Kubernetes vs Fly Machines.** Fly would give faster cold starts and less to operate. It has no per-app egress policy, which the governed-agent promise depends on, and one runtime chart for Prod Cloud and customer VPCs is worth the operational cost.
-- **BFF in the cluster vs on Vercel.** Vercel is less to run and gives per-PR previews. The cluster gives mesh identity, residency by construction and long-lived connections without limits ([section 2](#2-the-planes-at-a-glance)).
+- **Prod Cloud on our Kubernetes vs Fly Machines.** Fly gives faster cold starts and less to operate, so it is the launch runtime. It has no per-app egress policy, which the governed-agent promise ultimately depends on, so live apps move to our runtime when the egress trigger fires; from then on, one runtime chart for Prod Cloud and customer VPCs is worth the operational cost.
+- **BFF in the cluster vs on Vercel.** Vercel is less to run and gives per-PR previews, so the studio stays there through phase 1. From phase 2 the cluster gives mesh identity, residency by construction and long-lived connections without limits ([section 2](#2-the-planes-at-a-glance)).
 - **One repo per project.** Simpler permissions and a clean handoff to engineers; monorepo support comes through the import pipeline and House Rules.
 - **Multi-framework agents.** We compile one agent definition into six frameworks (Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, Mastra) and list what does not translate, instead of pretending the frameworks are equivalent.
 - **Regional cells vs one global control plane.** Cells cost more to operate (N copies of everything), but they give data residency, a small blast radius and a clean unit for capacity planning.
+- **A Postgres per cell vs one per region.** Per cell costs more (N databases, N standbys, migrations run N times) and turns moving a workspace between cells into a planned copy. One regional database would be cheaper and simpler, but every cell would share its failures, its migrations and its noisy tenants, which defeats the point of cells ([section 14](#blast-radius-what-is-shared-and-what-fails)).
+- **One gateway build, two deployments.** A second deployment costs a second set of provider accounts, dashboards and on-call surface. One shared deployment would let a studio incident take down live apps' model calls ([section 9](#9-the-model-gateway)).
+- **A nine-block vocabulary vs arbitrary generated UI.** Arbitrary UI satisfies more requests on the first try. The vocabulary makes previews instant, tweaks free, diffs priceable and model output safe, and custom blocks and code ownership keep the ceiling open ([section 8](#why-a-nine-block-vocabulary)).
