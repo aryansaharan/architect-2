@@ -5,8 +5,9 @@ import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { modelBudgetOk } from "@/lib/llm/guard";
 import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, saysNothingConnected, startNotConnected } from "@/lib/llm/draft";
-import { estimate } from "@/lib/blueprint/estimate";
+import { buildTimeLabel, estimate } from "@/lib/blueprint/estimate";
 import type { Blueprint } from "@/lib/blueprint/schema";
+import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -70,8 +71,8 @@ export async function POST(req: Request) {
             title: `Planned ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`,
             body:
               mode === "live"
-                ? `Planned with ${usage?.model}. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing is built until you approve.${keysNote}`
-                : `Offline mode: started from the closest starter plan. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.${keysNote}`,
+                ? `Planned with ${usage?.model}. Planning is free. Building it: ${buildTimeLabel(blueprint.estimate.minutes, totalDuration(buildTimeline(blueprint))).label}, ${blueprint.estimate.credits} credits. Nothing is built until you approve.${keysNote}`
+                : `Offline mode: started from the closest starter plan. Planning is free. Building it: ${buildTimeLabel(blueprint.estimate.minutes, totalDuration(buildTimeline(blueprint))).label}, ${blueprint.estimate.credits} credits.${keysNote}`,
             credits: 0,
             checkpointId: cp.id,
           },

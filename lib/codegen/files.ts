@@ -50,7 +50,7 @@ function blockJsx(b: Block, bp: Blueprint, indent: string): string {
     case "kpis":
       return `${indent}<Kpis items={${js(b.items.map(({ label, value, delta }) => ({ label, value, delta })))}} />`;
     case "table":
-      return `${indent}<DataTable\n${indent}  title=${js(b.title ?? entity?.plural ?? "")}\n${indent}  rows={${rows}}\n${indent}  columns={${js(b.columns)}}\n${indent}  filters={${js(b.filters)}}${nav(b.rowAction) ? `\n${indent}  rowHref={(row) => \`/${nav(b.rowAction)}/\${row.id}\`}` : ""}\n${indent}/>`;
+      return `${indent}<DataTable\n${indent}  title=${js(b.title ?? entity?.plural ?? "")}\n${indent}  rows={${rows}}\n${indent}  columns={${js(b.columns)}}\n${indent}  filters={${js(b.filters)}}${b.sort ? `\n${indent}  sort={${js(b.sort)}}` : ""}${nav(b.rowAction) ? `\n${indent}  rowHref={(row) => \`/${nav(b.rowAction)}/\${row.id}\`}` : ""}\n${indent}/>`;
     case "list":
       return `${indent}<RecordList title=${js(b.title ?? "")} rows={${rows}} titleField=${js(b.titleField)}${b.subtitleField ? ` subtitleField=${js(b.subtitleField)}` : ""}${b.badgeField ? ` badgeField=${js(b.badgeField)}` : ""} />`;
     case "detail":

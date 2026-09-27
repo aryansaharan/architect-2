@@ -10,13 +10,16 @@ import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { ruleProposal } from "./rules";
 import { EditsSchema, blueprintIndex, draftEdits, partialRationale, salvageEdits, type Draft, type Edits } from "./edits";
+import { claimFeedback, honestText, unbackedClaims, type Claim } from "./truth";
 import { generateFiles } from "@/lib/codegen/files";
 import { diffFiles } from "@/lib/codegen/diff";
 
 const EDIT_INSTRUCTIONS = `You change Prod AI projects. A project is a Blueprint: data types (entities with fields and sample records), screens made of blocks, AI agents with tools and rules, and connections.
 Given a request and a scope, return the smallest set of typed edits that fully does what was asked, inside the scope when one is given.
 - New detail shown in a table: addFields (with realistic sampleValues) plus addColumns.
-- Column order ("as the second column", "first", "after Status"): addColumns with position, counting from 1 on the left, from the table's current columns in the map. Never use patches for column order.
+- Column order ("as the second column", "the first column", "after Status"): addColumns with position, counting from 1 on the left, from the table's current columns in the map. Never use patches for column order.
+- Row order ("sort by amount", "urgent first", "newest at the top", "put overdue ones on top"): sortTables. For an enum field, order lists its options top first, e.g. ["Urgent","High","Normal","Low"]; add the field first if it's new. Row order and column order are different things: "urgent claims first" sorts rows, it doesn't move a column.
+- Filter menus ("let me filter by priority"): addFilters. A table can't hide rows by default; people pick the filter value.
 - "Ask before", "needs approval", "don't let it … without asking": permissions with permission "ask". "Just do it": "auto". "Tell me": "log". Name each tool, or use "*" or "irreversible".
 - New page or view: newScreens (pick the entity it shows and, if useful, the agent people talk to there).
 - Rules for how an agent behaves: rules. Test cases: rehearsals. Look and feel: theme (hex colours only).
@@ -24,6 +27,7 @@ Given a request and a scope, return the smallest set of typed edits that fully d
 - Use patches only when no typed edit fits.
 - If the message is a question about the project (not a change), set isQuestion=true and feasible=false, answer it in rationale in one or two plain sentences, and suggest one change they could ask for. Put that suggestion in summary, phrased as a request.
 - Set feasible=false only when it truly needs custom code or an outside system the blueprint cannot express; explain what a person would need to do.
+- The summary and rationale are a promise: describe only what your edits do. Never say rows are sorted, filtered, or that anyone is notified or asked to approve unless an edit does exactly that. If part of the request can't be done, say so plainly.
 ${STYLE_RULE}`;
 
 export type ProposeResult = { proposal: ChangeProposal; usage?: { model: string; inputTokens: number; outputTokens: number; costUsd: number; credits: number } };
@@ -71,24 +75,29 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     let feedback = "";
     type Usage = NonNullable<ProposeResult["usage"]>;
     const usageSoFar = (): Usage => ({ model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) });
-    // An attempt where only part of the edits applied. Never quoted as if it were whole: it is kept
-    // only as a fallback in case the retry can't do the whole thing either.
-    const best: { partial: { out: Edits; draft: Extract<Draft, { kind: "partial" }> } | null } = { partial: null };
+    // An attempt that fell short: only part of the edits applied, or its text promises something no edit
+    // does. Never quoted as it stands: it is kept only as a fallback in case the retry falls short too.
+    type Kept = { out: Edits; draft: Exclude<Draft, { kind: "failed" }>; gaps: Claim[]; misses: number };
+    const best: { kept: Kept | null } = { kept: null };
     const judge = (out: Edits): ProposeResult | null => {
       if (!out.feasible || out.isQuestion) {
         // A retry that gives up shouldn't throw away a first attempt that mostly worked.
-        if (best.partial) return null;
+        if (best.kept) return null;
         return { proposal: { summary: plainSummary(out.summary), rationale: plainText(out.rationale, "I can't do this one with the building blocks this app has."), operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live", ...(out.isQuestion ? { answer: true } : {}) }, usage: usageSoFar() };
       }
       const draft = draftEdits(bp, out, scopeScreenId);
-      if (draft.kind === "whole") return { proposal: quote(out.summary, plainText(out.rationale, WHOLE_FALLBACK), draft), usage: usageSoFar() };
-      if (draft.kind === "partial") {
-        if (!best.partial || draft.problems.length <= best.partial.draft.problems.length) best.partial = { out, draft };
-        feedback = `only part of them applied, and a change must apply whole. What failed: ${draft.problems.join("; ")}`;
-      } else {
+      if (draft.kind === "failed") {
         feedback = draft.feedback;
+        console.warn("[change] edits did not apply, retrying:", feedback);
+        return null;
       }
-      console.warn("[change] edits did not fully apply, retrying:", feedback);
+      // Read the text back against what the operations will actually do.
+      const gaps = unbackedClaims(`${out.summary}. ${out.rationale}`, bp, draft.blueprint);
+      if (draft.kind === "whole" && !gaps.length) return { proposal: quote(out.summary, plainText(out.rationale, WHOLE_FALLBACK), draft), usage: usageSoFar() };
+      const misses = (draft.kind === "partial" ? draft.problems.length : 0) + new Set(gaps.map((g) => g.kind)).size;
+      if (!best.kept || misses <= best.kept.misses) best.kept = { out, draft, gaps, misses };
+      feedback = [draft.kind === "partial" ? `only part of them applied, and a change must apply whole. What failed: ${draft.problems.join("; ")}` : "", gaps.length ? claimFeedback(gaps) : ""].filter(Boolean).join(". Also, ");
+      console.warn("[change] edits fell short, retrying:", feedback);
       return null;
     };
     // Up to two attempts: the second one sees exactly why the first failed or fell short.
@@ -132,9 +141,15 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         break;
       }
     }
-    // Still partial after the retry: quote only what applies (and price only that), and say plainly what was left out.
-    const partial = best.partial;
-    if (partial) return { proposal: quote(partial.out.summary, partialRationale(partial.draft.notes), partial.draft), usage: usageSoFar() };
+    // Still short after the retry: quote only what applies (and price only that), and say plainly what was left out.
+    const kept = best.kept;
+    if (kept) {
+      const { out, draft, gaps } = kept;
+      const notes = draft.kind === "partial" ? draft.notes : [];
+      const text = gaps.length ? honestText(out.summary, notes.length ? "" : plainText(out.rationale, ""), bp, draft.blueprint, gaps, notes.join(" ")) : null;
+      const rationale = notes.length ? partialRationale(text ? [...notes, text.rationale] : notes) : `${text?.rationale ?? plainText(out.rationale, WHOLE_FALLBACK)} The price covers only what will actually change.`;
+      return { proposal: quote(text?.summary ?? out.summary, rationale, draft), usage: usageSoFar() };
+    }
   }
   const rule = ruleProposal(bp, request, scope);
   if (rule.operations.length) {
@@ -142,7 +157,10 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     if (applied.ok) {
       const radius = blastRadius(bp, applied.blueprint);
       const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
-      return { proposal: { ...rule, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "rules" } };
+      // Offline rules write their own text; it's held to the same standard as the model's.
+      const gaps = unbackedClaims(`${rule.summary}. ${rule.rationale}`, bp, applied.blueprint);
+      const text = gaps.length ? honestText(rule.summary, rule.rationale, bp, applied.blueprint, gaps) : rule;
+      return { proposal: { ...rule, summary: text.summary, rationale: text.rationale, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "rules" } };
     }
   }
   return {

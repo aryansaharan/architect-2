@@ -1,10 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { ArrowRight, ChevronDown, Clock, Coins, FileCode2, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { creditsUsd } from "@/lib/format";
+import { buildTimeLabel } from "@/lib/blueprint/estimate";
+import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { useWorkspace } from "../context";
 import { Term } from "@/components/arch/term";
 
@@ -17,6 +19,8 @@ export function WorkOrderDock() {
   const missing = bp.connections.filter((c) => c.status === "missing");
   const remaining = Math.max(0, ws.usage.cap - ws.usage.credits);
   const over = est.credits > remaining;
+  // Production estimate and this demo's simulated playback, each labelled, so the quote never promises a time it doesn't keep.
+  const time = useMemo(() => buildTimeLabel(est.minutes, totalDuration(buildTimeline(bp))), [bp, est.minutes]);
 
   return (
     // Sits just above the composer dock, the same width, so the quote and the prompt read as one stack.
@@ -35,7 +39,7 @@ export function WorkOrderDock() {
             <p className="mt-1 text-[15px] font-semibold">Build {bp.meta.name}</p>
           </div>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px]">
-            <div className="flex items-center gap-1.5"><Clock className="size-3.5 text-muted-foreground" /><dt className="sr-only">Time</dt><dd>~{est.minutes} min</dd></div>
+            <div className="flex items-center gap-1.5"><Clock className="size-3.5 shrink-0 text-muted-foreground" /><dt className="sr-only">Time</dt><dd>{time.real} <span className="text-muted-foreground">· {time.here}</span></dd></div>
             <div className="flex items-center gap-1.5">
               <Coins className="size-3.5 text-muted-foreground" />
               <dt className="sr-only">Price</dt>

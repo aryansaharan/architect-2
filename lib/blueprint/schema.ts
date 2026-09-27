@@ -50,6 +50,17 @@ export const BlockSchema = z.discriminatedUnion("type", [
     filters: z.array(z.string()).default([]),
     rowAction: ActionSchema.optional(),
     pageSize: z.number().int().default(8),
+    /**
+     * Default row order. `order` ranks values top first (for enum columns, e.g. Urgent, High, Normal, Low);
+     * values it doesn't list follow in their natural order. "desc" reverses the whole order.
+     */
+    sort: z
+      .object({
+        column: z.string(),
+        dir: z.enum(["asc", "desc"]).default("asc"),
+        order: z.array(z.string()).max(12).optional(),
+      })
+      .optional(),
   }),
   z.object({
     type: z.literal("list"),
@@ -236,6 +247,7 @@ export const AgentSchema = z.object({
 export type Agent = z.infer<typeof AgentSchema>;
 
 export const EstimateSchema = z.object({
+  /** Minutes a real build takes in production. The demo's simulated build is far shorter: show both (buildTimeLabel). */
   minutes: z.number(),
   credits: z.number(),
   files: z.number(),
@@ -303,3 +315,46 @@ export function refToString(ref: ObjectRef): string {
 
 export const defaultPermissionFor = (access: ToolAccess): ToolPermission =>
   access === "read" ? "auto" : access === "write" ? "log" : "ask";
+
+export type TableSort = NonNullable<Extract<Block, { type: "table" }>["sort"]>;
+
+const isEmpty = (v: unknown) => v === undefined || v === null || v === "";
+
+/**
+ * Rows in a table's order, the same everywhere a table is shown: values ranked in `order` come first
+ * (top first), the rest follow in natural order (numbers by size, text A to Z, ISO dates oldest first).
+ * "desc" reverses that. Empty values always sink to the bottom, and ties keep their original order.
+ */
+export function sortRows<T>(rows: T[], valueOf: (row: T) => unknown, sort: { dir: "asc" | "desc"; order?: string[] }): T[] {
+  const rank = (sort.order ?? []).map((x) => x.toLowerCase());
+  const at = (v: unknown) => {
+    const i = rank.indexOf(String(v).toLowerCase());
+    return i === -1 ? rank.length : i;
+  };
+  const sign = sort.dir === "desc" ? -1 : 1;
+  return rows
+    .map((row, i) => ({ row, i, v: valueOf(row) }))
+    .sort((a, b) => {
+      const ea = isEmpty(a.v);
+      const eb = isEmpty(b.v);
+      if (ea || eb) return ea === eb ? a.i - b.i : ea ? 1 : -1;
+      let d = at(a.v) - at(b.v);
+      if (!d) {
+        if (typeof a.v === "number" && typeof b.v === "number") d = a.v - b.v;
+        else if (typeof a.v === "boolean" && typeof b.v === "boolean") d = Number(a.v) - Number(b.v);
+        else d = String(a.v).localeCompare(String(b.v), "en", { numeric: true, sensitivity: "base" });
+      }
+      return sign * d || a.i - b.i;
+    })
+    .map((x) => x.row);
+}
+
+/** Which rows come first, in words: "Urgent first", "newest first", "A to Z". */
+export function sortPhrase(sort: { dir: "asc" | "desc"; order?: string[] }, type?: string): string {
+  const desc = sort.dir === "desc";
+  if (sort.order?.length) return `${desc ? sort.order[sort.order.length - 1] : sort.order[0]} first`;
+  if (type === "number" || type === "money") return desc ? "highest first" : "lowest first";
+  if (type === "date") return desc ? "newest first" : "oldest first";
+  if (type === "boolean") return desc ? "Yes first" : "No first";
+  return desc ? "Z to A" : "A to Z";
+}

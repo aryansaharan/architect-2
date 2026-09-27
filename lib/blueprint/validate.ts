@@ -48,7 +48,7 @@ export function integrityErrors(bp: Blueprint): string[] {
     const where = `screen "${screenId}" block "${b.id}"`;
     switch (b.type) {
       case "table":
-        checkFields(where, b.entityId, [...b.columns, ...b.filters]);
+        checkFields(where, b.entityId, [...b.columns, ...b.filters, b.sort?.column]);
         checkAction(where, b.rowAction);
         break;
       case "list":

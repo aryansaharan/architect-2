@@ -24,6 +24,7 @@ export function estimate(bp: Blueprint, fileCount?: number): Estimate {
     9 + bp.screens.length + 5 * bp.agents.length + bp.entities.length;
   const complexity = bp.screens.length + bp.agents.length * 2 + bp.connections.length;
   return {
+    // A real build in production. Never shown bare: buildTimeLabel pairs it with the simulated playback's length.
     minutes: Math.max(2, Math.ceil(credits / 4)),
     credits,
     files,
@@ -33,8 +34,37 @@ export function estimate(bp: Blueprint, fileCount?: number): Estimate {
   };
 }
 
-/** Estimate for a scoped change (Work Order) given its blast radius. */
+/** Estimate for a scoped change (Work Order) given its blast radius. `minutes` is for a real change; show it with changeTimeLabel. */
 export function estimateChange(r: { screens: number; agents: number; files: number }): { credits: number; minutes: number } {
   const credits = Math.max(1, 3 * r.screens + 5 * r.agents + Math.ceil(r.files / 2));
   return { credits, minutes: Math.max(1, Math.ceil(credits / 5)) };
+}
+
+/**
+ * Honest time labels. `minutes` is what a real build or change of this size takes in production. This demo
+ * doesn't run one: the build is a simulated playback and a change applies at once. Every place a time shows
+ * says both, each for what it is, e.g. "about 27 min for a real build · about 30 s here (simulated)".
+ */
+export function simulatedDuration(ms: number): string {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return `${s < 15 ? s : Math.round(s / 5) * 5} s`;
+  const m = Math.floor(s / 60);
+  const rest = Math.round((s % 60) / 10) * 10;
+  return rest && rest < 60 ? `${m} min ${rest} s` : `${rest === 60 ? m + 1 : m} min`;
+}
+
+export type TimeLabel = { real: string; here: string; label: string };
+
+/** A full build: the production estimate plus the length of this demo's simulated playback at normal speed. */
+export function buildTimeLabel(minutes: number, simulatedMs: number): TimeLabel {
+  const real = `about ${minutes} min for a real build`;
+  const here = `about ${simulatedDuration(simulatedMs)} here (simulated)`;
+  return { real, here, label: `${real} · ${here}` };
+}
+
+/** A change (Work Order): the production estimate; here it applies as soon as it's approved. */
+export function changeTimeLabel(minutes: number): TimeLabel {
+  const real = `about ${Math.max(1, minutes)} min for a real change`;
+  const here = "instant here (simulated)";
+  return { real, here, label: `${real} · ${here}` };
 }

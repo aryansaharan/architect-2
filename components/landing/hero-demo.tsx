@@ -154,7 +154,7 @@ export function HeroDemo({ examples }: { examples: HeroExample[] }) {
           aria-hidden={progress <= 0.95}
         >
           <span className="font-mono text-[10px] uppercase tracking-wider text-amber">Work Order</span>
-          <span className="inline-flex items-center gap-1"><Clock className="size-3 text-muted-foreground" />~{ex.minutes} min</span>
+          <span className="inline-flex items-center gap-1"><Clock className="size-3 text-muted-foreground" />~{ex.minutes} min for a real build</span>
           <span className="inline-flex items-center gap-1"><Coins className="size-3 text-muted-foreground" />{ex.credits} credits ≈ ${(ex.credits / 100).toFixed(2)}</span>
           <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3 text-ask" />{gates} action{gates === 1 ? "" : "s"} ask{gates === 1 ? "s" : ""} first</span>
           <span className="ml-auto text-muted-foreground">Nothing runs until you approve</span>

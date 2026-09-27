@@ -36,12 +36,28 @@ export const EditsSchema = z.object({
         entity: NamedRef,
         field: z.string().describe("Field name (existing or just added)"),
         screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity"),
-        first: z.boolean().default(false).describe("true to show it first (e.g. 'sort by')"),
+        first: z.boolean().default(false).describe("true to put the column on the far left. This is column position only: it does not sort rows (use sortTables)"),
         position: z.coerce.number().int().default(0).describe("Where the column goes, counting from 1 on the left: 2 = the second column. 0 = at the end. Use this for any column order; never a patch."),
       }),
     )
     .default([]).describe("Show a detail as a table column, optionally at a position"),
   removeColumns: z.array(z.object({ entity: NamedRef, field: z.string(), screen: z.string().default("") })).default([]),
+  sortTables: z
+    .array(
+      z.object({
+        entity: NamedRef,
+        field: z.string().describe("Field to sort rows by (existing or just added)"),
+        screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity"),
+        dir: z.enum(["asc", "desc"]).default("asc").describe("asc = A to Z, lowest, oldest first. desc = Z to A, highest, newest first. Ignored when order is given."),
+        order: z.array(z.string()).default([]).describe("For enum fields: the options in the order rows should appear, top first, e.g. ['Urgent','High','Normal','Low'] for 'urgent first'. Empty for plain A to Z, number or date order."),
+      }),
+    )
+    .default([])
+    .describe("The order a table's rows appear in by default: 'sort by amount', 'urgent first', 'newest at the top'. This orders rows, not columns."),
+  addFilters: z
+    .array(z.object({ entity: NamedRef, field: z.string().describe("Field people can filter the table by, usually an enum"), screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity") }))
+    .default([])
+    .describe("A filter menu on a table ('let me filter by priority'). People pick the value; a table never hides rows by default."),
   permissions: z
     .array(
       z.object({
@@ -174,6 +190,24 @@ function buildScreen(bp: Blueprint, s: Edits["newScreens"][number]): Screen {
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
+
+/**
+ * The full ranking for a sort, top first. For an enum field the values asked for come first and every
+ * other option follows, so no row falls outside the order: the rest run the same way as what was asked
+ * ("urgent first" on Low, Medium, High, Urgent gives Urgent, High, Medium, Low). An enum sort with no
+ * order uses the options as authored. Null when an order was given but names none of the options.
+ */
+export function rankOrder(field: { type: string; options?: string[] }, wanted: string[]): string[] | undefined | null {
+  const asked = [...new Set(wanted.map((w) => w.trim()).filter(Boolean))];
+  const options = field.type === "enum" ? (field.options ?? []) : [];
+  if (!options.length) return asked.length ? asked.slice(0, 12) : undefined;
+  if (!asked.length) return options.slice(0, 12);
+  const hit = [...new Set(asked.map((a) => options.find((o) => norm(o) === norm(a))).filter((o): o is string => Boolean(o)))];
+  if (!hit.length) return null;
+  const rest = options.filter((o) => !hit.includes(o));
+  const mean = hit.reduce((n, o) => n + options.indexOf(o), 0) / hit.length;
+  return [...hit, ...(mean > (options.length - 1) / 2 ? rest.reverse() : rest)].slice(0, 12);
+}
 
 /**
  * `problems` are exact, technical reasons for the model's retry. `notes` say the same
@@ -309,6 +343,36 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
     next.screens.push(buildScreen(next, s));
   }
 
+  // After new screens, so a table added in the same change can be sorted or filtered too.
+  for (const f of e.addFilters) {
+    const ent = find(next.entities, f.entity, entityNames);
+    if (!ent) { fail(`addFilters: no data type called "${f.entity}"`, `I couldn't find “${f.entity}” in this app, so no “${f.field}” filter is added.`); continue; }
+    const field = ent.fields.find((x) => x.name === snake(f.field) || norm(x.label ?? "") === norm(f.field) || norm(x.name) === norm(f.field));
+    if (!field) { fail(`addFilters: ${ent.plural} has no field "${f.field}"; add it with addFields first`, `${ent.plural} don't store “${f.field}”, so there's nothing to filter by.`); continue; }
+    const tables = tablesFor(ent.id, f.screen);
+    if (!tables.length) { fail(`addFilters: no table shows ${ent.plural}`, `No table lists ${ent.plural}, so the “${f.field}” filter has nowhere to go.`); continue; }
+    for (const t of tables) if (!t.filters.includes(field.name)) t.filters = [...t.filters, field.name];
+  }
+
+  for (const o of e.sortTables) {
+    const ent = find(next.entities, o.entity, entityNames);
+    if (!ent) { fail(`sortTables: no data type called "${o.entity}"`, `I couldn't find “${o.entity}” in this app, so nothing is sorted by “${o.field}”.`); continue; }
+    const field = ent.fields.find((x) => x.name === snake(o.field) || norm(x.label ?? "") === norm(o.field) || norm(x.name) === norm(o.field));
+    if (!field) { fail(`sortTables: ${ent.plural} has no field "${o.field}"; add it with addFields first`, `${ent.plural} don't store “${o.field}”, so the table isn't sorted by it.`); continue; }
+    const tables = tablesFor(ent.id, o.screen);
+    if (!tables.length) { fail(`sortTables: no table shows ${ent.plural}; add a screen for it instead`, `No table lists ${ent.plural}, so there's nothing to sort.`); continue; }
+    const order = rankOrder(field, o.order);
+    if (order === null) {
+      fail(
+        `sortTables: none of ${o.order.join(", ")} is an option of ${field.name} (its options are ${(field.options ?? []).join(", ")})`,
+        `“${o.order.join(", ")}” isn't one of the ${(field.label ?? title(field.name)).toLowerCase()} values, so the table isn't sorted that way.`,
+      );
+      continue;
+    }
+    // An explicit order is already top first, so it always reads ascending.
+    for (const t of tables) t.sort = order ? { column: field.name, dir: "asc", order } : { column: field.name, dir: o.dir };
+  }
+
   for (const p of e.patches) {
     let value: unknown = undefined;
     if (p.op !== "remove") {
@@ -372,10 +436,10 @@ export function partialRationale(notes: string[]): string {
 export function blueprintIndex(bp: Blueprint): string {
   const lines: string[] = [`Project: ${bp.meta.name} (theme ${bp.meta.theme.primary}, radius ${bp.meta.theme.radius}, density ${bp.meta.theme.density})`];
   lines.push("Data types:");
-  for (const e of bp.entities) lines.push(`- ${e.name} / ${e.plural} (id ${e.id}): ${e.fields.map((f) => `${f.name}:${f.type}`).join(", ")} · ${e.sample.length} sample records`);
+  for (const e of bp.entities) lines.push(`- ${e.name} / ${e.plural} (id ${e.id}): ${e.fields.map((f) => `${f.name}:${f.type}${f.type === "enum" && f.options?.length ? `(${f.options.join("|")})` : ""}`).join(", ")} · ${e.sample.length} sample records`);
   lines.push("Screens:");
   bp.screens.forEach((s, i) => {
-    const blocks = [...s.regions.main, ...s.regions.side].map((b) => (b.type === "table" ? `table(${bp.entities.find((x) => x.id === b.entityId)?.name}, columns in order: ${b.columns.join(", ")})` : b.type === "chat" ? `chat(${bp.agents.find((a) => a.id === b.agentId)?.name})` : b.type));
+    const blocks = [...s.regions.main, ...s.regions.side].map((b) => (b.type === "table" ? `table(${bp.entities.find((x) => x.id === b.entityId)?.name}, columns in order: ${b.columns.join(", ")}, ${b.sort ? `rows sorted by ${b.sort.column} ${b.sort.order?.length ? b.sort.order.join(" > ") : b.sort.dir}` : "rows unsorted"})` : b.type === "chat" ? `chat(${bp.agents.find((a) => a.id === b.agentId)?.name})` : b.type));
     lines.push(`- ${s.title} (id ${s.id}, path /screens/${i}, ${s.audience}): ${blocks.join(" · ")}`);
   });
   lines.push("Agents:");
@@ -411,6 +475,11 @@ export function salvageEdits(raw: unknown): Edits | null {
     if (t.radius && !["keep", "sm", "md", "lg"].includes(String(t.radius))) t.radius = "keep";
     if (t.density && !["keep", "compact", "comfortable"].includes(String(t.density))) t.density = "keep";
   }
+  arr("sortTables")?.forEach((o) => {
+    const d = String(o.dir ?? "asc").toLowerCase();
+    o.dir = /^desc|high|new|late|big|large|z/.test(d) ? "desc" : "asc";
+    if (typeof o.order === "string") o.order = String(o.order).split(/\s*(?:,|>|\|)\s*/).filter(Boolean);
+  });
   arr("addColumns")?.forEach((c) => {
     if (typeof c.first !== "boolean") c.first = String(c.first).toLowerCase() === "true";
     if (c.position !== undefined && typeof c.position !== "number") c.position = parseInt(String(c.position), 10) || 0;

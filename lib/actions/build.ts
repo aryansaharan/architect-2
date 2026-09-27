@@ -102,7 +102,7 @@ export async function startBuild(projectId: string): Promise<StartBuildResult> {
               lane: "thought",
               kind: "work_order",
               title: "You approved the Work Order",
-              body: `Build ${project.blueprint.screens.length} screens and ${project.blueprint.agents.length} agents · est. ${project.blueprint.estimate.minutes} min. ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
+              body: `Build ${project.blueprint.screens.length} screens and ${project.blueprint.agents.length} agents · about ${project.blueprint.estimate.minutes} min for a real build, about 30 s here (simulated). ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
               credits,
             }
           : {

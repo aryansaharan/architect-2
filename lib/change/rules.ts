@@ -1,7 +1,8 @@
-import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
+import { sortPhrase, type Blueprint, type ObjectRef } from "@/lib/blueprint/schema";
 import { findBlock } from "@/lib/blueprint";
 import { presetPermission } from "@/lib/blueprint/describe";
 import type { ChangeOperation } from "@/lib/db/types";
+import { rankOrder } from "./edits";
 
 type RuleResult = { summary: string; rationale: string; operations: ChangeOperation[] };
 
@@ -27,6 +28,78 @@ function columnPlace(lower: string): Place | null {
   if (end) return { phrase: end[0], kind: "end" };
   const rel = lower.match(/\b(right after|after|just after|right before|before|just before|next to)\s+(?:the\s+)?[“"']?([a-z][a-z0-9 _-]{0,29}?)[”"']?(?:\s+column)?(?=[.,!?]|$)/);
   if (rel) return { phrase: rel[0], kind: "relative", after: !rel[1].includes("before"), ref: rel[2].trim() };
+  return null;
+}
+
+/** Known enum scales, top first, for a new column that rows are ranked by. */
+const SCALES = [
+  ["Urgent", "High", "Normal", "Low"],
+  ["Critical", "High", "Medium", "Low"],
+  ["High", "Medium", "Low"],
+  ["Overdue", "Due soon", "On track"],
+  ["VIP", "Standard"],
+];
+const PRIORITY_WORDS = /\b(?:priority|urgency|severity|importance)\b/;
+
+/** Sample value i for a new enum column: every value shows up, out of order, so the sort is visible. */
+const sampleAt = (scale: string[], i: number) => scale[(i * (scale.length % 3 === 0 ? 2 : 3) + 1) % scale.length];
+
+/** For severity-like options (Urgent, High, Normal, Low in any order), the most severe first. Null otherwise. */
+function severity(options: string[] | undefined): string[] | null {
+  const score = (o: string) => (/urgent|critical|blocker|p0/i.test(o) ? 4 : /^high|high$/i.test(o) ? 3 : /medium|normal|moderate|standard/i.test(o) ? 2 : /^low|minor|low$/i.test(o) ? 1 : 0);
+  if (!options || options.filter((o) => score(o) > 0).length < 2) return null;
+  return [...options].sort((a, b) => score(b) - score(a));
+}
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const FIRST = String.raw`(?:first|at the top|on top|to the top|up top)`;
+
+type SortAsk = { field?: string; value?: string; dir: "asc" | "desc"; scale?: string[] };
+
+/**
+ * Row order read from the request: "sort by amount", "urgent claims first", "newest at the top",
+ * "highest fraud score first". `field` is a field name or the words for a new one; `value` is the
+ * enum value that goes first; `scale` is the options for a new column ranked that way.
+ */
+function readSort(text: string, entity: Blueprint["entities"][number], columns: string[], newCol: string | undefined): SortAsk | null {
+  const desc = /\b(?:desc|descending|highest|largest|biggest|newest|latest|most recent|most|high to low|z to a|reverse)\b/.test(text);
+  const fieldBy = (words: string) => entity.fields.find((f) => f.name === snake(words) || (f.label ?? "").toLowerCase() === words || f.name.replace(/_/g, " ") === words);
+  const by = text.match(/\b(?:sort|sorted|order|ordered|rank|ranked|arrange)\s+(?:it |this |them |the table |the list |the queue |rows |[a-z]+ )?by\s+(?:the\s+)?([a-z][a-z0-9 _-]{0,29}?)(?:\s+column)?(?=[”"'.,!?;]|\s+(?:with|so|and|then|in|on|to|from|descending|ascending|desc|asc|highest|lowest|newest|oldest|latest|earliest|biggest|largest|smallest|most|least|high|low|a to z|z to a|please|first)\b|$)/);
+  if (by) {
+    const f = fieldBy(by[1].trim());
+    const sev = f?.type === "enum" ? severity(f.options) : null;
+    // "Sort by priority" means most urgent first; "lowest first" or "ascending" turns it round.
+    if (sev) return { field: by[1].trim(), dir: "asc", value: /\b(?:asc|ascending|lowest|least|low to high)\b/.test(text) ? sev[sev.length - 1] : sev[0] };
+    return { field: by[1].trim(), dir: desc ? "desc" : "asc", ...(PRIORITY_WORDS.test(by[1]) && !f ? { value: SCALES[0][0], scale: SCALES[0] } : {}) };
+  }
+  // "<value> … first": the words just before "first" / "at the top", within the same clause, not a column's place.
+  const first = text.match(new RegExp(String.raw`([a-z0-9 ,'’-]{0,60}?)\s*\b` + FIRST + String.raw`\b`));
+  const window = first ? (first[1].split(/[,;]| and | so | then | with | where | but /).pop() ?? "") : "";
+  if (first && !/\bcolumns?\b/.test(window)) {
+    for (const f of entity.fields) {
+      if (f.type !== "enum") continue;
+      const hit = (f.options ?? []).find((o) => new RegExp(String.raw`\b${esc(o.toLowerCase())}\b`).test(window));
+      if (hit) return { field: f.name, value: hit, dir: "asc" };
+    }
+    if (newCol && !fieldBy(newCol)) {
+      const scales = PRIORITY_WORDS.test(newCol) ? SCALES : SCALES.slice(2);
+      for (const scale of scales) {
+        const hit = scale.find((o) => new RegExp(String.raw`\b${esc(o.toLowerCase())}\b`).test(window));
+        if (hit) return { field: newCol, value: hit, dir: "asc", scale };
+      }
+    }
+    const recent = window.match(/\b(newest|latest|most recent|oldest|earliest)\b/);
+    if (recent) {
+      const date = columns.map((c) => entity.fields.find((f) => f.name === c)).find((f) => f?.type === "date") ?? entity.fields.find((f) => f.type === "date");
+      if (date) return { field: date.name, dir: /oldest|earliest/.test(recent[1]) ? "asc" : "desc" };
+    }
+    const size = window.match(/\b(highest|largest|biggest|most expensive|lowest|smallest|cheapest)\b\s*([a-z][a-z0-9 _-]{0,29})?$/);
+    if (size) {
+      const named = size[2] ? fieldBy(size[2].trim()) ?? fieldBy(size[2].trim().replace(/s$/, "")) : undefined;
+      const num = named && (named.type === "number" || named.type === "money") ? named : columns.map((c) => entity.fields.find((f) => f.name === c)).find((f) => f?.type === "money" || f?.type === "number");
+      if (num) return { field: num.name, dir: /lowest|smallest|cheapest/.test(size[1]) ? "asc" : "desc" };
+    }
+  }
   return null;
 }
 
@@ -81,7 +154,7 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
     };
   }
 
-  // Tables: "add a column for X", "sort by X", "show X first"
+  // Tables: "add a column for X", "sort by X", "urgent first", "newest at the top"
   const tableRef = scope?.type === "block" ? findBlock(bp, scope.id) : scope?.type === "screen" ? { screen: bp.screens.find((s) => s.id === scope.id)!, block: undefined } : null;
   const screen = tableRef?.screen ?? bp.screens[0];
   const si = bp.screens.findIndex((s) => s.id === screen.id);
@@ -95,47 +168,76 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
     // the text so it can't be mistaken for the column's name.
     const place = columnPlace(lower);
     const text2 = place ? lower.replace(place.phrase, " ").replace(/\s+/g, " ") : lower;
-    const STOP = String.raw`(?=[”"'.,!?]|\s+(?:to|in|on|into|onto|of|as|after|before|column|field|please)\b|$)`;
+    const STOP = String.raw`(?=[”"'.,!?]|\s+(?:to|in|on|into|onto|of|as|after|before|column|field|please|with|so|and|sorted|sort|then)\b|$)`;
     const col = text2.match(new RegExp(String.raw`(?:add|show) (?:a |an |the )?(?:column|field)?\s*(?:for|called|named|with)?\s*[“"']?([a-z][a-z0-9 _-]{0,29}?)` + STOP, "i"))?.[1]?.trim();
-    const sortBy = text2.match(new RegExp(String.raw`(?:sort|order|rank) (?:it |this |them |the table )?by ([a-z][a-z0-9 _-]{0,29}?)` + STOP))?.[1]?.trim();
-    const target = sortBy ?? (lower.includes("column") || lower.includes("field") ? col : undefined);
+    const newCol = lower.includes("column") || lower.includes("field") ? col : undefined;
+    const sort = readSort(text2, entity, table.columns, newCol);
+    const target = newCol ?? sort?.field;
+    const findField = (w: string) => entity.fields.find((f) => f.name === snake(w) || (f.label ?? "").toLowerCase() === w || f.name.replace(/_/g, " ") === w);
     if (target) {
-      const existing = entity.fields.find((f) => f.name === snake(target) || (f.label ?? "").toLowerCase() === target);
+      const existing = findField(target);
+      // "Sort by X" when X isn't stored and isn't a known scale: offline there's nothing honest to sort by.
+      if (!existing && !newCol && !sort?.scale) return none;
       const name = existing?.name ?? snake(target);
+      const label = existing?.label ?? target.replace(/\b\w/g, (c) => c.toUpperCase());
       const ops: ChangeOperation[] = [];
+      // A new column that rows are ranked by ("a priority column with urgent claims first") is an enum on a known scale.
+      const scale = !existing && sort?.field === target && sort.scale ? sort.scale : null;
       if (!existing) {
-        ops.push({ op: "add", path: `/entities/${ei}/fields/-`, value: { name, label: target.replace(/\b\w/g, (c) => c.toUpperCase()), type: "string" } });
-        entity.sample.forEach((_, ri) => ops.push({ op: "set", path: `/entities/${ei}/sample/${ri}/${name}`, value: ["Low", "Medium", "High"][ri % 3] }));
+        ops.push({ op: "add", path: `/entities/${ei}/fields/-`, value: scale ? { name, label, type: "enum", options: scale } : { name, label, type: "string" } });
+        entity.sample.forEach((_, ri) => ops.push({ op: "set", path: `/entities/${ei}/sample/${ri}/${name}`, value: scale ? sampleAt(scale, ri) : ["Low", "Medium", "High"][ri % 3] }));
       }
-      const cols = table.columns.filter((c) => c !== name);
+      const field = existing ?? { name, label, type: scale ? "enum" : "string", options: scale ?? undefined };
       const labelOf = (c: string) => entity.fields.find((f) => f.name === c)?.label ?? c.replace(/_/g, " ");
-      // Resolve the place to an index among the other columns; null when it names a column that isn't there.
-      let at: number | null = cols.length;
-      let where = "";
-      if (sortBy) { at = 0; where = ""; }
-      else if (place?.kind === "index") { at = Math.min(place.n - 1, cols.length); where = at === 0 ? ", as the first column" : at === cols.length ? ", at the end" : `, as the ${ORDINAL_WORDS[at] ?? `#${at + 1}`} column`; }
-      else if (place?.kind === "end") { at = cols.length; where = ", at the end"; }
-      else if (place?.kind === "relative") {
-        const ref = cols.findIndex((c) => c === snake(place.ref) || labelOf(c).toLowerCase() === place.ref);
-        if (ref === -1) at = null;
-        else { at = place.after ? ref + 1 : ref; where = `, ${place.after ? "after" : "before"} ${labelOf(cols[ref])}`; }
-      }
-      const idx = at ?? cols.length;
-      const next = [...cols.slice(0, idx), name, ...cols.slice(idx)];
-      // A table shows at most 8 columns: make room by dropping the last one that isn't the new column.
-      if (next.length > 8) {
-        let k = next.length - 1;
-        while (next[k] === name) k--;
-        next.splice(k, 1);
-      }
-      ops.push({ op: "set", path: `/screens/${si}/regions/main/${ti}/columns`, value: next });
       const tableName = table.title ?? entity.plural;
-      const missed = at === null && place?.kind === "relative" ? ` I couldn't find a “${place.ref}” column in ${tableName}, so it's added at the end. Ask again to move it.` : "";
-      return {
-        summary: sortBy ? `Show ${target} first in ${tableName}` : `Add a “${target}” column to ${tableName}${where}`,
-        rationale: (existing ? "Uses data the app already stores." : `Adds a new detail to ${entity.plural} and fills the sample records so you can see it.`) + missed,
-        operations: ops,
-      };
+
+      // Columns: a new column goes where it was asked for. Sorting by a detail the table doesn't show also shows it
+      // (at the end), so the order can be seen. Sorting never moves a column.
+      let where = "";
+      let missed = "";
+      let shown = false;
+      if (newCol || !table.columns.includes(name)) {
+        const cols = table.columns.filter((c) => c !== name);
+        // Resolve the place to an index among the other columns; null when it names a column that isn't there.
+        let at: number | null = cols.length;
+        if (newCol && place?.kind === "index") { at = Math.min(place.n - 1, cols.length); where = at === 0 ? ", as the first column" : at === cols.length ? ", at the end" : `, as the ${ORDINAL_WORDS[at] ?? `#${at + 1}`} column`; }
+        else if (newCol && place?.kind === "end") { at = cols.length; where = ", at the end"; }
+        else if (newCol && place?.kind === "relative") {
+          const ref = cols.findIndex((c) => c === snake(place.ref) || labelOf(c).toLowerCase() === place.ref);
+          if (ref === -1) at = null;
+          else { at = place.after ? ref + 1 : ref; where = `, ${place.after ? "after" : "before"} ${labelOf(cols[ref])}`; }
+        }
+        const idx = at ?? cols.length;
+        const next = [...cols.slice(0, idx), name, ...cols.slice(idx)];
+        // A table shows at most 8 columns: make room by dropping the last one that isn't the new column.
+        if (next.length > 8) {
+          let k = next.length - 1;
+          while (next[k] === name) k--;
+          next.splice(k, 1);
+        }
+        ops.push({ op: "set", path: `/screens/${si}/regions/main/${ti}/columns`, value: next });
+        shown = !newCol;
+        if (at === null && place?.kind === "relative") missed = ` I couldn't find a “${place.ref}” column in ${tableName}, so it's added at the end. Ask again to move it.`;
+      }
+
+      // Row order: by the new column, or by another detail the table's data already has.
+      const sortField = !sort ? undefined : sort.field === target ? field : findField(sort.field ?? "");
+      let sorted = "";
+      let phrase = "";
+      if (sort && sortField) {
+        const base = sortField.type === "enum" ? (severity(sortField.options) ?? sortField.options ?? []) : [];
+        const order = sort.value ? (rankOrder(sortField, [sort.value]) ?? undefined) : base.length ? (sort.dir === "desc" ? [...base].reverse() : base) : undefined;
+        const value = order?.length ? { column: sortField.name, dir: "asc" as const, order } : { column: sortField.name, dir: sort.dir };
+        ops.push({ op: "set", path: `/screens/${si}/regions/main/${ti}/sort`, value });
+        phrase = sortPhrase(value, sortField.type);
+        sorted = sortField.name === name ? phrase : `by ${sortField.label ?? sortField.name.replace(/_/g, " ")} (${phrase})`;
+      }
+      const sortLabel = sortField?.label ?? sortField?.name.replace(/_/g, " ") ?? label;
+
+      const summary = newCol ? `Add a “${target}” column to ${tableName}${where}${sorted ? `, sorted ${sorted}` : ""}` : `Sort ${tableName} by ${label} (${sorted})`;
+      const why = existing ? "Uses data the app already stores." : `Adds a new detail to ${entity.plural} and fills the sample records so you can see it.`;
+      const how = sorted ? ` Rows are sorted by ${sortLabel}, ${phrase}${shown ? `, and ${label} is added as a column so you can see the order` : ""}. People can still click a column header to re-sort.` : "";
+      return { summary, rationale: why + how + missed, operations: ops };
     }
   }
   return none;

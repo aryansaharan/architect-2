@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Search, Sparkles, Upload } from "lucide-react";
-import type { Action, Block, Entity } from "@/lib/blueprint/schema";
+import { sortPhrase, sortRows, type Action, type Block, type Entity } from "@/lib/blueprint/schema";
 import { formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { enumTone, useApp } from "./app-context";
@@ -15,9 +15,10 @@ export function Card({ title, children, className, right }: { title?: string; ch
   return (
     <section className={cn("rounded-[calc(var(--app-radius)+4px)] border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]", className)}>
       {(title || right) && (
-        <header className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
-          {title && <h3 className="text-[14px] font-semibold text-slate-900">{title}</h3>}
-          <div className="ml-auto flex items-center gap-2">{right}</div>
+        // Wraps instead of overflowing, so filters and search never push a narrow card (phone, side column) wider than its frame.
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 px-4 py-3">
+          {title && <h3 className="min-w-0 text-[14px] font-semibold text-slate-900">{title}</h3>}
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">{right}</div>
         </header>
       )}
       {children}
@@ -76,9 +77,14 @@ export function KpisBlock({ block }: { block: Extract<Block, { type: "kpis" }> }
   );
 }
 
-/** Horizontal scroller with fading edges while there is more to see, so a clipped column never looks like the end. */
-function ScrollX({ children, onOverflow }: { children: React.ReactNode; onOverflow?: (more: boolean) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+/**
+ * Horizontal scroller with fading edges while there is more to see, so a clipped column never looks like the end.
+ * `min-w-0 max-w-full` keeps it inside any frame (phone, tablet, a narrow side column): the table scrolls, it never
+ * pushes its parent wider or gets cut off. It is focusable, so keyboard users can scroll it with the arrow keys.
+ */
+function ScrollX({ children, label, onOverflow, scrollRef }: { children: React.ReactNode; label: string; onOverflow?: (more: boolean) => void; scrollRef?: React.RefObject<HTMLDivElement | null> }) {
+  const own = useRef<HTMLDivElement>(null);
+  const ref = scrollRef ?? own;
   const [edges, setEdges] = useState({ left: false, right: false });
   useEffect(() => {
     const el = ref.current;
@@ -97,11 +103,13 @@ function ScrollX({ children, onOverflow }: { children: React.ReactNode; onOverfl
       el.removeEventListener("scroll", update);
       ro.disconnect();
     };
-  }, []);
+  }, [ref]);
   useEffect(() => onOverflow?.(edges.right), [edges.right, onOverflow]);
   return (
-    <div className="relative">
-      <div ref={ref} className="overflow-x-auto overscroll-x-contain">{children}</div>
+    <div className="relative min-w-0 max-w-full">
+      <div ref={ref} role="region" aria-label={label} tabIndex={edges.left || edges.right ? 0 : -1} className="w-full max-w-full overflow-x-auto overscroll-x-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-300">
+        {children}
+      </div>
       <div aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent transition-opacity duration-200", edges.left ? "opacity-100" : "opacity-0")} />
       <div aria-hidden className={cn("pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white via-white/70 to-transparent transition-opacity duration-200", edges.right ? "opacity-100" : "opacity-0")} />
     </div>
@@ -114,50 +122,66 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
   const entity = app.entity(block.entityId);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+  // The table opens in the order the blueprint sets (block.sort); clicking a header re-sorts it for this person only.
+  // A click belongs to the order it was made against, so when the blueprint's order changes, that order shows again.
+  const basis = JSON.stringify(block.sort ?? null);
+  const [picked, setPicked] = useState<{ col: string; dir: "asc" | "desc"; basis: string } | null>(null);
+  const sort = picked && picked.basis === basis ? picked : block.sort ? { col: block.sort.column, dir: block.sort.dir } : null;
+  const byDefault = Boolean(block.sort) && sort?.col === block.sort?.column && sort?.dir === block.sort?.dir;
   const [page, setPage] = useState(0);
-  const rows = useMemo(() => {
-    let r = (entity?.sample ?? []).map((row, i) => ({ row, i }));
-    if (q) r = r.filter(({ row }) => Object.values(row).some((v) => String(v).toLowerCase().includes(q.toLowerCase())));
-    for (const [k, v] of Object.entries(filters)) if (v) r = r.filter(({ row }) => String(row[k]) === v);
-    if (sort) r = [...r].sort((a, b) => (a.row[sort.col] > b.row[sort.col] ? 1 : a.row[sort.col] < b.row[sort.col] ? -1 : 0) * sort.dir);
-    return r;
-  }, [entity, q, filters, sort]);
+  const scroller = useRef<HTMLDivElement>(null);
+  const field = (c: string) => entity?.fields.find((f) => f.name === c);
+  // Enum columns rank by the blueprint's order when it has one, otherwise by the options as authored (Low, Medium, High).
+  const rankFor = (c: string) => (c === block.sort?.column && block.sort.order?.length ? block.sort.order : field(c)?.type === "enum" ? field(c)?.options : undefined);
+  const sortCol = sort?.col;
+  const sortDir = sort?.dir ?? "asc";
+  const sortOrder = sortCol ? rankFor(sortCol) : undefined;
+  // Sample data is at most 12 rows, so this is cheap enough to work out on every render.
+  let rows = (entity?.sample ?? []).map((row, i) => ({ row, i }));
+  if (q) rows = rows.filter(({ row }) => Object.values(row).some((v) => String(v).toLowerCase().includes(q.toLowerCase())));
+  for (const [k, v] of Object.entries(filters)) if (v) rows = rows.filter(({ row }) => String(row[k]) === v);
+  if (sortCol) rows = sortRows(rows, ({ row }) => row[sortCol], { dir: sortDir, order: sortOrder });
   const pages = Math.max(1, Math.ceil(rows.length / block.pageSize));
   const view = rows.slice(page * block.pageSize, (page + 1) * block.pageSize);
-  const label = (c: string) => entity?.fields.find((f) => f.name === c)?.label ?? c;
+  const label = (c: string) => field(c)?.label ?? c;
   const [moreRight, setMoreRight] = useState(false);
+  const title = block.title ?? entity?.plural ?? "Table";
 
   return (
     <Card
-      title={block.title ?? entity?.plural}
+      className="min-w-0 max-w-full"
+      title={title}
       right={
         <>
-          {block.filters.map((f) => {
-            const field = entity?.fields.find((x) => x.name === f);
-            return (
-              <select key={f} aria-label={`Filter by ${label(f)}`} value={filters[f] ?? ""} onChange={(e) => { setFilters((s) => ({ ...s, [f]: e.target.value })); setPage(0); }} className="h-8 rounded-[var(--app-radius)] border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 [.app-phone_&]:hidden">
-                <option value="">All {label(f).toLowerCase()}</option>
-                {(field?.options ?? [...new Set(entity?.sample.map((r) => String(r[f])))]).map((o) => <option key={o}>{o}</option>)}
-              </select>
-            );
-          })}
-          <label className="flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] border border-slate-200 bg-white px-2 text-slate-400">
-            <Search className="size-3.5" />
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search" className="w-24 bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400" />
+          {block.filters.map((f) => (
+            <select key={f} aria-label={`Filter by ${label(f)}`} value={filters[f] ?? ""} onChange={(e) => { setFilters((s) => ({ ...s, [f]: e.target.value })); setPage(0); }} className="h-8 min-w-0 max-w-[12rem] rounded-[var(--app-radius)] border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 [.app-phone_&]:hidden">
+              <option value="">All {label(f).toLowerCase()}</option>
+              {(field(f)?.options ?? [...new Set(entity?.sample.map((r) => String(r[f])))]).map((o) => <option key={o}>{o}</option>)}
+            </select>
+          ))}
+          <label className="flex h-8 min-w-0 items-center gap-1.5 rounded-[var(--app-radius)] border border-slate-200 bg-white px-2 text-slate-400">
+            <Search className="size-3.5 shrink-0" />
+            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search" aria-label={`Search ${title.toLowerCase()}`} className="w-24 min-w-0 bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400" />
           </label>
         </>
       }
     >
-      <ScrollX onOverflow={setMoreRight}>
-        <table className="w-full text-left text-[13px]">
+      <ScrollX label={title} onOverflow={setMoreRight} scrollRef={scroller}>
+        {/* min-w-max: columns keep their natural width and the scroller takes the overflow, so none is ever squeezed or cut off. */}
+        <table className="w-full min-w-max text-left text-[13px]">
           <thead>
             <tr className="border-b border-slate-100 text-[12px] text-slate-500">
               {block.columns.map((c) => (
-                <th key={c} className="whitespace-nowrap px-4 py-2.5 font-medium">
-                  <button className="inline-flex items-center gap-1 hover:text-slate-900" onClick={() => setSort((s) => (s?.col === c ? { col: c, dir: s.dir === 1 ? -1 : 1 } : { col: c, dir: 1 }))}>
+                <th key={c} aria-sort={sort?.col === c ? (sort.dir === "asc" ? "ascending" : "descending") : undefined} className="whitespace-nowrap px-4 py-2.5 font-medium">
+                  <button
+                    className={cn("inline-flex items-center gap-1 hover:text-slate-900", sort?.col === c && "text-slate-900")}
+                    onClick={() => {
+                      setPicked({ col: c, dir: sort?.col === c && sort.dir === "asc" ? "desc" : "asc", basis });
+                      setPage(0);
+                    }}
+                  >
                     {label(c)}
-                    {sort?.col === c && (sort.dir === 1 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+                    {sort?.col === c && (sort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                   </button>
                 </th>
               ))}
@@ -179,9 +203,19 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
           </tbody>
         </table>
       </ScrollX>
-      <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
+      <footer className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
         <span>{rows.length} {rows.length === 1 ? entity?.name.toLowerCase() : entity?.plural.toLowerCase()}</span>
-        {moreRight && <span className="mr-auto inline-flex items-center gap-1 text-slate-400">More columns <ArrowRight className="size-3" /></span>}
+        {byDefault && sortCol && (
+          <span className="inline-flex items-center gap-1 text-slate-400" title={sortOrder?.length ? `Order: ${(sortDir === "desc" ? [...sortOrder].reverse() : sortOrder).join(", ")}` : undefined}>
+            {sortDir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+            Sorted by {label(sortCol)}, {sortPhrase({ dir: sortDir, order: sortOrder }, field(sortCol)?.type)}
+          </span>
+        )}
+        {moreRight && (
+          <button type="button" onClick={() => scroller.current?.scrollBy({ left: Math.max(120, scroller.current.clientWidth * 0.7), behavior: "smooth" })} className="mr-auto inline-flex items-center gap-1 text-slate-400 hover:text-slate-700">
+            More columns <ArrowRight className="size-3" />
+          </button>
+        )}
         {pages > 1 && (
           <span className="flex items-center gap-1">
             <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded p-1 disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="size-3.5" /></button>
