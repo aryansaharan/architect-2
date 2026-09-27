@@ -48,14 +48,45 @@ const PALETTE: Record<Vertical, string> = {
   custom: "#B45309",
 };
 
-const ICONS: Record<string, string> = {
-  queue: "inbox",
-  dashboard: "layout-dashboard",
-  detail: "file-text",
-  form: "file-plus",
-  assistant: "sparkles",
-  report: "bar-chart-3",
+/**
+ * Screen icons by purpose, from the set the renderer draws (components/icon.tsx). The words in a
+ * screen's title and purpose win over its layout kind ("Payout approvals" is an approvals screen even
+ * when laid out as a queue), and each purpose has alternatives so two screens rarely share an icon.
+ */
+const PURPOSE_ICONS: { purpose: string; match: RegExp; icons: string[] }[] = [
+  { purpose: "approvals", match: /\b(approv\w*|sign[- ]?offs?|authori[sz]\w*|review queue|needs review|awaiting review)\b/i, icons: ["shield-check", "key-round", "clipboard-list"] },
+  { purpose: "calendar", match: /\b(calendar|schedul\w*|bookings?|appointments?|shifts?|rota|roster|availability|events?|timeline|deadlines?)\b/i, icons: ["calendar", "calendar-check"] },
+  { purpose: "money", match: /\b(payouts?|payments?|invoices?|billing|refunds?|expenses?|payroll|budgets?|quotes?)\b/i, icons: ["wallet", "receipt", "credit-card"] },
+  { purpose: "people", match: /\b(people|team|staff|employees?|hires?|candidates?|customers?|clients?|contacts?|members?|directory|adjusters?|agents? desk|patients?|tenants?|students?|volunteers?|vendors?|suppliers?|accounts|technicians?|engineers?|crews?|drivers?|workers?|reps)\b/i, icons: ["users", "user-plus", "building-2"] },
+  { purpose: "reports", match: /\b(reports?|reporting|analytics?|insights?|metrics?|trends?|forecasts?|performance|kpis?|stats?|statistics)\b/i, icons: ["bar-chart-3", "layout-dashboard", "newspaper"] },
+  { purpose: "dashboard", match: /\b(dashboards?|overview|home|summary|at a glance|command cent(er|re))\b/i, icons: ["layout-dashboard", "bar-chart-3", "radar"] },
+  { purpose: "incidents", match: /\b(incidents?|outages?|alerts?|escalations?|on-?call|emergenc\w*)\b/i, icons: ["siren", "radar"] },
+  { purpose: "knowledge", match: /\b(knowledge|help cent(er|re)|articles?|docs|documentation|policies|playbooks?|runbooks?|library|guides?)\b/i, icons: ["book-open", "newspaper"] },
+  { purpose: "research", match: /\b(research|search|lookup|prospect\w*|signals?|leads?|discover\w*)\b/i, icons: ["radar", "search"] },
+  { purpose: "messages", match: /\b(messages?|emails?|outreach|campaigns?|drafts?|replies|conversations?|chats?)\b/i, icons: ["mail", "send", "message-square"] },
+  { purpose: "queue", match: /\b(queues?|inbox|triage|backlog|intake|worklist|to-?do)\b/i, icons: ["inbox", "clipboard-list", "ticket"] },
+  { purpose: "tickets", match: /\b(tickets?|cases?|issues?|requests?)\b/i, icons: ["ticket", "inbox", "clipboard-list"] },
+];
+const KIND_ICONS: Record<string, string[]> = {
+  queue: ["inbox", "clipboard-list", "ticket"],
+  dashboard: ["layout-dashboard", "bar-chart-3", "radar"],
+  report: ["bar-chart-3", "newspaper", "layout-dashboard"],
+  detail: ["file-text", "clipboard-list", "newspaper"],
+  form: ["file-plus", "send", "clipboard-list"],
+  assistant: ["sparkles", "message-square", "bot"],
 };
+
+/** The icon for one screen: detail and form screens keep their kind's icon (a record, a form), others follow their words. */
+function screenIcon(s: { kind: string; title: string; purpose: string }, used: Set<string>): string {
+  const text = `${s.title} ${s.purpose}`;
+  const byWords = PURPOSE_ICONS.find((p) => p.match.test(s.title)) ?? PURPOSE_ICONS.find((p) => p.match.test(text));
+  const byKind = KIND_ICONS[s.kind] ?? ["layout-dashboard"];
+  // A detail screen is about one record and a form collects one; those shapes read clearer than the topic.
+  const pool = s.kind === "detail" || s.kind === "form" || s.kind === "assistant" || !byWords ? [...byKind, ...(byWords?.icons ?? [])] : [...byWords.icons, ...byKind];
+  const pick = pool.find((i) => !used.has(i)) ?? pool[0];
+  used.add(pick);
+  return pick;
+}
 
 function coerce(value: string, type: string): string | number | boolean {
   const v = (value ?? "").toString().trim();
@@ -183,6 +214,8 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
 
   const drafts = draft.screens.slice(0, 6);
   const idsByTitle = drafts.map((s) => uniq(kebab(s.title), screenIds));
+  const usedIcons = new Set<string>();
+  const iconsByScreen = drafts.map((s) => screenIcon(s, usedIcons));
   const detailScreenFor = (entityId: string) => {
     const i = drafts.findIndex((s, k) => s.kind === "detail" && (fuzzyFind(entities, s.entity, (e) => e.name) ?? entities[0]).id === entityId && k >= 0);
     return i >= 0 ? idsByTitle[i] : undefined;
@@ -293,7 +326,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
       id,
       slug: id.split("-")[0] + (i ? "" : ""),
       title: s.title,
-      icon: ICONS[s.kind] ?? "layout-dashboard",
+      icon: iconsByScreen[i],
       purpose: s.purpose,
       plain: s.description,
       layout,

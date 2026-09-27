@@ -32,6 +32,9 @@ function subscribeViewport(cb: () => void) {
 function viewportDevice(): Device {
   return window.matchMedia(PHONE_MQ).matches ? "phone" : window.matchMedia(TABLET_MQ).matches ? "tablet" : "desktop";
 }
+/** The studio's own address. The live app is served from it at /live/<slug>, so that is the honest URL to show. */
+const noSubscribe = () => () => {};
+const studioOrigin = () => window.location.origin;
 
 export function PreviewView({ comments }: { comments: CommentRow[] }) {
   const ws = useWorkspace();
@@ -41,6 +44,8 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
   const bp = ws.blueprint;
   const [mode, setMode] = useState<Mode>(params.get("tweak") ? "tweak" : "use");
   const fits = useSyncExternalStore(subscribeViewport, viewportDevice, () => "desktop" as Device);
+  const origin = useSyncExternalStore(noSubscribe, studioOrigin, () => "");
+  const liveUrl = ws.liveSlug ? `${origin}/live/${ws.liveSlug}` : null;
   const [picked, setDevice] = useState<Device | null>(null);
   const device = picked ?? fits;
   const urlScreen = params.get("screen");
@@ -130,7 +135,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           />
           {ws.liveSlug && (
             <Button asChild variant="outline" size="sm" className="h-8">
-              <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer">Live version <ExternalLink /></a>
+              <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer" title={liveUrl ? `Opens ${liveUrl}` : undefined}>Live version <ExternalLink /></a>
             </Button>
           )}
         </div>
@@ -138,7 +143,8 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
       <div className="relative flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(223_255_79/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-3 sm:p-5">
           <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>
+            {/* The browser bar says this on desktop and tablet; the phone frame has no bar, so it's said here. */}
+            {device === "phone" && <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>}
             {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only: this is what will be built</span>}
             {mode === "tweak" && <span>{tweaking ? "Editing the outlined block. The panel stays beside the app, never on top of it." : "Point at anything and click to edit it. Tweaks are free."}</span>}
             {mode === "comment" && <span>Click a spot to pin a note. Teammates see it in their activity.</span>}
@@ -157,13 +163,23 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             {device === "phone" ? (
               <span aria-hidden className="absolute left-1/2 top-[19px] z-20 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255/0.05)]" />
             ) : (
-              <div aria-hidden className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-[linear-gradient(180deg,#171a20,#121419)] px-3">
-                <span className="flex gap-1.5"><i className="size-2.5 rounded-full bg-[#ff5f57]/80" /><i className="size-2.5 rounded-full bg-[#febc2e]/80" /><i className="size-2.5 rounded-full bg-[#28c840]/80" /></span>
-                <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 truncate rounded-md border border-hairline bg-deep px-3 font-mono text-[11px] text-muted-foreground">
-                  <span className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(223_255_79/0.9)]" />
-                  test.{bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.prodai.app
+              // Honest chrome: the test version has no public address (only you can open it), so the bar says that
+              // instead of inventing a domain. The live app's real address is shown beside it once there is one.
+              <div className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-[linear-gradient(180deg,#171a20,#121419)] px-3">
+                <span aria-hidden className="flex shrink-0 gap-1.5"><i className="size-2.5 rounded-full bg-[#ff5f57]/80" /><i className="size-2.5 rounded-full bg-[#febc2e]/80" /><i className="size-2.5 rounded-full bg-[#28c840]/80" /></span>
+                <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 rounded-md border border-hairline bg-deep px-3 text-[11.5px] text-muted-foreground">
+                  <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(223_255_79/0.9)]" />
+                  <span className="truncate">Test version · only you</span>
                 </span>
-                <span className="w-[46px]" />
+                {liveUrl ? (
+                  <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer" title={`The live version is at ${liveUrl}`} className="hidden min-w-0 max-w-[40%] shrink items-center gap-1 truncate font-mono text-[10.5px] text-faint transition-colors hover:text-foreground md:inline-flex">
+                    <span className="shrink-0 font-sans text-muted-foreground">Live:</span>
+                    <span className="truncate">{liveUrl.replace(/^https?:\/\//, "")}</span>
+                    <ExternalLink className="size-3 shrink-0" aria-hidden />
+                  </a>
+                ) : (
+                  <span aria-hidden className="w-[46px] shrink-0" />
+                )}
               </div>
             )}
             {/* overflow-clip, not hidden: it rounds the screen's corners but is never itself scrolled (by focus or scrollIntoView),

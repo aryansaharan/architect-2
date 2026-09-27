@@ -5,6 +5,8 @@ import { applyOps, markBuilt } from "@/lib/blueprint/apply";
 import { planRepair, repairLedgerTitle } from "@/lib/sim/repair";
 import { toolsOffPreset } from "@/lib/blueprint/describe";
 import { shortId } from "@/lib/sim/hash";
+import { generateFiles } from "@/lib/codegen/files";
+import { diffFiles, diffToText } from "@/lib/codegen/diff";
 import { addCheckpoint, addLedger, createProject, logUsage, updateProject } from "@/lib/db/writes";
 import { preflight } from "@/lib/sim/preflight";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
@@ -49,7 +51,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   const built = withBuildRehearsals(planned, markBuilt(repaired.ok ? repaired.blueprint : planned), at(24), at(26));
   const rehearsed = built.agents.flatMap((a) => a.rehearsals);
   const passed = rehearsed.filter((r) => r.history[r.history.length - 1]?.pass).length;
-  // Every agent's supervision must match its tool permissions after the build (e.g. Settlement: Approve everything, every tool on Ask first).
+  // Every agent's supervision must match its tool permissions after the build (e.g. Settlement: Spot-check, with
+  // Read claim on Just do it, Post in Slack on Tell me, and only Issue payment, which can't be undone, on Ask first).
   const mismatched = built.agents.filter((a) => toolsOffPreset(a).length);
   if (mismatched.length) console.warn("[seed] supervision and tool permissions disagree for", mismatched.map((a) => a.id).join(", "));
   const { credits: buildCredits, minutes: buildMinutes } = planned.estimate;
@@ -65,8 +68,12 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     settings: { budgetCapCredits: 500 },
   });
 
-  const cp1 = await addCheckpoint(supa, project.id, { label: "Plan approved", kind: "blueprint", blueprint: planned, summary: "5 screens · 3 agents · 4 data types · 5 connections" });
-  const cp2 = await addCheckpoint(supa, project.id, { label: "Build complete", kind: "build", blueprint: built, summary: "Built and rehearsed. Added an approval gate to Settlement." });
+  // Same wording as a real plan (app/api/plan/route.ts) and a real build (lib/actions/build.ts completeBuild).
+  const cp1 = await addCheckpoint(supa, project.id, { label: "Plan approved", kind: "blueprint", blueprint: planned, summary: `${planned.screens.length} screens · ${planned.agents.length} agents · ${planned.entities.length} data types · ${planned.connections.length} connections` });
+  const cp2 = await addCheckpoint(supa, project.id, { label: "Build complete", kind: "build", blueprint: built, summary: `${built.screens.length} screens · ${built.agents.length} agents · ${passed} of ${rehearsed.length} rehearsals passed` });
+  // The latest change a teammate is shown: the repair's real diff to the gated agent's spec.
+  const gatedSpec = `agents/${repair.objectRef.id}/agent.yaml`;
+  const lastDiff = diffToText(diffFiles(generateFiles(planned), generateFiles(built)).filter((f) => f.path === gatedSpec));
 
   const slug = `claims-desk-${shortId(project.id)}`;
   await supa.from("live_sites").insert({ slug, project_id: project.id, checkpoint_id: cp2.id, blueprint: built });
@@ -84,9 +91,10 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   await addLedger(supa, project.id, [
     { lane: "thought", kind: "brief", title: "You described the project", body: STARTERS.claims.brief, createdAt: at(0) },
     { lane: "thought", kind: "work_order", title: `Plan ready · ${planned.screens.length} screens, ${planned.agents.length} agents`, body: `Estimated ${buildMinutes} min and ${buildCredits} credits (≈ $${(buildCredits / 100).toFixed(2)}), taken from your demo balance. You approved it.`, checkpointId: cp1.id, credits: 0, createdAt: at(2) },
-    { lane: "did", kind: "build_step", title: `Built ${built.screens.length} screens and put ${built.agents.length} agents on duty`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, createdAt: at(24) },
+    // In the order a real build writes them: the repair when it is chosen mid-build (resolveRepair), then the build and its rehearsal run (completeBuild).
     { lane: "checked", kind: "repair", blame: "system_fix", title: repairLedgerTitle(repair), body: repair.options[0].narration, objectRef: repair.objectRef, credits: 0, meta: { planId: repair.id, optionId: "a", changelog: repair.options[0].changelog }, createdAt: at(25) },
-    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsed.length} conversations · ${passed} passed`, credits: 0, checkpointId: cp2.id, createdAt: at(27) },
+    { lane: "did", kind: "build_step", title: `Built ${built.screens.length} screens and put ${built.agents.length} agents on duty`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, checkpointId: cp2.id, createdAt: at(26) },
+    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsed.length} conversations · ${passed} passed`, ...(passed < rehearsed.length ? { body: "Open Agents › Rehearsals to see what failed and fix it." } : {}), credits: 0, checkpointId: cp2.id, createdAt: at(27) },
     { lane: "did", kind: "ship", title: "Went live on Prod Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
     { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0.7, createdAt: at(90) },
     { lane: "thought", kind: "comment", blame: "teammate", title: "Maya commented on Intake Queue", body: "“Can we sort this by SLA risk instead of date?”", objectRef: { type: "screen", id: "intake-queue" }, createdAt: at(91) },
@@ -111,7 +119,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     context: {
       objectLabel: "Policy system (Guidewire)",
       promptHistory: [STARTERS.claims.brief, "Make sure payouts always wait for a person."],
-      lastDiff: "agents/settlement/agent.yaml\n-    permission: log\n+    permission: ask",
+      lastDiff,
     },
     assignee: "Priya Raman · Platform engineer",
     status: "open",

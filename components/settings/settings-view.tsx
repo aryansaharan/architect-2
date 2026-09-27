@@ -167,8 +167,9 @@ export function SettingsView({
                   <p className="flex items-center gap-2 text-[13.5px] font-medium">{c.provider === "github" ? <GitHubMark /> : <Plug className="size-4 text-muted-foreground" />}{c.name}</p>
                   <p className="mt-1 flex-1 text-[12px] text-muted-foreground">{c.body}</p>
                   {projectOnly && <p className="mt-2 truncate text-[11px] text-muted-foreground" title={via.join(", ")}>In {via[0]}{via.length > 1 ? ` and ${via.length - 1} more` : ""}</p>}
-                  <Button size="sm" variant={on ? "outline" : "default"} className="mt-3 h-8" disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
-                    {on ? <><Check className="text-read" /> Connected</> : "Connect"}
+                  {/* Secondary on purpose: eight bright buttons in a row would shout. Connected cards read as a quiet status. */}
+                  <Button size="sm" variant={on ? "ghost" : "outline"} className={cn("mt-3 h-8", on && "border border-read/25 text-read hover:text-read")} disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
+                    {on ? <><Check /> Connected</> : "Connect"}
                   </Button>
                 </div>
               );

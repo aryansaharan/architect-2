@@ -12,9 +12,18 @@ import { HomeComposer } from "@/components/home/home-composer";
 import { Button } from "@/components/ui/button";
 import { Spotlight } from "@/components/fx/spotlight";
 import { creditsUsd, formatCredits } from "@/lib/format";
+import { buildTimeLabel } from "@/lib/blueprint/estimate";
+import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { Greeting } from "@/components/home/greeting";
 
 export const metadata = { title: "Projects" };
+
+const MAIN_NAV = [
+  { href: "/home", label: "Projects" },
+  { href: "/settings#connections", label: "Connections" },
+  { href: "/settings#usage", label: "Usage" },
+  { href: "/settings", label: "Settings" },
+];
 
 export default async function HomePage() {
   const user = await requireUser("/home");
@@ -46,10 +55,11 @@ export default async function HomePage() {
       <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-6">
           <Logo href="/home" />
+          {/* The same items, in the same order, as the Settings header (app/settings/page.tsx). */}
           <nav className="ml-4 hidden items-center gap-1 text-[13px] md:flex" aria-label="Main">
-            <Link href="/home" className="rounded-md bg-raised px-2.5 py-1.5 font-medium">Projects</Link>
-            <Link href="/settings#connections" className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">Connections</Link>
-            <Link href="/settings#usage" className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">Usage</Link>
+            {MAIN_NAV.map((n) => (
+              <Link key={n.href} href={n.href} aria-current={n.href === "/home" ? "page" : undefined} className={n.href === "/home" ? "rounded-md bg-raised px-2.5 py-1.5 font-medium" : "rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground"}>{n.label}</Link>
+            ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden font-mono text-[12px] text-muted-foreground sm:inline">{Math.round(usage.credits)} / {cap} cr this month</span>
@@ -101,7 +111,7 @@ export default async function HomePage() {
                     <Inbox className="mt-0.5 size-4 shrink-0 text-amber" />
                     <span className="min-w-0">
                       <span className="block text-[13px] font-medium">Plan ready: {p.name}</span>
-                      <span className="mt-0.5 block text-[12.5px] text-muted-foreground">~{p.blueprint.estimate.minutes} min · {p.blueprint.estimate.credits} credits (≈ {creditsUsd(p.blueprint.estimate.credits)}). Nothing runs until you say so.</span>
+                      <span className="mt-0.5 block text-[12.5px] text-muted-foreground">{buildTimeLabel(p.blueprint.estimate.minutes, totalDuration(buildTimeline(p.blueprint))).label} · {p.blueprint.estimate.credits} credits (≈ {creditsUsd(p.blueprint.estimate.credits)}). Nothing runs until you say so.</span>
                     </span>
                   </Link>
                 </li>

@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BatteryFull, Bell, Check, Menu, Search, SignalHigh, Sparkles, Wifi, X } from "lucide-react";
+import { BatteryFull, Bell, Check, ChevronLeft, Menu, Search, SignalHigh, Sparkles, Wifi, X } from "lucide-react";
 import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { DynamicIcon } from "@/components/icon";
+import { hash } from "@/lib/sim/hash";
 import { cn } from "@/lib/utils";
 import { AppContext, type AppCtx, type AppMode } from "./app-context";
 import { RenderBlock } from "./blocks";
@@ -12,6 +13,50 @@ const RADIUS = { sm: "4px", md: "8px", lg: "12px" } as const;
 export const ROOMY_WIDTH = 1200;
 
 export type WrapBlock = (block: Block, screen: Screen, node: React.ReactNode) => React.ReactNode;
+
+/**
+ * A second colour for each app, taken from its own theme: the primary's hue turned a little
+ * (which way and how far is fixed by the app's name), so two apps that share a primary still
+ * look like two apps. Used for the app mark and the screen badges, never for buttons.
+ */
+export function accentFor(primary: string, seed: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(primary.trim());
+  if (!m) return primary;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = d === 0 ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  // Never turn into red: in an app, red means something needs attention.
+  const turns = [-42, -28, 28, 42].filter((t) => {
+    const x = (h + t + 360) % 360;
+    return x > 20 && x < 335;
+  });
+  const turn = turns.length ? turns[hash(seed) % turns.length] : 0;
+  const H = (h + turn + 360) % 360;
+  const S = Math.min(0.75, Math.max(0.45, sat));
+  const L = Math.min(0.48, Math.max(0.36, l));
+  const c = (1 - Math.abs(2 * L - 1)) * S;
+  const x = c * (1 - Math.abs(((H / 60) % 2) - 1));
+  const o = L - c / 2;
+  const [R, G, B] = H < 60 ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] : H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
+  return `#${[R, G, B].map((v) => Math.round((v + o) * 255).toString(16).padStart(2, "0")).join("")}`;
+}
+
+export type ScreenPurpose = "overview" | "detail" | "form" | "assistant";
+
+/** What a screen is for, read from its blocks: one record, a form to fill in, a conversation, or an overview of many. */
+export function screenPurpose(screen: Screen): ScreenPurpose {
+  const main = screen.regions.main;
+  if (main.some((b) => b.type === "form")) return "form";
+  if (main.some((b) => b.type === "detail")) return "detail";
+  if (main[0]?.type === "chat") return "assistant";
+  return "overview";
+}
 
 export function SpecApp({
   bp,
@@ -109,7 +154,16 @@ export function SpecApp({
   );
 
   const theme = bp.meta.theme;
-  const style = { "--app-primary": theme.primary, "--app-radius": RADIUS[theme.radius] } as React.CSSProperties;
+  const accent = accentFor(theme.primary, bp.meta.name);
+  const style = { "--app-primary": theme.primary, "--app-accent": accent, "--app-radius": RADIUS[theme.radius] } as React.CSSProperties;
+  // Layout by purpose: a record screen leads back to the list it was opened from. Every block the
+  // blueprint holds is shown, so a change that adds headline numbers to a record screen is never hidden.
+  const purpose = screenPurpose(screen);
+  const mainBlocks = screen.regions.main;
+  const backTo =
+    purpose === "detail"
+      ? bp.screens.find((s) => s.id !== screen.id && [...s.regions.main, ...s.regions.side].some((b) => b.type === "table" && b.rowAction?.kind === "navigate" && b.rowAction.screenId === screen.id))
+      : undefined;
   const team = bp.screens.filter((s) => s.audience !== "customer");
   const publicScreens = bp.screens.filter((s) => s.audience === "customer");
   const initial = bp.meta.name.slice(0, 1).toUpperCase();
@@ -129,7 +183,7 @@ export function SpecApp({
         {!phone && (
           <aside className={cn("flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-300", compact ? "w-[60px]" : "w-[220px]")}>
             <div className={cn("flex items-center gap-2.5 py-4", compact ? "justify-center px-2" : "px-4")}>
-              <span className="grid size-7 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style={{ background: "var(--app-primary)" }} title={compact ? bp.meta.name : undefined}>{initial}</span>
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style={{ background: "linear-gradient(135deg, var(--app-primary), var(--app-accent))" }} title={compact ? bp.meta.name : undefined}>{initial}</span>
               {!compact && <span className="truncate text-[13.5px] font-semibold">{bp.meta.name}</span>}
             </div>
             <nav className="flex-1 space-y-0.5 px-2" aria-label="App">
@@ -160,7 +214,11 @@ export function SpecApp({
         )}
         {phone && (
           <div className="relative z-10 flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5">
-            <span className="grid size-6 place-items-center rounded-md text-[11px] font-bold text-white" style={{ background: "var(--app-primary)" }}>{initial}</span>
+            {backTo ? (
+              <button type="button" onClick={() => navigate(backTo.id)} className="-ml-1 grid size-6 place-items-center rounded-md text-slate-500" aria-label={`Back to ${backTo.title}`}><ChevronLeft className="size-4" /></button>
+            ) : (
+              <span className="grid size-6 place-items-center rounded-md text-[11px] font-bold text-white" style={{ background: "linear-gradient(135deg, var(--app-primary), var(--app-accent))" }}>{initial}</span>
+            )}
             <span className="truncate text-[13px] font-semibold">{screen.title}</span>
             <button onClick={() => setMenu((m) => !m)} className="ml-auto rounded-md p-1.5 text-slate-500" aria-label="Menu"><Menu className="size-4" /></button>
             {menu && (
@@ -172,8 +230,19 @@ export function SpecApp({
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!phone && (
-            <header className="flex items-center gap-4 border-b border-slate-200 bg-white px-6 py-3">
+            <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-3">
+              {!backTo && (
+                <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[var(--app-radius)]" style={{ background: "color-mix(in oklab, var(--app-accent) 11%, white)", color: "var(--app-accent)" }}>
+                  <DynamicIcon name={screen.icon} className="size-[18px]" />
+                </span>
+              )}
               <div className="min-w-0">
+                {backTo && (
+                  <button type="button" onClick={() => navigate(backTo.id)} className="-ml-1 mb-0.5 inline-flex items-center gap-0.5 rounded px-1 text-[12px] font-medium text-slate-500 transition-colors hover:text-[var(--app-primary)]">
+                    <ChevronLeft className="size-3.5" aria-hidden />
+                    {backTo.title}
+                  </button>
+                )}
                 <h1 className="truncate text-[16px] font-semibold tracking-tight">{screen.title}</h1>
                 <p className="truncate text-[12.5px] text-slate-500">{screen.purpose}</p>
               </div>
@@ -191,7 +260,7 @@ export function SpecApp({
                     {drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent"}
                   </button>
                 )}
-                {!compact && <span className="hidden h-8 items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5 text-[12.5px] lg:flex"><Search className="size-3.5" />Search</span>}
+                {!compact && purpose !== "form" && <span className="hidden h-8 items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5 text-[12.5px] lg:flex"><Search className="size-3.5" />Search</span>}
                 <span className="grid size-8 place-items-center rounded-[var(--app-radius)] border border-slate-200"><Bell className="size-3.5" /></span>
               </div>
             </header>
@@ -200,11 +269,11 @@ export function SpecApp({
             <div className={cn("mx-auto grid gap-5", phone ? "p-3" : device === "tablet" ? "p-4" : "p-6", screen.layout === "form" && !phone ? "max-w-5xl" : "max-w-[1400px]")}>
               {screen.regions.side.length > 0 && !phone && !compact ? (
                 <div className={cn("grid items-start gap-5", screen.layout === "split" ? "grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]" : screen.layout === "form" ? "grid-cols-[minmax(0,1.5fr)_minmax(240px,1fr)]" : "grid-cols-[minmax(0,2.2fr)_minmax(280px,1fr)]")}>
-                  <div className="min-w-0 space-y-5">{screen.regions.main.map(render)}</div>
+                  <div className="min-w-0 space-y-5">{mainBlocks.map(render)}</div>
                   <div className="min-w-0 space-y-5">{screen.regions.side.map(render)}</div>
                 </div>
               ) : (
-                <div className={cn("min-w-0 space-y-5", screen.layout === "form" && "mx-auto w-full max-w-2xl")}>{[...screen.regions.main, ...sideInline].map(render)}</div>
+                <div className={cn("min-w-0 space-y-5", screen.layout === "form" && "mx-auto w-full max-w-2xl")}>{[...mainBlocks, ...sideInline].map(render)}</div>
               )}
             </div>
           </div>

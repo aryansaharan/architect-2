@@ -46,6 +46,9 @@ function supervisionOps(ai: number, agent: Agent, level: Agent["supervision"]): 
 /**
  * The "turn 3" moment. Every first build runs rehearsals; the rehearsal
  * always finds one real weakness in the blueprint and proposes two fixes.
+ * For an ungated action that can't be undone, the recommended fix gates that
+ * one tool and leaves the rest alone: asking before every look-up as well
+ * would teach people to click Allow without reading.
  */
 export function planRepair(bp: Blueprint): RepairPlan {
   // Case A: an action that can't be undone is not gated.
@@ -67,7 +70,7 @@ export function planRepair(bp: Blueprint): RepairPlan {
         {
           id: "a",
           label: `Ask a person before “${tool.name}”`,
-          narration: `Added an approval gate: ${agent.name} now pauses and asks before it can ${tool.name.toLowerCase()}.`,
+          narration: `Added an approval gate to “${tool.name}”: ${agent.name} now pauses and asks a person before it can ${tool.name.toLowerCase()}. Its other tools keep working without asking.`,
           credits: 0,
           blastRadius: { screens: 0, agents: 1, files: 2 },
           recommended: true,
@@ -77,7 +80,7 @@ export function planRepair(bp: Blueprint): RepairPlan {
         {
           id: "b",
           label: `Hand every “${tool.name}” to a person`,
-          narration: `${agent.name} now approves everything: every tool asks first, and it prepares “${tool.name}” for a person to carry out. Slower, but nothing leaves without a human.`,
+          narration: `${agent.name} now approves everything: every tool asks first, even looking things up, and it prepares “${tool.name}” for a person to carry out. Nothing leaves without a human, but someone has to approve every step.`,
           credits: 0,
           blastRadius: { screens: 1, agents: 1, files: 3 },
           ops: [

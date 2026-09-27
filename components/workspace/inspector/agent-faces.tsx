@@ -39,7 +39,8 @@ export function PermissionRow({ tool, compact }: { tool: AgentTool; compact?: bo
         <span className="block truncate text-[12.5px]">{tool.name}</span>
         {!compact && <span className="block truncate text-[11px] text-muted-foreground">{connectionName(ws.blueprint, tool.connectionId)}</span>}
       </span>
-      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-ask" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
+      {/* Rose is kept for "can't be undone" (the access chip); a gate is a calm gold, so rose never means just "waits". */}
+      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-sol-gold" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
         {PERMISSION_LABEL[tool.permission]}
       </span>
     </li>

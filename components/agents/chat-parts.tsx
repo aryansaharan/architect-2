@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Check, ChevronRight, Loader2, Lock, Pencil, Search, ShieldAlert, X } from "lucide-react";
+import { Check, ChevronRight, Hand, Loader2, Lock, Pencil, Search, ShieldAlert, X } from "lucide-react";
 import type { UIMessage } from "ai";
 import type { Agent, AgentTool, Blueprint } from "@/lib/blueprint/schema";
-import { connectionName } from "@/lib/blueprint/describe";
+import { connectionName, lowerFirst } from "@/lib/blueprint/describe";
 import { cn } from "@/lib/utils";
 
 export type ToolPart = {
@@ -57,6 +57,17 @@ export function TraceRow({ part, tool, bp, theme = "studio" }: { part: ToolPart;
   );
 }
 
+/**
+ * Rose means "can't be undone" everywhere in the product, so only those actions get the rose card.
+ * Anything else that waits (a look-up or an undoable change set to "Ask first") gets a calmer gold card,
+ * so the danger colour keeps its meaning and people don't learn to click through it.
+ */
+const GATE_COPY = {
+  irreversible: { tag: "Can't be undone", body: "This can't be undone, so it always asks a person first." },
+  write: { tag: "Ask first", body: "This changes a record, and you can undo it later. The tool is set to “Ask first”, so it waits for you." },
+  read: { tag: "Ask first", body: "This only looks something up and changes nothing. The tool is set to “Ask first”, so it waits for you." },
+} as const;
+
 export function ApprovalCard({
   part,
   tool,
@@ -70,24 +81,41 @@ export function ApprovalCard({
   onRespond: (decision: "once" | "always" | "deny") => void;
   theme?: "studio" | "app";
 }) {
-  const irreversible = tool?.access === "irreversible";
+  const access = tool?.access ?? "irreversible"; // an unknown tool is treated as the riskiest kind
+  const irreversible = access === "irreversible";
+  const copy = GATE_COPY[access];
   const studio = theme === "studio";
+  const Icon = irreversible ? ShieldAlert : Hand;
   return (
     <motion.div
       role="group"
       aria-label="Approval needed"
+      data-gate={irreversible ? "irreversible" : "ask"}
       initial={{ opacity: 0, y: 8, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 380, damping: 26 }}
-      className={cn("rounded-xl border p-3", studio ? "pulse-rose border-ask/40 bg-[linear-gradient(180deg,rgb(255_107_122/0.10),rgb(255_107_122/0.04))]" : "border-rose-200 bg-rose-50")}
+      className={cn(
+        "rounded-xl border p-3",
+        irreversible
+          ? studio ? "pulse-rose border-ask/40 bg-[linear-gradient(180deg,rgb(255_107_122/0.10),rgb(255_107_122/0.04))]" : "border-rose-200 bg-rose-50"
+          : studio ? "border-sol-gold/30 bg-[linear-gradient(180deg,rgb(255_242_166/0.07),rgb(255_242_166/0.02))]" : "border-amber-200 bg-amber-50/70",
+      )}
     >
       <p className={cn("flex items-center gap-2 text-[13px] font-semibold", studio ? "text-foreground" : "text-slate-900")}>
-        <ShieldAlert className={cn("size-4", studio ? "text-ask" : "text-rose-600")} />
-        {agent.name} wants to {(tool?.name ?? part.type.slice(5)).toLowerCase()}
+        <Icon className={cn("size-4 shrink-0", irreversible ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-sol-gold" : "text-amber-600")} />
+        <span className="min-w-0">{agent.name} wants to {lowerFirst(tool?.name ?? part.type.slice(5))}</span>
+        <span
+          className={cn(
+            "ml-auto shrink-0 whitespace-nowrap rounded-full border px-2 py-px text-[10.5px] font-medium",
+            irreversible ? (studio ? "border-ask/35 text-ask" : "border-rose-200 bg-white text-rose-700") : studio ? "border-sol-gold/30 text-sol-gold" : "border-amber-200 bg-white text-amber-700",
+          )}
+        >
+          {copy.tag}
+        </span>
       </p>
       {part.input?.query && <p className={cn("mt-1.5 rounded-md px-2 py-1.5 font-mono text-[11.5px]", studio ? "bg-deep text-foreground/85" : "bg-white text-slate-700")}>{part.input.query}</p>}
       <p className={cn("mt-2 text-[12px]", studio ? "text-muted-foreground" : "text-slate-600")}>
-        {irreversible ? "This can't be undone, so it always asks a person first." : "This tool is set to “Ask first”, so it waits for you."} Sandbox: nothing leaves the building in the test version.
+        {copy.body} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(223_255_79/0.7)]" : "bg-slate-900 text-white")}>

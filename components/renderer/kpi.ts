@@ -8,7 +8,10 @@ import type { Block, Blueprint, Entity } from "@/lib/blueprint/schema";
  * money field to sum, a numeric field to total or average, a date window such
  * as "today" or "7 days"), the value is computed from the rows instead. The
  * authored value is kept only when the label can't be derived ("Median first
- * response", "SLA at risk"). Pure, so the preview, /live and tests agree.
+ * response", "SLA at risk"). Either way the value is written for its field's
+ * type: money with a currency sign and thousands separators ("$66,900", never
+ * "66900"), rates as percentages, counts with separators. Pure, so the
+ * preview, /live and tests agree.
  */
 
 type KpiItem = Extract<Block, { type: "kpis" }>["items"][number];
@@ -24,6 +27,12 @@ const SYNONYMS: Record<string, string> = { waiting: "awaiting" };
 const PAST_DATE = /(filed|opened|created|requested|drafted|detected|received|submitted|reported|logged|added|joined|sent|updated|placed|booked|raised)/i;
 const FUTURE_DATE = /(due|start|deadline|expir|renew|end|scheduled|appointment|check_?in)/i;
 const DAY = 86_400_000;
+/** Labels that name a rate ("Approval rate", "Share escalated"): the value is a percentage. */
+const RATE = /\b(rate|percent|percentage|share|conversion|utili[sz]ation)\b|%/i;
+/** Labels that can only mean money, for tiles whose field can't be found ("Total revenue"). "Payouts" alone is a count, so it isn't here. */
+const MONEY_LABEL = /\b(amount|revenue|cost|costs|spend|spent|price|budget|salary|salaries|fees?|owed|billed|invoiced|collected|balance|mrr|arr|gmv|dollars?)\b|[$£€₹]/i;
+const COUNT_LABEL = /\b(number of|count|how many)\b|#/i;
+const DEFAULT_CURRENCY = "$";
 
 const words = (s: string) =>
   s
@@ -254,13 +263,51 @@ export function screenEntityId(bp: Blueprint, screenId: string | undefined): str
 export function deriveKpi(item: KpiItem, bp: Blueprint, screenEntity?: string): DerivedKpi {
   const d = deriveFromRows(item, bp, screenEntity);
   const authoredNonZero = /[1-9]/.test(item.value.replace(/\bof\b.*$/, ""));
-  return d.zero && authoredNonZero ? { value: item.value, delta: item.delta, derived: false, zero: false } : d;
+  const out = d.zero && authoredNonZero ? { value: item.value, delta: item.delta, derived: false, zero: false } : d;
+  return out.derived ? out : { ...out, value: formatAuthored(out.value, item.label, bp) };
+}
+
+/** A bare number, possibly with thousands separators ("66900", "66,900", "0.85"). */
+function bareNumber(v: string): number | null {
+  const t = v.trim();
+  if (!/^-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t)) return null;
+  const n = Number(t.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Does the label name one of the app's money fields ("Total amount" names Amount)? */
+function namesMoneyField(label: string, bp: Blueprint): boolean {
+  const tokens = significant(label);
+  return bp.entities.some((e) => e.fields.some((f) => f.type === "money" && (() => {
+    const w = significant(f.label ?? f.name);
+    return w.length > 0 && w.every((x) => tokens.some((t) => same(t, x)));
+  })()));
+}
+
+/**
+ * An authored value the rows can't confirm is still written for its type: a bare
+ * number on a money tile gets a currency sign and separators, a rate becomes a
+ * percentage, and a big count gets separators. Anything else (durations,
+ * "7 of 11", "$182,400") is left exactly as written.
+ */
+export function formatAuthored(value: string, label: string, bp: Blueprint): string {
+  const n = bareNumber(value);
+  if (n === null) return value;
+  if (!COUNT_LABEL.test(label) && (namesMoneyField(label, bp) || MONEY_LABEL.test(label))) {
+    return `${DEFAULT_CURRENCY}${n.toLocaleString("en-US", Number.isInteger(n) || Math.abs(n) >= 100 ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (RATE.test(label)) {
+    if (!Number.isInteger(n) && n >= 0 && n <= 1) return `${Math.round(n * 100)}%`;
+    if (n >= 0 && n <= 100) return `${n}%`;
+  }
+  if (/\b(year|fy)\b/i.test(label)) return value.trim(); // "2026" is a year, not "2,026"
+  return Number.isInteger(n) ? n.toLocaleString("en-US") : value.trim();
 }
 
 function deriveFromRows(item: KpiItem, bp: Blueprint, screenEntity?: string): DerivedKpi {
   const authored: DerivedKpi = { value: item.value, delta: item.delta, derived: false, zero: false };
-  const shape = parseShape(item.value);
-  if (!shape) return authored;
+  const authoredShape = parseShape(item.value);
+  if (!authoredShape) return authored;
   const alias = aliases(bp);
   const tokens = significant(item.label).map((t) => alias.get(t) ?? t);
   if (!tokens.length) return authored;
@@ -268,12 +315,16 @@ function deriveFromRows(item: KpiItem, bp: Blueprint, screenEntity?: string): De
   for (const e of bp.entities) for (const h of entityWords(e).head) heads.set(h, e.id);
 
   const candidates = bp.entities
-    .map((e) => evaluate(e, item.label, tokens, heads, shape.kind === "money"))
+    .map((e) => evaluate(e, item.label, tokens, heads, authoredShape.kind === "money" || MONEY_LABEL.test(item.label)))
     .filter((x): x is Eval => x !== null)
     .filter((x) => x.entity.id === screenEntity || x.mention || (x.unaccounted.length === 0 && (x.filters.length > 0 || x.measure !== null)))
     .sort((a, b) => a.unaccounted.length - b.unaccounted.length || Number(b.entity.id === screenEntity) - Number(a.entity.id === screenEntity) || Number(b.mention) - Number(a.mention));
   const ev = candidates[0];
   if (!ev || !ev.entity.sample.length) return authored;
+  // The field decides how the number is written: a bare "66900" on a money field is money, a rate is a percentage.
+  let shape = authoredShape;
+  if ((shape.kind === "count" || shape.kind === "decimal") && ev.measure?.type === "money") shape = { kind: "money", symbol: DEFAULT_CURRENCY, compact: "" };
+  else if ((shape.kind === "count" || shape.kind === "decimal") && RATE.test(item.label)) shape = { kind: "percent" };
 
   const windowRows = inWindow(ev.entity.sample, ev, bp);
   const rows = windowRows.filter((r) => ev.filters.every((f) => f.test(r[f.field])));

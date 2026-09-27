@@ -152,13 +152,15 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
 }
 
 function Overview({ agent }: { agent: Agent }) {
+  // Side by side (each column scrolls) from lg up. Below that it is one scrolling page: two stacked scroll areas
+  // would each get half the height, and on a phone that clipped "What it's allowed to do" out of sight.
   return (
-    <div className="grid h-full min-h-0 lg:grid-cols-2">
-      <div className="min-h-0 overflow-y-auto border-hairline px-6 py-5 lg:border-r">
+    <div className="h-full min-h-0 overflow-y-auto lg:grid lg:grid-cols-2 lg:overflow-hidden">
+      <div className="border-hairline px-4 py-5 max-lg:border-b sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:border-r">
         <p className="micro-label mb-3 text-amber">Plain · for everyone</p>
         <AgentPlain agent={agent} />
       </div>
-      <div className="min-h-0 overflow-y-auto px-6 py-5">
+      <div className="px-4 py-5 sm:px-6 lg:min-h-0 lg:overflow-y-auto">
         <p className="micro-label mb-3 text-amber">Spec · change it here, free</p>
         <AgentSpec agent={agent} />
       </div>
@@ -208,8 +210,23 @@ function Rehearsals({ agent }: { agent: Agent }) {
               {sum.notRun ? ` ${sum.notRun} not run yet, so ${sum.notRun === 1 ? "it counts" : "they count"} as not passing.` : ""} Going live needs 80%.
             </p>
             {trend.length > 1 && (
-              <div className="mt-3 flex h-10 items-end gap-1" aria-label="Pass rate over recent runs">
-                {trend.map((t, i) => <span key={i} className={cn("flex-1 rounded-sm", t >= 0.9 ? "bg-read/70" : t >= 0.8 ? "bg-amber/70" : "bg-ask/70")} style={{ height: `${Math.max(10, t * 100)}%` }} />)}
+              <div className="mt-3">
+                {/* Only the latest run carries a status colour, and it matches the number above: at 100% nothing here is red.
+                    Earlier runs stay as grey history (their height is how many passed), so a fixed failure doesn't read as a live one. */}
+                <div className="flex h-10 items-end gap-1" role="img" aria-label={`Pass rate over the last ${trend.length} runs: ${trend.map((t) => `${Math.round(t * 100)}%`).join(", ")}`}>
+                  {trend.map((t, i) => {
+                    const latest = i === trend.length - 1;
+                    return (
+                      <span
+                        key={i}
+                        title={`${latest ? "Latest run" : `Run ${i + 1} of ${trend.length}`}: ${Math.round(t * 100)}% passed`}
+                        className={cn("flex-1 rounded-sm", latest ? (t >= 0.9 ? "bg-read/70" : t >= 0.8 ? "bg-amber/70" : "bg-ask/70") : "bg-muted-foreground/25")}
+                        style={{ height: `${Math.max(10, t * 100)}%` }}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="mt-1 flex justify-between text-[10.5px] text-faint"><span>Earlier runs</span><span>Latest</span></p>
               </div>
             )}
           </div>
@@ -291,8 +308,8 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
               <button onClick={() => setOpen(expanded ? null : r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={expanded}>
                 <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px]">“{firstUser}”</span>
-                  <span className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-muted-foreground">
+                  <span className="block truncate text-[13px]" title={firstUser}>“{firstUser}”</span>
+                  <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground [&>span]:whitespace-nowrap">
                     <span>{r.tool_calls.length} tool call{r.tool_calls.length === 1 ? "" : "s"}</span>
                     {approvals > 0 && <span className="text-read">{approvals} approved by a person</span>}
                     {denied > 0 && <span className="text-ask">{denied} denied</span>}
@@ -312,12 +329,17 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                   ))}
                   {r.tool_calls.map((t) => {
                     const tool = agent.tools.find((x) => x.id === t.toolId);
+                    const name = tool?.name ?? t.toolId;
+                    const query = typeof t.input === "object" && t.input && "query" in t.input ? String((t.input as { query: string }).query) : "";
                     return (
-                      <li key={t.toolCallId} className="flex items-center gap-2 text-[12px]">
+                      <li key={t.toolCallId} className="flex min-w-0 items-center gap-2 text-[12px]">
                         <span className="w-16 shrink-0 font-mono text-[11px] text-muted-foreground">tool</span>
-                        <AccessChip access={t.access}>{tool?.name ?? t.toolId}</AccessChip>
-                        <span className="truncate font-mono text-[11px] text-muted-foreground">{typeof t.input === "object" && t.input && "query" in t.input ? String((t.input as { query: string }).query) : ""}</span>
-                        <span className={cn("ml-auto shrink-0 text-[11px]", t.approval === "approved" ? "text-read" : t.approval === "denied" ? "text-ask" : "text-faint")}>
+                        {/* Pills stay on one line: a long tool name is cut short, and the full name is in the tooltip. */}
+                        <span className="flex min-w-0 max-w-[45%] shrink-0" title={name}>
+                          <AccessChip access={t.access} className="min-w-0 max-w-full whitespace-nowrap"><span className="truncate">{name}</span></AccessChip>
+                        </span>
+                        <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={query || undefined}>{query}</span>
+                        <span className={cn("ml-auto shrink-0 whitespace-nowrap text-[11px]", t.approval === "approved" ? "text-read" : t.approval === "denied" ? "text-ask" : "text-faint")}>
                           {t.approval === "approved" ? "approved by a person" : t.approval === "denied" ? "denied" : t.approval === "logged" ? "logged" : "automatic"}
                         </span>
                       </li>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/arch/badges";
 import { ConnectionIcon } from "@/components/icon";
-import type { Block, Connection, Entity, Screen } from "@/lib/blueprint/schema";
+import { sortPhrase, type Block, type Connection, type Entity, type Screen } from "@/lib/blueprint/schema";
+import { buildTimeLabel } from "@/lib/blueprint/estimate";
+import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { allBlocks, BLOCK_LABELS, blockTitle, relations } from "@/lib/blueprint";
 import { connectionSummary, entitySummary, list, screenSummary, signInMethods } from "@/lib/blueprint/describe";
 import { creditsUsd, formatValue } from "@/lib/format";
@@ -222,8 +224,9 @@ export function BlockPlain({ block, screen }: { block: Block; screen: Screen }) 
   const ws = useWorkspace();
   const entity = "entityId" in block && block.entityId ? ws.blueprint.entities.find((e) => e.id === block.entityId) : undefined;
   const agent = block.type === "chat" ? ws.blueprint.agents.find((a) => a.id === block.agentId) : undefined;
+  const sortField = block.type === "table" && block.sort ? entity?.fields.find((f) => f.name === block.sort!.column) : undefined;
   const text =
-    block.type === "table" ? `A table of ${entity?.plural.toLowerCase()} showing ${list(block.columns.map((c) => entity?.fields.find((f) => f.name === c)?.label ?? c))}${block.filters.length ? `, filterable by ${list(block.filters)}` : ""}.`
+    block.type === "table" ? `A table of ${entity?.plural.toLowerCase()} showing ${list(block.columns.map((c) => entity?.fields.find((f) => f.name === c)?.label ?? c))}${block.filters.length ? `, filterable by ${list(block.filters)}` : ""}.${block.sort ? ` Sorted by ${sortField?.label ?? block.sort.column}, ${sortPhrase(block.sort, sortField?.type)}.` : ""}`
     : block.type === "chat" ? `A chat with ${agent?.name}. It follows ${agent?.name}'s rules and permissions.`
     : block.type === "kpis" ? `${block.items.length} headline numbers: ${list(block.items.map((i) => i.label))}.`
     : block.type === "form" ? `A form with ${block.fields.length} questions. Submitting it ${block.onSubmit.kind === "agent" ? "hands it to an agent" : "saves it"}.`
@@ -251,6 +254,8 @@ export function BlockSpec({ block }: { block: Block }) {
 export function BriefPlain() {
   const ws = useWorkspace();
   const bp = ws.blueprint;
+  // The estimate is for a real build; this demo plays a simulated one, so both are said, each for what it is.
+  const time = useMemo(() => buildTimeLabel(bp.estimate.minutes, totalDuration(buildTimeline(bp))), [bp]);
   return (
     <div>
       <p className="mt-1 text-[13px] font-medium">{bp.meta.tagline}</p>
@@ -263,7 +268,7 @@ export function BriefPlain() {
         </dl>
       </Section>
       <Section title="Estimate to build">
-        <p className="text-[12.5px]">~{bp.estimate.minutes} min · {bp.estimate.credits} credits (≈ {creditsUsd(bp.estimate.credits)}) · {bp.estimate.files} files · confidence {bp.estimate.confidence}</p>
+        <p className="text-[12.5px]">{time.label} · {bp.estimate.credits} credits (≈ {creditsUsd(bp.estimate.credits)}) · {bp.estimate.files} files · confidence {bp.estimate.confidence}</p>
       </Section>
     </div>
   );

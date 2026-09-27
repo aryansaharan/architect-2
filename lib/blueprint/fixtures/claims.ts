@@ -2,8 +2,10 @@ import type { BlueprintInput } from "../schema";
 
 /**
  * Hero demo: a claims triage desk for a mid-size insurer.
- * `issue_payment` starts as "log" on purpose: the first build's rehearsal
- * catches it and the repair card proposes an approval gate (turn 3 moment).
+ * Settlement is on Spot-check, so it reads claims and posts notes without
+ * waiting. `issue_payment` starts as "log" on purpose: the first build's
+ * rehearsal catches it and the repair card proposes an approval gate on that
+ * one tool (turn 3 moment). Only actions that can't be undone ask first.
  */
 export const claimsBrief =
   "A claims triage desk for Harbor Mutual, a mid-size insurer: take in new claims, flag likely fraud, route each claim to the right adjuster, and prepare payouts that a human approves.";
@@ -327,7 +329,7 @@ export const claimsFixture: BlueprintInput = {
       role: "Prepares payouts for approval",
       avatarHue: 38,
       plain:
-        "When an adjuster approves a claim, Settlement works out the payout, fills in the payment details and puts it in the Payouts queue. It can send money, so every payment waits for a person to approve it first.",
+        "When an adjuster approves a claim, Settlement reads it, works out the payout, fills in the payment details and puts it in the Payouts queue without waiting. Sending money can't be undone, so every payment waits for a person to approve it first.",
       jobDescription:
         "You are Settlement. For an approved claim, calculate the payout (approved amount minus deductible), choose the payee's registered payment method, and create a payout for approval. Post a short note in #claims-payouts when a payout is ready. Never send a payment without an explicit human approval.",
       rules: [
@@ -336,13 +338,14 @@ export const claimsFixture: BlueprintInput = {
         "Payouts above $25,000 also need a team lead.",
       ],
       tools: [
-        // Approve everything: every tool asks first. Issue payment was left on "Tell me" when the plan was drafted;
-        // that slip is what the first build's rehearsal catches (lib/sim/repair.ts) and the recommended fix gates it.
-        { id: "read_claim", name: "Read claim", description: "Read a claim record and its attachments.", connectionId: "claims-db", access: "read", permission: "ask" },
+        // Spot-check: reading is Just do it, posting a note is Tell me, and anything that can't be undone asks first.
+        // Issue payment was left on "Tell me" when the plan was drafted; that slip is what the first build's
+        // rehearsal catches (lib/sim/repair.ts), and the recommended fix puts an approval gate on it alone.
+        { id: "read_claim", name: "Read claim", description: "Read a claim record and its attachments.", connectionId: "claims-db", access: "read", permission: "auto" },
         { id: "issue_payment", name: "Issue payment", description: "Send money to the payee through the payouts provider.", connectionId: "payouts-api", access: "irreversible", permission: "log" },
-        { id: "notify_slack", name: "Post in Slack", description: "Post a message in #claims-payouts.", connectionId: "slack", access: "write", permission: "ask" },
+        { id: "notify_slack", name: "Post in Slack", description: "Post a message in #claims-payouts.", connectionId: "slack", access: "write", permission: "log" },
       ],
-      supervision: "approve_all",
+      supervision: "spot_check",
       knowledge: [{ label: "Deductible schedule", source: "document", ref: "deductibles-2026.csv" }],
       memory: { scope: "session", retentionDays: 30 },
       cost: { creditsPerRun: 4, model: "claude-opus-5" },
