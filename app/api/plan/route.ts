@@ -12,6 +12,9 @@ import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
+/** "1 AI helper", "2 AI helpers": counts in plain words. */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in first" }, { status: 401 });
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
           label: "Plan v1",
           kind: "blueprint",
           blueprint,
-          summary: `${blueprint.screens.length} screens · ${blueprint.agents.length} agents · ${blueprint.entities.length} data types · ${blueprint.connections.length} connections`,
+          summary: `${count(blueprint.screens.length, "screen")} · ${count(blueprint.agents.length, "AI helper")} · ${count(blueprint.entities.length, "data type")} · ${count(blueprint.connections.length, "connection")}`,
         });
         await supa.from("work_orders").insert({ project_id: project.id, request: brief, kind: "build", estimate: blueprint.estimate, status: "proposed" });
         const notConnected = blueprint.connections.filter((c) => c.status === "missing").map((c) => c.name);
@@ -68,7 +71,7 @@ export async function POST(req: Request) {
           {
             lane: "thought",
             kind: "work_order",
-            title: `Planned ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`,
+            title: `Planned ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}`,
             body:
               mode === "live"
                 ? `Planned with ${usage?.model}. Planning is free. Building it: ${buildTimeLabel(blueprint.estimate.minutes, totalDuration(buildTimeline(blueprint))).label}, ${blueprint.estimate.credits} credits. Nothing is built until you approve.${keysNote}`

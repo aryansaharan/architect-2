@@ -9,24 +9,26 @@ export async function restoreCheckpoint(projectId: string, checkpointId: string)
   await requireUser();
   const supa = await createClient();
   const [project, cp] = await Promise.all([getProject(supa, projectId), getCheckpoint(supa, checkpointId)]);
-  if (!project || !cp || cp.project_id !== projectId) return { ok: false, error: "Save point not found" };
+  if (!project || !cp || cp.project_id !== projectId) return { ok: false, error: "That version is gone" };
   const built = cp.blueprint.screens.every((s) => s.status === "built");
   await updateProject(supa, projectId, { blueprint: cp.blueprint, build_state: built ? "built" : project.build_state === "building" ? "draft" : project.build_state });
-  // Restoring a restore shouldn't nest: "Restored #6 · Build complete", never "Restored “Restored “…””".
-  let base = cp.label;
-  for (let i = 0; i < 5 && /^Restored /.test(base); i++) base = base.replace(/^Restored (?:#\d+ · |“)/, "").replace(/”$/, "");
+  // Older labels said "Restored #6" and "Went live": read them in today's words, "Restored version 6" and "Published".
+  const shown = cp.label.replace(/^Restored #(\d+) · /, "Restored version $1 · ").replace(/^Went live$/, "Published");
+  // Restoring a restore shouldn't nest: "Restored version 6 · Build complete", never "Restored “Restored “…””".
+  let base = shown;
+  for (let i = 0; i < 5 && /^Restored /.test(base); i++) base = base.replace(/^Restored (?:(?:version |#)\d+ · |“)/, "").replace(/”$/, "");
   const next = await addCheckpoint(supa, projectId, {
-    label: `Restored #${cp.seq} · ${base}`.slice(0, 60),
+    label: `Restored version ${cp.seq} · ${base}`.slice(0, 60),
     kind: "restore",
     blueprint: cp.blueprint,
-    summary: `Went back to save point #${cp.seq}. Nothing was lost. The previous state is still a save point.`,
+    summary: `Went back to version ${cp.seq}. Nothing was lost: where you were is kept as a version too.`,
   });
   await addLedger(supa, projectId, [
     {
       lane: "did",
       kind: "restore",
-      title: `Went back to save point #${cp.seq} · ${cp.label}`,
-      body: "Restoring is always free. Your previous state is kept as its own save point.",
+      title: `Went back to version ${cp.seq} · ${shown}`,
+      body: "Going back is always free. Where you were is kept as its own version.",
       credits: 0,
       checkpointId: next.id,
     },

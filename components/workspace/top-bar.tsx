@@ -163,7 +163,7 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
           type="button"
           aria-label={here ? `Under the hood, on ${here.label}` : "Under the hood"}
           className={cn(
-            "relative inline-flex h-9 items-center gap-1 px-2.5 text-[13.5px] font-medium outline-none transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-brand",
+            "relative inline-flex h-9 items-center gap-1 px-2.5 text-[13.5px] font-medium outline-none transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-brand",
             here ? "text-foreground" : "text-muted-foreground hover:text-foreground data-[state=open]:text-foreground",
           )}
         >
@@ -284,7 +284,7 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
           >
             <span className={cn("mt-0.5 grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10px]", isCurrent ? "bg-brand text-primary-foreground" : "bg-deep text-muted-foreground")}>v{c.seq}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px]">{c.label}</span>
+              <span className="block truncate text-[13px]">{c.label.replace(/^Went live$/, "Published").replace(/^Restored #(\d+) · /, "Restored version $1 · ")}</span>
               {c.summary && <span className="block truncate text-[11.5px] text-muted-foreground">{c.summary}</span>}
             </span>
             <span className="flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">

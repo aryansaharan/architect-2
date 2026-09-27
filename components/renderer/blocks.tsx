@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Search, Sparkles, Upload } from "lucide-react";
-import { sortPhrase, sortRows, type Action, type Block, type Entity } from "@/lib/blueprint/schema";
+import { sortPhrase, sortRows, type Action, type Block, type Blueprint, type Entity } from "@/lib/blueprint/schema";
 import { formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { enumTone, useApp } from "./app-context";
@@ -35,11 +35,16 @@ function useRunAction() {
     else if (a.kind === "toast") app.toast(a.message);
     else if (a.kind === "agent") app.askAgent(a.agentId, a.prompt);
     else if (a.kind === "openDetail") {
-      const detail = app.bp.screens.find((s) => [...s.regions.main, ...s.regions.side].some((b) => b.type === "detail" && b.entityId === a.entityId));
+      const detail = detailScreen(app.bp, a.entityId);
       if (detail) app.navigate(detail.id);
     }
   };
 }
+
+const detailScreen = (bp: Blueprint, entityId: string) => bp.screens.find((s) => [...s.regions.main, ...s.regions.side].some((b) => b.type === "detail" && b.entityId === entityId));
+
+/** Whether clicking would do anything: rows only look clickable when it would (an "open" with no detail screen does nothing). */
+const canRun = (bp: Blueprint, a: Action | undefined) => Boolean(a) && (a!.kind !== "openDetail" || Boolean(detailScreen(bp, a!.entityId)));
 
 function Value({ entity, field, value }: { entity: Entity | undefined; field: string; value: unknown }) {
   const f = entity?.fields.find((x) => x.name === field);
@@ -120,6 +125,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
   const app = useApp();
   const run = useRunAction();
   const entity = app.entity(block.entityId);
+  const clickable = canRun(app.bp, block.rowAction);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   // The table opens in the order the blueprint sets (block.sort); clicking a header re-sorts it for this person only.
@@ -189,7 +195,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
           </thead>
           <tbody>
             {view.map(({ row, i }) => (
-              <tr key={i} onClick={() => run(block.rowAction, i, block.entityId)} className={cn("border-b border-slate-50 text-slate-700 last:border-0", block.rowAction && "cursor-pointer hover:bg-slate-50")}>
+              <tr key={i} onClick={clickable ? () => run(block.rowAction, i, block.entityId) : undefined} className={cn("border-b border-slate-50 text-slate-700 last:border-0", clickable && "cursor-pointer hover:bg-slate-50")}>
                 {block.columns.map((c, ci) => (
                   <td key={c} className={cn("whitespace-nowrap px-4 py-2.5", ci === 0 && "font-medium text-slate-900")}>
                     <Value entity={entity} field={c} value={row[c]} />
@@ -232,14 +238,17 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
   const app = useApp();
   const run = useRunAction();
   const entity = app.entity(block.entityId);
+  const clickable = canRun(app.bp, block.onSelect);
   return (
     <Card title={block.title ?? entity?.plural}>
       <ul className="divide-y divide-slate-100">
         {(entity?.sample ?? []).slice(0, 8).map((row, i) => {
           const title = String(row[block.titleField] ?? "");
+          // A plain row when selecting does nothing, so it isn't focusable or styled like a button.
+          const Row = clickable ? "button" : "div";
           return (
             <li key={i}>
-              <button onClick={() => run(block.onSelect, i, block.entityId)} className={cn("flex w-full items-center gap-3 px-4 py-2.5 text-left", block.onSelect && "hover:bg-slate-50")}>
+              <Row {...(clickable ? { type: "button" as const, onClick: () => run(block.onSelect, i, block.entityId) } : {})} className={cn("flex w-full items-center gap-3 px-4 py-2.5 text-left", clickable && "hover:bg-slate-50")}>
                 <span className="grid size-8 shrink-0 place-items-center rounded-full text-[12px] font-semibold" style={{ background: "color-mix(in oklab, var(--app-primary) 12%, white)", color: "var(--app-primary)" }}>
                   {title.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                 </span>
@@ -248,7 +257,7 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
                   {block.subtitleField && <span className="block truncate text-[12px] text-slate-500"><Value entity={entity} field={block.subtitleField} value={row[block.subtitleField]} /></span>}
                 </span>
                 {block.badgeField && <span className="shrink-0 whitespace-nowrap text-[12.5px] text-slate-600"><Value entity={entity} field={block.badgeField} value={row[block.badgeField]} /></span>}
-              </button>
+              </Row>
             </li>
           );
         })}

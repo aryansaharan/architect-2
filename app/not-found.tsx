@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
 import { roughLine, roughRect } from "@/components/landing/sketches";
+
+export const metadata: Metadata = { title: "Page not found" };
 
 /** An empty page, drawn in pencil with a dog-eared corner. */
 function BlankPage() {

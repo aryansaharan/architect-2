@@ -35,7 +35,7 @@ export function ProjectCard({ p, seed }: { p: HomeProject; seed: number }) {
       </div>
       <div className="p-4 pt-3">
         <div className="flex items-baseline gap-3">
-          <p className="min-w-0 truncate font-pencil text-[25px] leading-tight text-foreground">{p.name}</p>
+          <p className="min-w-0 truncate pr-1 font-pencil text-[25px] leading-tight text-foreground">{p.name}</p>
           <span className={cn("ml-auto shrink-0 font-sketch text-[11.5px]", s.tone)}>{s.label}</span>
         </div>
         {p.tagline && <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">{p.tagline}</p>}

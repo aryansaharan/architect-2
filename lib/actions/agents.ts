@@ -121,7 +121,7 @@ export async function runRehearsals(projectId: string, agentId: string): Promise
   await updateProject(supa, projectId, { blueprint: bp });
   const total = agent.rehearsals.length;
   await addLedger(supa, projectId, [
-    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${agent.name} · ${passed} of ${total} passed`, body: passed === total ? "Every conversation went as expected." : "A rehearsal failed. Open Rehearsals to see why and fix it.", credits: 0, objectRef: { type: "agent", id: agentId } },
+    { lane: "checked", kind: "rehearsal", title: `Test runs for ${agent.name} · ${passed} of ${total} passed`, body: passed === total ? "Every conversation went as expected." : "A test run failed. Open Tests & reliability to see why and fix it.", credits: 0, objectRef: { type: "agent", id: agentId } },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, passed, total };

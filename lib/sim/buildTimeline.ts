@@ -25,6 +25,9 @@ export type TimelineStep =
   | { kind: "checkpoint"; id: string; label: string }
   | { kind: "done"; id: string; summary: string };
 
+/** "1 AI helper", "2 AI helpers": counts in plain words. */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
 /**
@@ -40,7 +43,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
     id: "read-brief",
     lane: "thought",
     title: "Reading the plan",
-    detail: `${bp.screens.length} screens, ${bp.agents.length} agents, ${bp.entities.length} kinds of data, ${bp.connections.length} connections.`,
+    detail: `${count(bp.screens.length, "screen")}, ${count(bp.agents.length, "AI helper")}, ${count(bp.entities.length, "kind")} of data, ${count(bp.connections.length, "connection")}.`,
     objectRef: { type: "brief", id: "meta" },
     durationMs: 1400,
     logs: ["resolve blueprint v1", "order: data → connections → agents → screens → rehearsals"],
@@ -108,8 +111,8 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
   s({
     id: "rehearse",
     lane: "checked",
-    title: `Rehearsing ${rehearsals} conversations`,
-    detail: "Rehearsals are practice conversations: every agent plays through its test cases before anyone sees it.",
+    title: `Starting ${count(rehearsals, "test run")}`,
+    detail: "A test run is a practice conversation: every AI helper plays through its test cases before anyone sees it.",
     durationMs: 2200,
     logs: bp.agents.flatMap((a) => a.rehearsals.map((r) => `${a.name} · ${r.name}`)),
   });
@@ -124,7 +127,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
   s({
     id: "rehearse-again",
     lane: "checked",
-    title: `Re-ran rehearsals · ${passed} of ${rehearsals} passed`,
+    title: `Ran the test runs again · ${passed} of ${rehearsals} passed`,
     detail: passed === rehearsals ? "The fix held. Nothing else changed." : "Some still fail. Open AI helpers › Tests & reliability after the build to see why.",
     tone: passed === rehearsals ? "ok" : "warn",
     durationMs: 1600,
@@ -141,7 +144,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
   steps.push({
     kind: "done",
     id: "done",
-    summary: `${bp.meta.name} is ready to try: ${bp.screens.length} screens, ${bp.agents.length} agents on duty.`,
+    summary: `${bp.meta.name} is ready to try: ${count(bp.screens.length, "screen")}, ${count(bp.agents.length, "AI helper")} on duty.`,
   });
   return steps;
 }

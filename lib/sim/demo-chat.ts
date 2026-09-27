@@ -1,4 +1,4 @@
-import type { Agent, Blueprint, Entity } from "@/lib/blueprint/schema";
+import type { Agent, AgentTool, Blueprint, Entity } from "@/lib/blueprint/schema";
 
 /**
  * Scripted answers for the public /live app, where anonymous visitors never
@@ -11,15 +11,20 @@ import type { Agent, Blueprint, Entity } from "@/lib/blueprint/schema";
 type Row = Entity["sample"][number];
 type Field = Entity["fields"][number];
 export type DemoChatContext = { screenId?: string; entityId?: string; selected?: number };
-type Intent = "sla" | "flag" | "payout" | "history" | "summary" | "status" | "help";
+type Intent = "action" | "sla" | "flag" | "payout" | "history" | "summary" | "status" | "help";
 
 const DONE = /(paid|approved|done|resolved|closed|complete|sent|solved|replied|won|lost|cancel|rejected|disqualified|started|met\b|ready for day one)/i;
-const FLAGGED = /(flag|fraud|suspicious|escalat|blocked|at risk|held)/i;
+const FLAGGED = /(flag|fraud|suspicious|escalat|blocked|risk|urgent|overdue|held)/i;
+/** Words that ask the helper to do something that can't be taken back, not to look something up. */
+const ACT = "send|e-?mail(?! address)|pay|refund|delete|remove|cancel|approve|reject|decline|notify|message";
 const WAITING = /(await|pending|approval|review|hold|held|queued)/i;
 
 const INTENTS: [Intent, RegExp][] = [
-  ["sla", /\b(sla|overdue|breach\w*|late|deadlines?|past due|at risk|stuck|blocking|blocked)\b/i],
-  ["flag", /\b(fraud\w*|flag\w*|suspicious|risky|risk)\b/i],
+  // An order ("Send ...", "Please refund ..."), or one of those verbs with "now" in a sentence that isn't a question.
+  ["action", new RegExp(`^(?:(?:please|now|go ahead and|can you|could you|would you)\\s+)*(?:${ACT})\\b|^(?!\\s*(?:what|which|who|why|how|when|where|is|are|do|does|did|can i|should)\\b).*\\b(?:${ACT})\\b.*\\b(?:now|right away|immediately|asap)\\b`, "i")],
+  // "at risk" is a flag question: SLA wording only when the question is about deadlines.
+  ["sla", /\b(sla|overdue|breach\w*|late|deadlines?|past due|stuck|blocking|blocked)\b/i],
+  ["flag", /\b(fraud\w*|flag\w*|suspicious|risky|risk|attention|urgent|problems?|worr\w*|concern\w*)\b/i],
   ["payout", /\b(payouts?|payments?|pay|paid|refunds?|settle\w*|money)\b/i],
   ["history", /\b(prior|previous|history|other (claims|tickets|orders|requests)|before)\b/i],
   ["summary", /\b(summar\w*|overview|recap|brief me|today\w*|new|latest|how many|count)\b/i],
@@ -51,7 +56,7 @@ const findField = (e: Entity, re: RegExp, types: Field["type"][]) => e.fields.fi
 function fieldsOf(e: Entity) {
   const title = e.fields[0];
   const status = findField(e, /status|stage|state/i, ["enum"]) ?? e.fields.find((f) => f.type === "enum" && f.options?.some((o) => isDone(o) || /^(new|open)$/i.test(o)));
-  const created = e.fields.find((f) => f.type === "date" && /filed|created|opened|received|submitted|logged|date/i.test(`${f.name} ${f.label ?? ""}`) && !/due|start|deadline|since/i.test(f.name));
+  const created = e.fields.find((f) => f.type === "date" && /filed|created|opened|received|submitted|logged|date/i.test(`${f.name} ${f.label ?? ""}`) && !/due|start|deadline|since/i.test(f.name) && !/last|next/i.test(`${f.name} ${f.label ?? ""}`));
   const due = findField(e, /sla|due|deadline/i, ["date", "string"]);
   const amount = e.fields.find((f) => f.type === "money");
   const score = findField(e, /risk|fraud|suspic/i, ["number"]);
@@ -65,6 +70,8 @@ function fieldsOf(e: Entity) {
 const flagLine = (e: Entity, f: Field) => (e.sample.every((r) => typeof r[f.name] !== "number" || (r[f.name] as number) <= 1) ? 0.6 : 60);
 
 const isDone = (v: string) => DONE.test(v) && !/\bnot\b/i.test(v);
+/** "At risk", "Urgent", "Overdue", "Flagged" count; "Low risk" and "Not flagged" don't. */
+const isFlagValue = (v: string) => FLAGGED.test(v) && !/\b(low|no|not|un)[\s-]?(risk|flag)/i.test(v);
 
 function isOpen(e: Entity, r: Row): boolean {
   const { status } = fieldsOf(e);
@@ -74,7 +81,7 @@ function isOpen(e: Entity, r: Row): boolean {
 function isFlagged(e: Entity, r: Row): boolean {
   const F = fieldsOf(e);
   if (F.score && typeof r[F.score.name] === "number" && (r[F.score.name] as number) >= flagLine(e, F.score)) return true;
-  if (e.fields.some((f) => f.type === "enum" && FLAGGED.test(String(r[f.name] ?? "")))) return true;
+  if (e.fields.some((f) => f.type === "enum" && isFlagValue(String(r[f.name] ?? "")))) return true;
   return e.fields.some((f) => f.type === "boolean" && /flag/i.test(f.name) && r[f.name] === true);
 }
 
@@ -189,7 +196,8 @@ function capabilities(bp: Blueprint, e: Entity): string[] {
   const F = fieldsOf(e);
   const out = [F.created ? `Summarise today's ${/^new\b/i.test(e.plural) ? "" : "new "}${lower(e.plural)}` : `Summarise the ${lower(e.plural)}`];
   const sla = slaEntity(bp, e);
-  if (sla) out.push(`Show which ${lower(sla.plural)} are closest to ${fieldsOf(sla).due?.type === "date" ? "their due date" : "breaching SLA"}`);
+  const due = sla && fieldsOf(sla).due;
+  if (sla) out.push(due ? `Show which ${lower(sla.plural)} are closest to ${due.type === "date" ? "their due date" : /sla/i.test(label(due)) ? "breaching SLA" : `their ${lower(label(due))}`}` : `Show which open ${lower(sla.plural)} have waited longest`);
   if (bp.entities.some((x) => x.sample.some((r) => isFlagged(x, r)))) out.push(`Name the flagged ${lower(e.plural)}`);
   const sample = e.sample[0] ? String(e.sample[0][F.title.name] ?? "") : "";
   out.push(`Look up one ${lower(e.name)} by ${lower(label(F.title))}${F.person ? " or name" : ""}${sample ? `, like ${sample}` : ""}`);
@@ -261,7 +269,12 @@ function slaAnswer(bp: Blueprint, e: Entity, q: string, ctx: DemoChatContext): s
   }
   rows = rows.slice(0, Math.min(cap, rows.length));
   const when = (r: Row) => (F.due ? `${label(F.due)} ${show(F.due, r[F.due.name])}` : F.created ? `${lower(label(F.created))} ${show(F.created, r[F.created.name])}` : undefined);
-  const head = `${plural(rows.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} closest to breaching SLA${by.length ? ` for ${by.join(", ")}` : ""} (${basis}):`;
+  // "Breaching SLA" only when the list really has an SLA field, or the question and this screen's headline number both say SLA.
+  const slaWords = F.due ? /sla/i.test(label(F.due)) : /\bsla\b/i.test(q) && kpiCap(bp, ctx.screenId, e.id, /sla/i) !== null;
+  const scope = by.length ? ` for ${by.join(", ")}` : "";
+  const head = slaWords || F.due
+    ? `${plural(rows.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} closest to ${slaWords ? "breaching SLA" : `their ${lower(label(F.due!))}`}${scope} (${basis}):`
+    : `${plural(rows.length, `open ${lower(e.name)} has`, `open ${lower(e.plural)} have`)} waited longest${scope} (${basis}):`;
   let tail = "";
   if (F.assignee && !F.due) {
     const rest = scoped.filter((r) => unassigned(r) && !rows.includes(r));
@@ -270,6 +283,48 @@ function slaAnswer(bp: Blueprint, e: Entity, q: string, ctx: DemoChatContext): s
       : `Every other open ${lower(e.name)} already has ${/^[aeiou]/i.test(label(F.assignee)) ? "an" : "a"} ${lower(label(F.assignee))}.`;
   }
   return [head, bullets(e, rows, when), tail].filter(Boolean).join("\n\n");
+}
+
+/** The project's own tool for an action, if any helper has one: the current helper first, and "Send email" over "Draft email". */
+function toolFor(bp: Blueprint, agent: Agent | undefined, want: RegExp, verb: string): { a: Agent; t: AgentTool } | undefined {
+  const hits = [...(agent ? [agent] : []), ...bp.agents.filter((x) => x !== agent)].flatMap((a) =>
+    a.tools
+      .filter((t) => t.access !== "read" && (want.test(t.name) || want.test(t.description)))
+      .map((t) => ({ a, t, score: (lc(t.name).includes(verb) ? 3 : 0) + (want.test(t.name) ? 2 : 0) + (want.test(t.description) ? 1 : 0) + (t.access === "irreversible" ? 1 : 0) })),
+  );
+  return hits.sort((x, y) => y.score - x.score)[0];
+}
+
+/** Orders like "Send a reorder email to The Copper Kettle now": said plainly, never done, since the demo can't act. */
+function actionAnswer(bp: Blueprint, agent: Agent | undefined, q: string, hit: { e: Entity; r: Row } | null): string {
+  const verb = lc(q.match(new RegExp(`\\b(${ACT})\\b`, "i"))?.[1] ?? "send").replace("-", "");
+  const sends = /^(send|email|message|notify)$/.test(verb);
+  const found = toolFor(bp, agent, sends ? /send|e-?mail|message|notify|slack/i : /^(pay|refund)$/.test(verb) ? /pay|refund|transfer|money/i : new RegExp(verb.slice(0, 5), "i"), verb);
+  let target = "";
+  if (hit) {
+    const F = fieldsOf(hit.e);
+    const title = show(F.title, hit.r[F.title.name]);
+    const person = F.person ? show(F.person, hit.r[F.person.name]) : "";
+    target = person && !mentions(q, title) && mentions(q, person) ? person : title;
+  }
+  const kind = found && bp.connections.find((c) => c.id === found.t.connectionId)?.kind;
+  const doing = { pay: ["Paying", "someone"], refund: ["Refunding", "someone"], delete: ["Deleting", "a record"], remove: ["Removing", "a record"], cancel: ["Cancelling", "it"], approve: ["Approving", "that"], reject: ["Rejecting", "that"], decline: ["Declining", "that"] }[verb] ?? ["Doing", "that"];
+  const say = sends
+    ? verb === "notify"
+      ? `Notifying ${target || "them"}`
+      : `Sending ${/e-?mail/i.test(q) || kind === "email" ? "an email" : "a message"}${target ? ` to ${target}` : ""}`
+    : `${doing[0]} ${target || doing[1]}`;
+  const none = /^(pay|refund)$/.test(verb) ? "no money moves" : sends ? "nothing is sent" : "nothing changes";
+  // Approving is the person's step itself, so no helper tool stands in for it.
+  if (/^(approve|reject|decline)$/.test(verb)) return `${say} is a person's call: AI helpers here prepare the work and a person gives the final OK. In this published demo ${none}.`;
+  if (!found) return `No AI helper in this app is set up to do that, so nothing happens. In apps built here, anything that can't be undone, like ${lc(say[0]) + say.slice(1)}, asks a person first.`;
+  const helper = found.a === agent ? "this AI helper" : found.a.name;
+  const what = lc(found.t.description[0]) + found.t.description.slice(1).replace(/\.$/, "");
+  if (found.t.access === "write")
+    return `For that, ${helper} would ${what}. That can be undone${found.t.permission === "ask" ? ", and a person still OKs it first" : ", and every change is logged for a person to check"}. In this published demo nothing changes.`;
+  return found.t.permission === "ask" || found.a.supervision === "approve_all"
+    ? `${say} can't be undone, so ${helper} asks a person first. In this published demo ${none}.`
+    : `${say} can't be undone. ${helper === "this AI helper" ? "This AI helper" : helper} is set to do it on its own${found.t.permission === "log" ? " and log it for a person to check" : ""}. In this published demo ${none}.`;
 }
 
 const INTENT_RE = Object.fromEntries(INTENTS) as Record<Intent, RegExp>;
@@ -291,6 +346,9 @@ export function demoReply(bp: Blueprint, agent: Agent | undefined, question: str
   const asksAboutField = e.fields.some((f) => label(f).length >= 4 && mentions(q, label(f)));
   const pointsAtThis = ctx.selected !== undefined && (thisRecord || asksAboutField || /\b(this|that|it|her|his|their)\b/i.test(q));
   const current = pointsAtThis && e.sample.length ? { e, r: e.sample[ctx.selected ?? 0] ?? e.sample[0] } : null;
+
+  // 0. Orders to do something ("Send ...", "Refund ... now"): the record named, or the one in view.
+  if (intent === "action") return actionAnswer(bp, agent, q, named[0] ?? current);
 
   // 1. Earlier records from the same person as the one in view (or the one named).
   if (intent === "history" && (named[0] || current)) {
@@ -322,9 +380,26 @@ export function demoReply(bp: Blueprint, agent: Agent | undefined, question: str
 
   // 3. Questions about the whole list.
   if (intent === "flag") {
-    const ent = [e, ...bp.entities.filter((x) => x !== e)].find((x) => x.sample.some((r) => isFlagged(x, r))) ?? e;
-    const { rows } = filterByMention(ent, ent.sample.filter((r) => isFlagged(ent, r)), q, INTENT_RE.flag);
+    // Records whose own values say what was asked ("at risk" finds a status of "At risk"), this list first; else anything flagged.
+    const asked = ["risk", "urgent", "overdue", "fraud", "escalat", "block", "held"].find((w) => lc(q).includes(w));
+    const order = [e, ...bp.entities.filter((x) => x !== e)];
+    const says = (x: Entity, r: Row) => Boolean(asked) && x.fields.some((f) => f.type === "enum" && isFlagValue(String(r[f.name] ?? "")) && lc(String(r[f.name])).includes(asked!));
+    const exact = order.find((x) => x.sample.some((r) => says(x, r)));
+    const ent = exact ?? order.find((x) => x.sample.some((r) => isFlagged(x, r)));
+    if (!ent) {
+      // "What needs attention?" with nothing flagged: what's waiting on a person instead.
+      const wait = asked || /flag|fraud|suspicious/i.test(q) ? undefined : order.find((x) => x.sample.some((r) => WAITING.test(String(r[fieldsOf(x).status?.name ?? ""] ?? ""))));
+      if (wait) {
+        const rows = wait.sample.filter((r) => WAITING.test(String(r[fieldsOf(wait).status!.name] ?? "")));
+        return `Nothing is flagged in the sample data, but ${plural(rows.length, `${lower(wait.name)} is`, `${lower(wait.plural)} are`)} waiting on a person:\n\n${bullets(wait, rows)}`;
+      }
+      return `Nothing is flagged${asked === "risk" ? " or at risk" : ""} in the sample ${lower(e.plural)} right now.`;
+    }
+    const { rows } = filterByMention(ent, ent.sample.filter((r) => (exact ? says(ent, r) : isFlagged(ent, r))), q, INTENT_RE.flag);
     if (!rows.length) return `Nothing is flagged in the sample ${lower(ent.plural)} right now.`;
+    // Say it the way the app does ("marked At risk") when every row carries the same flag.
+    const tags = new Set(rows.map((r) => ent.fields.map((f) => (f.type === "enum" ? String(r[f.name] ?? "") : "")).find(isFlagValue) ?? ""));
+    const tag = tags.size === 1 ? [...tags][0] : "";
     const E = fieldsOf(ent);
     const why = (r: Row) => (E.score && typeof r[E.score.name] === "number" ? `${lower(label(E.score))} ${show(E.score, r[E.score.name])}` : undefined);
     const notes = rows.slice(0, 3).map((r) => {
@@ -332,14 +407,14 @@ export function demoReply(bp: Blueprint, agent: Agent | undefined, question: str
       return text && r[text.name] ? `${show(E.title, r[E.title.name])}: ${String(r[text.name])}` : "";
     }).filter(Boolean);
     const rule = ruleAbout(bp, /flag/i);
-    return [`${plural(rows.length, `${lower(ent.name)} is`, `${lower(ent.plural)} are`)} flagged:`, bullets(ent, rows, why), notes.length ? notes.join("\n") : "", rule].filter(Boolean).join("\n\n");
+    return [`${plural(rows.length, `${lower(ent.name)} is`, `${lower(ent.plural)} are`)} ${tag && !/flag/i.test(`${tag} ${q}`) ? `marked ${tag}` : "flagged"}:`, bullets(ent, rows, why), notes.length ? notes.join("\n") : "", rule].filter(Boolean).join("\n\n");
   }
 
   if (intent === "sla") {
     const ent = slaEntity(bp, e);
     if (!ent) {
       const open = e.sample.filter((r) => isOpen(e, r));
-      return `This app's data has no SLA or due dates, so I can't tell what's close to breaching. ${plural(open.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} still open:\n\n${bullets(e, open)}`;
+      return `This app's data has no due dates, so I can't tell what's running late. ${plural(open.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} still open:\n\n${bullets(e, open)}`;
     }
     return slaAnswer(bp, ent, q, ctx);
   }

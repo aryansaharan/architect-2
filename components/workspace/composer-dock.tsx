@@ -60,7 +60,7 @@ export function creditWords(n: number): string {
   return `${Number.isInteger(v) ? v : v.toFixed(1)} ${v === 1 ? "credit" : "credits"}`;
 }
 
-/** The server labels a new version "Save point #7": the margin says "version 7". */
+/** A new version is labelled "version 7" (older ones said "Save point #7"): the margin always says "version 7". */
 export function versionWords(label: string): string {
   const m = /#(\d+)/.exec(label);
   return m ? `version ${m[1]}` : label;

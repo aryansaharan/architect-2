@@ -16,6 +16,9 @@ export const dynamic = "force-dynamic";
 
 const FW: Record<string, Framework> = { langgraph: "langgraph", crewai: "crewai", openai_agents: "openai_agents", google_adk: "google_adk", lyzr: "lyzr", mastra: "mastra" };
 
+/** "1 AI helper", "2 AI helpers": counts in plain words. */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 const pretty = (s: string) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 40);
 
 export async function POST(req: Request) {
@@ -57,7 +60,7 @@ export async function POST(req: Request) {
         // Never invent: if the real agents can't be laid onto this plan, its agents stay, marked as proposals.
         console.error("[import] agent mapping failed", e instanceof Error ? e.message : e);
         next.agents.forEach((a) => (a.origin = "generated"));
-        agentNote = `Read ${report.agents!.length} agent definitions but couldn't lay them onto this plan, so its agents are proposals. Your code is untouched.`;
+        agentNote = `Read ${report.agents!.length} agent definitions but couldn't lay them onto this plan, so its AI helpers are proposals. Your code is untouched.`;
       }
     }
     // Honest from the first save: nothing outside the app is connected on an imported project yet.
@@ -120,7 +123,7 @@ Use the repository's own names for agents and screens where the README or folder
           {
             lane: "thought",
             kind: "work_order",
-            title: `Mapped the repo into ${blueprint.screens.length} screens and ${blueprint.agents.length} ${picked?.mapped.length ? "agents from your code" : "agents"}`,
+            title: `Mapped the repo into ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}${picked?.mapped.length ? " from your code" : ""}`,
             body: `${mode === "live" ? `Mapped with ${usage?.model}. Mapping is free.` : "Offline mode: screens and data come from the closest starter plan."}${agentNote ? ` ${agentNote}` : ""} Every outside connection starts as not connected (test data) until you add its keys. The first change will open as a pull request. Nothing is pushed to main.`,
             credits: 0,
             checkpointId: cp.id,

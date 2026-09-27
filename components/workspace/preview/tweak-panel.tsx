@@ -39,7 +39,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
         }
       }
       toast.success(msg, {
-        description: "Free · no model involved · saved as a save point",
+        description: "Free · no model involved · saved as a new version",
         duration: 9000,
         action: prev ? { label: "Undo", onClick: () => void undoTo(projectId, prev, () => router.refresh()) } : undefined,
       });
@@ -152,7 +152,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
           </label>
         )}
         {(block.type === "chat" || block.type === "timeline" || block.type === "list" || block.type === "detail") && (
-          <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll get a Work Order with the price first.</p>
+          <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll see the change and its price first.</p>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-hairline p-3">

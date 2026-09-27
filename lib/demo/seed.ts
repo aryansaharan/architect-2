@@ -12,6 +12,9 @@ import { preflight } from "@/lib/sim/preflight";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import type { Blueprint } from "@/lib/blueprint/schema";
 
+/** "1 AI helper", "2 AI helpers": counts in plain words. */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 /**
  * Rehearsal history that matches the story the ledger tells: every rehearsal
  * ran during the build, Settlement's payout rehearsals failed before the
@@ -69,8 +72,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   });
 
   // Same wording as a real plan (app/api/plan/route.ts) and a real build (lib/actions/build.ts completeBuild).
-  const cp1 = await addCheckpoint(supa, project.id, { label: "Plan approved", kind: "blueprint", blueprint: planned, summary: `${planned.screens.length} screens · ${planned.agents.length} agents · ${planned.entities.length} data types · ${planned.connections.length} connections` });
-  const cp2 = await addCheckpoint(supa, project.id, { label: "Build complete", kind: "build", blueprint: built, summary: `${built.screens.length} screens · ${built.agents.length} agents · ${passed} of ${rehearsed.length} rehearsals passed` });
+  const cp1 = await addCheckpoint(supa, project.id, { label: "Plan approved", kind: "blueprint", blueprint: planned, summary: `${count(planned.screens.length, "screen")} · ${count(planned.agents.length, "AI helper")} · ${count(planned.entities.length, "data type")} · ${count(planned.connections.length, "connection")}` });
+  const cp2 = await addCheckpoint(supa, project.id, { label: "Build complete", kind: "build", blueprint: built, summary: `${count(built.screens.length, "screen")} · ${count(built.agents.length, "AI helper")} · ${passed} of ${count(rehearsed.length, "test run")} passed` });
   // The latest change a teammate is shown: the repair's real diff to the gated agent's spec.
   const gatedSpec = `agents/${repair.objectRef.id}/agent.yaml`;
   const lastDiff = diffToText(diffFiles(generateFiles(planned), generateFiles(built)).filter((f) => f.path === gatedSpec));
@@ -90,12 +93,12 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
 
   await addLedger(supa, project.id, [
     { lane: "thought", kind: "brief", title: "You described the project", body: STARTERS.claims.brief, createdAt: at(0) },
-    { lane: "thought", kind: "work_order", title: `Plan ready · ${planned.screens.length} screens, ${planned.agents.length} agents`, body: `Estimated ${buildMinutes} min and ${buildCredits} credits (≈ $${(buildCredits / 100).toFixed(2)}), taken from your demo balance. You approved it.`, checkpointId: cp1.id, credits: 0, createdAt: at(2) },
+    { lane: "thought", kind: "work_order", title: `Plan ready · ${count(planned.screens.length, "screen")}, ${count(planned.agents.length, "AI helper")}`, body: `Estimated ${buildMinutes} min and ${buildCredits} credits (≈ $${(buildCredits / 100).toFixed(2)}), taken from your demo balance. You approved it.`, checkpointId: cp1.id, credits: 0, createdAt: at(2) },
     // In the order a real build writes them: the repair when it is chosen mid-build (resolveRepair), then the build and its rehearsal run (completeBuild).
     { lane: "checked", kind: "repair", blame: "system_fix", title: repairLedgerTitle(repair), body: repair.options[0].narration, objectRef: repair.objectRef, credits: 0, meta: { planId: repair.id, optionId: "a", changelog: repair.options[0].changelog }, createdAt: at(25) },
-    { lane: "did", kind: "build_step", title: `Built ${built.screens.length} screens and put ${built.agents.length} agents on duty`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, checkpointId: cp2.id, createdAt: at(26) },
-    { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsed.length} conversations · ${passed} passed`, ...(passed < rehearsed.length ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), credits: 0, checkpointId: cp2.id, createdAt: at(27) },
-    { lane: "did", kind: "ship", title: "Went live on Prod Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
+    { lane: "did", kind: "build_step", title: `Built ${count(built.screens.length, "screen")} and ${count(built.agents.length, "AI helper")}`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, checkpointId: cp2.id, createdAt: at(26) },
+    { lane: "checked", kind: "rehearsal", title: `Test runs: ${passed} of ${rehearsed.length} passed`, ...(passed < rehearsed.length ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), credits: 0, checkpointId: cp2.id, createdAt: at(27) },
+    { lane: "did", kind: "ship", title: "Published on Prod Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
     { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0.7, createdAt: at(90) },
     { lane: "thought", kind: "comment", blame: "teammate", title: "Maya commented on Intake Queue", body: "“Can we sort this by SLA risk instead of date?”", objectRef: { type: "screen", id: "intake-queue" }, createdAt: at(91) },
     { lane: "thought", kind: "handoff", title: "You asked Priya to connect the policy system", body: "“I don't have the Guidewire key. Can you wire up the sandbox?”", objectRef: { type: "connection", id: "policy-system" }, createdAt: at(93) },

@@ -158,7 +158,7 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
 
       <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3">
         <p className="flex min-w-0 items-baseline gap-2" aria-live="polite">
-          <span className="truncate font-pencil text-[28px] leading-none text-foreground">{screen.title}</span>
+          <span className="truncate pr-1 font-pencil text-[28px] leading-tight text-foreground">{screen.title}</span>
           <span className="shrink-0 font-sketch text-[12px] text-faint">
             screen {at} of {bp.screens.length}
           </span>

@@ -108,6 +108,10 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
   );
 }
 
+type DemoLog = { role: "user" | "agent"; text: string }[];
+/** Conversations by app and chat block, so switching phone and desktop view (which remounts the block) keeps them. Only written in the browser. */
+const demoLogs = new Map<string, DemoLog>();
+
 /**
  * Public live version: anonymous visitors never trigger model calls. Replies are
  * matched to the question's intent and built from the app's sample data
@@ -115,7 +119,13 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
  */
 function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined }) {
   const app = useApp();
-  const [log, setLog] = useState<{ role: "user" | "agent"; text: string }[]>([]);
+  const logKey = `${app.bp.meta.name}/${block.id}`;
+  const [log, setLogState] = useState<DemoLog>(() => demoLogs.get(logKey) ?? []);
+  const setLog = (next: (l: DemoLog) => DemoLog) => setLogState((l) => {
+    const v = next(l);
+    demoLogs.set(logKey, v);
+    return v;
+  });
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -158,7 +168,7 @@ function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined
   return (
     <Shell block={block} agent={agent} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
       <div ref={scroller} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
-        <p className="text-[11.5px] text-slate-400">Demo agent: answers come from the sample data.</p>
+        <p className="text-[11.5px] text-slate-400">This AI helper answers from the app&apos;s sample data.</p>
         {log.length === 0 &&
           block.starters.map((s) => (
             <button key={s} onClick={() => send(s)} className="block w-full rounded-[var(--app-radius)] border border-slate-200 px-3 py-2 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">{s}</button>

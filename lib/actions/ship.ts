@@ -108,13 +108,13 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   const existing = await getLiveSiteForProject(supa, projectId);
   const slug = existing?.slug ?? `${kebab(project.name) || "app"}-${shortId(projectId)}`;
   const link = `${await requestOrigin()}/live/${slug}`;
-  const cp = await addCheckpoint(supa, projectId, { label: "Went live", kind: "ship", blueprint: project.blueprint, summary: `Live at ${link}` });
+  const cp = await addCheckpoint(supa, projectId, { label: "Published", kind: "ship", blueprint: project.blueprint, summary: `Live at ${link}` });
   if (existing) await supa.from("live_sites").update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("slug", slug);
   else await supa.from("live_sites").insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
-    { lane: "did", kind: "ship", title: existing ? "Updated the live version" : "Went live on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${testData}`, checkpointId: cp.id },
+    { lane: "did", kind: "ship", title: existing ? "Published the changes" : "Published on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${testData}`, checkpointId: cp.id },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, slug };
@@ -127,11 +127,11 @@ export async function rollbackTo(projectId: string, deploymentId: string): Promi
   const live = await getLiveSiteForProject(supa, projectId);
   if (!dep || !dep.checkpoint_id || !live) return { ok: false, error: "Nothing to roll back to" };
   const cp = await getCheckpoint(supa, dep.checkpoint_id);
-  if (!cp) return { ok: false, error: "That save point is gone" };
+  if (!cp) return { ok: false, error: "That version is gone" };
   await supa.from("live_sites").update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("slug", live.slug);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target: "architect_cloud", checkpoint_id: cp.id, status: "live", preflight: dep.preflight, url: `/live/${live.slug}` });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Rolled the live version back to save point #${cp.seq}`, body: "Rollbacks are instant and free. The test version is unchanged.", credits: 0 }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Rolled the published app back to version ${cp.seq}`, body: "Rollbacks are instant and free. The test version is unchanged.", credits: 0 }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }

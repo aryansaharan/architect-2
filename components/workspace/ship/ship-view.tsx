@@ -121,7 +121,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
       return;
     }
     const r = await fixPreflight(ws.project.id, action);
-    if (r.ok) toast.success("Fixed", { description: "Free · saved as a save point" });
+    if (r.ok) toast.success("Fixed", { description: "Free · saved as a new version" });
     else toast.error(r.error);
     router.refresh();
   };
@@ -249,7 +249,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                 ? "Fix the custom domain under More options to publish."
                 : target === "architect_cloud"
                   ? isLive
-                    ? `Replaces the live version with save point #${ws.checkpoints[0]?.seq ?? 1}. Rolling back is one click.`
+                    ? `Replaces the live version with version ${ws.checkpoints[0]?.seq ?? 1}. Rolling back is one click.`
                     : "Goes live on Prod Cloud. Rolling back is one click."
                   : `Prepares ${target === "vercel" ? "your Vercel project" : "a bundle for your network"} (sandbox).`}
           </p>
@@ -290,7 +290,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-[12.5px]">
                     <span className={cn("size-2 shrink-0 rounded-full", d.status === "live" ? "bg-read" : d.status === "sandbox" ? "bg-change" : "bg-hairline-hi")} aria-hidden />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px]">{cp ? <>Save point #{cp.seq} · {cp.label}</> : "A saved version"}</span>
+                      <span className="block text-[13px]">{cp ? <>Version {cp.seq} · {cp.label === "Went live" ? "Published" : cp.label}</> : "A saved version"}</span>
                       <span className="block text-[11.5px] text-muted-foreground">
                         {d.status === "live" ? "Live now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · {d.target === "architect_cloud" ? "Prod Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"} · <TimeAgo iso={d.created_at} />
                       </span>
@@ -395,7 +395,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
             </section>
 
             <p className="text-[12.5px] text-muted-foreground">
-              Want to try it first? <Link href={`/p/${ws.project.id}/preview`} className="text-brand underline-offset-4 hover:underline">Open the test version</Link> (save point #{ws.checkpoints[0]?.seq ?? 1}, only you, sample data).
+              Want to try it first? <Link href={`/p/${ws.project.id}/preview`} className="text-brand underline-offset-4 hover:underline">Open the test version</Link> (version {ws.checkpoints[0]?.seq ?? 1}, only you, sample data).
             </p>
           </div>
         </details>
@@ -415,7 +415,7 @@ function LaunchMoment({ slug, origin, name, onClose }: { slug: string; origin: s
   }, [onClose]);
   return (
     <motion.div
-      className="fixed inset-0 z-50 grid place-items-center bg-canvas/80 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 p-4 sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.2 } }}
@@ -429,7 +429,7 @@ function LaunchMoment({ slug, origin, name, onClose }: { slug: string; origin: s
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 6 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="sticky-note relative w-full max-w-[520px] rounded-sm px-8 pb-7 pt-9 text-center"
+        className="sticky-note relative w-full min-w-0 max-w-[520px] rounded-sm px-5 pb-7 pt-9 text-center sm:px-8"
       >
         <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
         <p className="font-pencil text-[48px] leading-none">It&apos;s live.</p>

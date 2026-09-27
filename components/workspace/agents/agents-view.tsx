@@ -92,7 +92,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
                 >
                   <span className="flex items-center gap-2.5">
                     <Avatar name={a.name} hue={a.avatarHue} size={28} />
-                    <span className="min-w-0 flex-1 truncate font-pencil text-[22px] leading-tight">{a.name}</span>
+                    <span className="min-w-0 flex-1 truncate pr-1 font-pencil text-[22px] leading-tight">{a.name}</span>
                   </span>
                   <span className="mt-1 block text-[12px] leading-snug text-muted-foreground">{a.role}</span>
                   {ungated > 0 && <span className="mt-1.5 block text-[11.5px] text-ask">{ungated === 1 ? "1 action that can't be undone doesn't" : `${ungated} actions that can't be undone don't`} ask first</span>}

@@ -12,6 +12,9 @@ import { rehearsalOutcome } from "@/lib/sim/rehearse";
 
 type Result = { ok: true } | { ok: false; error: string };
 
+/** "1 AI helper", "2 AI helpers": counts in plain words. */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 /** The fix already chosen during the current build, read back from its history entry. */
 export type DecidedRepair = { planId: string; optionId: "a" | "b"; objectRef: ObjectRef | null };
 
@@ -101,8 +104,8 @@ export async function startBuild(projectId: string): Promise<StartBuildResult> {
           ? {
               lane: "thought",
               kind: "work_order",
-              title: "You approved the Work Order",
-              body: `Build ${project.blueprint.screens.length} screens and ${project.blueprint.agents.length} agents · about ${project.blueprint.estimate.minutes} min for a real build, about 30 s here (simulated). ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
+              title: "You pressed Make it real",
+              body: `Build ${count(project.blueprint.screens.length, "screen")} and ${count(project.blueprint.agents.length, "AI helper")} · about ${project.blueprint.estimate.minutes} min for a real build, about 30 s here (simulated). ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
               credits,
             }
           : {
@@ -186,17 +189,17 @@ export async function completeBuild(projectId: string): Promise<Result> {
       label: "Build complete",
       kind: "build",
       blueprint: built,
-      summary: `${built.screens.length} screens · ${built.agents.length} agents · ${passed} of ${rehearsals} rehearsals passed`,
+      summary: `${count(built.screens.length, "screen")} · ${count(built.agents.length, "AI helper")} · ${passed} of ${count(rehearsals, "test run")} passed`,
     });
     await addLedger(supa, projectId, [
       {
         lane: "did",
         kind: "build_step",
-        title: `Built ${built.screens.length} screens and put ${built.agents.length} agents on duty`,
+        title: `Built ${count(built.screens.length, "screen")} and ${count(built.agents.length, "AI helper")}`,
         body: built.screens.map((s) => s.title).join(", ") + ".",
         checkpointId: cp.id,
       },
-      { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsals} conversations · ${passed} passed`, ...(passed < rehearsals ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), checkpointId: cp.id },
+      { lane: "checked", kind: "rehearsal", title: `Test runs: ${passed} of ${rehearsals} passed`, ...(passed < rehearsals ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), checkpointId: cp.id },
     ]);
     await supa.from("work_orders").update({ status: "done", resolved_at: now }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
     revalidatePath(`/p/${projectId}`, "layout");

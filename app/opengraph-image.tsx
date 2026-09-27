@@ -21,7 +21,7 @@ export default function OpengraphImage() {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 24, color: "#66635a", fontFamily: "sans-serif" }}>
           <span>Change it with notes in the margin · publish in one click</span>
-          <span>Architect 2.0 prototype for Lyzr</span>
+          <span>A prototype for Lyzr&apos;s Architect 2.0 brief</span>
         </div>
       </div>
     ),

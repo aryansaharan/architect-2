@@ -69,7 +69,7 @@ export default async function Landing() {
       <main id="main">
         {/* Hero: say what you want. */}
         <section className="mx-auto max-w-3xl px-5 pb-10 pt-14 text-center sm:px-6 sm:pt-20">
-          <p className="font-sketch text-[13px] text-muted-foreground">Architect 2.0 · a prototype for Lyzr</p>
+          <p className="font-sketch text-[13px] text-muted-foreground">A prototype for Lyzr&apos;s Architect 2.0 brief</p>
           <h1 className="mt-4 text-balance font-display text-[46px] leading-[0.95] sm:text-[84px]">
             Sketch your app.
             <br />

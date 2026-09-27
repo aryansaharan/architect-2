@@ -26,7 +26,7 @@ export type RepairPlan = {
 
 /** The history (ledger) title for a repair, shared by real builds and the seeded demo so both read the same. */
 export function repairLedgerTitle(plan: Pick<RepairPlan, "title">): string {
-  return `Caught: ${plan.title.replace(/^Rehearsal caught /, "")}`;
+  return `Caught: ${plan.title.replace(/^(Rehearsal|A test run) caught /, "")}`;
 }
 
 /**
@@ -61,8 +61,8 @@ export function planRepair(bp: Blueprint): RepairPlan {
     const rules = agent.rules.length < 8 ? agent.rules : agent.rules.slice(0, 7);
     return {
       id: `gate-${agent.id}-${tool.id}`,
-      title: `Rehearsal caught ${agent.name} trying to ${tool.name.toLowerCase()} without asking`,
-      tried: `In the “${rehearsal}” rehearsal, ${agent.name} called ${tool.name.toLowerCase()} straight away.`,
+      title: `A test run caught ${agent.name} trying to ${tool.name.toLowerCase()} without asking`,
+      tried: `In the “${rehearsal}” test run, ${agent.name} called ${tool.name.toLowerCase()} straight away.`,
       whyFailed: `${tool.name} can't be undone, but it was set to “${PERMISSION_LABEL[tool.permission]}”. A mistake here would reach the real world before anyone could stop it.`,
       objectRef: { type: "agent", id: agent.id },
       agentName: agent.name,
@@ -100,8 +100,8 @@ export function planRepair(bp: Blueprint): RepairPlan {
   const rules = agent.rules.length < 8 ? agent.rules : agent.rules.slice(0, 7);
   return {
     id: `promise-${agent.id}`,
-    title: `Rehearsal caught ${agent.name} promising something it can't guarantee`,
-    tried: `In the “${rehearsal}” rehearsal, ${agent.name} told the person their request would definitely be resolved today.`,
+    title: `A test run caught ${agent.name} promising something it can't guarantee`,
+    tried: `In the “${rehearsal}” test run, ${agent.name} told the person their request would definitely be resolved today.`,
     whyFailed: `None of ${agent.name}'s rules stop it from making commitments, so under pressure it improvised one.`,
     objectRef: { type: "agent", id: agent.id },
     agentName: agent.name,

@@ -52,7 +52,7 @@ export function Inspector() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[11.5px] text-muted-foreground">{meta.label}</p>
-          <h2 className="truncate font-pencil text-[28px] leading-[1.15]">{name}</h2>
+          <h2 className="truncate pr-1 font-pencil text-[28px] leading-[1.15]">{name}</h2>
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1" onClick={() => ws.select(null)} aria-label="Close inspector">
           <X />

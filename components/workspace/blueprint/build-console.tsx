@@ -68,7 +68,7 @@ export function BuildConsole() {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               >
-                <p className="mt-0.5 truncate font-pencil text-[22px] leading-tight">{finishing ? <>Saving the build as a <Term k="save-point">save point</Term> you can come back to…</> : b.status === "repair" ? "Prod AI caught a problem" : cur?.title ?? "Working…"}</p>
+                <p className="mt-0.5 truncate pr-1 font-pencil text-[22px] leading-tight">{finishing ? <>Saving the build as a <Term k="save-point">save point</Term> you can come back to…</> : b.status === "repair" ? "Prod AI caught a problem" : cur?.title ?? "Working…"}</p>
                 {cur?.detail && !finishing && <p className="truncate text-[12px] text-muted-foreground">{cur.detail}</p>}
               </motion.div>
             </AnimatePresence>

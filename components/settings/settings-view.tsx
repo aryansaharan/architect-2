@@ -26,7 +26,7 @@ const SECTIONS = [
 const KIND_LABEL: Record<string, string> = { llm: "Drafting new AI helpers", build: "Builds", change: "Changes", agent_run: "AI helper conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
 
 const CATALOG = [
-  { provider: "github", name: "GitHub", body: "Two-way sync, branch per change, CI rehearsals." },
+  { provider: "github", name: "GitHub", body: "Two-way sync, a branch per change, test runs on every change." },
   { provider: "gmail", name: "Gmail", body: "AI helpers draft and send email. Sending always asks first." },
   { provider: "slack", name: "Slack", body: "Post updates and approvals to channels." },
   { provider: "hubspot", name: "HubSpot", body: "Read and update CRM records." },
@@ -76,6 +76,8 @@ export function SettingsView({
     const p = providerOf(c);
     return c.status === "configured" || (p !== null && connected.has(p));
   };
+  // Every connection the list above says "needs a key", plus the keys already set, so the two never disagree.
+  const keyed = connections.filter((c) => c.auth === "api_key" || !isConnected(c));
 
   async function copyInvite() {
     const link = `${window.location.origin}/login?next=%2Fhome&invite=${Math.random().toString(36).slice(2, 10)}`;
@@ -200,15 +202,15 @@ export function SettingsView({
           <h2 className="font-pencil text-[32px] leading-none">Keys &amp; passwords</h2>
           <p className="mt-2 text-[13px] text-muted-foreground">Private keys for other services. Encrypted at rest, never shown in logs, never sent to a model.</p>
           <ul className="panel mt-5 divide-y divide-hairline rounded-md">
-            {connections.filter((c) => c.auth === "api_key").map((c) => (
+            {keyed.map((c) => (
               <li key={c.name} className="flex items-center gap-3 px-4 py-3 text-[12.5px]">
                 <KeyRound className="size-3.5 text-muted-foreground" />
-                <span className="w-56 truncate font-mono">{c.name.toUpperCase().replace(/\(.*?\)/g, "").replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")}_API_KEY</span>
-                <span className="flex-1 font-mono text-muted-foreground">{c.status === "configured" ? (reveal === c.name ? "sk_sandbox_4f1a…9c2e" : "••••••••••••••••") : "not set"}</span>
-                {c.status === "configured" && <button onClick={() => setReveal(reveal === c.name ? null : c.name)} aria-label="Show or hide" className="text-muted-foreground hover:text-foreground">{reveal === c.name ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}</button>}
+                <span className="w-56 truncate font-mono">{c.name.toUpperCase().replace(/\(.*?\)/g, "").replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")}{c.auth === "oauth" ? "_TOKEN" : "_API_KEY"}</span>
+                <span className="flex-1 font-mono text-muted-foreground">{isConnected(c) ? (reveal === c.name ? "sk_sandbox_4f1a…9c2e" : "••••••••••••••••") : "not set"}</span>
+                {isConnected(c) && <button onClick={() => setReveal(reveal === c.name ? null : c.name)} aria-label="Show or hide" className="text-muted-foreground hover:text-foreground">{reveal === c.name ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}</button>}
               </li>
             ))}
-            {connections.filter((c) => c.auth === "api_key").length === 0 && <li className="px-4 py-4 text-[12.5px] text-muted-foreground">No keys needed yet.</li>}
+            {keyed.length === 0 && <li className="px-4 py-4 text-[12.5px] text-muted-foreground">No keys needed yet.</li>}
           </ul>
         </section>
 
@@ -218,7 +220,7 @@ export function SettingsView({
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
               { role: "Owner", body: "Everything, including billing, caps and going live." },
-              { role: "Editor", body: "Change plans, approve Work Orders, try AI helpers. Can't raise caps." },
+              { role: "Editor", body: "Change plans, approve priced changes, try AI helpers. Can't raise caps." },
               { role: "Viewer", body: "Use the test version, comment, and approve AI helper actions. Can't change anything." },
             ].map((r) => (
               <div key={r.role} className="panel rounded-md p-4">

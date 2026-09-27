@@ -172,7 +172,7 @@ export function BlueprintCanvas() {
     <div className="relative flex h-full min-h-0 flex-col">
       <div className={cn("flex items-center gap-3 border-b border-hairline px-5 py-2.5", ws.selected && "lg:max-xl:pr-[376px]")}>
         <div className="min-w-0">
-          <p className="truncate font-pencil text-[24px] leading-[1.15]">{bp.meta.tagline}</p>
+          <p className="truncate pr-1 font-pencil text-[24px] leading-[1.15]">{bp.meta.tagline}</p>
           <p className="truncate text-[11.5px] text-muted-foreground">
             The plan map: click anything to read it in plain English, change it, or see its code.
           </p>

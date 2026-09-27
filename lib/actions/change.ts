@@ -83,9 +83,9 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
     getProject(supa, projectId),
     supa.from("work_orders").select("*").eq("id", workOrderId).eq("project_id", projectId).maybeSingle(),
   ]);
-  if (!project || !wo) return { ok: false, error: "Work Order not found" };
+  if (!project || !wo) return { ok: false, error: "That change is gone. Ask for it again." };
   const order = wo as WorkOrderRow;
-  if (order.status !== "proposed" || !order.proposal) return { ok: false, error: "This Work Order was already handled" };
+  if (order.status !== "proposed" || !order.proposal) return { ok: false, error: "This change was already handled" };
   const applied = applyOps(project.blueprint, order.proposal.operations);
   if (!applied.ok) {
     console.warn("[change] quote no longer applies:", applied.error);
@@ -94,7 +94,7 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
   // Claim the Work Order before touching anything: a double click or a second tab applies (and charges) it once.
   const { data: claimed, error: claimError } = await supa.from("work_orders").update({ status: "approved" }).eq("id", workOrderId).eq("project_id", projectId).eq("status", "proposed").select("id");
   if (claimError) return { ok: false, error: "Couldn't approve it just now. Nothing was charged. Try again." };
-  if (!claimed?.length) return { ok: false, error: "This Work Order was already handled" };
+  if (!claimed?.length) return { ok: false, error: "This change was already handled" };
 
   try {
     await updateProject(supa, projectId, { blueprint: applied.blueprint });
@@ -119,7 +119,7 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
   await logUsage(supa, { userId: user.id, projectId, kind: "change", credits: order.proposal.credits, meta: { workOrderId, scripted: true } });
   await supa.from("work_orders").update({ status: "done", resolved_at: new Date().toISOString() }).eq("id", workOrderId);
   revalidatePath(`/p/${projectId}`, "layout");
-  return { ok: true, label: `Save point #${cp.seq}` };
+  return { ok: true, label: `version ${cp.seq}` };
 }
 
 export async function rejectChange(projectId: string, workOrderId: string) {

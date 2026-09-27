@@ -108,7 +108,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           <span className="shrink-0 font-mono text-[11px] text-faint">{bp.screens.findIndex((s) => s.id === screen.id) + 1}/{bp.screens.length}</span>
           {navMarks[screen.id] ? <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] text-change"><MessageSquare className="size-3" />{navMarks[screen.id]}</span> : null}
         </p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Segmented<Mode>
             ariaLabel="Preview mode"
             value={mode}

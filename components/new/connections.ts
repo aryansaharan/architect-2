@@ -14,7 +14,8 @@ const SIGNALS: Record<string, RegExp> = {
   Email: /\b(e-?mails?|e-?mailed|e-?mailing|gmail|outlook|inbox(es)?|mailbox(es)?)\b/i,
   SMS: /\b(sms|mms|texts|texted|texting|text messages?|twilio|whatsapp)\b|\btext\s+(them|him|her|me|us|you|back|tenants?|customers?|clients?|residents?|patients?|users?|people|updates?|reminders?|alerts?|notifications?)\b|\b(by|via|over|a)\s+text\b/i,
   Slack: /\bslack\b/i,
-  "A CRM": /\b(crm|hubspot|salesforce|pipedrive|zoho)\b/i,
+  // "A simple CRM for a bakery" is the app itself, not a CRM to connect to: it takes a named CRM or "our/existing CRM".
+  "A CRM": /\b(hubspot|salesforce|pipedrive|zoho)\b|\b(our|their|my|your|existing|current) crm\b|\b(from|into|in|to|with) (the |our |their )?crm\b/i,
   Payments: /\b(stripe|payments?|payouts?|invoic\w*|billing|refunds?|paypal|rent collection|collect rent)\b/i,
   Calendar: /\b(calendars?|calendly|appointments?)\b/i,
   "Policy system": /\b(policy (system|admin)|guidewire|duck creek)\b/i,
