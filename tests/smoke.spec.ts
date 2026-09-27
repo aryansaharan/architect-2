@@ -19,8 +19,9 @@ test("landing renders real content on first paint", async ({ request }) => {
   expect(html).toContain("Start building");
 });
 
-test("demo → blueprint → inspector faces", async ({ page }) => {
-  await openDemo(page);
+test("demo → plan map → inspector faces", async ({ page }) => {
+  const base = await openDemo(page);
+  await page.goto(`${base}/blueprint`);
   await expect(page.getByRole("button", { name: /Settlement/ }).first()).toBeVisible();
   await page.getByRole("button", { name: /Settlement/ }).filter({ hasText: "Prepares payouts" }).first().click();
   const inspector = page.getByRole("complementary", { name: "Inspector" });
