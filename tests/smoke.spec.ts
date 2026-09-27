@@ -99,7 +99,7 @@ test("handoff: ask a teammate → see what they see → resolve", async ({ page 
   await expect(page.getByText(/Resolved/).first()).toBeVisible();
 });
 
-test("ask for a change → priced Work Order → approve → new save point", async ({ page }) => {
+test("write a note → priced change → apply → new version", async ({ page }) => {
   test.setTimeout(180_000);
   const base = await openDemo(page);
   await page.goto(`${base}/blueprint?sel=screen:intake-queue`);
@@ -108,6 +108,6 @@ test("ask for a change → priced Work Order → approve → new save point", as
   await composer.press("Enter");
   const order = page.getByRole("region", { name: "Work Order" });
   await expect(order).toBeVisible({ timeout: 120_000 });
-  await order.getByRole("button", { name: /Approve/ }).click();
-  await expect(page.getByText(/Save point #\d+/).first()).toBeVisible({ timeout: 30_000 });
+  await order.getByRole("button", { name: /Apply/ }).click();
+  await expect(page.getByText(/version \d+/i).first()).toBeVisible({ timeout: 30_000 });
 });

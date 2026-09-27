@@ -1,18 +1,23 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { WorkspaceProvider, useWorkspace, type WorkspaceData } from "./context";
 import { TopBar } from "./top-bar";
-import { Rail } from "./rail";
+import { Margin } from "./rail";
 import { Inspector } from "./inspector/inspector";
 import { HandoffDialog } from "./handoff-dialog";
 import { CommandK } from "./command-k";
 import { RecordedRepairContext } from "./use-build-runner";
-import { ComposerDock, ComposerDockProvider } from "./composer-dock";
+import { ComposerDockProvider } from "./composer-dock";
 import type { RailPref } from "./rail-pref";
 import type { WorkOrderRow } from "@/lib/db/types";
 
+/**
+ * A project: the top bar, then the page, then the notes margin on the right.
+ * On the Sheet (/p/[id]) the margin is open beside the page; elsewhere it is a slim "Notes" tab;
+ * below 1024px it is a bottom sheet behind a "Notes" button. The page fills the space in between.
+ */
 export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], children }: { data: WorkspaceData; railPref?: RailPref; changeOrders?: WorkOrderRow[]; children: React.ReactNode }) {
   // The build's recorded fix (newest first), so "Replay how it was built" matches the history.
   const recordedFix = data.ledger.find((r) => r.kind === "repair" && r.blame === "system_fix") ?? null;
@@ -29,73 +34,51 @@ export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], chi
   );
 }
 
+/**
+ * The old quick tour was opened with ?tour=1 (the demo link still adds it). There is no tour now,
+ * so drop the parameter quietly: no server round trip, and a reload or a shared link stays clean.
+ */
+function useDropTourParam() {
+  const params = useSearchParams();
+  const pathname = usePathname();
+  useEffect(() => {
+    if (!params.has("tour")) return;
+    const sp = new URLSearchParams(params.toString());
+    sp.delete("tour");
+    const q = sp.toString();
+    window.history.replaceState(null, "", `${pathname}${q ? `?${q}` : ""}${window.location.hash}`);
+  }, [params, pathname]);
+}
+
 function ShellLayout({ railPref, children }: { railPref: RailPref; children: React.ReactNode }) {
   const ws = useWorkspace();
-  const [railOpen, setRailOpen] = useState(false);
-  // "Ask Prod AI" from the phone sheet: close it, then hand focus to the composer instead of the button that opened it.
-  const askAfterClose = useRef(false);
-  const row = useRef<HTMLDivElement>(null);
-  const dock = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const open = () => setRailOpen(true);
-    window.addEventListener("architect:open-rail", open);
-    return () => window.removeEventListener("architect:open-rail", open);
-  }, []);
-  // Below xl the inspector floats over the view. Keep it above the composer dock, which grows with a Work Order.
-  useEffect(() => {
-    const d = dock.current;
-    const r = row.current;
-    if (!d || !r) return;
-    const ro = new ResizeObserver(() => r.style.setProperty("--dock-h", `${d.offsetHeight}px`));
-    ro.observe(d);
-    return () => ro.disconnect();
-  }, []);
+  useDropTourParam();
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas">
       <TopBar />
-      <div ref={row} className="relative flex min-h-0 flex-1">
-        <div className="max-lg:hidden">
-          <Rail collapsible initialPref={railPref} onAsk={() => ws.focusComposer()} />
+      <div className="relative flex min-h-0 flex-1">
+        {/* The page and the inspector share the space left of the margin; below xl the inspector floats over the page. */}
+        <div className="relative flex min-w-0 flex-1">
+          <main id="main" className="flex min-w-0 flex-1 flex-col">
+            <div className="relative min-h-0 flex-1">{children}</div>
+          </main>
+          <AnimatePresence initial={false}>
+            {ws.selected && (
+              <motion.div
+                key="inspector"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 360, damping: 38, opacity: { duration: 0.18 } }}
+                className="overflow-hidden max-xl:absolute max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:bg-canvas max-xl:shadow-[-18px_0_40px_-28px_rgb(26_26_23/0.4)]"
+              >
+                <Inspector />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
-          <div className="relative min-h-0 flex-1">{children}</div>
-          <ComposerDock ref={dock} />
-        </main>
-        <AnimatePresence initial={false}>
-          {ws.selected && (
-            <motion.div
-              key="inspector"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: "auto", opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 360, damping: 38, opacity: { duration: 0.18 } }}
-              className="overflow-hidden max-xl:absolute max-xl:bottom-[var(--dock-h,0px)] max-xl:right-0 max-xl:top-0 max-xl:z-40 max-xl:bg-canvas max-xl:shadow-2xl"
-            >
-              <Inspector />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Margin initialPref={railPref} />
       </div>
-      <Sheet open={railOpen} onOpenChange={setRailOpen}>
-        <SheetContent
-          side="left"
-          className="w-[320px] p-0"
-          onCloseAutoFocus={(e) => {
-            if (!askAfterClose.current) return;
-            askAfterClose.current = false;
-            e.preventDefault();
-            ws.focusComposer();
-          }}
-        >
-          <SheetTitle className="sr-only">Chat and history</SheetTitle>
-          <Rail
-            onAsk={() => {
-              askAfterClose.current = true;
-              setRailOpen(false);
-            }}
-          />
-        </SheetContent>
-      </Sheet>
       <HandoffDialog />
       <CommandK />
     </div>

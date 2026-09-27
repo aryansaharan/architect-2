@@ -14,9 +14,14 @@ export async function generateMetadata(props: LayoutProps<"/p/[id]">) {
   return { title: project?.name ?? "Project" };
 }
 
+/**
+ * Every project page: the top bar, the page (the Sheet at /p/[id], or AI helpers, Publish and the
+ * Under the hood pages), and the notes margin on the right. The shell lays them out.
+ */
 export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
   const { id } = await props.params;
-  const user = await requireUser(`/p/${id}/blueprint`);
+  // After signing in, come back to the Sheet.
+  const user = await requireUser(`/p/${id}`);
   const supa = await createClient();
   const project = await getProject(supa, id);
   if (!project) notFound();
@@ -31,9 +36,9 @@ export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
   ]);
   return (
     <WorkspaceShell
-      // The rail's open/collapsed choice, so the first paint already has the right width.
+      // Whether the notes margin is open or folded on the Sheet, so the first paint already has the right width.
       railPref={parseRailPref(cookieStore.get(RAIL_COOKIE)?.value)}
-      // Recent change Work Orders, so the chat can show each one's outcome (approved, dismissed, still waiting).
+      // Recent proposed changes, so the notes can show each one's outcome (applied, not now, still waiting).
       changeOrders={workOrders.filter((w) => w.kind === "change")}
       data={{
         project: {

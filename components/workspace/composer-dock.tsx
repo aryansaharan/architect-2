@@ -1,30 +1,31 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode, type Ref, type SetStateAction } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUp, Check, CornerDownLeft, Loader2, MessageSquarePlus, MessagesSquare, Target, UsersRound, X } from "lucide-react";
+import { ArrowUp, Check, Crosshair, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
-import { Term } from "@/components/arch/term";
 import { cn } from "@/lib/utils";
-import { creditsUsd, formatCredits } from "@/lib/format";
+import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
 import { changeTimeLabel } from "@/lib/blueprint/estimate";
-import type { LedgerRow, WorkOrderRow } from "@/lib/db/types";
+import type { ChangeProposal, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
 import { undoTo } from "./undo";
-import { openChat } from "./rail-pref";
 
 type Order = { wo: WorkOrderRow; overBudget: boolean };
 
-/** A message sent from the composer. The chat shows it at once, then swaps in the history's own copy when it arrives. */
+/** A note sent from the margin. The thread shows it at once, then swaps in the history's own copy when it arrives. */
 export type SentMessage = { key: string; text: string; at: string; scope: ObjectRef | null; wo: WorkOrderRow | null };
 
-/** What became of a change Work Order in this session, before the server's copy catches up. */
-export type LocalOutcome = { status: "dismissed" } | { status: "applied"; label: string };
+/**
+ * What became of a proposed change in this session, before the server's copy catches up.
+ * `undo` is the version from just before it was applied, so the margin can offer Undo at once.
+ */
+export type LocalOutcome = { status: "dismissed" } | { status: "applied"; label: string; undo?: string | null };
 
 type DockState = {
   order: Order | null;
@@ -33,29 +34,51 @@ type DockState = {
   setSent: Dispatch<SetStateAction<SentMessage[]>>;
   outcomes: Record<string, LocalOutcome>;
   setOutcome: (workOrderId: string, o: LocalOutcome) => void;
-  /** Recent change Work Orders from the server, by id: their status, and the full quote to reopen one. */
+  /** Recent proposed changes from the server, by id: their status, and the full quote to reopen one. */
   orders: Map<string, WorkOrderRow>;
-  /** True while the desktop chat rail is on screen: then answers land there instead of in a card over the composer. */
+  /** True while the notes thread is on screen: then answers land there instead of in a card over the writing area. */
   threadVisible: boolean;
   setThreadVisible: (v: boolean) => void;
-  /** Put text in the composer (the composer registers how). */
+  /** Put text in the writing area (the writer registers how). */
   fill: (text: string) => void;
   registerFill: (fn: ((text: string) => void) | null) => void;
-  /** Open a quote that is still waiting (after a reload, say) back in the composer. */
+  /** Open a proposed change that is still waiting (after a reload, say) back above the writing area. */
   review: (workOrderId: string) => void;
 };
 
 const DockContext = createContext<DockState | null>(null);
 
-/** The Work Order a history entry belongs to, if any. */
+/** The proposed change (server: Work Order) a history entry belongs to, if any. */
 export function workOrderIdOf(r: Pick<LedgerRow, "meta">): string | null {
   const id = r.meta?.workOrderId;
   return typeof id === "string" ? id : null;
 }
 
+/** "12 credits", "1 credit", "0.5 credits": prices in plain words. */
+export function creditWords(n: number): string {
+  const v = Math.round(n * 10) / 10;
+  return `${Number.isInteger(v) ? v : v.toFixed(1)} ${v === 1 ? "credit" : "credits"}`;
+}
+
+/** The server labels a new version "Save point #7": the margin says "version 7". */
+export function versionWords(label: string): string {
+  const m = /#(\d+)/.exec(label);
+  return m ? `version ${m[1]}` : label;
+}
+
+/** What a change touches, in plain words: "Changes 2 screens and 1 AI helper". */
+export function touchWords(b: ChangeProposal["blastRadius"]): string {
+  const parts = [
+    b.screens.length ? `${b.screens.length} ${b.screens.length === 1 ? "screen" : "screens"}` : "",
+    b.agents.length ? `${b.agents.length} ${b.agents.length === 1 ? "AI helper" : "AI helpers"}` : "",
+  ].filter(Boolean);
+  if (!parts.length) return b.files ? `A small change to ${b.files} ${b.files === 1 ? "file" : "files"}` : "A small change";
+  return `Changes ${parts.join(" and ")}`;
+}
+
 /**
- * The chat's shared state: the change Work Order the composer is showing (so other views can make room for it),
- * the messages just sent (shown in the chat before the server answers), and what became of each quote.
+ * The notes' shared state: the change waiting for Apply or Not now (so other views can make room for it),
+ * the notes just sent (shown in the margin before the server answers), and what became of each change.
  */
 export function ComposerDockProvider({ changeOrders = [], children }: { changeOrders?: WorkOrderRow[]; children: ReactNode }) {
   const ws = useWorkspace();
@@ -87,102 +110,80 @@ export function ComposerDockProvider({ changeOrders = [], children }: { changeOr
   return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
 }
 
-/** The chat's shared state, for the thread in the rail. */
+/** The notes' shared state, for the thread in the margin. */
 export function useChatState(): DockState {
   return useDock();
 }
 
-/** True while a change Work Order is waiting to be approved or dismissed. */
+/** True while a proposed change is waiting for Apply or Not now. */
 export function useChangeOrderOpen() {
   return Boolean(useContext(DockContext)?.order);
 }
 
 function useDock(): DockState {
   const dock = useContext(DockContext);
-  if (!dock) throw new Error("ComposerDock must be used inside <ComposerDockProvider>");
+  if (!dock) throw new Error("NoteWriter must be used inside <ComposerDockProvider>");
   return dock;
 }
 
 /**
- * How much room the dock takes on each tab:
- * - "full" on Blueprint: the input with its hint and suggestion chips, the place to start.
- * - "hidden" on Agents: the Playground there is the chat, and two prompts on one screen get mixed up.
- *   It still opens (and stays open while in use) from "/", ⌘K, the top bar or a "Fix this" button.
- * - "pill" everywhere else (Preview, Code, Ship, Handoffs): one short line until you focus it or press "/".
+ * The bottom of the margin: a ruled slip to write a note on. Sending a note gets a free,
+ * priced proposal (the server's Work Order) that opens as a margin card just above it,
+ * with Apply and Not now. Questions are answered in the notes and change nothing.
+ * `suggest` shows a few starter notes (on the Sheet, where people start).
+ * `onSent` lets the margin stay open until the reply is read.
  */
-export type DockMode = "full" | "pill" | "hidden";
-
-export function dockModeFor(pathname: string): DockMode {
-  if (/\/agents(\/|$)/.test(pathname)) return "hidden";
-  if (/\/blueprint(\/|$)/.test(pathname)) return "full";
-  return "pill";
-}
-
-/**
- * The prompt: a full-width dock under the main view. Asking gets a free quote
- * (a Work Order) that opens above the input, so the two never overlap.
- */
-export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
+export function NoteWriter({ suggest = false, onSent, className }: { suggest?: boolean; onSent?: () => void; className?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
-  const pathname = usePathname();
-  const { order, setOrder, setSent, setOutcome, threadVisible, registerFill } = useDock();
+  const { order, setOrder, sent, setSent, setOutcome, threadVisible, registerFill } = useDock();
   const [text, setText] = useState("");
-  // A short line in the hint row after an answer lands in the chat beside the composer.
-  const [notice, setNotice] = useState<{ key: string; answer: string } | null>(null);
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [focused, setFocused] = useState(false);
+  // Said once to screen readers when an answer lands in the notes above.
+  const [announce, setAnnounce] = useState("");
   const [pending, start] = useTransition();
   const [approving, setApproving] = useState(false);
-  const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const scope = ws.scope === null && ws.selected ? ws.selected : ws.scope;
-  // The ✕ on the scope chip clears it for the current scope + focus request only.
+  // The ✕ on the "About" tag clears it for the current scope + focus request only.
   const scopeKey = `${scope ? `${scope.type}:${scope.id}` : "none"}#${ws.composerFocusKey}`;
   const [clearedFor, setClearedFor] = useState<string | null>(null);
   const effectiveScope = clearedFor === scopeKey ? null : scope;
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
-  const mode = dockModeFor(pathname);
-  // In use: focused, typed into, or holding a quote. Then it opens fully on every tab.
-  const engaged = focused || Boolean(text) || Boolean(order) || pending || Boolean(notice);
-  // Folded to nothing, but still in the page: focusing it (from "/" or the top bar) opens it, like a skip link.
-  const folded = mode === "hidden" && !engaged;
-  // One quiet line while a build runs (the build console has the stage), and off Blueprint until it's in use.
-  const compact = building || (mode !== "full" && !engaged);
-  const showChips = mode === "full" && !building && !order && !text;
+  // Starter notes: until you've written one, and after that while you're at the writing area.
+  const fresh = sent.length === 0 && !ws.ledger.some((r) => (r.kind as string) === "request" || (r.kind as string) === "question");
+  const showChips = suggest && !building && !order && !text && (fresh || focused);
 
   useEffect(() => {
-    // No scroll: while folded the input sits in a zero-height box, and a scroll would shift the page under it.
+    // No scroll: a folded margin keeps this box in a zero-width strip, and focusing it opens the margin.
     if (ws.composerFocusKey) ref.current?.focus({ preventScroll: true });
   }, [ws.composerFocusKey]);
 
-  // The chat's "Ask for it" (under an answer) puts its suggestion here.
+  // "Ask for it" under an answer puts its suggestion here.
   useEffect(() => {
     registerFill(setText);
     return () => registerFill(null);
   }, [registerFill]);
 
-  useEffect(() => () => {
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-  }, []);
-
-  // Grow with the text, up to a few lines, then scroll.
+  // Grow with the text one ruled line at a time, up to five lines, then scroll.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
-  }, [text, compact]);
+    el.style.height = `${Math.min(Math.max(64, Math.ceil(el.scrollHeight / 32) * 32), 160)}px`;
+  }, [text]);
 
   function submit() {
     const request = text.trim();
     if (!request || pending) return;
     const scopeAtSend = effectiveScope;
     const key = `sent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    // Your message shows in the chat right away, like any chat. Messages the history already has are dropped.
+    // Your note shows in the margin right away. Notes the history already has are dropped.
     const logged = new Set(ws.ledger.map(workOrderIdOf));
     setSent((s) => [...s.filter((m) => !m.wo || !logged.has(m.wo.id)), { key, text: request, at: new Date().toISOString(), scope: scopeAtSend, wo: null }]);
     setText("");
-    setNotice(null);
+    setAnnounce("");
+    onSent?.();
     start(async () => {
       const r = await requestChange(ws.project.id, request, scopeAtSend);
       if (!r.ok) {
@@ -193,20 +194,15 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
       }
       setSent((s) => s.map((m) => (m.key === key ? { ...m, wo: r.workOrder } : m)));
       const p = r.workOrder.proposal;
-      if (p?.answer && threadVisible) {
-        // The answer lands in the chat beside you: the composer just says where, for a moment.
-        setNotice({ key, answer: p.rationale });
-        if (noticeTimer.current) clearTimeout(noticeTimer.current);
-        noticeTimer.current = setTimeout(() => setNotice((n) => (n?.key === key ? null : n)), 7000);
-      } else {
-        setOrder({ wo: r.workOrder, overBudget: r.overBudget });
-      }
+      // An answer lands in the notes right above. Only when they're out of sight does it get a card.
+      if (p?.answer && threadVisible) setAnnounce(`Prod AI answered: ${p.rationale}`);
+      else setOrder({ wo: r.workOrder, overBudget: r.overBudget });
       router.refresh();
     });
   }
 
-  /** `viaKeyboard`: put focus back in the input, since the button that had it goes away. */
-  async function approve(viaKeyboard: boolean) {
+  /** `viaKeyboard`: put focus back in the writing area, since the button that had it goes away. */
+  async function apply(viaKeyboard: boolean) {
     if (!order) return;
     setApproving(true);
     const prev = ws.project.currentCheckpointId;
@@ -216,16 +212,14 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
       toast.error(r.error ?? "Couldn't apply the change");
       return;
     }
-    setOutcome(order.wo.id, { status: "applied", label: r.label ?? "Applied" });
+    setOutcome(order.wo.id, { status: "applied", label: r.label ?? "Applied", undo: prev });
     toast.success(order.wo.proposal?.summary ?? "Change applied", {
-      description: `${r.label}. Going back is always free.`,
+      description: `${r.label ? `Applied · ${versionWords(r.label)}` : "Applied"}. Going back is always free.`,
       duration: 9000,
       action: prev ? { label: "Undo", onClick: () => void undoTo(ws.project.id, prev, () => router.refresh()) } : undefined,
     });
     setOrder(null);
-    // The button is gone; without a keyboard, let a quiet dock fold back.
     if (viaKeyboard) ref.current?.focus();
-    else setFocused(false);
     router.refresh();
   }
 
@@ -235,227 +229,257 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
     if (!order.wo.proposal?.answer) setOutcome(order.wo.id, { status: "dismissed" });
     setOrder(null);
     if (viaKeyboard) ref.current?.focus();
-    else setFocused(false);
   }
 
   const p = order?.wo.proposal;
-  const isAnswer = Boolean(p?.answer);
-  const needsPerson = p && p.operations.length === 0 && !isAnswer;
+  const label = effectiveScope ? objectLabel(ws.blueprint, effectiveScope) : "";
   const placeholder = building
     ? ws.build.mode === "replay"
-      ? "Replaying… you can ask for changes when it ends."
-      : "Building… you can ask for changes when it's done."
-    : compact
-      ? "Ask for a change…"
-      : effectiveScope
-        ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…`
-        : ws.project.buildState === "draft"
-          ? "Change the plan before building…"
-          : mode === "hidden"
-            ? "Ask for a change to the app…"
-            : "Ask for a change or a question…";
+      ? "Replaying… you can write notes when it ends."
+      : "Making it real… you can write notes when it's done."
+    : effectiveScope
+      ? `Write a note about ${label}…`
+      : "Write a note… e.g. make the table sortable by priority";
 
   return (
-    <section
-      ref={dockRef}
-      aria-label="Ask Prod AI"
-      data-dock={folded ? "folded" : compact ? "pill" : "full"}
-      className={cn(
-        "relative shrink-0",
-        folded
-          ? "h-0 overflow-hidden"
-          : cn("border-t border-hairline bg-panel/40 px-3 sm:px-5", compact ? "py-2" : "pb-3 pt-2.5 sm:pb-3.5"),
-      )}
+    <div
+      className={cn("shrink-0", className)}
       onFocus={() => setFocused(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
       }}
     >
-      {/* A soft lume under the input, so the prompt reads as the place to start. Only where it is the place to start. */}
-      {!compact && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-full bg-[radial-gradient(50%_90%_at_50%_100%,rgb(223_255_79/0.06),rgb(63_224_197/0.025)_45%,transparent_75%)]" />}
       <p className="sr-only" aria-live="polite">
-        {pending ? "Writing a free quote…" : notice ? `Answered in the chat: ${notice.answer}` : order && p ? (isAnswer ? `Answer: ${p.rationale}` : `Work Order ready: ${p.summary}`) : ""}
+        {pending
+          ? "Prod AI is reading your note…"
+          : announce
+            ? announce
+            : order && p
+              ? p.answer
+                ? `Answer: ${p.rationale}`
+                : p.operations.length === 0
+                  ? `Needs a person: ${p.summary}`
+                  : `Proposed change: ${p.summary}. ${creditWords(p.credits)}. Apply or not now.`
+              : ""}
       </p>
-      <div className={cn("relative mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", compact ? "max-w-[560px]" : "max-w-[860px]")}>
-        <AnimatePresence initial={false}>
-          {order && p && (
-            <motion.div
-              key={order.wo.id}
-              initial={{ opacity: 0, y: 14, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, transition: { duration: 0.16 } }}
-              transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="pb-2.5"
-            >
-              <div className="beam panel-raised rounded-xl shadow-[0_18px_50px_-18px_rgb(0_0_0/0.85),0_0_50px_-26px_rgb(223_255_79/0.45)]" role="region" aria-label="Work Order">
-              <div className="max-h-[min(24rem,48dvh)] overflow-y-auto overscroll-contain p-3 sm:p-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="micro-label text-amber">{isAnswer ? "Answer · no change made" : needsPerson ? "Needs a person" : <Term k="work-order" />}</span>
-                  {/* A click from the keyboard has detail 0: only then pull focus back to the input (no phone keyboard pop-up on tap). */}
-                  <button type="button" onClick={(e) => dismiss(e.detail === 0)} aria-label="Dismiss" className="-mr-1 grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-raised hover:text-foreground">
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-                {isAnswer ? (
-                  <>
-                    <p className="mt-1.5 text-[13px] leading-relaxed">{p.rationale}</p>
-                    <button
-                      type="button"
-                      onClick={() => { setText(p.summary); setOrder(null); ref.current?.focus(); }}
-                      className="mt-2.5 w-full rounded-lg border border-hairline bg-deep px-2.5 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
-                    >
-                      <span className="micro-label mb-0.5 block">Want to change it?</span>
-                      “{p.summary}”
-                    </button>
-                    {/* The chat keeps it: this card is only the quick look while the chat is out of sight. */}
-                    <button
-                      type="button"
-                      onClick={() => { openChat(); setOrder(null); }}
-                      className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <MessagesSquare className="size-3.5" aria-hidden /> Saved in the chat · open it
-                    </button>
-                  </>
-                ) : (
-                  <div className="sm:flex sm:items-start sm:gap-5">
-                    <div className="min-w-0 flex-1">
-                      <p className="mt-1.5 text-[13.5px] font-medium leading-snug">{p.summary}</p>
-                      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>
-                    </div>
-                    {!needsPerson && (
-                      <div className="shrink-0 sm:mt-1.5 sm:w-[272px]">
-                        <dl className="mt-2.5 grid grid-cols-3 gap-1.5 text-center sm:mt-0">
-                          <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Screens</dt><dd className="font-mono text-[12px]">{p.blastRadius.screens.length}</dd></div>
-                          <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Agents</dt><dd className="font-mono text-[12px]">{p.blastRadius.agents.length}</dd></div>
-                          <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Files</dt><dd className="font-mono text-[12px]">{p.blastRadius.files}</dd></div>
-                        </dl>
-                        {order.overBudget && <p className="mt-2 text-[11.5px] text-ask">This would pass your spending cap. Approving raises nothing. You&apos;ll be asked first.</p>}
-                        <div className="mt-2.5 flex items-center gap-2">
-                          <Button size="sm" className="h-8 flex-1" onClick={(e) => void approve(e.detail === 0)} disabled={approving || order.overBudget}>
-                            {approving ? <Loader2 className="animate-spin" /> : <Check />} Approve · {formatCredits(p.credits)}
-                          </Button>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
-                        </div>
-                        {/* The production estimate and what happens in this demo, each labelled (lib/blueprint/estimate.ts). */}
-                        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-                          {changeTimeLabel(p.minutes).real} <span className="text-faint">· {changeTimeLabel(p.minutes).here}</span>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {needsPerson && (
-                  <Button size="sm" variant="outline" className="mt-2.5 h-8 w-full sm:w-auto" onClick={() => { ws.openHandoff(effectiveScope); setOrder(null); }}>
-                    <UsersRound /> Ask a teammate
-                  </Button>
-                )}
-                {p.mode === "rules" && !needsPerson && <p className="mt-2 text-[10.5px] text-faint">Offline mode: handled by built-in rules.</p>}
-              </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {showChips && (
-          <div role="group" aria-label="Suggestions" className="-mx-3 mb-2 flex items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
-            <span className="micro-label shrink-0 pr-0.5 max-sm:hidden">Try</span>
-            {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
+      <AnimatePresence initial={false}>
+        {order && p && (
+          <motion.div
+            key={order.wo.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6, transition: { duration: 0.14 } }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="pb-2.5"
+          >
+            <ChangeCard
+              order={order}
+              approving={approving}
+              onApply={(k) => void apply(k)}
+              onDismiss={dismiss}
+              onRephrase={() => {
+                setText(p.summary);
+                setOrder(null);
+                ref.current?.focus();
+              }}
+              onTeammate={() => {
+                ws.openHandoff(effectiveScope);
+                setOrder(null);
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {showChips && (
+        <div role="group" aria-label="Suggestions" className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="font-sketch text-[11px] text-faint">Try</span>
+          {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
+            <button
+              key={sg}
+              type="button"
+              // Keep focus in the writing area so a folded margin doesn't fold away mid-click.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setText(sg);
+                ref.current?.focus();
+              }}
+              className="max-w-full truncate rounded-full border border-dashed border-hairline-hi bg-panel/70 px-2.5 py-0.5 font-sketch text-[11.5px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+            >
+              {sg}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={cn("rounded-[3px] border border-hairline-hi bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.05)] transition-colors focus-within:border-amber/50", building && "opacity-70")}>
+        {effectiveScope && (
+          <div className="flex px-2.5 pt-2">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm border border-amber/25 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber">
+              <Crosshair className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">About: {label}</span>
               <button
-                key={sg}
                 type="button"
-                // Keep focus in the input so a quiet dock doesn't fold away mid-click.
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setText(sg); ref.current?.focus(); }}
-                className="max-w-full shrink-0 truncate rounded-full border border-hairline bg-panel px-2.5 py-1 text-[11.5px] text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground"
+                onClick={() => setClearedFor(scopeKey)}
+                aria-label={`Clear what this note is about (${label})`}
+                className="ml-0.5 shrink-0 rounded-sm hover:text-foreground"
               >
-                {sg}
+                <X className="size-3" aria-hidden />
               </button>
-            ))}
+            </span>
           </div>
         )}
-
-        <div
-          className={cn(
-            "panel-raised relative transition-[border-color,box-shadow,border-radius] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(223_255_79/0.08),0_12px_40px_-16px_rgb(141_255_158/0.45)]",
-            compact ? "rounded-full hover:border-hairline-hi" : "rounded-2xl",
-            building && "opacity-60",
-          )}
-        >
-          {compact && !building && <MessageSquarePlus className="pointer-events-none absolute left-3.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" aria-hidden />}
-          <label htmlFor="composer" className="sr-only">Ask for a change</label>
-          <textarea
-            id="composer"
-            ref={ref}
-            rows={1}
-            value={text}
-            disabled={building}
-            aria-keyshortcuts="/"
-            aria-describedby={compact ? undefined : "composer-hint"}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit();
-              } else if (e.key === "Escape" && !text) {
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder={placeholder}
-            className={cn(
-              "block w-full resize-none bg-transparent text-[14px] leading-relaxed outline-none placeholder:text-faint",
-              compact ? cn("py-2 pr-12 text-[13px]", building ? "pl-4" : "pl-9") : "min-h-[52px] px-3.5 pb-1 pt-3",
+        <label htmlFor="composer" className="sr-only">
+          Write a note (Ask for a change)
+        </label>
+        <textarea
+          id="composer"
+          ref={ref}
+          rows={2}
+          value={text}
+          disabled={building}
+          aria-keyshortcuts="/"
+          aria-describedby="composer-hint"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              submit();
+            } else if (e.key === "Escape" && !text) {
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder={placeholder}
+          className="paper-lines font-pencil block min-h-16 w-full resize-none bg-transparent px-3 text-[21px] leading-8 text-foreground outline-none placeholder:text-faint disabled:cursor-not-allowed"
+        />
+        <div className="flex items-center gap-2 border-t border-dashed border-hairline px-2.5 py-1.5">
+          <span id="composer-hint" className="min-w-0 flex-1 truncate text-[10.5px] text-faint">
+            {pending ? (
+              "Prod AI is reading your note…"
+            ) : (
+              <>
+                Enter to send<span className="hidden min-[1400px]:inline max-lg:inline"> · you see the price first</span>
+              </>
             )}
-          />
-          {compact ? (
-            <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center text-faint">
-              {building ? <Loader2 className="size-3.5 animate-spin text-amber" aria-hidden /> : <Kbd aria-hidden>/</Kbd>}
-            </span>
-          ) : (
-            <div className="flex items-center gap-2 px-2.5 pb-2.5">
-              {/* On a phone the chat lives in a sheet: open it from here, where you type. */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={openChat}
-                title="Open the chat and history"
-                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-hairline px-2 text-[11.5px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground lg:hidden"
-              >
-                <MessagesSquare className="size-3.5" aria-hidden /> Chat
-              </button>
-              {effectiveScope && (
-                <span className="inline-flex min-w-0 max-w-[55%] shrink-0 items-center gap-1 rounded-md border border-amber/30 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber sm:max-w-[45%]">
-                  <Target className="size-3 shrink-0" aria-hidden />
-                  <span className="truncate">Scoped to {objectLabel(ws.blueprint, effectiveScope)}</span>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setClearedFor(scopeKey)} aria-label="Remove scope" className="ml-0.5 shrink-0 rounded-sm hover:text-foreground">
-                    <X className="size-3" />
-                  </button>
-                </span>
-              )}
-              <span id="composer-hint" className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-faint">
-                {pending ? (
-                  <span className="text-shimmer truncate">Writing a free quote…</span>
-                ) : notice ? (
-                  <span className="flex min-w-0 items-center gap-1 text-read">
-                    <ArrowLeft className="size-3 shrink-0" aria-hidden />
-                    <span className="truncate">Answered in the chat</span>
-                  </span>
-                ) : (
-                  <>
-                    <CornerDownLeft className="size-3 shrink-0" aria-hidden />
-                    <span className="truncate">
-                      <span className="sr-only">Enter </span>for a free quote<span className="max-sm:hidden"> · nothing changes until you approve</span>
-                    </span>
-                  </>
-                )}
-              </span>
-              <Button size="icon-sm" className="size-8 shrink-0 rounded-xl" onClick={submit} disabled={!text.trim() || pending || building} aria-label="Get a Work Order">
-                {pending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-              </Button>
-            </div>
-          )}
+          </span>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!text.trim() || pending || building}
+            aria-label="Send note"
+            className="grid size-7 shrink-0 place-items-center rounded-md bg-amber text-primary-foreground transition-[background-color,opacity] hover:bg-amber-hi disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ArrowUp className="size-3.5" aria-hidden />
+          </button>
         </div>
       </div>
-    </section>
+    </div>
+  );
+}
+
+/**
+ * The proposed change as a margin card: what will change in plain words, the price, Apply and Not now.
+ * An answer (when the notes are out of sight) and "needs a person" use the same card.
+ * The region keeps its "Work Order" name for tests and assistive tech that already know it.
+ */
+function ChangeCard({
+  order,
+  approving,
+  onApply,
+  onDismiss,
+  onRephrase,
+  onTeammate,
+}: {
+  order: Order;
+  approving: boolean;
+  onApply: (viaKeyboard: boolean) => void;
+  onDismiss: (viaKeyboard: boolean) => void;
+  onRephrase: () => void;
+  onTeammate: () => void;
+}) {
+  const p = order.wo.proposal!;
+  const isAnswer = Boolean(p.answer);
+  const needsPerson = p.operations.length === 0 && !isAnswer;
+  const time = changeTimeLabel(p.minutes);
+  return (
+    <div role="region" aria-label="Work Order" className="sketch bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.06),0_12px_26px_-18px_rgb(26_26_23/0.35)]">
+      <div className="max-h-[min(24rem,48dvh)] overflow-y-auto overscroll-contain p-3">
+        <p className="font-sketch text-[12px] text-muted-foreground">{isAnswer ? "Answer · nothing changed" : needsPerson ? "Needs a person" : "Proposed change"}</p>
+        {isAnswer ? (
+          <>
+            <p className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed">{p.rationale}</p>
+            <button
+              type="button"
+              onClick={onRephrase}
+              className="mt-2 w-full rounded-md border border-dashed border-hairline-hi px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+            >
+              <span className="block text-[11px] text-faint">Want to change it?</span>“{p.summary}”
+            </button>
+            <div className="mt-2 flex justify-end">
+              <Button size="sm" variant="ghost" className="h-7" onClick={(e) => onDismiss(e.detail === 0)}>
+                Got it
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-[13.5px] font-medium leading-snug">{p.summary}</p>
+            {p.rationale && <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>}
+            {needsPerson ? (
+              <div className="mt-2.5 flex items-center gap-2">
+                <Button size="sm" className="btn-solstice h-8 flex-1" onClick={onTeammate}>
+                  <UsersRound /> Ask a teammate
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8" onClick={(e) => onDismiss(e.detail === 0)}>
+                  Not now
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="mt-2 text-[11.5px] text-muted-foreground">{touchWords(p.blastRadius)}</p>
+                <div className="mt-2 border-t border-dashed border-hairline pt-2">
+                  <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] font-medium tabular-nums">
+                    {creditWords(p.credits)}
+                    <span className="text-[11.5px] font-normal text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
+                  </p>
+                  {/* The production estimate and what happens in this demo, each labelled (lib/blueprint/estimate.ts). */}
+                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                    {time.real} <span className="text-faint">· {time.here}</span>
+                  </p>
+                </div>
+                {order.overBudget && (
+                  <p className="mt-2 text-[11.5px] leading-snug text-foreground">
+                    This would pass your spending cap, so it can&apos;t be applied yet.{" "}
+                    <Link href="/settings#usage" className="text-amber underline underline-offset-2">
+                      Change the cap
+                    </Link>
+                  </p>
+                )}
+                <div className="mt-2.5 flex items-center gap-2">
+                  {/* A click from the keyboard has detail 0: only then pull focus back to the writing area. */}
+                  <Button size="sm" className="btn-solstice h-8 flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
+                    {approving ? (
+                      "Applying…"
+                    ) : (
+                      <>
+                        <Check /> Apply · {creditWords(p.credits)}
+                      </>
+                    )}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8" onClick={(e) => onDismiss(e.detail === 0)} disabled={approving}>
+                    Not now
+                  </Button>
+                </div>
+                <p className="mt-1.5 text-[10.5px] text-faint">Nothing changes until you apply. Going back is always free.</p>
+              </>
+            )}
+            {p.mode === "rules" && !needsPerson && <p className="mt-1 text-[10.5px] text-faint">Offline mode: handled by built-in rules.</p>}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -469,7 +493,7 @@ function midSentence(bp: Blueprint, name: string): string {
   return !proper && /^[A-Z][a-z]/.test(first) ? name[0].toLowerCase() + name.slice(1) : name;
 }
 
-/** Starter requests for whatever is in scope. Each one works offline too (lib/change/rules.ts). */
+/** Starter notes for whatever is in scope. Each one works offline too (lib/change/rules.ts). */
 function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
   const out: string[] = [];
   const gateable = (a: Blueprint["agents"][number]) => a.tools.find((t) => t.access !== "read" && t.permission !== "ask");

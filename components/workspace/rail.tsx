@@ -1,79 +1,48 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { Brain, Check, ChevronDown, Hammer, Loader2, MessageSquarePlus, MessagesSquare, PanelLeftClose, PanelLeftOpen, ShieldCheck, Target, X } from "lucide-react";
-import { BlameBadge } from "@/components/arch/badges";
-import { Kbd } from "@/components/ui/kbd";
+import { Crosshair, NotebookPen, PanelRightClose, Undo2, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TimeAgo } from "@/components/time-ago";
+import { LogoMark } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
-import { creditsUsd, formatCredits } from "@/lib/format";
+import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
 import { changeTimeLabel } from "@/lib/blueprint/estimate";
 import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types";
 import type { ChatLedgerKind } from "@/lib/db/writes";
 import { useWorkspace } from "./context";
-import { useChatState, workOrderIdOf, type SentMessage } from "./composer-dock";
-import { readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
+import { NoteWriter, creditWords, useChatState, versionWords, workOrderIdOf, type SentMessage } from "./composer-dock";
+import { LEGACY_OPEN_EVENT, OPEN_NOTES_EVENT, marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
+import { undoTo } from "./undo";
 
-const LANE: Record<Lane, { icon: typeof Brain; label: string; cls: string }> = {
-  thought: { icon: Brain, label: "Thought", cls: "text-muted-foreground bg-raised" },
-  did: { icon: Hammer, label: "Did", cls: "text-amber bg-amber-soft" },
-  checked: { icon: ShieldCheck, label: "Checked", cls: "text-read bg-read/10" },
-};
-
-type Filter = "all" | "fixes" | "team";
-
-/** A history entry, or a message just sent that the history doesn't have yet (same shape, so both render the same). */
+/** A history entry, or a note just sent that the history doesn't have yet (same shape, so both render the same). */
 type ThreadRow = Omit<LedgerRow, "kind"> & { kind: LedgerKind | ChatLedgerKind; sending?: boolean };
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-/**
- * The chat rail: your requests and Prod AI's answers, Work Orders and fixes as a conversation, with
- * build steps and other events as compact rows in the flow. `collapsible` (desktop) adds the slim
- * strip and the toggle; the phone sheet shows the full panel only.
- * `onAsk` hands focus to the composer under the canvas (the one place to type).
- */
-export function Rail({ collapsible = false, initialPref = "auto", onAsk }: { collapsible?: boolean; initialPref?: RailPref; onAsk?: () => void }) {
-  const pref = useSyncExternalStore(subscribeRail, readRail, () => initialPref);
-  const collapseBtn = useRef<HTMLButtonElement>(null);
-  const expandBtn = useRef<HTMLButtonElement>(null);
+/** The open margin: narrower on smaller laptops, 340px from 1400px wide. Below 1024px it is a bottom sheet. */
+const MARGIN_W = "lg:w-[288px] xl:w-[304px] min-[1400px]:w-[340px]";
 
-  if (!collapsible) return <RailPanel className="flex w-full bg-panel/40" onAsk={onAsk} footer />;
+/** A pencil rule down the page edge: a slightly wobbly graphite line that tiles seamlessly. */
+const RULE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='180' viewBox='0 0 8 180'%3E%3Cpath d='M4 0C3.2 22 4.9 41 4.1 63S3.3 104 4.4 126 3.6 161 4 180' fill='none' stroke='%233f3d38' stroke-opacity='.42' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E")`;
 
-  const setOpen = (open: boolean, viaKeyboard: boolean) => {
-    writeRail(open ? "open" : "collapsed");
-    // From the keyboard, the button that was pressed is gone now: hand focus to its counterpart.
-    if (viaKeyboard) requestAnimationFrame(() => (open ? collapseBtn : expandBtn).current?.focus({ preventScroll: true }));
-  };
-
-  // "auto" opens from 1280px wide (xl), and stays a slim strip below that.
-  return (
-    <div
-      className={cn(
-        "flex h-full shrink-0 overflow-hidden border-r border-hairline bg-panel/40 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        pref === "open" ? "w-[312px]" : pref === "collapsed" ? "w-14" : "w-14 xl:w-[312px]",
-      )}
-    >
-      <RailPanel
-        className={cn("w-[312px]", pref === "open" ? "flex" : pref === "collapsed" ? "hidden" : "hidden xl:flex")}
-        reportVisibility
-        collapseRef={collapseBtn}
-        onCollapse={(viaKeyboard) => setOpen(false, viaKeyboard)}
-        onAsk={onAsk}
-      />
-      <SlimRail
-        className={pref === "open" ? "hidden" : pref === "collapsed" ? "flex" : "flex xl:hidden"}
-        buttonRef={expandBtn}
-        onOpen={(viaKeyboard) => setOpen(true, viaKeyboard)}
-      />
-    </div>
+/** True below 1024px, where the margin becomes a bottom sheet. Matches Tailwind's `lg`. */
+function usePhone() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia("(width < 64rem)");
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(width < 64rem)").matches,
+    () => false,
   );
 }
 
-/** Messages the history already has, by Work Order: the rest are still on their way and show from local state. */
+/** Notes the history already has, by proposed change: the rest are still on their way and show from local state. */
 function useUnlogged(): { unlogged: SentMessage[]; thinking: boolean } {
   const ws = useWorkspace();
   const { sent } = useChatState();
@@ -83,21 +52,185 @@ function useUnlogged(): { unlogged: SentMessage[]; thinking: boolean } {
   }, [ws.ledger, sent]);
 }
 
-/**
- * Collapsed: a slim strip labelled "Chat" with how many items the thread holds, and a live mark while
- * Prod AI is working or waiting for you. The whole strip opens the chat.
- */
-function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonRef: Ref<HTMLButtonElement>; onOpen: (viaKeyboard: boolean) => void }) {
+/** How many notes there are, and the latest one, for the folded tab and the phone button. */
+function useNotesSummary() {
   const ws = useWorkspace();
   const { unlogged, thinking } = useUnlogged();
   const b = ws.build;
   const building = b.status !== "idle" && b.status !== "done";
   const step = building && b.current?.kind === "step" ? b.current : null;
-  const latest = ws.ledger[0] ?? null;
-  const count = ws.ledger.length + (building ? b.completed.length : 0) + unlogged.length;
   const waiting = b.status === "repair";
-  const working = thinking || (Boolean(step) && b.status === "running");
-  const title = waiting ? "Waiting for you: pick a fix" : thinking ? "Prod AI is thinking…" : (step?.title ?? latest?.title ?? "Nothing yet");
+  const count = ws.ledger.length + (building ? b.completed.length : 0) + unlogged.length;
+  const title = waiting ? "Waiting for you: pick a fix" : thinking ? "Prod AI is reading your note…" : (step?.title ?? ws.ledger[0]?.title ?? "Nothing yet");
+  return { count, waiting, title };
+}
+
+/**
+ * The margin: notes written beside the page, like marking up a printout. Your notes in pencil,
+ * Prod AI's replies as small typed notes, proposed changes as margin cards, build progress as ticks,
+ * and a ruled slip at the bottom to write on.
+ *
+ * - On the Sheet (/p/[id]) it is open on the right, unless you fold it (remembered).
+ * - Elsewhere it is folded to a slim "Notes" tab that opens it. On AI helpers it stays folded
+ *   until you open it yourself, so the playground's box is the only one to type in.
+ * - Focusing the writing area (the "/" key, "Ask for a change" buttons, a scoped note) opens it,
+ *   and it stays open after you send a note until you fold it, so the reply is seen.
+ * - Below 1024px the same panel is a bottom sheet, opened by a floating "Notes" button.
+ */
+export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
+  const ws = useWorkspace();
+  const pathname = usePathname();
+  const mode = marginModeFor(projectSection(pathname, ws.project.id));
+  const pref = useSyncExternalStore(subscribeRail, readRail, () => initialPref);
+  const phone = usePhone();
+  const { count, waiting, title } = useNotesSummary();
+  // Opened from the tab on a page other than the Sheet (not remembered).
+  const [offOpen, setOffOpen] = useState(false);
+  // A note was just sent: stay open until it's folded, so the reply is read.
+  const [held, setHeld] = useState(false);
+  const [focusIn, setFocusIn] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  // Arriving on AI helpers folds the margin away, even if it was open on the page before.
+  const [lastMode, setLastMode] = useState(mode);
+  if (lastMode !== mode) {
+    setLastMode(mode);
+    if (mode === "quiet") {
+      setOffOpen(false);
+      setHeld(false);
+    }
+  }
+  const engaged = focusIn || held;
+  const desktopOpen = (mode === "sheet" ? pref !== "collapsed" : offOpen) || engaged;
+  const phoneShown = phoneOpen || engaged;
+  const shown = phone ? phoneShown : desktopOpen;
+
+  const panelRef = useRef<HTMLElement>(null);
+  const tabRef = useRef<HTMLButtonElement>(null);
+  const foldRef = useRef<HTMLButtonElement>(null);
+  const phoneBtnRef = useRef<HTMLButtonElement>(null);
+
+  const openMargin = (viaKeyboard: boolean) => {
+    if (phone) {
+      setPhoneOpen(true);
+      // Focus the sheet, not the writing area: reading shouldn't pop up the phone keyboard.
+      requestAnimationFrame(() => panelRef.current?.focus({ preventScroll: true }));
+      return;
+    }
+    if (mode === "sheet") writeRail("open");
+    else setOffOpen(true);
+    // From the keyboard, the tab that was pressed is gone now: hand focus to its counterpart.
+    if (viaKeyboard) requestAnimationFrame(() => foldRef.current?.focus({ preventScroll: true }));
+  };
+
+  const fold = (viaKeyboard: boolean) => {
+    setHeld(false);
+    setFocusIn(false);
+    if (phone) {
+      setPhoneOpen(false);
+      requestAnimationFrame(() => phoneBtnRef.current?.focus({ preventScroll: true }));
+      return;
+    }
+    if (mode === "sheet") writeRail("collapsed");
+    else setOffOpen(false);
+    requestAnimationFrame(() => {
+      if (viaKeyboard) tabRef.current?.focus({ preventScroll: true });
+      else if (panelRef.current?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    });
+  };
+
+  // "Open the notes" from anywhere (a button on a page, the old chat event).
+  useEffect(() => {
+    const onOpen = () => openMargin(false);
+    window.addEventListener(OPEN_NOTES_EVENT, onOpen);
+    window.addEventListener(LEGACY_OPEN_EVENT, onOpen);
+    return () => {
+      window.removeEventListener(OPEN_NOTES_EVENT, onOpen);
+      window.removeEventListener(LEGACY_OPEN_EVENT, onOpen);
+    };
+  });
+
+  return (
+    <>
+      {/* On a phone, tapping the page behind the sheet closes it. */}
+      {phoneShown && <div aria-hidden onClick={() => fold(false)} className="fixed inset-0 z-40 bg-foreground/10 lg:hidden" />}
+      <div
+        data-margin={shown ? "open" : "folded"}
+        className={cn(
+          "relative shrink-0 bg-canvas",
+          // Desktop: a column on the right of the page.
+          "lg:flex lg:h-full lg:overflow-clip lg:transition-[width] lg:duration-300 lg:ease-[cubic-bezier(0.22,1,0.36,1)]",
+          desktopOpen ? MARGIN_W : "lg:w-11",
+          // Phone: a bottom sheet.
+          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:flex max-lg:h-[min(86dvh,680px)] max-lg:flex-col max-lg:rounded-t-xl max-lg:border-t max-lg:border-hairline-hi max-lg:shadow-[0_-18px_40px_-24px_rgb(26_26_23/0.35)] max-lg:transition-transform max-lg:duration-300",
+          phoneShown ? "max-lg:translate-y-0" : "max-lg:pointer-events-none max-lg:translate-y-[calc(100%+24px)]",
+        )}
+      >
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-2 max-lg:hidden" style={{ backgroundImage: RULE, backgroundRepeat: "repeat-y" }} />
+        {!desktopOpen && <SlimTab buttonRef={tabRef} onOpen={openMargin} count={count} waiting={waiting} title={title} />}
+        {/* Always in the page, so the writing area can be focused (and the margin opened) from anywhere. Folded, it sits clipped past the tab. */}
+        <aside
+          id="notes"
+          ref={panelRef}
+          tabIndex={-1}
+          aria-label="Notes"
+          onFocus={() => setFocusIn(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && phone && !e.defaultPrevented) {
+              e.preventDefault();
+              fold(true);
+            }
+          }}
+          className={cn("flex h-full min-h-0 flex-col outline-none focus-visible:outline-none max-lg:w-full lg:shrink-0", MARGIN_W)}
+        >
+          {shown && <span aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-hairline-hi lg:hidden" />}
+          <header className={cn("mx-3 flex shrink-0 items-center gap-2 border-b border-dashed border-hairline-hi pb-2 pl-2 pt-3 max-lg:pl-1", !shown && "hidden")}>
+            <h2 className="font-display text-[26px] leading-none text-foreground">Notes</h2>
+            <span className="mt-1.5 truncate text-[11px] text-faint">in the margin</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  ref={foldRef}
+                  type="button"
+                  onClick={(e) => fold(e.detail === 0)}
+                  aria-expanded
+                  aria-label={phone ? "Close notes" : "Fold the notes away"}
+                  className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-deep hover:text-foreground"
+                >
+                  {phone ? <X className="size-4" aria-hidden /> : <PanelRightClose className="size-4" aria-hidden />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">{phone ? "Close" : "Fold to a slim tab"}</TooltipContent>
+            </Tooltip>
+          </header>
+          <NotesThread shown={shown} onAsk={() => ws.focusComposer()} />
+          <NoteWriter suggest={mode === "sheet"} onSent={() => setHeld(true)} className="px-3 pb-3 pt-2 lg:pl-4" />
+        </aside>
+      </div>
+      {!phoneShown && (
+        <button
+          ref={phoneBtnRef}
+          type="button"
+          onClick={() => openMargin(false)}
+          aria-controls="notes"
+          aria-expanded={false}
+          aria-label={`Notes: ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
+          className="fixed bottom-4 right-4 z-40 inline-flex h-11 items-center gap-2 rounded-full border border-hairline-hi bg-panel pl-3.5 pr-3 shadow-[0_10px_24px_-14px_rgb(26_26_23/0.45)] transition-colors hover:border-amber/50 lg:hidden"
+        >
+          <NotebookPen className="size-4 text-amber" aria-hidden />
+          <span className="font-pencil text-[22px] leading-none">Notes</span>
+          <span className="rounded-full bg-deep px-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">{count > 99 ? "99+" : count}</span>
+          {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Folded: a slim tab down the page edge that says "Notes", with how many there are. */
+function SlimTab({ buttonRef, onOpen, count, waiting, title }: { buttonRef: Ref<HTMLButtonElement>; onOpen: (viaKeyboard: boolean) => void; count: number; waiting: boolean; title: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -106,29 +239,20 @@ function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonR
           type="button"
           // A keyboard "click" has detail 0.
           onClick={(e) => onOpen(e.detail === 0)}
+          aria-controls="notes"
           aria-expanded={false}
-          aria-label={`Open chat and history. ${count} ${count === 1 ? "item" : "items"}. Latest: ${title}`}
-          className={cn("group h-full w-14 shrink-0 flex-col items-center gap-3 py-3 text-muted-foreground transition-colors hover:bg-raised/40 hover:text-foreground focus-visible:outline-offset-[-3px]", className)}
+          aria-label={`Open notes. ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
+          className="group flex h-full w-11 shrink-0 flex-col items-center gap-2.5 pt-4 text-muted-foreground transition-colors hover:bg-panel/70 hover:text-foreground focus-visible:outline-offset-[-3px] max-lg:hidden"
         >
-          <span className="grid size-8 place-items-center rounded-lg border border-hairline bg-deep transition-colors group-hover:border-amber/40 group-hover:text-amber">
-            <PanelLeftOpen className="size-4" aria-hidden />
-          </span>
-          <span aria-hidden className="h-px w-6 bg-hairline" />
-          <span className="flex flex-col items-center gap-1.5">
-            <span className="relative grid size-9 place-items-center rounded-xl border border-amber/25 bg-amber-soft text-amber transition-[border-color,transform] duration-200 group-hover:scale-105 group-hover:border-amber/50">
-              {working ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <MessagesSquare className="size-4" aria-hidden />}
-              <span aria-hidden className="absolute -right-2 -top-2 min-w-[20px] rounded-full bg-raised px-1 text-center font-mono text-[10.5px] leading-[18px] tabular-nums text-foreground ring-2 ring-panel">
-                {count > 99 ? "99+" : count}
-              </span>
-              {waiting && <span aria-hidden className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-fix ring-2 ring-panel" />}
-            </span>
-            <span className="text-[11px] font-medium leading-none text-foreground">Chat</span>
-          </span>
+          <NotebookPen className="size-4 text-amber" aria-hidden />
+          <span className="font-pencil text-[22px] leading-none text-foreground [writing-mode:vertical-rl]">Notes</span>
+          <span className="font-mono text-[10.5px] tabular-nums">{count > 99 ? "99+" : count}</span>
+          {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right" align="start" alignOffset={52} className="max-w-64">
+      <TooltipContent side="left" className="max-w-64">
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[10px] uppercase tracking-[0.12em] opacity-60">Chat &amp; history · latest</span>
+          <span className="text-[10px] uppercase tracking-[0.12em] opacity-60">Notes · latest</span>
           <span className="line-clamp-3">{title}</span>
         </span>
       </TooltipContent>
@@ -136,7 +260,7 @@ function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonR
   );
 }
 
-/** A message just sent, as thread rows: yours, and Prod AI's reply once it's back. */
+/** A note just sent, as thread rows: yours, and Prod AI's reply once it's back. */
 function sentRows(m: SentMessage): ThreadRow[] {
   const p = m.wo?.proposal ?? null;
   const meta = m.wo ? { workOrderId: m.wo.id } : null;
@@ -149,38 +273,16 @@ function sentRows(m: SentMessage): ThreadRow[] {
   return [you, reply];
 }
 
-/** `className` sets the width and the display (flex or hidden). */
-function RailPanel({
-  className,
-  reportVisibility = false,
-  footer = false,
-  collapseRef,
-  onCollapse,
-  onAsk,
-}: {
-  className: string;
-  reportVisibility?: boolean;
-  footer?: boolean;
-  collapseRef?: Ref<HTMLButtonElement>;
-  onCollapse?: (viaKeyboard: boolean) => void;
-  onAsk?: () => void;
-}) {
+/** The notes, oldest first, with the build's progress as ticks at the end. `shown` false keeps it in the page but out of sight. */
+function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
   const ws = useWorkspace();
   const { sent, setThreadVisible } = useChatState();
-  const { unlogged, thinking: sending } = useUnlogged();
-  // Sending a message brings the whole thread back ("All"), so your message and its reply are in view.
-  const lastSent = sent.at(-1)?.key ?? null;
-  const [picked, setPicked] = useState<{ filter: Filter; lastSent: string | null }>({ filter: "all", lastSent: null });
-  const filter: Filter = picked.lastSent === lastSent ? picked.filter : "all";
-  const setFilter = (f: Filter) => setPicked({ filter: f, lastSent });
-  const [briefOpen, setBriefOpen] = useState(false);
+  const { unlogged, thinking } = useUnlogged();
   const scroller = useRef<HTMLDivElement>(null);
-  // Fade an edge of the thread only when there is more to scroll to on that side.
-  const [fade, setFade] = useState<"none" | "top" | "bottom" | "both">("none");
 
   const thread = useMemo(() => {
     const all: ThreadRow[] = [...ws.ledger].reverse();
-    // An applied change, by the Work Order it came from: shown as that Work Order's outcome, not as a second message.
+    // An applied change, by the proposal it came from: shown as that proposal's outcome, not as a second note.
     const applied = new Map<string, ThreadRow>();
     const quoted = new Set<string>();
     for (const r of all) {
@@ -188,11 +290,8 @@ function RailPanel({
       if (id && r.kind === "change") applied.set(id, r);
       if (id && r.kind === "quote") quoted.add(id);
     }
-    let rows: ThreadRow[];
-    if (filter === "fixes") rows = all.filter((r) => r.blame === "system_fix");
-    else if (filter === "team") rows = all.filter((r) => r.blame === "teammate" || r.kind === "handoff" || r.kind === "comment");
-    else rows = [...all.filter((r) => !(r.kind === "change" && quoted.has(workOrderIdOf(r) ?? ""))), ...unlogged.flatMap(sentRows)];
-    // A sent message keeps its key when the history's copy replaces it, so it doesn't animate in twice.
+    const rows: ThreadRow[] = [...all.filter((r) => !(r.kind === "change" && quoted.has(workOrderIdOf(r) ?? ""))), ...unlogged.flatMap(sentRows)];
+    // A sent note keeps its key when the history's copy replaces it, so it doesn't animate in twice.
     const keyByOrder = new Map<string, string>();
     for (const m of sent) if (m.wo) keyByOrder.set(m.wo.id, m.key);
     const keyed = rows.map((r) => {
@@ -202,325 +301,212 @@ function RailPanel({
       return { row: r, key: k && side ? `${k}:${side}` : r.id };
     });
     return { rows: keyed, applied };
-  }, [ws.ledger, filter, sent, unlogged]);
+  }, [ws.ledger, sent, unlogged]);
 
   const b = ws.build;
   const live = b.status !== "idle" && b.status !== "done" ? b.completed : [];
   const current = b.current?.kind === "step" && b.status === "running" ? b.current : null;
   const waiting = b.status === "repair";
-  const thinking = filter === "all" && sending;
-  const total = thread.rows.length + live.length;
-  const itemCount = total + (thinking ? 1 : 0) + (current ? 1 : 0) + (waiting ? 1 : 0);
-  // What's at the bottom right now: changes when a reply replaces "thinking", even though the count doesn't.
+  const itemCount = thread.rows.length + live.length + (thinking ? 1 : 0) + (current ? 1 : 0) + (waiting ? 1 : 0);
+  // What's at the bottom right now: changes when a reply replaces "reading", even though the count doesn't.
   const newest = `${thread.rows.at(-1)?.key ?? ""}|${thinking}|${live.length}|${current?.title ?? ""}|${waiting}`;
 
-  const updateFade = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const top = el.scrollTop > 2;
-    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 2;
-    setFade(top && bottom ? "both" : top ? "top" : bottom ? "bottom" : "none");
-  }, []);
-
-  // The newest message is always in view: after you send, when the reply lands, as the build moves.
+  // The newest note is always in view: after you send, when the reply lands, as the build moves.
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [itemCount, newest, filter]);
+  }, [itemCount, newest]);
 
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    // Opening from the slim strip shows the panel for the first time: start at the latest item, like it always does.
+    // Opening a folded margin shows the thread for the first time: start at the latest note.
     let hidden = el.clientHeight === 0;
     const ro = new ResizeObserver(() => {
       if (hidden && el.clientHeight > 0) el.scrollTop = el.scrollHeight;
       hidden = el.clientHeight === 0;
-      // The composer puts answers here instead of in a card while this is on screen.
-      if (reportVisibility) setThreadVisible(!hidden);
-      updateFade();
+      // The writer puts answers here instead of in a card while this is on screen.
+      setThreadVisible(!hidden);
     });
     ro.observe(el);
     if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => {
       ro.disconnect();
-      if (reportVisibility) setThreadVisible(false);
+      setThreadVisible(false);
     };
-  }, [updateFade, reportVisibility, setThreadVisible]);
-
-  const fixes = ws.ledger.filter((r) => r.blame === "system_fix").length;
+  }, [setThreadVisible]);
 
   return (
-    <aside aria-label="Chat and history" className={cn("h-full shrink-0 flex-col", className)}>
-      <div className="flex h-10 items-center justify-between gap-2 px-3 pt-1.5">
-        <h2 className="flex items-center gap-2 text-[13px] font-medium tracking-tight">
-          <MessagesSquare className="size-3.5 text-amber" aria-hidden />
-          Chat &amp; history
-        </h2>
-        {onCollapse && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                ref={collapseRef}
-                type="button"
-                onClick={(e) => onCollapse(e.detail === 0)}
-                aria-expanded
-                aria-label="Collapse chat and history"
-                className="-mr-1 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-raised hover:text-foreground"
-              >
-                <PanelLeftClose className="size-4" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Collapse to a slim strip</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-
-      <div className="px-3 pt-1">
-        <button onClick={() => setBriefOpen((o) => !o)} className="panel w-full rounded-lg px-2.5 py-2 text-left" aria-expanded={briefOpen}>
-          <span className="flex items-center justify-between gap-2">
-            <span className="micro-label">The brief</span>
-            <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", briefOpen && "rotate-180")} />
-          </span>
-          <span className={cn("mt-0.5 block text-[12px] leading-relaxed text-muted-foreground", !briefOpen && "line-clamp-1")}>{ws.project.brief || ws.blueprint.meta.plain}</span>
-        </button>
-      </div>
-
-      {/* The filters get their own row, so the thread scrolls under a clean edge, not under the brief. */}
-      <div className="mt-2.5 flex items-center justify-between gap-2 border-b border-hairline px-3 pb-2">
-        <div className="flex items-center gap-0.5 rounded-md border border-hairline bg-deep p-0.5" role="radiogroup" aria-label="Filter the chat">
-          {(
-            [
-              ["all", "All"],
-              ["fixes", `Fixes${fixes ? ` ${fixes}` : ""}`],
-              ["team", "Team"],
-            ] as [Filter, string][]
-          ).map(([v, l]) => (
-            <button key={v} role="radio" aria-checked={filter === v} onClick={() => setFilter(v)} className={cn("h-5 rounded px-1.5 text-[11px]", filter === v ? "bg-raised text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {l}
-            </button>
+    <div ref={scroller} className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3 pl-5 pr-3 pt-3 max-lg:pl-4", !shown && "hidden")}>
+      {itemCount === 0 ? (
+        <div className="px-1 py-6">
+          <p className="font-pencil text-[24px] leading-tight text-muted-foreground">No notes yet.</p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+            Write in the margin like you would on a printout: “make the header green”, “add a priority column”. Questions get an answer here. Changes come back with a price first.
+          </p>
+        </div>
+      ) : (
+        <ol className="flex flex-col gap-3" aria-label="Notes, oldest first">
+          {thread.rows.map(({ row, key }) => (
+            <ThreadItem key={key} row={row} applied={thread.applied} onAsk={onAsk} />
           ))}
-        </div>
-        <span className="font-mono text-[10.5px] tabular-nums text-faint">
-          {total} {total === 1 ? "item" : "items"}
-        </span>
-      </div>
-
-      <div
-        ref={scroller}
-        onScroll={updateFade}
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2.5",
-          fade === "both" && "[mask-image:linear-gradient(to_bottom,transparent,black_24px,black_calc(100%-20px),transparent)]",
-          fade === "top" && "[mask-image:linear-gradient(to_bottom,transparent,black_24px)]",
-          fade === "bottom" && "[mask-image:linear-gradient(to_bottom,black_calc(100%-20px),transparent)]",
-        )}
-      >
-        <div>
-          {itemCount === 0 ? (
-            <p className="px-1 py-6 text-center text-[12.5px] leading-relaxed text-muted-foreground">
-              {filter === "all"
-                ? "Nothing here yet. Ask Prod AI anything in the box under the canvas: questions get an answer here, changes get a free quote."
-                : "Nothing here yet for this filter."}
-            </p>
-          ) : (
-            <ol className="flex flex-col gap-1.5" aria-label="Messages and events, oldest first">
-              {thread.rows.map(({ row, key }) => (
-                <ThreadItem key={key} row={row} applied={thread.applied} onAsk={onAsk} />
-              ))}
-              {thinking && <Thinking />}
-              {live.map((s) => (
-                <motion.li key={`live-${s.id}`} initial={{ opacity: 0, x: -8, filter: "blur(3px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ duration: 0.3, ease: EASE }} className="flex gap-2 rounded-lg px-1 py-1">
-                  <LaneIcon lane={s.lane} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] leading-snug">{s.title}</p>
-                    {s.detail && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.detail}</p>}
-                  </div>
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-read" aria-label="done" />
-                </motion.li>
-              ))}
-              {current && (
-                <li className="flex gap-2 rounded-lg bg-amber-soft px-1 py-1" aria-live="polite">
-                  <LaneIcon lane={current.lane} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] leading-snug text-foreground">{current.title}</p>
-                    <p className="shimmer mt-1 h-1.5 w-2/3 rounded-full" />
-                  </div>
-                  <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-amber" aria-label="in progress" />
-                </li>
-              )}
-              {waiting && (
-                <li className="flex gap-2 rounded-lg border border-fix/30 bg-fix/10 px-1 py-1">
-                  <LaneIcon lane="checked" />
-                  <p className="text-[12px] leading-snug text-fix">Waiting for you: pick a fix</p>
-                </li>
-              )}
-            </ol>
+          {thinking && (
+            <li className="flex items-center gap-2 text-[12px] text-muted-foreground">
+              <ProdMark />
+              Prod AI is reading your note…
+            </li>
           )}
-        </div>
-      </div>
-
-      {/* On a phone the chat is a sheet over the page: this closes it and puts you in the composer. */}
-      {footer && onAsk && (
-        <div className="border-t border-hairline p-2.5">
-          <button
-            type="button"
-            onClick={onAsk}
-            className="flex h-10 w-full items-center gap-2 rounded-full border border-hairline-hi bg-deep px-3.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
-          >
-            <MessageSquarePlus className="size-4 shrink-0 text-amber" aria-hidden />
-            <span className="min-w-0 flex-1 truncate">Ask Prod AI or request a change</span>
-            <Kbd aria-hidden className="max-sm:hidden">/</Kbd>
-          </button>
-        </div>
+          {live.map((s) => (
+            <motion.li key={`live-${s.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2 pl-0.5">
+              <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", LANE[s.lane].tone)} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] leading-snug text-foreground/85">
+                  <span className="sr-only">Done: </span>
+                  {s.title}
+                </p>
+                {s.detail && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.detail}</p>}
+              </div>
+            </motion.li>
+          ))}
+          {current && (
+            <li className="flex gap-2 pl-0.5" aria-live="polite">
+              <PencilDash className="mt-[3px] size-3.5 shrink-0 text-amber" />
+              <p className="text-[12px] leading-snug text-foreground">Now: {current.title}…</p>
+            </li>
+          )}
+          {waiting && (
+            <li className="flex gap-2 pl-0.5 text-fix">
+              <PencilDash className="mt-[3px] size-3.5 shrink-0" />
+              <p className="text-[12px] leading-snug">Waiting for you: pick a fix</p>
+            </li>
+          )}
+        </ol>
       )}
-    </aside>
+    </div>
   );
 }
 
-/* ------------------------------------------------ the thread */
+/* ------------------------------------------------ the notes */
 
-function ThreadItem({ row, applied, onAsk }: { row: ThreadRow; applied: Map<string, ThreadRow>; onAsk?: () => void }) {
+function ThreadItem({ row, applied, onAsk }: { row: ThreadRow; applied: Map<string, ThreadRow>; onAsk: () => void }) {
   switch (row.kind) {
     case "brief":
-      return <YouBubble row={row} text={row.body || row.title} caption="You described the project" />;
+      return <YouNote row={row} text={row.body || row.title} caption="Your first note" />;
     case "question":
     case "request":
-      return <YouBubble row={row} text={row.title} />;
+      return <YouNote row={row} text={row.title} />;
     case "answer":
-      return <AnswerMessage row={row} onAsk={onAsk} />;
+      return <AnswerNote row={row} onAsk={onAsk} />;
     case "quote":
-      return <QuoteMessage row={row} applied={applied} onAsk={onAsk} />;
-    // The plan Prod AI proposed (it carries the plan's save point). "You approved…" rows stay compact.
+      return <ChangeNote row={row} applied={applied} />;
+    // The plan Prod AI proposed (it carries the plan's version). "You approved…" rows stay ticks.
     case "work_order":
-      return row.checkpoint_id ? <PlanMessage row={row} /> : <CompactRow row={row} />;
+      return row.checkpoint_id ? <PlanNote row={row} /> : <TickRow row={row} />;
     case "repair":
-      return row.blame === "system_fix" ? <FixMessage row={row} /> : <CompactRow row={row} />;
-    // A change from a Work Order whose quote isn't in view (older history): still Prod AI's reply.
+      return row.blame === "system_fix" ? <FixNote row={row} /> : <TickRow row={row} />;
+    // A change whose proposal isn't in view (older history): still Prod AI's reply.
     case "change":
-      return workOrderIdOf(row) ? <AppliedMessage row={row} /> : <CompactRow row={row} />;
+      return workOrderIdOf(row) ? <AppliedNote row={row} /> : <TickRow row={row} />;
     default:
-      return <CompactRow row={row} />;
+      return <TickRow row={row} />;
   }
 }
 
-/** Yours: right-aligned, in the lume gradient. */
-function YouBubble({ row, text, caption = "You" }: { row: ThreadRow; text: string; caption?: string }) {
+/** Yours: written in pencil, straight on the paper. */
+function YouNote({ row, text, caption = "You" }: { row: ThreadRow; text: string; caption?: string }) {
   const [open, setOpen] = useState(false);
-  const long = text.length > 240;
+  const long = text.length > 220;
   return (
-    <motion.li
-      initial={{ opacity: 0, x: 10, scale: 0.98 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-      className="flex flex-col items-end py-1"
-    >
-      <div
-        className={cn(
-          "max-w-[88%] rounded-2xl rounded-br-md border border-amber/20 bg-[linear-gradient(135deg,rgb(223_255_79/0.13),rgb(141_255_158/0.07)_55%,rgb(63_224_197/0.08))] px-3 py-2 text-[12.5px] leading-relaxed text-foreground shadow-[0_10px_28px_-18px_rgb(141_255_158/0.6)]",
-          row.sending && "opacity-85",
-        )}
-      >
-        <p className={cn("whitespace-pre-wrap break-words", long && !open && "line-clamp-5")}>{text}</p>
-        {long && (
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-1 text-[11px] text-muted-foreground hover:text-foreground">
-            {open ? "Show less" : "Show more"}
-          </button>
-        )}
-      </div>
-      <div className="mt-1 flex max-w-[88%] items-center gap-1.5 text-[10.5px] text-faint">
-        {row.object_ref && <ObjectChip objectRef={row.object_ref} />}
-        <span className="shrink-0">{caption}</span>
-        <span aria-hidden>·</span>
-        {row.sending ? <span className="text-shimmer shrink-0">Sending</span> : <TimeAgo iso={row.created_at} className="shrink-0" />}
-      </div>
+    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: EASE }} className={cn("pl-0.5", row.sending && "opacity-70")}>
+      {row.object_ref && (
+        <div className="mb-0.5">
+          <AboutTag objectRef={row.object_ref} />
+        </div>
+      )}
+      <p className={cn("font-pencil whitespace-pre-wrap break-words text-[21px] leading-[1.12] text-foreground", long && !open && "line-clamp-5")}>{text}</p>
+      {long && (
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-[11px] text-muted-foreground hover:text-foreground">
+          {open ? "Show less" : "Show more"}
+        </button>
+      )}
+      <p className="mt-0.5 text-[10.5px] text-faint">
+        {caption} · {row.sending ? "sending…" : <TimeAgo iso={row.created_at} />}
+      </p>
     </motion.li>
   );
 }
 
-/** Prod AI's avatar: its mark on a ring of the lume gradient. The ring turns while it's thinking. */
-function ProdAvatar({ thinking = false }: { thinking?: boolean }) {
+/** Prod AI's mark, small, beside its typed notes. */
+function ProdMark() {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full p-px",
-        thinking ? "solstice-ring" : "bg-[conic-gradient(from_210deg,var(--sol-flare),var(--sol-ember),var(--sol-amber),var(--sol-gold),var(--sol-dusk),var(--sol-flare))]",
-      )}
-    >
-      <span className="grid size-full place-items-center rounded-full bg-deep text-amber">
-        <svg viewBox="0 0 24 24" className="size-3.5">
-          <path d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="10.8" cy="13.6" r="1.9" fill="#fffbe0" />
-        </svg>
-      </span>
+    <span aria-hidden className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-hairline-hi bg-panel">
+      <LogoMark className="size-3.5" />
     </span>
   );
 }
 
-/** Prod AI's side: left-aligned, under its name and what kind of reply it is. */
-function AiMessage({ row, label, tone = "default", children }: { row: ThreadRow; label: string; tone?: "default" | "fix"; children: ReactNode }) {
+/** Prod AI's side: a small typed note pinned in the margin, under its name and what kind of reply it is. */
+function AiNote({ row, label, tone = "default", children }: { row: ThreadRow; label: string; tone?: "default" | "fix"; children: ReactNode }) {
   return (
-    <motion.li initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="flex gap-2 py-1 pr-1">
-      <ProdAvatar />
-      <div className="min-w-0 flex-1">
-        <p className="flex items-baseline gap-1.5 text-[11px] leading-5">
+    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2">
+      <ProdMark />
+      <div className={cn("min-w-0 flex-1 rounded-[3px] border bg-panel px-2.5 py-2 text-[12.5px] leading-relaxed shadow-[0_1px_1px_rgb(26_26_23/0.04)]", tone === "fix" ? "border-fix/30" : "border-hairline")}>
+        <p className="mb-0.5 flex items-baseline gap-1.5 text-[10.5px] leading-4">
           <span className="shrink-0 font-medium text-foreground">Prod AI</span>
           <span className={cn("truncate", tone === "fix" ? "text-fix" : "text-faint")}>{label}</span>
-          <TimeAgo iso={row.created_at} className="ml-auto shrink-0 text-[10.5px] text-faint" />
+          <TimeAgo iso={row.created_at} className="ml-auto shrink-0 text-faint" />
         </p>
-        <div className={cn("mt-0.5 rounded-2xl rounded-tl-md border px-3 py-2 text-[12.5px] leading-relaxed", tone === "fix" ? "border-fix/25 bg-fix/[0.07]" : "border-hairline bg-panel")}>{children}</div>
+        {children}
       </div>
     </motion.li>
   );
 }
 
-function Thinking() {
-  return (
-    <motion.li initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE }} className="flex items-center gap-2 py-1">
-      <ProdAvatar thinking />
-      <span className="text-shimmer text-[12px]">Prod AI is thinking…</span>
-    </motion.li>
-  );
-}
-
-function AnswerMessage({ row, onAsk }: { row: ThreadRow; onAsk?: () => void }) {
+function AnswerNote({ row, onAsk }: { row: ThreadRow; onAsk: () => void }) {
   const chat = useChatState();
   const suggestion = typeof row.meta?.suggestion === "string" ? row.meta.suggestion : "";
   return (
-    <AiMessage row={row} label="Answer · no change made">
+    <AiNote row={row} label="answered · nothing changed">
       <p className="whitespace-pre-wrap break-words">{row.body || row.title}</p>
       {suggestion && (
         <button
           type="button"
           onClick={() => {
             chat.fill(suggestion);
-            onAsk?.();
+            onAsk();
           }}
-          className="mt-2 flex w-full items-start gap-1.5 rounded-lg border border-hairline bg-deep px-2 py-1.5 text-left text-[11.5px] leading-snug text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
+          className="mt-2 flex w-full items-start gap-1.5 rounded-[3px] border border-dashed border-hairline-hi px-2 py-1.5 text-left text-[11.5px] leading-snug text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
         >
-          <MessageSquarePlus className="mt-px size-3 shrink-0 text-amber" aria-hidden />
           <span>
             <span className="text-faint">Ask for it: </span>“{suggestion}”
           </span>
         </button>
       )}
-    </AiMessage>
+    </AiNote>
   );
 }
 
-type Outcome = { kind: "applied"; label: string; credits?: number } | { kind: "approved" } | { kind: "dismissed" } | { kind: "waiting"; where: string } | { kind: "open" };
+type Outcome =
+  | { kind: "applied"; version: string; undo: string | null; credits?: number }
+  | { kind: "approved" }
+  | { kind: "dismissed" }
+  | { kind: "waiting" }
+  | { kind: "open" };
 
-/** What became of a change Work Order: applied (with its save point), dismissed, or still waiting for you. */
-function quoteOutcome(id: string, applied: Map<string, ThreadRow>, chat: ReturnType<typeof useChatState>, checkpoints: CheckpointMeta[]): Outcome | null {
+/** An applied change: its version, and Undo while it is still the current version (going back further would drop what came after). */
+function appliedOutcome(change: ThreadRow, checkpoints: CheckpointMeta[], currentId: string | null): Outcome {
+  const cp = checkpoints.find((c) => c.id === change.checkpoint_id);
+  const prev = cp && cp.id === currentId ? checkpoints.filter((c) => c.seq < cp.seq).sort((a, b) => b.seq - a.seq)[0] : undefined;
+  return { kind: "applied", version: cp ? `version ${cp.seq}` : "", undo: prev?.id ?? null, credits: Number(change.credits) };
+}
+
+/** What became of a proposed change: applied (with its version), not now, or still waiting for you. */
+function changeOutcome(id: string, applied: Map<string, ThreadRow>, chat: ReturnType<typeof useChatState>, ws: ReturnType<typeof useWorkspace>): Outcome | null {
   const change = applied.get(id);
-  if (change) {
-    const seq = checkpoints.find((c) => c.id === change.checkpoint_id)?.seq;
-    return { kind: "applied", label: seq ? `save point #${seq}` : "", credits: Number(change.credits) };
-  }
+  if (change) return appliedOutcome(change, ws.checkpoints, ws.project.currentCheckpointId);
   const local = chat.outcomes[id];
-  if (local?.status === "applied") return { kind: "applied", label: local.label.replace(/^Save point/, "save point") };
+  if (local?.status === "applied") return { kind: "applied", version: versionWords(local.label), undo: local.undo ?? null };
   if (local?.status === "dismissed") return { kind: "dismissed" };
-  if (chat.order?.wo.id === id) return { kind: "waiting", where: "below the canvas" };
+  if (chat.order?.wo.id === id) return { kind: "waiting" };
   const status = chat.orders.get(id)?.status;
   if (status === "rejected") return { kind: "dismissed" };
   if (status === "approved" || status === "running" || status === "done") return { kind: "approved" };
@@ -528,48 +514,58 @@ function quoteOutcome(id: string, applied: Map<string, ThreadRow>, chat: ReturnT
   return null;
 }
 
-function OutcomeChip({ outcome, onReview }: { outcome: Outcome; onReview?: () => void }) {
-  const chip = "inline-flex h-5 max-w-full items-center gap-1 rounded-full border px-2 text-[11px] font-medium";
+function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () => void }) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const [undoing, setUndoing] = useState(false);
   switch (outcome.kind) {
-    case "applied":
+    case "applied": {
+      const undo = outcome.undo;
       return (
-        <span className={cn(chip, "border-read/30 bg-read/10 text-read")}>
-          <Check className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">
-            {outcome.label ? `Applied as ${outcome.label}` : "Applied"}
-            {outcome.credits ? ` · ${formatCredits(outcome.credits)}` : ""}
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+            <PencilTick className="size-3.5 shrink-0" />
+            Applied{outcome.version ? ` · ${outcome.version}` : ""}
+            {outcome.credits ? <span className="font-normal text-muted-foreground"> · {creditWords(outcome.credits)}</span> : null}
           </span>
+          {undo && (
+            <button
+              type="button"
+              disabled={undoing}
+              onClick={async () => {
+                setUndoing(true);
+                await undoTo(ws.project.id, undo, () => router.refresh());
+                setUndoing(false);
+              }}
+              className="inline-flex items-center gap-1 rounded-sm text-[11.5px] font-medium text-muted-foreground underline decoration-dotted underline-offset-[3px] transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              <Undo2 className="size-3" aria-hidden />
+              {undoing ? "Undoing…" : "Undo"}
+            </button>
+          )}
         </span>
       );
+    }
     case "approved":
       return (
-        <span className={cn(chip, "border-read/30 bg-read/10 text-read")}>
-          <Check className="size-3 shrink-0" aria-hidden /> Approved
+        <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+          <PencilTick className="size-3.5 shrink-0" /> Applied
         </span>
       );
     case "dismissed":
-      return (
-        <span className={cn(chip, "border-hairline text-muted-foreground")}>
-          <X className="size-3 shrink-0" aria-hidden /> Dismissed · nothing charged
-        </span>
-      );
+      return <span className="text-[11.5px] text-muted-foreground">Not now · nothing charged</span>;
     case "waiting":
-      return (
-        <span className={cn(chip, "border-amber/35 bg-amber-soft text-amber")}>
-          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber pulse-ring" />
-          <span className="truncate">Waiting for your OK {outcome.where}</span>
-        </span>
-      );
+      return <span className="text-[11.5px] font-medium text-amber">Waiting for you below</span>;
     case "open":
       return (
-        <button type="button" onClick={onReview} className={cn(chip, "border-amber/35 text-amber transition-colors hover:bg-amber-soft")}>
+        <button type="button" onClick={onReview} className="text-[11.5px] font-medium text-amber underline decoration-dotted underline-offset-[3px] hover:text-amber-hi">
           Not decided · review it
         </button>
       );
   }
 }
 
-function QuoteMessage({ row, applied, onAsk }: { row: ThreadRow; applied: Map<string, ThreadRow>; onAsk?: () => void }) {
+function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, ThreadRow> }) {
   const ws = useWorkspace();
   const chat = useChatState();
   const id = workOrderIdOf(row);
@@ -577,76 +573,73 @@ function QuoteMessage({ row, applied, onAsk }: { row: ThreadRow; applied: Map<st
   const est = row.meta?.estimate as { credits?: unknown; minutes?: unknown } | undefined;
   const credits = typeof est?.credits === "number" ? est.credits : null;
   const minutes = typeof est?.minutes === "number" ? est.minutes : null;
-  const outcome = id && !needsPerson ? quoteOutcome(id, applied, chat, ws.checkpoints) : null;
+  const outcome = id && !needsPerson ? changeOutcome(id, applied, chat, ws) : null;
+  const decided = outcome?.kind === "applied" || outcome?.kind === "dismissed" || outcome?.kind === "approved";
   return (
-    <AiMessage row={row} label={needsPerson ? "Needs a person" : "Work Order · free quote"}>
+    <AiNote row={row} label={needsPerson ? "needs a person" : "proposed a change"}>
       <p className="font-medium leading-snug">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
       {(outcome || (credits !== null && !needsPerson)) && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-          {outcome && (
-            <OutcomeChip
-              outcome={outcome}
-              onReview={() => {
-                if (!id) return;
-                chat.review(id);
-                onAsk?.();
-              }}
-            />
-          )}
-          {credits !== null && outcome?.kind !== "applied" && outcome?.kind !== "dismissed" && (
-            <span className="text-[11px] leading-snug text-faint">
-              {formatCredits(credits)} ≈ {creditsUsd(credits)}
-              {minutes !== null ? ` · ${changeTimeLabel(minutes).label}` : ""}
+        <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-hairline pt-1.5">
+          {credits !== null && !needsPerson && !decided && (
+            <span className="text-[11px] leading-snug text-muted-foreground">
+              {creditWords(credits)} ≈ {creditsUsd(credits)}
+              {minutes !== null ? ` · ${changeTimeLabel(minutes).real}` : ""}
             </span>
           )}
+          {outcome && <OutcomeLine outcome={outcome} onReview={() => id && chat.review(id)} />}
         </div>
       )}
-    </AiMessage>
+    </AiNote>
   );
 }
 
-function PlanMessage({ row }: { row: ThreadRow }) {
+function PlanNote({ row }: { row: ThreadRow }) {
   const ws = useWorkspace();
-  const outcome: Outcome | null = ws.project.buildState !== "draft" ? { kind: "approved" } : ws.pendingWorkOrder ? { kind: "waiting", where: "on the plan" } : null;
+  const approved = ws.project.buildState !== "draft";
   return (
-    <AiMessage row={row} label="Work Order · the plan">
+    <AiNote row={row} label="drew up the plan">
       <p className="font-medium leading-snug">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
-      {outcome && (
-        <div className="mt-2">
-          <OutcomeChip outcome={outcome} />
+      {(approved || ws.pendingWorkOrder) && (
+        <div className="mt-2 border-t border-dashed border-hairline pt-1.5">
+          {approved ? (
+            <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+              <PencilTick className="size-3.5 shrink-0" /> Approved
+            </span>
+          ) : (
+            <span className="text-[11.5px] font-medium text-amber">Waiting for you on the Sheet</span>
+          )}
         </div>
       )}
-    </AiMessage>
+    </AiNote>
   );
 }
 
-function FixMessage({ row }: { row: ThreadRow }) {
+function FixNote({ row }: { row: ThreadRow }) {
   return (
-    <AiMessage row={row} label="Our fix · free" tone="fix">
+    <AiNote row={row} label="our fix · free" tone="fix">
       <p className="font-medium leading-snug">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
       {row.object_ref && (
-        <div className="mt-2">
-          <ObjectChip objectRef={row.object_ref} />
+        <div className="mt-1.5">
+          <AboutTag objectRef={row.object_ref} />
         </div>
       )}
-    </AiMessage>
+    </AiNote>
   );
 }
 
-function AppliedMessage({ row }: { row: ThreadRow }) {
+function AppliedNote({ row }: { row: ThreadRow }) {
   const ws = useWorkspace();
-  const seq = ws.checkpoints.find((c) => c.id === row.checkpoint_id)?.seq;
   return (
-    <AiMessage row={row} label="Change applied">
+    <AiNote row={row} label="applied a change">
       <p className="font-medium leading-snug">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
-      <div className="mt-2">
-        <OutcomeChip outcome={{ kind: "applied", label: seq ? `save point #${seq}` : "", credits: Number(row.credits) }} />
+      <div className="mt-2 border-t border-dashed border-hairline pt-1.5">
+        <OutcomeLine outcome={appliedOutcome(row, ws.checkpoints, ws.project.currentCheckpointId)} />
       </div>
-    </AiMessage>
+    </AiNote>
   );
 }
 
@@ -666,65 +659,87 @@ function ClampText({ text, className }: { text: string; className?: string }) {
   );
 }
 
-function ObjectChip({ objectRef }: { objectRef: ObjectRef }) {
+/** What a note is about (a screen, a block, an AI helper): a small tag that shows it. */
+function AboutTag({ objectRef }: { objectRef: ObjectRef }) {
   const ws = useWorkspace();
+  const label = objectLabel(ws.blueprint, objectRef);
   return (
     <button
       type="button"
       onClick={() => ws.select(objectRef)}
-      className="inline-flex h-5 min-w-0 max-w-[160px] items-center gap-1 rounded-full border border-hairline px-2 text-[11px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
+      className="inline-flex h-[18px] min-w-0 max-w-[180px] items-center gap-1 rounded-sm border border-dashed border-hairline-hi px-1.5 font-sketch text-[10.5px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
     >
-      <Target className="size-2.5 shrink-0" aria-hidden />
-      <span className="truncate">{objectLabel(ws.blueprint, objectRef)}</span>
+      <Crosshair className="size-2.5 shrink-0" aria-hidden />
+      <span className="sr-only">About: </span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
 
-function LaneIcon({ lane }: { lane: Lane }) {
-  const L = LANE[lane];
+const LANE: Record<Lane, { label: string; tone: string }> = {
+  thought: { label: "Thought", tone: "text-faint" },
+  did: { label: "Did", tone: "text-foreground/70" },
+  checked: { label: "Checked", tone: "text-read" },
+};
+
+/** A hand-drawn tick. */
+function PencilTick({ className }: { className?: string }) {
   return (
-    <span className={cn("mt-px grid size-5 shrink-0 place-items-center rounded-md", L.cls)} title={L.label}>
-      <L.icon className="size-3" aria-hidden />
-      <span className="sr-only">{L.label}</span>
-    </span>
+    <svg viewBox="0 0 16 16" aria-hidden className={className}>
+      <path d="M2.5 8.6c1.3.9 2.4 2.1 3.4 3.6C7.6 8.4 10 5.4 13.6 2.9" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-/** Build steps and other events: a compact row in the flow, in the history's plain English. */
-function CompactRow({ row }: { row: ThreadRow }) {
-  const [open, setOpen] = useState(false);
-  const isFix = row.blame === "system_fix";
-  const credits = Number(row.credits);
-  const badge = credits > 0 || row.blame !== "user";
+/** A short pencil dash: something under way, or waiting. */
+function PencilDash({ className }: { className?: string }) {
   return (
-    <motion.li
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: EASE }}
-      className={cn("group rounded-lg px-1 py-1 transition-colors hover:bg-raised/50", isFix && "bg-fix/[0.06] shadow-[inset_2px_0_0_rgb(180_140_255/0.5)]")}
-    >
-      <div className="flex gap-2">
-        <LaneIcon lane={row.lane} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            {row.body ? (
-              <button className="min-w-0 flex-1 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-                <span className="block text-[12px] leading-snug text-foreground/90">{row.title}</span>
-                <span className={cn("mt-0.5 block whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground", !open && "line-clamp-1")}>{row.body}</span>
-              </button>
-            ) : (
-              <p className="min-w-0 flex-1 text-[12px] leading-snug text-foreground/90">{row.title}</p>
-            )}
-            <TimeAgo iso={row.created_at} className="shrink-0 text-[10px] text-faint" />
+    <svg viewBox="0 0 16 16" aria-hidden className={className}>
+      <path d="M2.8 8.6c2.9-.6 6.6-.5 10.4.1" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Build steps and other events: a compact pencil tick in the flow, in the history's plain English. */
+function TickRow({ row }: { row: ThreadRow }) {
+  const [open, setOpen] = useState(false);
+  const credits = Number(row.credits);
+  const who =
+    row.blame === "system_fix"
+      ? { text: "Our fix · free", cls: "text-fix" }
+      : row.blame === "teammate"
+        ? { text: "Teammate", cls: "text-change" }
+        : row.blame === "agent"
+          ? { text: `AI helper · ${creditWords(credits)}`, cls: "text-muted-foreground" }
+          : credits > 0
+            ? { text: creditWords(credits), cls: "text-muted-foreground" }
+            : null;
+  return (
+    <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2 pl-0.5">
+      <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", row.blame === "system_fix" ? "text-fix" : LANE[row.lane].tone)} />
+      <div className="min-w-0 flex-1">
+        {row.body ? (
+          <button type="button" className="block w-full text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            <span className="block text-[12px] leading-snug text-foreground/85">
+              <span className="sr-only">{LANE[row.lane].label}: </span>
+              {row.title}
+            </span>
+            <span className={cn("mt-0.5 block whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground", !open && "line-clamp-1")}>{row.body}</span>
+          </button>
+        ) : (
+          <p className="text-[12px] leading-snug text-foreground/85">
+            <span className="sr-only">{LANE[row.lane].label}: </span>
+            {row.title}
+          </p>
+        )}
+        {(who || row.object_ref) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+            {who && <span className={who.cls}>{who.text}</span>}
+            {row.object_ref && <AboutTag objectRef={row.object_ref} />}
           </div>
-          {(badge || row.object_ref) && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              {badge && <BlameBadge blame={row.blame} credits={credits} />}
-              {row.object_ref && <ObjectChip objectRef={row.object_ref} />}
-            </div>
-          )}
-        </div>
+        )}
       </div>
+      <TimeAgo iso={row.created_at} className="shrink-0 pt-px text-[10px] text-faint" />
     </motion.li>
   );
 }
