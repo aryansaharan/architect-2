@@ -86,7 +86,7 @@ export const CARDS: Card[] = [
   { id: "vercel", x: 1524, y: 48, w: 112, h: 72, title: "Vercel", sub: "Deploy target", icon: Rocket, tone: "outside" },
   { id: "slack", x: 1648, y: 48, w: 136, h: 72, title: "Slack + email", sub: "Approval messages", icon: Mail, tone: "outside" },
   // people
-  { id: "studio", x: 40, y: 196, w: 204, h: 184, title: "Builder studio", sub: "One project for the people who describe apps and the people who code them", icon: LayoutDashboard, tone: "people", tags: ["Plain", "Spec", "Code"], step: [1] },
+  { id: "studio", x: 40, y: 196, w: 204, h: 184, title: "Builder studio", sub: "One project for the people who describe apps and the people who code them", icon: LayoutDashboard, tone: "people", tags: ["Plain", "Settings", "Code"], step: [1] },
   { id: "teammates", x: 40, y: 396, w: 204, h: 96, title: "Teammates", sub: "Handoffs arrive with the object, history and diff", icon: Users, tone: "people" },
   { id: "editor", x: 40, y: 508, w: 204, h: 96, title: "Your editor", sub: "Cursor, Claude Code or VS Code on the same repo", icon: Laptop, tone: "people" },
   { id: "endusers", x: 40, y: 620, w: 204, h: 96, title: "People using live apps", sub: "Public URLs and custom domains", icon: Users, tone: "people", step: [8] },
@@ -556,6 +556,15 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       <rect width={W} height={H} fill="url(#arch-dots)" />
 
       <CellOutline />
+
+      {/* The exported image travels on its own (the submission form, a slide), so it carries its title; on the page, the readout sits here. */}
+      {!interactive && (
+        <g>
+          <text x={40} y={48} fill="#edf3ee" style={{ font: "600 26px var(--font-work), system-ui, sans-serif", letterSpacing: "-0.01em" }}>Prod AI</text>
+          <text x={40} y={72} fill={TONE.control} style={{ font: "600 11px var(--font-code), monospace", letterSpacing: "0.12em" }}>PRODUCTION ARCHITECTURE</text>
+          <text x={40} y={92} fill="#6c7c74" style={{ font: "500 11px var(--font-code), monospace" }}>prod-ai-studio.vercel.app</text>
+        </g>
+      )}
 
       {ZONES.map((z) => (
         <g key={z.label}>

@@ -74,7 +74,7 @@ export function WorkOrderDock() {
                 setStarting(false);
               }}
             >
-              {starting ? <Loader2 className="animate-spin" /> : null} Build it <ArrowRight />
+              {starting ? <Loader2 className="animate-spin" /> : null} Make it real <ArrowRight />
             </Button>
           </div>
         </div>

@@ -168,7 +168,7 @@ function YouAvatar({ size = 24 }: { size?: number }) {
   const ws = useWorkspace();
   const style = { width: size, height: size, fontSize: size * 0.42 };
   return ws.user.avatarUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
+    // eslint-disable-next-line @next/next/no-img-element -- avatars come from any OAuth provider's host; next/image would need each one allow-listed
     <img src={ws.user.avatarUrl} alt="" style={style} className="shrink-0 rounded-full border border-hairline" />
   ) : (
     <span aria-hidden style={style} className="grid shrink-0 place-items-center rounded-full border border-hairline bg-raised font-semibold">{ws.user.name.slice(0, 1).toUpperCase()}</span>

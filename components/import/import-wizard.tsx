@@ -58,7 +58,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       autostarted.current = true;
       void read(initialRepo);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once for the repo in the URL; read() is recreated every render
   }, [initialRepo]);
 
   const map = () => {

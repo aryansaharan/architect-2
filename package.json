@@ -1,5 +1,6 @@
 {
-  "name": "architect2",
+  "name": "prod-ai",
+  "description": "Prod AI: sketch your app, get a production app. A vibe-coding platform for Lyzr's Architect 2.0 brief.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +11,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check:fixtures": "tsx scripts/check-fixtures.ts",
     "test:e2e": "playwright test",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/readme-shots.mjs",
+    "cache:imports": "tsx --conditions=react-server scripts/cache-imports.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.63",

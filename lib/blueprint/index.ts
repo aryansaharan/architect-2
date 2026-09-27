@@ -18,10 +18,6 @@ export function hydrate(input: BlueprintInput | Blueprint): Blueprint {
   return bp;
 }
 
-export function cloneBlueprint(bp: Blueprint): Blueprint {
-  return structuredClone(bp);
-}
-
 export function allBlocks(screen: Screen): Block[] {
   return [...screen.regions.main, ...(screen.regions.side ?? [])];
 }

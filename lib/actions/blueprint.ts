@@ -8,7 +8,7 @@ import { BlueprintSchema, type Agent, type Blueprint, type Connection, type Fram
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { findBlock } from "@/lib/blueprint";
-import { FRAMEWORK_LABEL, PERMISSION_LABEL, SUPERVISION_LABEL, applySupervision } from "@/lib/blueprint/describe";
+import { FRAMEWORK_LABEL, PERMISSION_LABEL } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -57,19 +57,6 @@ export async function setToolPermission(projectId: string, agentId: string, tool
       if (!t) throw new Error("Tool not found");
       t.permission = permission;
       return `${a.name} · ${t.name}: ${PERMISSION_LABEL[permission].toLowerCase()}`;
-    },
-    "permission",
-  );
-}
-
-export async function setSupervision(projectId: string, agentId: string, supervision: Agent["supervision"]) {
-  return mutate(
-    projectId,
-    { type: "agent", id: agentId },
-    (bp) => {
-      const a = agentOf(bp, agentId);
-      applySupervision(a, supervision);
-      return `${a.name}: ${SUPERVISION_LABEL[supervision].label.toLowerCase()}`;
     },
     "permission",
   );

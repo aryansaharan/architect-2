@@ -35,24 +35,3 @@ export async function restoreCheckpoint(projectId: string, checkpointId: string)
   return { ok: true };
 }
 
-export async function saveCheckpoint(projectId: string, label: string): Promise<{ ok: boolean }> {
-  await requireUser();
-  const supa = await createClient();
-  const project = await getProject(supa, projectId);
-  if (!project) return { ok: false };
-  const cp = await addCheckpoint(supa, projectId, { label: label.slice(0, 60) || "Manual save point", kind: "change", blueprint: project.blueprint });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Made a save point · ${cp.label}`, credits: 0, checkpointId: cp.id }]);
-  revalidatePath(`/p/${projectId}`, "layout");
-  return { ok: true };
-}
-
-export async function renameProject(projectId: string, name: string): Promise<{ ok: boolean }> {
-  await requireUser();
-  const supa = await createClient();
-  const clean = name.trim().slice(0, 60);
-  if (!clean) return { ok: false };
-  await updateProject(supa, projectId, { name: clean });
-  revalidatePath(`/p/${projectId}`, "layout");
-  revalidatePath("/home");
-  return { ok: true };
-}

@@ -24,7 +24,7 @@ How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, se
 
 **Cost per active builder** ([18](#18-model-unit-economics), [21](#21-phasing-buy-first-build-when-it-pays)). About **$9.30 a month of model spend** plus $0.46 of sandbox time, so **about $9.80 of variable cost**, for 4 plans, 30 change requests and 12 builds with one repair cycle each. Caching saves 39%; routing by task saves 54% against an all-frontier setup. Below 1,000 builders, fixed infrastructure (about $20 per builder) dominates, so we launch on managed services and build our own at numeric triggers.
 
-**What runs today** ([20](#20-what-the-prototype-runs-today)). Real: the studio, auth, Postgres with RLS, the streamed planner, typed change requests, quotes, the playground's approval gate and public repo analysis. Designed here and simulated or absent in the prototype, and labelled: builds, sandboxes, previews of generated or imported code, GitHub pushes, and both gateways.
+**What runs today** ([20](#20-what-the-prototype-runs-today)). Real: the Sheet (describe, sketch, make it real, notes in the margin, publish), auth, Postgres with RLS, the streamed planner, priced changes, versions and undo, the approval gate in each AI helper's Try it chat, public repo analysis and the published live apps. Designed here and simulated or absent in the prototype, and labelled: builds (the Sheet says "Simulated build"), sandboxes, previews of generated or imported code, GitHub pushes, and both gateways.
 
 ---
 
@@ -154,7 +154,7 @@ One request, end to end. The eight steps match the eight numbered badges on the 
 
 **Step 7. Ship.**
 - **Services:** Builder studio → BFF → Deploy service (preflight reads Policy, Budget and the vault) → Orchestrator (`DeployWorkflow`) → Project sandbox (build) → object storage (OCI registry) → Prod Cloud, Vercel, or the runtime in your VPC.
-- **Transport:** HTTPS for "Go live"; gRPC between services; the Knative API on the cell's runtime cluster for Prod Cloud (the Fly Machines API before phase 2), the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
+- **Transport:** HTTPS for "Publish"; gRPC between services; the Knative API on the cell's runtime cluster for Prod Cloud (the Fly Machines API before phase 2), the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
 - **Data:** one immutable release (OCI image digest, static assets, migration plan, secret *references* only). Migrations use expand-and-contract, so the old release keeps working during the rollout.
 - **User sees:** the **Publish** tab, which lists only what needs attention from the **preflight** (sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen, no open conflict cards), then one **Publish** button. Blocking checks disable the button and name the blocker. Then a canary rollout (5% → 50% → 100%) and the **live URL** (`{app}.prodai.app` or a custom domain), with versions and one-click rollback.
 
@@ -236,8 +236,8 @@ Rules that apply to every row: service-to-service traffic is mTLS with workload 
 
 | From → to | Transport | Sync or async | Auth | Why |
 |---|---|---|---|---|
-| Studio → API gateway → BFF (commands: approve, tweak, restore, go live) | HTTPS (HTTP/2) to the regional API gateway, then mTLS inside the cluster; server actions and JSON | Sync | Supabase session cookie (HttpOnly), JWT verified at the gateway, which adds the cell route | Idempotent commands keyed by a client request id, safe to retry |
-| BFF → Studio (planning, agent chat) | SSE over HTTPS (AI SDK UI message stream) | Async stream | Same session | One-way token stream that survives proxies; the prototype does this today |
+| Studio → API gateway → BFF (commands: approve, tweak, restore, publish) | HTTPS (HTTP/2) to the regional API gateway, then mTLS inside the cluster; server actions and JSON | Sync | Supabase session cookie (HttpOnly), JWT verified at the gateway, which adds the cell route | Idempotent commands keyed by a client request id, safe to retry |
+| BFF → Studio (planning, agent chat) | Streamed HTTPS responses: NDJSON events for planning, the AI SDK UI message stream (SSE) for agent chat | Async stream | Same session | One-way stream that survives proxies; the prototype does exactly this today |
 | Realtime hub → Studio (build, deploy, logs, presence) | WebSocket, SSE fallback; every message has a `seq` | Async stream | 5-minute JWT scoped to one project, minted by the BFF | A reconnecting tab resumes from its last `seq`; JetStream replays the gap |
 | Studio → Preview proxy → sandbox dev server | HTTPS + WebSocket upgrade (HMR) on `*.prodai-preview.dev`; plain HTTP on the host's private network to the VM | Sync | Signed, project-scoped preview cookie checked at the proxy; the VM sees no credentials | Separate registrable domain, so preview code cannot read studio cookies |
 | BFF → Orchestrator | gRPC (Temporal SDK): start, signal, query | Sync call, async workflow | mTLS, one Temporal namespace per cell | Durable workflows; approvals arrive as signals |
@@ -269,7 +269,7 @@ Forwarding the person's session token works while they wait on a request. It bre
 |---|---|---|---|
 | A person approves a Work Order | The approver | `build.run`, `sandbox.use` and `repo.push` on that project; `deploy.test` if the Work Order includes it | Until the Work Order ends, at most 14 days |
 | A person turns on GitHub sync for a repository | The project admin who connected it | `repo.sync` and `blueprint.reconcile` on that project | While the GitHub App installation exists and the grantor stays an admin; renewed yearly |
-| A person clicks "Update the live version" | That person | `deploy.live` for that release | Until the rollout ends |
+| A person clicks "Publish changes" | That person | `deploy.live` for that release | Until the rollout ends |
 | A person turns on a scheduled job (evals, a nightly import) | That person | That job's action on that project | 90 days, renewable in one click |
 
 A grant stores the grantor, workspace, project, actions, reason (Work Order, installation or schedule id), expiry, revocation time and last use. Workflows hold a grant id, never a token.
@@ -336,7 +336,7 @@ Live apps are different: they act with their own workload identity at the agent 
 4. *Resume*: a preview request or a new Work Order restores the snapshot. The scheduler prefers the host that still holds it on local NVMe (about 150 ms); otherwise any host resumes it with lazy restore (below).
 5. *Destroy*: projects idle for 14 days keep only the disk image and git history.
 
-**Resuming on another host.** An eager copy cannot meet a 2 s target. A 4 GB VM has about 1.5 GB of touched memory, and pulling that from S3 at roughly 1 GB/s, plus the disk diff, takes 2-5 s before the first instruction runs. So cross-host resume is lazy. Firecracker loads the small VM state file and hands guest memory to a userfaultfd page-fault handler (its UFFD snapshot-loading mode). The handler serves pages on demand from 2 MB chunks fetched from S3 and cached on local NVMe. It prefetches the recorded working set first and streams the rest in the background. The disk diff is attached as a block device that fills lazily the same way. A page that misses the local cache costs one S3 round trip (20-50 ms). Without the working-set prefetch, a dev server's first request would fault thousands of pages one at a time and take several seconds.
+**Resuming on another host.** An eager copy cannot reliably meet the 3 s cross-host target. A 4 GB VM has about 1.5 GB of touched memory, and pulling that from S3 at roughly 1 GB/s, plus the disk diff, takes 2-5 s before the first instruction runs. So cross-host resume is lazy. Firecracker loads the small VM state file and hands guest memory to a userfaultfd page-fault handler (its UFFD snapshot-loading mode). The handler serves pages on demand from 2 MB chunks fetched from S3 and cached on local NVMe. It prefetches the recorded working set first and streams the rest in the background. The disk diff is attached as a block device that fills lazily the same way. A page that misses the local cache costs one S3 round trip (20-50 ms). Without the working-set prefetch, a dev server's first request would fault thousands of pages one at a time and take several seconds.
 
 | Resume path | vCPUs running | First preview response | Fully resident |
 |---|---|---|---|
@@ -676,8 +676,8 @@ sequenceDiagram
   S-->>U: hot-reloaded preview
 ```
 
-- **Commands** (approve, tweak, restore, go live) are HTTPS calls to server actions or the API. They are idempotent, keyed by a client request id.
-- **Streams**: planning and agent chat stream over SSE directly from the BFF (the prototype does this for planning and the agent playground). Build and deploy progress stream through the realtime hub, which assigns sequence numbers so a reconnecting client resumes from the last event it saw.
+- **Commands** (approve, tweak, restore, publish) are HTTPS calls to server actions or the API. They are idempotent, keyed by a client request id.
+- **Streams**: planning and agent chat stream directly from the BFF as streamed HTTP responses, NDJSON events for planning and the AI SDK message stream for chat (the prototype does both today). Build and deploy progress stream through the realtime hub, which assigns sequence numbers so a reconnecting client resumes from the last event it saw.
 - **Live preview** is an iframe pointed at the project's preview subdomain. The dev server in the VM serves it, the preview proxy carries both HTTP and the hot-reload WebSocket, and a small injected bridge script maps DOM nodes to Blueprint block ids over `postMessage` (`data-block` attributes, with source-location fallbacks; [section 8](#8-blueprint-and-code-keeping-them-in-sync)). That bridge powers click-to-tweak and comment pins, which in the prototype are implemented against the spec renderer. For an imported repo the preview is the repo's own primary process ([section 12](#12-running-imported-repos)), and each Work Order in flight has its own worktree and preview hostname ([section 9](#9-concurrent-work-orders)).
 - **Terminal and logs** for engineers use a PTY over WebSocket through the same hub, gated by project role.
 - **Your editor**: engineers work on the same GitHub repo, or run `npx @prodai/cli sync --watch` to push local edits into the sandbox; both paths end in the same `ReconcileWorkflow` as a webhook.
@@ -862,7 +862,7 @@ sequenceDiagram
 
 **User apps.**
 
-1. **Preflight** (the prototype's Publish tab): sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen, no open conflict cards. Blocking checks disable the button and name the blocker.
+1. **Preflight** (the prototype's Publish tab): sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen. Production adds one more: no open conflict cards. Blocking checks disable the button and name the blocker.
 2. **Build once**: Nixpacks or Buildpacks inside the sandbox produce an OCI image plus static assets; the release id is immutable.
 3. **Targets**:
    - *Prod Cloud*: Knative on the cell's runtime cluster (Fly Machines until the phase 2 trigger), with each pod in its own Firecracker microVM (Kata Containers) and default-deny egress (Cilium). Scale to zero, a Postgres branch per app (Neon), credentials held only by the agent gateway, custom domains with automatic TLS.
@@ -1078,7 +1078,7 @@ From day one we build only what is the product, or what no vendor can see: the B
 | Events to the browser | Redis Streams (Upstash) with SSE from the BFF; stream ids give replay from a sequence number | At this volume a managed stream does what NATS does, with nothing to run |
 | Sandboxes and preview | E2B, with outbound traffic locked to our egress proxy ([section 6](#6-sandboxing)); our preview proxy in front of E2B's per-port sandbox URLs | Firecracker isolation and memory snapshots without running hosts. Our proxies keep secret injection, the allow-list and the separate preview domain. Fly Machines was the alternative, but it cannot restrict egress, so secrets could not stay out of the VM |
 | Live apps | Fly Machines (a Firecracker VM per instance, stopped when idle, started on request), calling our agent gateway with an OIDC token. Preflight labels them "credentials enforced, egress not enforced" ([section 13](#13-the-proxy-layer)) | Sub-second starts and scale to zero with nothing to operate; the agent gateway still holds every credential |
-| Data | One Supabase project (RLS, as today); `usage_events` in Postgres with monthly partitions (as today); Neon for app databases; S3 | There is one cell, so one database is the cell's database |
+| Data | One Supabase project (RLS, as today); `usage_events` in Postgres (as today), with monthly partitions added; Neon for app databases; S3 | There is one cell, so one database is the cell's database |
 | Edge | Cloudflare for every hostname, including custom hostnames for live apps | The target design already; cheap from day one |
 
 **Phase 2: own the sandboxes, the preview and the runtime, still in one region.** The sandbox fleet and preview proxy move onto our Firecracker hosts, with E2B kept as burst capacity. Live apps move to Knative with Kata and Cilium, which makes egress enforced. The studio BFF moves into the cluster, NATS replaces Redis Streams, ClickHouse takes usage analytics out of Postgres, and Temporal splits into studio and runtime namespaces. Each move has its own trigger; any one condition fires it, sustained for two consecutive months unless stated.

@@ -68,7 +68,7 @@ test("new project: plan → Work Order → build with a repair → built", async
   await page.goto("/new?prompt=" + encodeURIComponent("A support inbox for a small SaaS team: read tickets, draft replies from the help centre, and escalate outages to on-call."));
   await page.getByRole("button", { name: /Skip, use sensible defaults/ }).click();
   await page.waitForURL(/\/p\/[0-9a-f-]+/, { timeout: 150_000 });
-  await page.getByRole("button", { name: /Build it/ }).click();
+  await page.getByRole("button", { name: /Make it real/ }).first().click();
   await page.getByRole("radio", { name: /Skip/ }).click();
   const repair = page.getByRole("alertdialog");
   await expect(repair).toBeVisible({ timeout: 60_000 });

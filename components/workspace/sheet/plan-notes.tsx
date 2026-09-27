@@ -51,7 +51,7 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
 
 /**
  * The price note and the one button. Pressing Make it real starts the build with
- * ws.build.start, the same call as the plan map's "Build it", so the charge, refunds and resume all work the same.
+ * ws.build.start, the same call as the plan map's "Make it real", so the charge, refunds and resume all work the same.
  */
 export function PriceNote() {
   const ws = useSheet();
@@ -80,7 +80,6 @@ export function PriceNote() {
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button
           size="lg"
-          aria-label="Make it real (Build it)"
           className="h-11 rounded-lg px-5 text-[15px]"
           disabled={starting || over || changeWaiting}
           onClick={async () => {

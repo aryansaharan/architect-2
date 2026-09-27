@@ -2,16 +2,11 @@ import { BlueprintSchema } from "../lib/blueprint/schema";
 import { integrityErrors } from "../lib/blueprint/validate";
 import { estimate } from "../lib/blueprint/estimate";
 import * as claims from "../lib/blueprint/fixtures/claims";
+import * as support from "../lib/blueprint/fixtures/support";
+import * as sales from "../lib/blueprint/fixtures/sales";
+import * as hr from "../lib/blueprint/fixtures/hr";
 
-const mods: Record<string, Record<string, unknown>> = { claims };
-for (const name of ["support", "sales", "hr"]) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    mods[name] = require(`../lib/blueprint/fixtures/${name}`);
-  } catch {
-    console.log(`- ${name}: not present yet`);
-  }
-}
+const mods: Record<string, Record<string, unknown>> = { claims, support, sales, hr };
 let failed = false;
 for (const [name, mod] of Object.entries(mods)) {
   const fixture = mod[`${name}Fixture`];

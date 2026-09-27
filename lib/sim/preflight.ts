@@ -50,12 +50,12 @@ export function preflight(
     },
     {
       id: "rehearsals",
-      label: "Rehearsals pass",
+      label: "Test runs pass",
       plain: "Every AI helper has played through its test conversations.",
       status: !built || reh.rate < 0.8 ? "fail" : reh.failing || reh.notRun || reh.unrehearsed.length ? "warn" : "pass",
-      detail: !built ? "Build the project first. Rehearsals run as part of the build." : reh.detail,
+      detail: !built ? "Make it real first. Test runs happen as part of the build." : reh.detail,
       blocking: true,
-      fix: !built ? { label: "Build it", action: "build_first" } : reh.notRun || reh.unrehearsed.length ? { label: "Run all rehearsals", action: "run_rehearsals" } : undefined,
+      fix: !built ? { label: "Make it real", action: "build_first" } : reh.notRun || reh.unrehearsed.length ? { label: "Run all test runs", action: "run_rehearsals" } : undefined,
     },
     {
       id: "keys",
@@ -110,10 +110,10 @@ export function rehearsalSummary(bp: Blueprint) {
   const rate = all.length ? passing / all.length : 0;
   const parts: string[] = [];
   if (all.length && ran.length) parts.push(`${passing} of ${all.length} passing on their latest run (${Math.round(rate * 100)}%).`);
-  else if (all.length) parts.push(`None of the ${all.length} rehearsals has run yet.`);
-  else parts.push("No AI helper has any rehearsals yet. Add them in AI helpers › Tests & reliability.");
+  else if (all.length) parts.push(`None of the ${all.length} test runs has run yet.`);
+  else parts.push("No AI helper has any test runs yet. Add them in AI helpers › Tests & reliability.");
   if (failing) parts.push(`${failing} failing.`);
-  if (unrehearsed.length && unrehearsed.length < bp.agents.length) parts.push(`Not rehearsed yet: ${unrehearsed.join(", ")}.`);
+  if (unrehearsed.length && unrehearsed.length < bp.agents.length) parts.push(`No test runs yet: ${unrehearsed.join(", ")}.`);
   else if (notRun && ran.length) parts.push(`${notRun} ${notRun === 1 ? "hasn't" : "haven't"} run yet.`);
   if (all.length && (notRun || unrehearsed.length)) parts.push("Run them in AI helpers › Tests & reliability.");
   return { total: all.length, passing, failing, notRun, unrehearsed, rate, detail: parts.join(" ") };

@@ -166,6 +166,11 @@ export function SpecApp({
       : undefined;
   const team = bp.screens.filter((s) => s.audience !== "customer");
   const publicScreens = bp.screens.filter((s) => s.audience === "customer");
+  // The preview shows a sample teammate; a published app never pretends a visitor is signed in.
+  const viewer =
+    mode === "live"
+      ? { name: "Visitor", initials: "V", note: "Viewing the published app" }
+      : { name: "Maya Singh", initials: "MS", note: bp.meta.auth.enabled ? "Signed in with SSO" : "Guest" };
   const initial = bp.meta.name.slice(0, 1).toUpperCase();
   const render = (b: Block) => {
     const node = <RenderBlock block={b} />;
@@ -196,11 +201,11 @@ export function SpecApp({
               )}
             </nav>
             <div className={cn("flex items-center gap-2 border-t border-slate-100 py-3", compact ? "justify-center px-2" : "px-4")}>
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600" title={compact ? "Maya Singh" : undefined}>MS</span>
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600" title={compact ? viewer.name : undefined}>{viewer.initials}</span>
               {!compact && (
                 <span className="min-w-0">
-                  <span className="block truncate text-[12.5px] font-medium">Maya Singh</span>
-                  <span className="block truncate text-[11px] text-slate-400">{bp.meta.auth.enabled ? "Signed in with SSO" : "Guest"}</span>
+                  <span className="block truncate text-[12.5px] font-medium">{viewer.name}</span>
+                  <span className="block truncate text-[11px] text-slate-400">{viewer.note}</span>
                 </span>
               )}
             </div>

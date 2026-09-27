@@ -102,7 +102,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const interrupted = ws.project.buildState === "building" && !buildRunning;
   const buildCredits = bp.estimate.credits;
   const overCap = ws.project.buildState === "draft" && buildCredits > Math.max(0, ws.usage.cap - ws.usage.credits);
-  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build · free" : overCap ? "Review the build" : `Build it · ${buildCredits} credits`;
+  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build · free" : overCap ? "Review the build" : `Make it real · ${buildCredits} credits`;
   const buildDetail = buildRunning ? "Building now. Test runs happen near the end of the build." : interrupted ? "The build was interrupted before its test runs. Resuming is free: it was already paid for." : null;
 
   const [fixing, setFixing] = useState<Parameters<typeof fixPreflight>[1] | null>(null);

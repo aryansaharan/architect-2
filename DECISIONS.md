@@ -72,7 +72,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 **Why.** The first question a non-technical person has is "what am I going to get?", and the oldest answer is a sketch on paper. A pencil sketch says "rough, cheap to change" without a word of copy, which is exactly the state a plan is in. So the project goes through the same three states a real design does: a pencil sketch (the plan), inking (the build: each screen turns from pencil into the real screen as its step completes) and the real thing ("It's real."). The metaphor carries the thesis: the plan is cheap to change until you make it real, and after that every change is written as a note. It also reads as deliberately unlike the dark, purple-glow look most AI builders share. Semantic colours stay reserved for meaning: green reads, blue changes, rose can't be undone, violet is Prod AI fixing its own mistake.
 
-**Rejected.** The previous "Nightfield" dark theme with a firefly motif: striking on the landing page, but a dark studio made the product feel like a developer tool, and the metaphor had nothing to say about the states a project moves through.
+**Rejected.** An earlier dark theme: striking on the landing page, but a dark studio made the product feel like a developer tool, and its motif had nothing to say about the states a project moves through.
 
 ## 12. No chat on the left and preview on the right
 

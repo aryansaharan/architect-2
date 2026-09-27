@@ -468,7 +468,7 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
               <span className="hidden h-7 items-center rounded-full border border-brand/30 bg-brand-soft px-2.5 text-[11.5px] font-medium text-brand 2xl:inline-flex">Guest · keep this work</span>
             )}
             {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+              // eslint-disable-next-line @next/next/no-img-element -- avatars come from any OAuth provider's host; next/image would need each one allow-listed
               <img src={avatarUrl} alt="" className="size-7 rounded-full border border-hairline" />
             ) : (
               <span className="grid size-7 place-items-center rounded-full border border-hairline bg-raised text-[11px] font-semibold">{name.slice(0, 1).toUpperCase()}</span>

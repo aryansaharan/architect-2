@@ -1,3 +1,4 @@
+// Refreshes lib/import/cached.json, the import reports served when GitHub is slow or rate-limited: npm run cache:imports
 import { writeFileSync } from "node:fs";
 import { analyzeRepo } from "../lib/import/analyze";
 const repos = ["langchain-ai/langgraph-example", "openai/openai-cs-agents-demo", "crewAIInc/crewAI-examples", "vercel/chatbot"];
