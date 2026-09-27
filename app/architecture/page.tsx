@@ -5,7 +5,7 @@ import { ArchitectureDiagram, FLOWS } from "@/components/architecture/diagram";
 
 export const metadata = {
   title: "Architecture",
-  description: "How Wonderwork runs in production: sandboxes, the agent harness, the model gateway, the preview proxy, GitHub, deployment and scale.",
+  description: "How Prod AI runs in production: sandboxes, the agent harness, the model gateway, the preview proxy, GitHub, deployment and scale.",
 };
 
 const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/aryansaharan/architect-2";
@@ -25,7 +25,7 @@ const TODAY: { part: string; today: string; prod: string; real: boolean }[] = [
   { part: "Build + repair", today: "Deterministic build timeline with a real repair decision that changes the Blueprint and creates a save point", prod: "Full tool loop inside microVMs with verifier and budgets", real: false },
   { part: "Sandbox + preview", today: "Preview renders the Blueprint with a spec renderer inside the studio; no untrusted code runs", prod: "Firecracker microVM per project behind the preview proxy", real: false },
   { part: "GitHub", today: "Reads any public repo, detects stack and agent frameworks, writes House Rules; pushes and PRs are sandboxed", prod: "GitHub App with branch per Work Order and two-way sync", real: false },
-  { part: "Deploy", today: "Wonderwork Cloud live URL is real (/live/…) with rollback; Vercel and VPC targets are sandboxed", prod: "Immutable releases, canary rollout, instant rollback", real: true },
+  { part: "Deploy", today: "Prod Cloud live URL is real (/live/…) with rollback; Vercel and VPC targets are sandboxed", prod: "Immutable releases, canary rollout, instant rollback", real: true },
 ];
 
 const NUMBERS = [
@@ -64,7 +64,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
       <main id="main" className="relative mx-auto max-w-[1320px] px-6 pb-24 pt-12">
         <p className="micro-label fade-up text-amber">Technical architecture · production design</p>
         <h1 className="fade-up mt-3 max-w-4xl font-display text-[52px] leading-[1.02] tracking-tight" style={{ animationDelay: "80ms" }}>
-          How Wonderwork runs <em className="text-solstice">in production.</em>
+          How Prod AI runs <em className="text-solstice">in production.</em>
         </h1>
         <p className="fade-up mt-4 max-w-3xl text-[15px] leading-relaxed text-muted-foreground" style={{ animationDelay: "160ms" }}>
           Five planes with one job each. The control plane decides, sandboxes run untrusted code, the runtime serves live apps, and every model call and every agent action passes a

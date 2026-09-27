@@ -39,7 +39,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
       <section className="flex flex-col items-center justify-center px-6 py-16">
         <div className="mb-10 lg:hidden"><Logo /></div>
         <div className="fade-up w-full max-w-sm">
-          <h1 className="text-2xl font-semibold tracking-tight">{isGuest ? "Keep your work" : "Sign in to Wonderwork"}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{isGuest ? "Keep your work" : "Sign in to Prod AI"}</h1>
           <p className="mt-2 text-[14px] text-muted-foreground">
             {isGuest
               ? "You're exploring as a guest. Connect an account and everything you've built comes with you."

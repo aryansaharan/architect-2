@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Wonderwork: "Nightfield"
+ * Prod AI: "Nightfield"
  * A night meadow, and the wonder of many small lights finding one rhythm.
  * Signature: the lume gradient (candle, firefly, glow, lagoon, moon) that
  * slowly drifts. Firefly chartreuse is the anchor for actions and focus.
@@ -53,7 +53,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* Wonderwork tokens */
+  /* Prod AI tokens */
   --color-canvas: var(--canvas);
   --color-panel: var(--panel);
   --color-raised: var(--raised);

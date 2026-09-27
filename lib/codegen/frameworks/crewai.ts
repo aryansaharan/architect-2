@@ -122,7 +122,7 @@ function render(agent: Agent, bp: Blueprint): string {
     hookImports.length > 1 && `from crewai.hooks import ${hookImports.join(", ")}`,
     plans.length > 0 && "from crewai.tools import tool",
     "",
-    audited.length > 0 && 'audit = logging.getLogger("wonderwork.audit")',
+    audited.length > 0 && 'audit = logging.getLogger("prodai.audit")',
     audited.length > 0 && "",
     pyPromptConst("BACKSTORY", crewSafe(systemPrompt(agent))),
     "",
@@ -163,7 +163,7 @@ function notes(agent: Agent): string[] {
         "CrewAI has no conversation-scoped memory; context lasts for one kickoff() and nothing persists.",
     ],
     [
-      "Each request is a single-Task crew; Wonderwork's chat turns map to separate kickoff() calls.",
+      "Each request is a single-Task crew; Prod AI's chat turns map to separate kickoff() calls.",
       "CrewAI requires max_tokens for Anthropic models, so the LLM sets 4096; raise it for long outputs.",
     ],
   );

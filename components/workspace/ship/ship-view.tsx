@@ -20,7 +20,7 @@ import { Term } from "@/components/arch/term";
 
 type Target = DeploymentRow["target"];
 const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag: string }[] = [
-  { id: "architect_cloud", name: "Wonderwork Cloud", icon: Cloud, body: "Instant, managed. Agents run with the permissions and caps you set.", tag: "Recommended · real" },
+  { id: "architect_cloud", name: "Prod Cloud", icon: Cloud, body: "Instant, managed. Agents run with the permissions and caps you set.", tag: "Recommended · real" },
   { id: "vercel", name: "Your Vercel team", icon: Server, body: "Push to your own Vercel project and keep your usual deploy previews.", tag: "Sandbox" },
   { id: "vpc", name: "Your VPC or on-prem", icon: Container, body: "Download a Docker bundle and run everything inside your network.", tag: "Sandbox" },
 ];
@@ -187,7 +187,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               {domainTouched && !domainValid ? (
                 <span id="domain-help" className="mt-1 block text-[11.5px] text-ask">That isn&apos;t a domain. Use one like claims.yourcompany.com, without spaces or symbols.</span>
               ) : host && domainValid ? (
-                <span id="domain-help" className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME for <span className="font-mono">{host}</span> to <span className="font-mono">cname.wonderwork.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>
+                <span id="domain-help" className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME for <span className="font-mono">{host}</span> to <span className="font-mono">cname.prodai.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>
               ) : null}
             </label>
             <div className="flex gap-2 pt-1">
@@ -249,7 +249,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                     <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
                       <span className={cn("size-2 shrink-0 rounded-full", d.status === "live" ? "bg-read" : d.status === "sandbox" ? "bg-change" : "bg-faint")} />
                       <span className="min-w-0 flex-1">
-                        <span className="block">{d.target === "architect_cloud" ? "Wonderwork Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
+                        <span className="block">{d.target === "architect_cloud" ? "Prod Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"}</span>
                         {cp && <span className="block truncate text-[11.5px] text-muted-foreground" title={cp.label}>Save point #{cp.seq} · {cp.label}</span>}
                         <span className="block text-[11.5px] text-muted-foreground">{d.status === "live" ? "Serving now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · <TimeAgo iso={d.created_at} /></span>
                       </span>

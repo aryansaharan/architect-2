@@ -37,12 +37,12 @@ function sessionExpr(agent: Agent, bp: Blueprint): { expr: string | null; commen
       };
     case "project":
       return {
-        expr: `SQLiteSession(${pyStr(`project:${slug(bp.meta.name, "project")}`)}, "wonderwork_memory.db")`,
+        expr: `SQLiteSession(${pyStr(`project:${slug(bp.meta.name, "project")}`)}, "prodai_memory.db")`,
         comment: `# Memory "project": one persistent SQLiteSession shared by every run in the project.`,
       };
     case "org":
       return {
-        expr: `SQLiteSession("org:shared", "wonderwork_memory.db")`,
+        expr: `SQLiteSession("org:shared", "prodai_memory.db")`,
         comment: `# Memory "org": one persistent SQLiteSession shared across the organisation.`,
       };
   }
@@ -122,7 +122,7 @@ function render(agent: Agent, bp: Blueprint): string {
     `from agents import ${agentImports.join(", ")}`,
     "from agents.extensions.models.litellm_model import LitellmModel",
     "",
-    audited && 'audit = logging.getLogger("wonderwork.audit")',
+    audited && 'audit = logging.getLogger("prodai.audit")',
     "# This agent runs on Claude; traces are exported to OpenAI only if OPENAI_API_KEY is set.",
     'set_tracing_disabled(not os.environ.get("OPENAI_API_KEY"))',
     "",
@@ -148,7 +148,7 @@ function notes(agent: Agent): string[] {
       logged.length > 0 &&
         `The SDK has no per-tool 'log' level, so ${namesOf(logged)} ${logged.length > 1 ? "go" : "goes"} through an audited_call wrapper.`,
       (scope === "project" || scope === "org") &&
-        `Agents SDK sessions store conversation history, not long-term memory. Wonderwork maps '${scope}' to one shared persistent SQLiteSession.`,
+        `Agents SDK sessions store conversation history, not long-term memory. Prod AI maps '${scope}' to one shared persistent SQLiteSession.`,
     ],
     [
       "Claude runs through LitellmModel, which the SDK supports on a best-effort (beta) basis; usage metrics may need ModelSettings(include_usage=True).",

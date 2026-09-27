@@ -73,7 +73,7 @@ export function HomeComposer({ autoFocus }: { autoFocus?: boolean }) {
               <Button className="h-10" onClick={go} disabled={!repo.trim()}>Read it <ArrowRight /></Button>
             </div>
             <p className="mt-2.5 text-[12px] text-muted-foreground">
-              Wonderwork reads your stack and agents first, tells you what it understood, and signs House Rules before it touches anything. Try{" "}
+              Prod AI reads your stack and agents first, tells you what it understood, and signs House Rules before it touches anything. Try{" "}
               {["openai/openai-cs-agents-demo", "langchain-ai/langgraph-example", "crewAIInc/crewAI-examples"].map((r, i) => (
                 <span key={r}>
                   <button className="font-mono text-foreground/80 underline decoration-dotted underline-offset-4 hover:text-foreground" onClick={() => setRepo(`github.com/${r}`)}>{r}</button>

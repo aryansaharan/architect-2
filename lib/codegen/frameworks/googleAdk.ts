@@ -149,7 +149,7 @@ function render(agent: Agent, bp: Blueprint): string {
     toolImports.length > 0 && `from google.adk.tools import ${toolImports.join(", ")}`,
     "from google.genai import types",
     "",
-    audited.length > 0 && 'audit = logging.getLogger("wonderwork.audit")',
+    audited.length > 0 && 'audit = logging.getLogger("prodai.audit")',
     audited.length > 0 && "",
     pyPromptConst("INSTRUCTIONS", systemPrompt(agent)),
     "",
@@ -176,7 +176,7 @@ function notes(agent: Agent): string[] {
       logged.length > 0 &&
         `ADK has no per-tool 'log' level; after_tool_callback audits ${namesOf(logged)}${gated.length ? " plus every confirmation outcome" : ""}.`,
       scope === "org" &&
-        "Google ADK has no org-wide memory scope. Wonderwork maps 'org' to a MemoryService keyed by one shared user id; share that service across projects' runners.",
+        "Google ADK has no org-wide memory scope. Prod AI maps 'org' to a MemoryService keyed by one shared user id; share that service across projects' runners.",
       scope === "project" &&
         "ADK memory is keyed by app and user, so 'project' uses one shared USER_ID; every session in the project can load_memory the others.",
       usesPlaceholders(agent) &&

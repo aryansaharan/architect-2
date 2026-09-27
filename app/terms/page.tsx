@@ -5,7 +5,7 @@ export const metadata = { title: "Terms" };
 export default function Terms() {
   return (
     <LegalPage title="Terms of use" updated="September 26, 2026">
-      <p>Wonderwork is a non-commercial prototype built for Lyzr&apos;s Architect 2.0 brief, provided as-is for evaluation. It is not an official Lyzr product.</p>
+      <p>Prod AI is a non-commercial prototype built for Lyzr&apos;s Architect 2.0 brief, provided as-is for evaluation. It is not an official Lyzr product.</p>
       <h2>Use</h2>
       <ul>
         <li>Don&apos;t use it to process real personal, financial or health data. Sample data is fictional.</li>

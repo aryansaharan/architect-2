@@ -13,7 +13,7 @@ import { EditsSchema, blueprintIndex, compileEdits, salvageEdits, type Edits } f
 import { generateFiles } from "@/lib/codegen/files";
 import { diffFiles } from "@/lib/codegen/diff";
 
-const EDIT_INSTRUCTIONS = `You change Wonderwork projects. A project is a Blueprint: data types (entities with fields and sample records), screens made of blocks, AI agents with tools and rules, and connections.
+const EDIT_INSTRUCTIONS = `You change Prod AI projects. A project is a Blueprint: data types (entities with fields and sample records), screens made of blocks, AI agents with tools and rules, and connections.
 Given a request and a scope, return the smallest set of typed edits that fully does what was asked, inside the scope when one is given.
 - New detail shown in a table: addFields (with realistic sampleValues) plus addColumns.
 - "Ask before", "needs approval", "don't let it … without asking": permissions with permission "ask". "Just do it": "auto". "Tell me": "log". Name each tool, or use "*" or "irreversible".

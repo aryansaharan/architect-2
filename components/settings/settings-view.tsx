@@ -243,7 +243,7 @@ export function SettingsView({
           <h2 className="text-[20px] font-semibold">Deploy targets</h2>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
-              { icon: Cloud, name: "Wonderwork Cloud", body: "Managed, instant, regional. Real in this prototype.", on: true },
+              { icon: Cloud, name: "Prod Cloud", body: "Managed, instant, regional. Real in this prototype.", on: true },
               { icon: Server, name: "Vercel", body: "Your team, your deploy previews.", on: connected.has("vercel") },
               { icon: Container, name: "Your VPC / on-prem", body: "Docker bundle and agent runtime images.", on: false },
             ].map((t) => (

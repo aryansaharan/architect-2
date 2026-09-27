@@ -132,7 +132,7 @@ function render(agent: Agent, bp: Blueprint): string {
     ns && "from langgraph.store.memory import InMemoryStore",
     gated && "from langgraph.types import Command, interrupt",
     "",
-    audited && 'audit = logging.getLogger("wonderwork.audit")',
+    audited && 'audit = logging.getLogger("prodai.audit")',
     audited && "",
     pyPromptConst("INSTRUCTIONS", systemPrompt(agent)),
     "",
@@ -157,7 +157,7 @@ function notes(agent: Agent): string[] {
       logged.length > 0 &&
         `LangGraph has no per-tool 'log' level, so ${namesOf(logged)} ${logged.length > 1 ? "go" : "goes"} through an audited_call wrapper.`,
       (scope === "project" || scope === "org") &&
-        `LangGraph has no '${scope}' memory scope; Wonderwork maps it to a store namespace the model reads each turn. Writing memories is left to your nodes.`,
+        `LangGraph has no '${scope}' memory scope; Prod AI maps it to a store namespace the model reads each turn. Writing memories is left to your nodes.`,
       scope === "none" &&
         "Interrupts need a checkpointer, so memory 'none' still compiles one but starts a fresh thread per run.",
     ],

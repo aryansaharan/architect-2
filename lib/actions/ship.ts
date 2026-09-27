@@ -97,7 +97,7 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
-    { lane: "did", kind: "ship", title: existing ? "Updated the live version" : "Went live on Wonderwork Cloud", body: `Anyone with the link can open /live/${slug}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}`, checkpointId: cp.id },
+    { lane: "did", kind: "ship", title: existing ? "Updated the live version" : "Went live on Prod Cloud", body: `Anyone with the link can open /live/${slug}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}`, checkpointId: cp.id },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, slug };

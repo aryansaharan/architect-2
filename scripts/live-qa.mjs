@@ -121,7 +121,7 @@ await step("ship", async () => {
   await snap("ship-live");
   const p2 = await ctx.newPage(); await p2.goto(url); await p2.waitForTimeout(2000);
   await p2.screenshot({ path: "/tmp/Q-live-app.png" });
-  const ok = await p2.getByText("Built with Wonderwork").count();
+  const ok = await p2.getByText("Built with Prod AI").count();
   return `live ${url} footer=${ok}`;
 });
 

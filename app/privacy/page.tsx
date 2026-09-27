@@ -5,7 +5,7 @@ export const metadata = { title: "Privacy" };
 export default function Privacy() {
   return (
     <LegalPage title="Privacy policy" updated="September 26, 2026">
-      <p>Wonderwork is a prototype built by Aryan Saharan for a product-management assignment. This page explains what it stores and why.</p>
+      <p>Prod AI is a prototype built by Aryan Saharan for a product-management assignment. This page explains what it stores and why.</p>
       <h2>What we collect</h2>
       <ul>
         <li>If you sign in with Google: your name, email address and profile picture, provided by Google.</li>

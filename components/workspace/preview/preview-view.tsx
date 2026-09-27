@@ -142,7 +142,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
               <span className="flex gap-1.5"><i className="size-2.5 rounded-full bg-[#ff5f57]/80" /><i className="size-2.5 rounded-full bg-[#febc2e]/80" /><i className="size-2.5 rounded-full bg-[#28c840]/80" /></span>
               <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 truncate rounded-md border border-hairline bg-deep px-3 font-mono text-[11px] text-muted-foreground">
                 <span className="size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_8px_rgb(223_255_79/0.9)]" />
-                test.{bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.wonderwork.app
+                test.{bp.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.prodai.app
               </span>
               <span className="w-[46px]" />
             </div>

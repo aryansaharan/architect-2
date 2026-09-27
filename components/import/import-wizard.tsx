@@ -71,7 +71,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
       <div className="fade-up mx-auto max-w-2xl">
         <p className="micro-label">Bring your existing project</p>
         <h1 className="mt-2 font-display text-[44px] leading-tight">Adopt it. <em className="text-amber-grad">Don&apos;t absorb it.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Wonderwork reads your repository first, tells you what it understood and what it didn&apos;t, and signs House Rules before it touches a file. Every change ships as a pull request.</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">Prod AI reads your repository first, tells you what it understood and what it didn&apos;t, and signs House Rules before it touches a file. Every change ships as a pull request.</p>
         <div className="panel mt-6 rounded-2xl p-4 transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(223_255_79/0.08),0_24px_70px_-24px_rgb(223_255_79/0.45)]">
           <label htmlFor="repo-url" className="text-[13px] font-medium">Public GitHub repository</label>
           <div className="mt-2 flex gap-2">
@@ -137,7 +137,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-[13px] text-muted-foreground">No agent framework detected. Wonderwork can add agents alongside your code.</p>
+            <p className="mt-3 text-[13px] text-muted-foreground">No agent framework detected. Prod AI can add agents alongside your code.</p>
           )}
         </section>
         <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "160ms" }}>
@@ -146,7 +146,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
             {r.stack.length ? r.stack.map((s) => <span key={s.label} className="rounded-md border border-hairline bg-deep px-2 py-1 text-[12px]" title={s.evidence}>{s.label}</span>) : <span className="text-[13px] text-muted-foreground">{r.repo.language ?? "Unknown"}</span>}
           </div>
           <h2 className="micro-label mt-4">Tests &amp; CI</h2>
-          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found. Wonderwork will add rehearsals, not rewrite your tests.</span>}</p>
+          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found. Prod AI will add rehearsals, not rewrite your tests.</span>}</p>
         </section>
         <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "240ms" }}>
           <h2 className="micro-label">Conventions I&apos;ll follow</h2>
@@ -166,7 +166,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         <div className="flex flex-wrap items-center gap-2">
           <ShieldCheck className="size-4 text-amber" />
           <h2 id="rules" className="text-[15px] font-semibold"><Term k="house-rules" /></h2>
-          <span className="text-[12.5px] text-muted-foreground">Wonderwork signs these before touching anything. Every agent and every Work Order follows them.</span>
+          <span className="text-[12.5px] text-muted-foreground">Prod AI signs these before touching anything. Every agent and every Work Order follows them.</span>
         </div>
         <ul className="mt-4 space-y-2">
           {rules.map((rule, i) => (

@@ -1,12 +1,12 @@
-# Wonderwork: technical architecture
+# Prod AI: technical architecture
 
-How Wonderwork (my prototype for Lyzr's Architect 2.0 brief) runs in production, service by service, with the reasoning behind each choice.
+How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, service by service, with the reasoning behind each choice.
 
 - Interactive version: **[architect-2-aryan.vercel.app/architecture](https://architect-2-aryan.vercel.app/architecture)**
 - Diagram files: [`public/docs/architecture-diagram.png`](public/docs/architecture-diagram.png) · [`public/docs/architecture.pdf`](public/docs/architecture.pdf)
 - Product decisions: [`DECISIONS.md`](DECISIONS.md) · Market research: [`RESEARCH.md`](RESEARCH.md)
 
-![Wonderwork production architecture](public/docs/architecture-diagram.png)
+![Prod AI production architecture](public/docs/architecture-diagram.png)
 
 **Reading the diagram.** Every service is a card and every line is a real call path. Short vertical lines join neighbours in a column (BFF → Orchestrator). Long routes run in the gutters between planes and in the two bands above and below the planes. Each plane reaches the data platform through one labelled trunk into a shared data bus, so the picture shows which plane uses which store without drawing 30 separate lines. The Orchestrator → Agent harness line also stands for the orchestrator's other activity workers (Deploy, Import, GitHub service), which pull work from Temporal task queues ([section 5](#5-communication-and-protocols)). The numbered badges match the eight steps in [section 3](#3-prompt-to-production).
 
@@ -47,7 +47,7 @@ How Wonderwork (my prototype for Lyzr's Architect 2.0 brief) runs in production,
 | **Edge** | CDN + WAF, API gateway, preview proxy, realtime hub, app router | Global, latency sensitive, terminates TLS and WebSockets, enforces rate limits before anything expensive happens |
 | **Control plane** | Web app + BFF, project service, orchestrator, agent harness, model gateway, GitHub service, deploy service, import, budget, policy | Stateless and horizontally scalable. Owns decisions, never runs user code |
 | **Sandbox plane** | Sandbox manager, one Firecracker microVM per project, egress proxy | Runs untrusted code with hard isolation and its own capacity model |
-| **Runtime plane** | Wonderwork Cloud (live apps), agent gateway, queues and schedules, production evals, self-hosted runtime | Serves end users with production SLOs, separate from build traffic |
+| **Runtime plane** | Prod Cloud (live apps), agent gateway, queues and schedules, production evals, self-hosted runtime | Serves end users with production SLOs, separate from build traffic |
 | **Data + platform** | Postgres (Supabase), Redis, object storage, vector index, secrets vault, usage warehouse, observability | Shared services with their own scaling and backup policies |
 
 ## 3. Prompt to production
@@ -70,11 +70,11 @@ One request, end to end. The eight steps match the eight numbered badges on the 
 - **Services:** Orchestrator → Agent harness (coder, verifier, repairer) → Sandbox manager → Project sandbox (Firecracker microVM) → Egress proxy (package registries). Policy + approvals checks every tool call.
 - **Transport:** gRPC to the sandbox manager (`Acquire`: a warm-pool VM or a snapshot resume, about 150 ms); tool calls over **vsock** to an in-VM agent, with stdout streamed back; `npm install` and `pip install` leave only through the egress proxy.
 - **Data:** generated files (most are a pure function of the Blueprint), patches from the coder, test and rehearsal results as structured pass/fail. After each verified step: a git commit inside the VM, a Temporal activity result, and a save point in the Project service.
-- **User sees:** the **build console**, with plain-English steps in three lanes (thought, did, checked) and a progress bar. If the verifier fails, the **repair card** ("Wonderwork caught a problem") shows what broke, the blast radius and two fixes. Fixes for our own mistakes are labelled **Our fix · free**. Picking one sends a signal and the workflow resumes.
+- **User sees:** the **build console**, with plain-English steps in three lanes (thought, did, checked) and a progress bar. If the verifier fails, the **repair card** ("Prod AI caught a problem") shows what broke, the blast radius and two fixes. Fixes for our own mistakes are labelled **Our fix · free**. Picking one sends a signal and the workflow resumes.
 
 **Step 4. Live preview.**
 - **Services:** Builder studio → Preview proxy → Project sandbox dev server (`:3000`); Sandbox manager on wake.
-- **Transport:** an iframe on `https://{project}.wonderwork-preview.dev`, HTTP plus the hot-reload WebSocket, routed through a Redis table `subdomain → (host, vm, port)`. The BFF mints a signed, project-scoped preview cookie.
+- **Transport:** an iframe on `https://{project}.prodai-preview.dev`, HTTP plus the hot-reload WebSocket, routed through a Redis table `subdomain → (host, vm, port)`. The BFF mints a signed, project-scoped preview cookie.
 - **Data:** HTML, JS and HMR updates from the dev server; a `postMessage` bridge maps DOM nodes to Blueprint block ids for click-to-tweak and comment pins.
 - **User sees:** the app changing in place as files are written. A sleeping sandbox shows "waking up" for about a second, then the preview.
 
@@ -87,17 +87,17 @@ One request, end to end. The eight steps match the eight numbered badges on the 
 **Step 6. Branch + PR.**
 - **Services:** Agent harness → GitHub service → GitHub; webhooks come back through the API gateway to the GitHub service. Import + analysis uses the same GitHub App for existing repos.
 - **Transport:** git over HTTPS and the REST API with a GitHub App installation token (expires after an hour); inbound webhooks verified with `X-Hub-Signature-256` and deduplicated by `X-GitHub-Delivery`.
-- **Data:** branch `wonderwork/wo-128-sla-column`, a PR whose body is the Work Order (summary, blast radius, rehearsal results, preview link), and check runs for preflight and rehearsals. An engineer's push comes back as a webhook; generated files are parsed back into Blueprint operations, custom files are kept under House Rules.
+- **Data:** branch `prodai/wo-128-sla-column`, a PR whose body is the Work Order (summary, blast radius, rehearsal results, preview link), and check runs for preflight and rehearsals. An engineer's push comes back as a webhook; generated files are parsed back into Blueprint operations, custom files are kept under House Rules.
 - **User sees:** a PR link on the Work Order. An engineer's fix appears as one plain-English line in the activity feed. A conflict becomes a decision card, never a silent overwrite.
 
 **Step 7. Ship.**
-- **Services:** Builder studio → BFF → Deploy service (preflight reads Policy, Budget and the vault) → Orchestrator (`DeployWorkflow`) → Project sandbox (build) → object storage (OCI registry) → Wonderwork Cloud, Vercel, or the runtime in your VPC.
-- **Transport:** HTTPS for "Go live"; gRPC between services; the Fly Machines or Knative API for Wonderwork Cloud, the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
+- **Services:** Builder studio → BFF → Deploy service (preflight reads Policy, Budget and the vault) → Orchestrator (`DeployWorkflow`) → Project sandbox (build) → object storage (OCI registry) → Prod Cloud, Vercel, or the runtime in your VPC.
+- **Transport:** HTTPS for "Go live"; gRPC between services; the Fly Machines or Knative API for Prod Cloud, the Vercel REST API for Vercel, and an outbound-only mTLS tunnel for a customer VPC.
 - **Data:** one immutable release (OCI image digest, static assets, migration plan, secret *references* only). Migrations use expand-and-contract, so the old release keeps working during the rollout.
-- **User sees:** the **preflight** checklist (sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen). Blocking checks disable the button and name the blocker. Then a canary rollout (5% → 50% → 100%) and the **live URL** (`{app}.wonderwork.app` or a custom domain), with "Update the live version" and one-click rollback.
+- **User sees:** the **preflight** checklist (sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen). Blocking checks disable the button and name the blocker. Then a canary rollout (5% → 50% → 100%) and the **live URL** (`{app}.prodai.app` or a custom domain), with "Update the live version" and one-click rollback.
 
 **Step 8. Governed agents.**
-- **Services:** People using live apps → CDN + WAF → App router → Wonderwork Cloud → Agent gateway → Model gateway, Queues + schedules, Notify, Evals in production.
+- **Services:** People using live apps → CDN + WAF → App router → Prod Cloud → Agent gateway → Model gateway, Queues + schedules, Notify, Evals in production.
 - **Transport:** HTTPS and WebSocket from end users; the agent gateway is a sidecar on localhost gRPC; "Ask first" approvals go out as Slack and email messages and come back as a Temporal signal.
 - **Data:** each tool call with its risk level (Read, Change, Can't undo), the caller and the arguments; budget checks against the app's cap; OpenTelemetry traces and usage events. Sampled traces are replayed against the rehearsal suite on a schedule.
 - **User sees:** a working app for end users. For the builder: an approvals inbox, per-app spend, agent replays and drift alerts.
@@ -114,7 +114,7 @@ Each row names a concrete choice, why, and what I rejected.
 | API gateway | Auth, per-user and per-IP rate limits, quotas, webhook ingress | Edge middleware + Redis token buckets | Rejects abuse before it reaches models or sandboxes | Rate limits inside each service: inconsistent, and abusive traffic still reaches expensive paths |
 | Preview proxy | Maps a project subdomain to its sandbox dev server | Envoy (or a small Go proxy) with a Redis routing table | Handles WebSockets and hot reload, wakes sleeping sandboxes; see [section 10](#10-the-proxy-layer) | Exposing VM ports directly or a tunnel per VM: no central auth, no wake-on-request |
 | Realtime hub | Streams build steps, logs, presence to the studio | NATS JetStream + a WebSocket/SSE gateway | Fan-out with replay from a sequence number, so reconnecting clients miss nothing | Supabase Realtime or Postgres `LISTEN/NOTIFY`: no replay by sequence, and it puts build chatter on the primary database |
-| App router | Custom domains, TLS, routing live traffic to the right release and region | Cloudflare for SaaS custom hostnames in front of an Envoy tier; `host → (app, release, region)` in Postgres, cached in Redis | Certificates issue automatically when a customer adds a CNAME to `cname.wonderwork.app`; rollback is a pointer change in one table | A Kubernetes Ingress per app: thousands of hosts means slow config reloads and churn |
+| App router | Custom domains, TLS, routing live traffic to the right release and region | Cloudflare for SaaS custom hostnames in front of an Envoy tier; `host → (app, release, region)` in Postgres, cached in Redis | Certificates issue automatically when a customer adds a CNAME to `cname.prodai.app`; rollback is a pointer change in one table | A Kubernetes Ingress per app: thousands of hosts means slow config reloads and churn |
 
 **Control plane**
 
@@ -143,7 +143,7 @@ Each row names a concrete choice, why, and what I rejected.
 
 | Service | Responsibility | Choice | Why | Rejected |
 |---|---|---|---|---|
-| Wonderwork Cloud | Hosts live apps with scale to zero | Fly Machines at launch; Knative on our own Kubernetes for enterprise regions; a Neon Postgres branch per app | Sub-second machine starts, scale to zero, and per-app databases that branch like git for test versions | AWS Lambda: 15-minute limit and no long-lived WebSockets for agent tasks |
+| Prod Cloud | Hosts live apps with scale to zero | Fly Machines at launch; Knative on our own Kubernetes for enterprise regions; a Neon Postgres branch per app | Sub-second machine starts, scale to zero, and per-app databases that branch like git for test versions | AWS Lambda: 15-minute limit and no long-lived WebSockets for agent tasks |
 | Agent gateway | Enforces permissions and approvals for live agents, meters their model use | Sidecar next to each app, talking to the app on localhost | The product promise ("anything that can't be undone asks a person") has to hold in production, not just in the studio | Checks inside generated agent code: an engineer can edit them away |
 | Queues + schedules | Triggers, retries, long-running and scheduled agent tasks | Temporal task queues and Schedules (a namespace per cell); NATS JetStream for event triggers | Agent tasks can wait days for an approval and survive restarts; one engine for studio and runtime workflows | Cron in the app container: lost when the app scales to zero; SQS alone: no durable waiting for a person |
 | Evals in production | Replays rehearsals on real traces, alerts on drift | Scheduled Temporal jobs that sample traces (every "Ask first" call plus 5% of the rest), run the rehearsal suite with deterministic checks and an LLM judge, and write scores to ClickHouse | Catches drift from real inputs and silent model updates; the same suite gates model switches ([section 8](#8-model-agnostic-switching)) | Pre-launch evals only: miss what real users actually send |
@@ -171,7 +171,7 @@ Rules that apply to every row: service-to-service traffic is mTLS with workload 
 | Studio → API gateway → BFF (commands: approve, tweak, restore, go live) | HTTPS (HTTP/2), server actions and JSON | Sync | Supabase session cookie (HttpOnly), JWT verified at the gateway | Idempotent commands keyed by a client request id, safe to retry |
 | BFF → Studio (planning, agent chat) | SSE over HTTPS (AI SDK UI message stream) | Async stream | Same session | One-way token stream that survives proxies; the prototype does this today |
 | Realtime hub → Studio (build, deploy, logs, presence) | WebSocket, SSE fallback; every message has a `seq` | Async stream | 5-minute JWT scoped to one project, minted by the BFF | A reconnecting tab resumes from its last `seq`; JetStream replays the gap |
-| Studio → Preview proxy → sandbox dev server | HTTPS + WebSocket upgrade (HMR) on `*.wonderwork-preview.dev`; plain HTTP on the host's private network to the VM | Sync | Signed, project-scoped preview cookie checked at the proxy; the VM sees no credentials | Separate registrable domain, so preview code cannot read studio cookies |
+| Studio → Preview proxy → sandbox dev server | HTTPS + WebSocket upgrade (HMR) on `*.prodai-preview.dev`; plain HTTP on the host's private network to the VM | Sync | Signed, project-scoped preview cookie checked at the proxy; the VM sees no credentials | Separate registrable domain, so preview code cannot read studio cookies |
 | BFF → Orchestrator | gRPC (Temporal SDK): start, signal, query | Sync call, async workflow | mTLS, one Temporal namespace per cell | Durable workflows; approvals arrive as signals |
 | BFF → Project service, Budget, Policy | gRPC (Connect) | Sync | mTLS + the user's JWT forwarded, so RLS applies | Typed contracts; the database enforces tenancy even if a service has a bug |
 | Orchestrator → Agent harness, Deploy, Import, GitHub service | Temporal task queues (activities with heartbeats) | Async | mTLS | Workers pull work, so scaling means adding workers; a dead worker is detected by a missed heartbeat |
@@ -185,8 +185,8 @@ Rules that apply to every row: service-to-service traffic is mTLS with workload 
 | GitHub service → GitHub | git over HTTPS, REST and GraphQL | Sync | GitHub App installation token (expires after 1 hour); the app's JWT is signed inside KMS | No stored personal tokens; the App private key never leaves KMS |
 | Stripe → Budget + billing (webhooks) | HTTPS POST via the API gateway | Async | `Stripe-Signature` (timestamped HMAC, 5-minute tolerance), deduplicated by event id | Payment state changes are applied exactly once |
 | Budget + billing → Stripe | HTTPS API: meter events, invoices | Async, batched | Restricted API key; `Idempotency-Key` on every write | Usage is metered continuously without double charges |
-| Deploy service → Wonderwork Cloud, Vercel, your VPC | Fly Machines or Knative API; Vercel REST API; commands down an outbound-only mTLS tunnel (gRPC bidirectional stream) | Async (deploy workflow) | Platform API token; the customer's Vercel integration token; per-cluster tunnel certificate | Same release, three targets; the VPC never accepts inbound connections |
-| End users → App router → Wonderwork Cloud | HTTPS and WebSocket | Sync | The app's own sign-in | Standard web traffic, routed by host name to the current release |
+| Deploy service → Prod Cloud, Vercel, your VPC | Fly Machines or Knative API; Vercel REST API; commands down an outbound-only mTLS tunnel (gRPC bidirectional stream) | Async (deploy workflow) | Platform API token; the customer's Vercel integration token; per-cluster tunnel certificate | Same release, three targets; the VPC never accepts inbound connections |
+| End users → App router → Prod Cloud | HTTPS and WebSocket | Sync | The app's own sign-in | Standard web traffic, routed by host name to the current release |
 | Live app → Agent gateway → Model gateway, tools | localhost gRPC to the sidecar, then mTLS | Sync; "Ask first" waits on a Temporal signal | Workload identity per app | Every production tool call is checked, metered and traced |
 | Agent gateway, Policy → Notify → Slack, email | NATS `approvals.*` → Slack Web API and email | Async | Slack bot token from the vault; button clicks come back with Slack's signing secret | People approve where they already work |
 | Every service → Observability, Usage warehouse | OTLP/gRPC to a node-local collector; NATS `usage.*` batched into ClickHouse | Async, batched | mTLS | Telemetry never blocks a request |
@@ -214,7 +214,7 @@ Rules that apply to every row: service-to-service traffic is mTLS with workload 
 
 **Security.**
 
-- **No secrets inside the VM.** Code sees placeholders such as `WONDERWORK_SECRET_stripe`. The egress proxy swaps the real value in on the way out, only for hosts that connection is allowed to call.
+- **No secrets inside the VM.** Code sees placeholders such as `PRODAI_SECRET_stripe`. The egress proxy swaps the real value in on the way out, only for hosts that connection is allowed to call.
 - **Egress allow-list** per project: package registries, the declared connections, the model gateway. The cloud metadata endpoint and private ranges are blocked.
 - Per-VM network namespace, seccomp-filtered jailer, read-only base image, no host mounts. The in-VM agent is reachable only over vsock from the host.
 - Abuse controls: CPU-pattern detection for crypto mining, outbound rate limits, per-tenant quotas.
@@ -255,7 +255,7 @@ flowchart LR
 
 - *Transient* (429, 5xx, timeouts): retried by the orchestrator with backoff, then failed over to another provider by the model gateway.
 - *Invalid output* (schema mismatch): near-miss JSON is repaired locally (nulls, synonyms, casing); otherwise the model is re-asked once with the exact validation error, then the step falls back to a rule-based path. The prototype does exactly this for change requests (`lib/change/edits.ts`, `lib/change/propose.ts`).
-- *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Wonderwork caught a problem" card, and the fix is labelled **Our fix · free**.
+- *Build or test failure*: the repairer proposes a fix with its blast radius (screens, agents, files). In the product this is the "Prod AI caught a problem" card, and the fix is labelled **Our fix · free**.
 - *Doom loops*: errors are normalised (paths, line numbers and ids stripped) and hashed. The same signature twice, or three attempts, stops the loop, restores the last save point and opens a handoff with the full context.
 - *Crashed workers or hosts*: each verified step is a Temporal activity result plus a git commit, so a new worker resumes from the last completed step on a restored snapshot.
 - *People stop runs*: a stop signal cancels the workflow; unused credits are refunded by the ledger.
@@ -300,7 +300,7 @@ sequenceDiagram
   S-->>R: file, log and test events (NATS)
   H-->>R: step started / passed / repair needed
   R-->>U: WebSocket stream (seq-numbered)
-  U->>P: iframe https://p-7f3a.wonderwork-preview.dev
+  U->>P: iframe https://p-7f3a.prodai-preview.dev
   P->>S: proxy HTTP + HMR WebSocket to :3000
   S-->>U: hot-reloaded preview
 ```
@@ -309,7 +309,7 @@ sequenceDiagram
 - **Streams**: planning and agent chat stream over SSE directly from the BFF (the prototype does this for planning and the agent playground). Build and deploy progress stream through the realtime hub, which assigns sequence numbers so a reconnecting client resumes from the last event it saw.
 - **Live preview** is an iframe pointed at the project's preview subdomain. The dev server in the VM serves it, the preview proxy carries both HTTP and the hot-reload WebSocket, and a small injected bridge script maps DOM nodes to Blueprint block ids over `postMessage`. That bridge powers click-to-tweak and comment pins, which in the prototype are implemented against the spec renderer.
 - **Terminal and logs** for engineers use a PTY over WebSocket through the same hub, gated by project role.
-- **Your editor**: engineers work on the same GitHub repo, or run `npx @wonderwork/cli sync --watch` to push local edits into the sandbox; both paths end in the same reconcile step as a webhook.
+- **Your editor**: engineers work on the same GitHub repo, or run `npx @prodai/cli sync --watch` to push local edits into the sandbox; both paths end in the same reconcile step as a webhook.
 
 ## 10. The proxy layer
 
@@ -317,7 +317,7 @@ There are three proxies, each with one job.
 
 **Preview proxy (inbound to sandboxes).**
 
-- Wildcard DNS and TLS for `*.wonderwork-preview.dev`, a **separate registrable domain** from the studio (and from live apps on `wonderwork.app`) so preview code can never read studio cookies.
+- Wildcard DNS and TLS for `*.prodai-preview.dev`, a **separate registrable domain** from the studio (and from live apps on `prodai.app`) so preview code can never read studio cookies.
 - Routing table in Redis: `subdomain → (host, vm id, port)`, updated by the sandbox manager on every resume.
 - Access control: a short-lived signed cookie scoped to one project, minted by the BFF when the studio loads the preview. Shared preview links carry their own expiring token.
 - WebSocket upgrades pass through for HMR.
@@ -337,7 +337,7 @@ sequenceDiagram
   participant GH as GitHub
   participant E as Engineer
   W->>G: approved + verified
-  G->>GH: push branch wonderwork/wo-128-sla-column
+  G->>GH: push branch prodai/wo-128-sla-column
   G->>GH: open PR (summary, blast radius, rehearsal results, preview link)
   G->>GH: check runs: preflight, rehearsals
   E->>GH: review, push a commit to the branch
@@ -361,13 +361,13 @@ sequenceDiagram
 1. **Preflight** (the prototype's Ship tab): sign-in configured, keys present, irreversible tools gated, rehearsals passing, spending cap set, data region chosen. Blocking checks disable the button and name the blocker.
 2. **Build once**: Nixpacks or Buildpacks inside the sandbox produce an OCI image plus static assets; the release id is immutable.
 3. **Targets**:
-   - *Wonderwork Cloud*: Fly Machines (or Knative) with scale to zero, a Postgres branch per app (Neon), secrets from the vault, the agent gateway as a sidecar, custom domains with automatic TLS.
+   - *Prod Cloud*: Fly Machines (or Knative) with scale to zero, a Postgres branch per app (Neon), secrets from the vault, the agent gateway as a sidecar, custom domains with automatic TLS.
    - *Vercel*: deploy through the Vercel API into the customer's team, env vars synced.
    - *Customer VPC or on-prem*: Helm chart or Terraform module for the runtime and agent gateway, connected to the control plane through an outbound-only tunnel. Data and traces stay in the customer's network.
 4. **Rollout**: canary 5% → 50% → 100% with automatic rollback on error rate or latency SLO breach.
 5. **Rollback** is instant: the router points at the previous release. Database migrations use expand-and-contract so old releases keep working.
 
-**Wonderwork itself.**
+**Prod AI itself.**
 
 *Infrastructure as code.* Terraform (OpenTofu-compatible) in an `infra/` monorepo. Every managed service in this design (Temporal Cloud, Supabase, ClickHouse Cloud, Cloudflare, Vercel, Grafana) ships an official Terraform provider, and a `plan` diff is easy to review in a PR. I rejected Pulumi: general-purpose languages add little for infrastructure that is mostly declarative.
 
@@ -473,7 +473,7 @@ Restores are tested monthly and failover is rehearsed in a quarterly game day.
 | Build + repair | **Simulated, labelled.** Deterministic build timeline; the repair decision is real and changes the Blueprint | Full tool loop in microVMs |
 | Sandbox + live preview | **Simulated, labelled.** Preview renders the Blueprint with a spec renderer; no untrusted code runs | Firecracker microVMs behind the preview proxy |
 | GitHub | **Partly real.** Public repo reads, stack and agent detection, House Rules; pushes and PRs are sandboxed | GitHub App with two-way sync |
-| Deploy | **Real for Wonderwork Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases, canary, instant rollback |
+| Deploy | **Real for Prod Cloud.** Public `/live/…` URL served from a published snapshot, with rollback; Vercel and VPC are sandboxed | Immutable releases, canary, instant rollback |
 
 ## 16. Trade-offs and alternatives considered
 

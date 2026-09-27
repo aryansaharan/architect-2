@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Wonderwork: agentic apps you'd trust in production";
+export const alt = "Prod AI: agentic apps you'd trust in production";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -21,17 +21,18 @@ export default function OpengraphImage() {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <svg width="48" height="48" viewBox="0 0 24 24">
             <defs>
-              <linearGradient id="t" x1="3" y1="12" x2="21" y2="12" gradientUnits="userSpaceOnUse">
+              <linearGradient id="t" x1="7" y1="21" x2="18" y2="4" gradientUnits="userSpaceOnUse">
                 <stop offset="0" stopColor="#3fe0c5" stopOpacity="0.4" />
                 <stop offset="0.5" stopColor="#8dff9e" />
                 <stop offset="1" stopColor="#dfff4f" />
               </linearGradient>
             </defs>
-            <path d="M3.2 6.6C4.6 12.6 6 17.6 8 17.6c1.9 0 2.6-6.5 4-6.5s2.1 6.5 4 6.5c1.8 0 2.9-4.7 4.2-9.9" fill="none" stroke="url(#t)" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="20.4" cy="6.4" r="2.6" fill="#dfff4f" opacity="0.45" />
-            <circle cx="20.4" cy="6.4" r="1.3" fill="#fffbe0" />
+            <path d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2" fill="none" stroke="url(#t)" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="10.8" cy="13.6" r="2.6" fill="#dfff4f" opacity="0.45" />
+            <circle cx="10.8" cy="13.6" r="1.3" fill="#fffbe0" />
           </svg>
-          <span style={{ fontSize: 36, fontWeight: 600 }}>Wonderwork</span>
+          <span style={{ fontSize: 38, fontWeight: 600 }}>Prod</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#dfff4f", border: "1px solid rgba(223,255,79,0.4)", background: "rgba(223,255,79,0.1)", borderRadius: 6, padding: "1px 7px", marginLeft: -6 }}>AI</span>
           <span style={{ fontSize: 19, color: "#9baaa2", border: "1px solid rgba(223,255,79,0.35)", borderRadius: 6, padding: "3px 10px" }}>Architect 2.0 prototype for Lyzr</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

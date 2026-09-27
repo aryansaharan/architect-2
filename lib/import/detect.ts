@@ -52,7 +52,7 @@ export function detect(paths: string[], manifests: Manifests) {
       frameworks.push({ id: f.id, label: f.label, evidence: [where ? `dependency in ${where}` : null, pathHit ? `file ${pathHit}` : null].filter(Boolean).join(" · ") });
     }
   }
-  // Wonderwork's own agent format
+  // Prod AI's own agent format
   const gitAgent = paths.find((p) => /(^|\/)agent\.ya?ml$/.test(p) || /(^|\/)SOUL\.md$/.test(p));
   if (gitAgent) frameworks.push({ id: "gitagent", label: "GitAgent spec", evidence: `file ${gitAgent}` });
 
@@ -78,7 +78,7 @@ export function detect(paths: string[], manifests: Manifests) {
   if (paths.some((p) => /^(src\/)?pages\//.test(p)) && stack.some((s) => s.label === "Next.js")) conventions.push("Next.js Pages Router");
   if (manifests["tsconfig.json"]?.includes('"strict": true')) conventions.push("TypeScript strict mode");
   if (paths.some((p) => /(^|\/)\.env\.example$/.test(p))) conventions.push("Secrets documented in .env.example");
-  if (paths.some((p) => /(^|\/)(eslint\.config\.\w+|\.eslintrc[\w.]*|ruff\.toml|\.ruff\.toml)$/.test(p)) || /\[tool\.ruff\]/.test(manifests["pyproject.toml"] ?? "")) conventions.push("Has a linter config: Wonderwork will follow it");
+  if (paths.some((p) => /(^|\/)(eslint\.config\.\w+|\.eslintrc[\w.]*|ruff\.toml|\.ruff\.toml)$/.test(p)) || /\[tool\.ruff\]/.test(manifests["pyproject.toml"] ?? "")) conventions.push("Has a linter config: Prod AI will follow it");
   if (paths.some((p) => /(^|\/)agents?\//.test(p))) conventions.push("Agents grouped in an agents/ folder");
   const topLang = [...langs.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   if (topLang) conventions.push(`Mostly ${topLang === "py" ? "Python" : topLang === "ts" || topLang === "tsx" ? "TypeScript" : topLang === "js" || topLang === "jsx" ? "JavaScript" : topLang} (${langs.get(topLang)} files)`);

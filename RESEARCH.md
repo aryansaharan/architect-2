@@ -1,6 +1,6 @@
-# Exploration: what the market does, and where Wonderwork fits
+# Exploration: what the market does, and where Prod AI fits
 
-The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, Vercel v0, Rocket.new, Cursor, Codex and Claude Code: how they differ, why people adopt them, their features, UI/UX patterns and flows. This is that research (checked against each product's docs and press in September 2026), and how it shaped Wonderwork. Every claim below is backed by a link in [Sources](#7-sources).
+The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, Vercel v0, Rocket.new, Cursor, Codex and Claude Code: how they differ, why people adopt them, their features, UI/UX patterns and flows. This is that research (checked against each product's docs and press in September 2026), and how it shaped Prod AI. Every claim below is backed by a link in [Sources](#7-sources).
 
 ## 1. The nine products in one page
 
@@ -70,9 +70,9 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 - **Products switch modes instead of changing depth.** Lovable has Build, Chat and Plan modes; Replit adds a plan mode; Cursor offers the Agents Window or the classic IDE. Each is a separate surface, not one surface that goes deeper when you need it.
 - **Almost nobody governs the agents inside the app they help you build.** Governance, where it exists, is about the coding agent (Codex and Claude Code approval policies). The agents that ship to production (the ones that email customers or pay claims) get no permission model, no approvals and no evals. The exception is architect.new's Agent Eval, which escalates low-confidence actions to a person.
 
-## 4. Gaps, and how Wonderwork answers each one
+## 4. Gaps, and how Prod AI answers each one
 
-| Gap in the market | Evidence | What Wonderwork does |
+| Gap in the market | Evidence | What Prod AI does |
 |---|---|---|
 | **Cost you can predict** | No product quotes a task before it runs (v0 shows per-model prices only; architect.new's credits docs show no estimate); Replit users report paying for failed attempts; one Emergent reviewer reports a single bug billed 233 times | Every build and change starts as a **Work Order** with time, credits and blast radius. A live spend meter and a hard cap. Fixes for our own mistakes are free and labelled **Our fix** |
 | **Stopping doom loops** | Paid fix loops in Emergent and Replit user reports; Rocket's free Fix-it covers only errors Rocket detects, on paid plans | The **repair card** shows what was tried, why it matters and two fixes. The harness stops after the same error twice and hands it to a person (see [ARCHITECTURE.md](ARCHITECTURE.md#7-the-agent-harness)) |
@@ -84,7 +84,7 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 
 ## 5. What we borrowed, and from whom
 
-| From | Pattern | Where it lives in Wonderwork |
+| From | Pattern | Where it lives in Prod AI |
 |---|---|---|
 | architect.new | Plan, Agents, App as the spine of a project | Blueprint, Agents and Preview tabs |
 | Emergent, architect.new | Clarifying questions before building | Three quick questions with sensible defaults |

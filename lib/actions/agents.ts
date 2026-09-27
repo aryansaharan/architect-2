@@ -115,7 +115,7 @@ export async function addAgentFromDescription(projectId: string, description: st
     try {
       const r = await generateText({
         model: m.model,
-        instructions: "You design one new AI agent for an existing Wonderwork project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'. " + STYLE_RULE,
+        instructions: "You design one new AI agent for an existing Prod AI project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'. " + STYLE_RULE,
         prompt: `Project: ${bp.meta.name}: ${bp.meta.plain}\nExisting agents: ${bp.agents.map((a) => `${a.name} (${a.role})`).join("; ")}\nConnections: ${bp.connections.map((c) => c.name).join(", ")}\nData: ${bp.entities.map((e) => e.plural).join(", ")}\n\nNew agent: ${text}`,
         output: Output.object({ schema: NewAgentSchema, name: "new_agent" }),
         maxOutputTokens: 3000,
@@ -211,9 +211,9 @@ export async function addAgentFromSource(projectId: string, input: { kind: "code
     role: input.kind === "code" ? (input.framework ? `Imported from ${FRAMEWORK_LABEL[input.framework]}` : "Imported from your code") : `Remote agent (${(input.protocol ?? "http").toUpperCase()})`,
     avatarHue: hash(id) % 360,
     plain: input.kind === "code"
-      ? `An agent you already had, brought in from ${loc}. Wonderwork runs it as-is and wraps every tool call with the permissions below.`
-      : `An agent that lives somewhere else, reached at ${loc}. Wonderwork treats it like a colleague on another team: every request it makes goes through the permissions below.`,
-    jobDescription: `Imported agent. Its instructions live in its own ${input.kind === "code" ? "code" : "service"}; Wonderwork adds these rules on top.`,
+      ? `An agent you already had, brought in from ${loc}. Prod AI runs it as-is and wraps every tool call with the permissions below.`
+      : `An agent that lives somewhere else, reached at ${loc}. Prod AI treats it like a colleague on another team: every request it makes goes through the permissions below.`,
+    jobDescription: `Imported agent. Its instructions live in its own ${input.kind === "code" ? "code" : "service"}; Prod AI adds these rules on top.`,
     rules: ["Every call that changes data is logged.", "Anything irreversible waits for a person."],
     tools: [{ id: "invoke", name: "Run the agent", description: "Send it a task and get its answer.", connectionId: connId ?? bp.connections[0].id, access: "write", permission: "log" }],
     supervision: "spot_check",
@@ -227,7 +227,7 @@ export async function addAgentFromSource(projectId: string, input: { kind: "code
   };
   bp.agents.push(agent);
   try {
-    await save(projectId, bp, `${input.kind === "code" ? "Imported" : "Connected"} ${agent.name}`, input.kind === "code" ? `From ${loc}. Runs unchanged; Wonderwork adds permissions, rehearsals and replay.` : `At ${loc}. Every call goes through Wonderwork's permissions.`, agent.id);
+    await save(projectId, bp, `${input.kind === "code" ? "Imported" : "Connected"} ${agent.name}`, input.kind === "code" ? `From ${loc}. Runs unchanged; Prod AI adds permissions, rehearsals and replay.` : `At ${loc}. Every call goes through Prod AI's permissions.`, agent.id);
     return { ok: true, agentId: agent.id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not add the agent" };

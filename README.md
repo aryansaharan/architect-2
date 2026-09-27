@@ -1,10 +1,10 @@
-# Wonderwork
+# Prod AI
 
 **Agentic apps you'd trust in production: built by the people who don't code and the people who do, in the same project.**
 
 My answer to Lyzr's **Architect 2.0** brief: a working prototype of the next Lyzr Architect, built for the *Technical Product Manager · Architect* take-home.
 
-*Why the name:* a **wonderwork** is an old English word for a miracle, a marvellous piece of work. **Wonder** for the people who dream an app up; **work** for the people who ship it.
+*Why the name:* **prod** is what engineers call production, the place software has to survive real users, real money and real mistakes. Every AI builder demos well on the first prompt; Prod AI is built for prod. (And to prod is to nudge: you prod it with a sentence, and it builds.)
 
 **[Live demo](https://architect-2-aryan.vercel.app)** · **[Open the demo project (no account)](https://architect-2-aryan.vercel.app/demo)** · **[Technical architecture](ARCHITECTURE.md)** ([interactive diagram](https://architect-2-aryan.vercel.app/architecture)) · [Market research](RESEARCH.md) · [Product decisions](DECISIONS.md) · [Walkthrough](#walkthrough)
 
@@ -14,7 +14,7 @@ My answer to Lyzr's **Architect 2.0** brief: a working prototype of the next Lyz
 
 ## The idea
 
-Every AI app builder looks great on the first prompt. The trouble starts on the third: something breaks, something costs money, or something needs a person who can read code. Wonderwork is designed for that moment.
+Every AI app builder looks great on the first prompt. The trouble starts on the third: something breaks, something costs money, or something needs a person who can read code. Prod AI is designed for that moment.
 
 Four principles, each of them visible in the product:
 
@@ -33,7 +33,7 @@ Four principles, each of them visible in the product:
 4. **Agents → Settlement → Playground** → *"CLM-20935 for Grace Liu is approved at $1,640. Pay her by ACH."* Watch it look the claim up, then stop and ask before sending money.
 5. **Ship** → Preflight is green → open the live URL.
 6. **Home → Describe it** → plan a new app. The plan streams in as Claude decides it. **Build it** → the rehearsal catches a problem → pick a fix.
-7. **Home → Bring your existing project** → paste `github.com/openai/openai-cs-agents-demo`. Wonderwork reads the real repo, detects the stack and agents, and signs House Rules before mapping it.
+7. **Home → Bring your existing project** → paste `github.com/openai/openai-cs-agents-demo`. Prod AI reads the real repo, detects the stack and agents, and signs House Rules before mapping it.
 
 <a id="walkthrough"></a>
 **Walkthrough video:** _link added before submission_
@@ -49,19 +49,19 @@ Four principles, each of them visible in the product:
 
 The production design, service by service, is in **[ARCHITECTURE.md](ARCHITECTURE.md)** and drawn at **[/architecture](https://architect-2-aryan.vercel.app/architecture)** ([PNG](public/docs/architecture-diagram.png) · [PDF](public/docs/architecture.pdf)).
 
-![Wonderwork production architecture](public/docs/architecture-diagram.png)
+![Prod AI production architecture](public/docs/architecture-diagram.png)
 
 - **Sandboxing:** one Firecracker microVM per project (strong isolation, ~150 ms snapshot resume, Python and Node agents), no secrets inside the VM, allow-listed egress.
 - **Agent harness:** planner, coder, verifier and repairer share one tool loop with credit, step and time budgets. The same error twice stops the loop, rolls back and hands it to a person.
 - **Model-agnostic:** a model gateway routes by task (plan, code, summarise), fails over between Claude, GPT, Gemini and open models, supports BYOK, and meters every call. Switches are gated on eval suites.
 - **Live preview:** the sandbox dev server behind a preview proxy on a separate domain, with WebSockets for hot reload and wake-on-request. Build events stream through a realtime hub.
 - **GitHub:** a GitHub App, a branch and PR per Work Order, two-way sync that parses generated files back into the Blueprint.
-- **Deployment:** build once, immutable releases, canary rollout, instant rollback, to Wonderwork Cloud, Vercel or your VPC. Live agents run behind an agent gateway that enforces approvals and caps.
+- **Deployment:** build once, immutable releases, canary rollout, instant rollback, to Prod Cloud, Vercel or your VPC. Live agents run behind an agent gateway that enforces approvals and caps.
 - **Scale:** stateless control plane, durable workflows, warm pools and idle suspend, cells of ~1,000 active users, priority queues per model provider.
 
 ## Exploration
 
-**[RESEARCH.md](RESEARCH.md)** compares architect.new, Replit, Lovable, Emergent, v0, Rocket.new, Cursor, Codex and Claude Code: who each is for, why people adopt it, the core flow and where it hurts. The short version: app builders win non-technical users on turn one and lose their trust on turn three (fix loops, surprise bills, no control); coding agents give engineers control but stop at the repo. Wonderwork is designed for the gap in between.
+**[RESEARCH.md](RESEARCH.md)** compares architect.new, Replit, Lovable, Emergent, v0, Rocket.new, Cursor, Codex and Claude Code: who each is for, why people adopt it, the core flow and where it hurts. The short version: app builders win non-technical users on turn one and lose their trust on turn three (fix loops, surprise bills, no control); coding agents give engineers control but stop at the repo. Prod AI is designed for the gap in between.
 
 ## Every flow
 
@@ -79,7 +79,7 @@ The production design, service by service, is in **[ARCHITECTURE.md](ARCHITECTUR
 | File tree, diffs between any two save points, download all source | `/p/:id/code` | **Real** |
 | GitHub: connect, branch per change, reviews, two-way sync | Code tab | Sandbox |
 | Import a public repo: stack, agents, tests, coverage map, House Rules | `/new?mode=import` | **Real** GitHub reads and detection; mapping by Claude |
-| Preflight, deploy targets, go live, roll back, cost projection | `/p/:id/ship` | **Real** live URL on Wonderwork Cloud; Vercel / VPC / domains sandboxed |
+| Preflight, deploy targets, go live, roll back, cost projection | `/p/:id/ship` | **Real** live URL on Prod Cloud; Vercel / VPC / domains sandboxed |
 | Public live version | `/live/:slug` | **Real** |
 | Ask a teammate → engineer's view → plain-English resolution | `/p/:id/handoffs` | Real persistence; the teammate is simulated |
 | Spend meter, budget caps, usage by agent | Top bar, `/settings` | **Real** token counts; build and change prices are estimates |
@@ -104,7 +104,7 @@ Deployed on Vercel
 
 ## How it maps to Lyzr
 
-| Wonderwork | Lyzr today |
+| Prod AI | Lyzr today |
 | --- | --- |
 | Agent files (`agent.yaml`, `SOUL.md`, `RULES.md`, `DUTIES.md`) | GitAgent |
 | Permissions, supervision, approval inbox | Opencontroller identity and approval gates, pulled into the build loop |
@@ -112,9 +112,9 @@ Deployed on Vercel
 | Replay and audit log | Opencontroller observability |
 | Memory scopes | Cognis |
 | "Run on Lyzr ADK" default; any framework supported | Lyzr ADK, plus Opencontroller's framework registry |
-| Wonderwork Cloud / your VPC | Managed, hybrid and on-prem deployment |
+| Prod Cloud / your VPC | Managed, hybrid and on-prem deployment |
 
-The bet: Architect today prototypes and Opencontroller governs. Wonderwork moves governance forward into the moment an app is designed, in language a non-technical owner understands.
+The bet: Architect today prototypes and Opencontroller governs. Prod AI moves governance forward into the moment an app is designed, in language a non-technical owner understands.
 
 ## What I'd measure
 
@@ -148,7 +148,7 @@ Set `LLM_PROVIDER=none` to run everything in scripted mode without an API key.
 
 ```
 ARCHITECTURE.md      production architecture: sandboxes, harness, model gateway, proxy, GitHub, deploy, scale
-RESEARCH.md          exploration of nine products and the gaps Wonderwork targets
+RESEARCH.md          exploration of nine products and the gaps Prod AI targets
 public/docs          architecture diagram (PNG, PDF)
 app/                 routes: landing, architecture, login, demo, home, new, settings, live, p/[id]/{blueprint,preview,agents,code,ship,handoffs}, api/*
 components/workspace the studio: top bar, activity rail, inspector, canvas, preview, agents, code, ship, handoffs

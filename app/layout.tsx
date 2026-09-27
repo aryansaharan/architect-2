@@ -11,9 +11,9 @@ const sans = Hanken_Grotesk({ variable: "--font-work", subsets: ["latin"] });
 const mono = JetBrains_Mono({ variable: "--font-code", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Wonderwork: agentic apps you'd trust in production", template: "%s · Wonderwork" },
+  title: { default: "Prod AI: agentic apps you'd trust in production", template: "%s · Prod AI" },
   description:
-    "Describe an agentic app. Wonderwork plans it, prices it, builds it and shows its work, for the people who don't code and the people who do, in the same project.",
+    "Describe an agentic app. Prod AI plans it, prices it, builds it and shows its work, for the people who don't code and the people who do, in the same project.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
 };
 

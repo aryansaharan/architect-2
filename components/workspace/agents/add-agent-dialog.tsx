@@ -118,7 +118,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
                 ))}
               </div>
             </div>
-            <p className="text-[11.5px] text-muted-foreground">Runs unchanged. Wonderwork wraps its tool calls with permissions and adds rehearsals and replay, no rewrite.</p>
+            <p className="text-[11.5px] text-muted-foreground">Runs unchanged. Prod AI wraps its tool calls with permissions and adds rehearsals and replay, no rewrite.</p>
           </div>
         )}
         {lane === "endpoint" && (

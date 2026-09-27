@@ -5,7 +5,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 /**
- * The production architecture of Wonderwork, drawn as one SVG so it scales
+ * The production architecture of Prod AI, drawn as one SVG so it scales
  * crisply on screen and exports cleanly to PNG and PDF.
  * Coordinates live on a 1824 × 1142 canvas.
  *
@@ -90,7 +90,7 @@ export const CARDS: Card[] = [
   },
   { id: "egress", x: 1192, y: 676, w: 260, h: 112, title: "Egress proxy", sub: "Allow-listed network. Secrets are added on the way out and never live in the VM", icon: KeyRound, tone: "sandbox" },
   // runtime plane
-  { id: "cloud", x: 1524, y: 196, w: 260, h: 116, title: "Wonderwork Cloud", sub: "Live apps on Knative or Fly Machines. Scale to zero, a Postgres branch per app", icon: Cloud, tone: "runtime", step: [7, 8] },
+  { id: "cloud", x: 1524, y: 196, w: 260, h: 116, title: "Prod Cloud", sub: "Live apps on Knative or Fly Machines. Scale to zero, a Postgres branch per app", icon: Cloud, tone: "runtime", step: [7, 8] },
   { id: "agentgw", x: 1524, y: 328, w: 260, h: 164, title: "Agent gateway", sub: "Every production tool call passes here: permissions, approval gates, budget caps, traces", icon: ShieldCheck, tone: "runtime", tags: ["Read", "Change", "Ask first"], step: [8] },
   { id: "jobs", x: 1524, y: 508, w: 260, h: 88, title: "Queues + schedules", sub: "Triggers, retries, long-running agent tasks", icon: CalendarClock, tone: "runtime" },
   { id: "evals", x: 1524, y: 612, w: 260, h: 88, title: "Evals in production", sub: "Rehearsals replayed on real traces, drift alerts", icon: FlaskConical, tone: "runtime" },
@@ -225,11 +225,11 @@ const EDGES: Edge[] = [
   { d: orth([pv, [566, pv[1]], [566, LANE_PREVIEW], [1156, LANE_PREVIEW], [1156, vmIn[1]], vmIn]), tone: "edge", live: true },
   // events: sandbox → realtime hub
   { d: orth([vmOut, [1146, vmOut[1]], [1146, LANE_EVENTS], [548, LANE_EVENTS], [548, rt[1]], rt]), tone: "sandbox", live: true, dashed: true },
-  // deploy trunk → Wonderwork Cloud, your VPC, and up to Vercel
+  // deploy trunk → Prod Cloud, your VPC, and up to Vercel
   { d: orth([dep, [1162, dep[1]], [1162, LANE_DEPLOY], [1496, LANE_DEPLOY], [1496, cloudIn[1]], cloudIn]), tone: "runtime" },
   { d: orth([[1496, LANE_DEPLOY], [1496, A("selfhost", "l", 0.5)[1]], A("selfhost", "l", 0.5)]), tone: "runtime" },
   { d: orth([[1496, cloudIn[1] + 40], [1496, LANE_GH], [A("vercel", "b")[0], LANE_GH], A("vercel", "b")]), tone: "runtime" },
-  // live traffic: app router → Wonderwork Cloud
+  // live traffic: app router → Prod Cloud
   { d: orth([A("approuter", "b", 0.75), [A("approuter", "b", 0.75)[0], LANE_LIVE], [1502, LANE_LIVE], [1502, A("cloud", "l", 0.75)[1]], A("cloud", "l", 0.75)]), tone: "edge", live: true },
 
   // ── lanes above the planes ─────────────────────────────────────
@@ -272,7 +272,7 @@ export const FLOWS: { n: number; title: string; body: string }[] = [
   { n: 4, title: "Live preview", body: "The preview proxy maps the project's subdomain to the sandbox dev server, including WebSockets for hot reload." },
   { n: 5, title: "Show the work", body: "File, test and step events stream back through the realtime hub, so people see progress in plain English, not a spinner." },
   { n: 6, title: "Branch + PR", body: "Each Work Order becomes a branch and a pull request through the GitHub App. Pushes from engineers sync back into the Blueprint." },
-  { n: 7, title: "Ship", body: "Preflight passes, the deploy service builds one immutable release and rolls it out to Wonderwork Cloud, Vercel or your VPC." },
+  { n: 7, title: "Ship", body: "Preflight passes, the deploy service builds one immutable release and rolls it out to Prod Cloud, Vercel or your VPC." },
   { n: 8, title: "Governed agents", body: "In production every tool call goes through the agent gateway: permissions, approval gates, budget caps and traces." },
 ];
 
@@ -322,7 +322,7 @@ function CardView({ c }: { c: Card }) {
 export function ArchitectureDiagram({ id = "architecture-diagram", animated = true }: { id?: string; animated?: boolean }) {
   return (
     <svg id={id} viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-labelledby={`${id}-title`}>
-      <title id={`${id}-title`}>Wonderwork production architecture: people, edge, control plane, sandbox plane, runtime plane, and data platform, with every service connection and eight numbered flows.</title>
+      <title id={`${id}-title`}>Prod AI production architecture: people, edge, control plane, sandbox plane, runtime plane, and data platform, with every service connection and eight numbered flows.</title>
       <defs>
         <linearGradient id="sol-stroke" x1="0" y1="0" x2={W} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#fff2a6" />

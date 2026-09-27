@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** The mark: a W drawn as a firefly's light trail, its head glowing on the swarm's rhythm. */
+/** The mark: a firefly's light trail drawing a P, its glowing head closing the loop on the swarm's rhythm. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={cn("size-5 overflow-visible", className)} aria-hidden>
       <defs>
-        <linearGradient id="ww-trail" x1="3" y1="12" x2="21" y2="12" gradientUnits="userSpaceOnUse">
+        <linearGradient id="ww-trail" x1="7" y1="21" x2="18" y2="4" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#3fe0c5" stopOpacity="0.35" />
           <stop offset="0.5" stopColor="#8dff9e" />
           <stop offset="1" stopColor="#dfff4f" />
@@ -20,25 +20,28 @@ export function LogoMark({ className }: { className?: string }) {
       <path
         className="logo-trail"
         pathLength={1}
-        d="M3.2 6.6C4.6 12.6 6 17.6 8 17.6c1.9 0 2.6-6.5 4-6.5s2.1 6.5 4 6.5c1.8 0 2.9-4.7 4.2-9.9"
+        d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2"
         fill="none"
         stroke="url(#ww-trail)"
         strokeWidth="2.1"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle className="logo-head" cx="20.4" cy="6.4" r="4.2" fill="url(#ww-head)" />
-      <circle cx="20.4" cy="6.4" r="1.25" fill="#fffbe0" />
+      <circle className="logo-head" cx="10.8" cy="13.6" r="4.2" fill="url(#ww-head)" />
+      <circle cx="10.8" cy="13.6" r="1.25" fill="#fffbe0" />
     </svg>
   );
 }
 
 export function Logo({ href = "/", className, compact }: { href?: string; className?: string; compact?: boolean }) {
   return (
-    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber/60", className)} aria-label="Wonderwork home">
+    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-amber/60", className)} aria-label="Prod AI home">
       <LogoMark />
       {!compact && (
-        <span className="text-[15px] font-semibold tracking-tight text-foreground">Wonderwork</span>
+        <span className="flex items-baseline gap-1.5">
+          <span className="text-[15px] font-semibold tracking-tight text-foreground">Prod</span>
+          <span className="rounded border border-amber/30 bg-amber-soft px-1 font-mono text-[10px] font-semibold leading-[1.45] text-amber">AI</span>
+        </span>
       )}
     </Link>
   );
