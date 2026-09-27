@@ -55,9 +55,9 @@ The production design, service by service, is in **[ARCHITECTURE.md](ARCHITECTUR
 - **Agent harness:** planner, coder, verifier and repairer share one tool loop with credit, step and time budgets. The same error twice stops the loop, rolls back and hands it to a person.
 - **Model-agnostic:** a model gateway routes by task (plan, code, summarise), fails over between Claude, GPT, Gemini and open models, supports BYOK, and meters every call. Switches are gated on eval suites.
 - **Live preview:** the sandbox dev server behind a preview proxy on a separate domain, with WebSockets for hot reload and wake-on-request. Build events stream through a realtime hub.
-- **GitHub:** a GitHub App, a branch and PR per Work Order, two-way sync that parses generated files back into the Blueprint.
-- **Deployment:** build once, immutable releases, canary rollout, instant rollback, to Prod Cloud, Vercel or your VPC. Live agents run behind an agent gateway that enforces approvals and caps.
-- **Scale:** stateless control plane, durable workflows, warm pools and idle suspend, cells of ~1,000 active users, priority queues per model provider.
+- **GitHub and code sync:** a GitHub App, a branch and PR per Work Order. An ownership map and region markers keep Blueprint-generated code and hand-written code apart; edits to generated files go through a three-way merge and parse back into the Blueprint, or the object becomes code-owned.
+- **Deployment:** build once, immutable releases, canary rollout, instant rollback, to Prod Cloud, Vercel or your VPC. Live apps hold no provider secrets and have default-deny egress: every outbound call goes through an agent gateway that checks permissions, approvals and caps before adding credentials, so a bypass fails closed.
+- **Scale and cost:** stateless control plane in regional cells of ~1,000 active users, durable workflows, warm pools and idle suspend, priority queues per model provider. Model spend is modelled at about $9 per active builder a month, with caps on repair loops.
 
 ## Exploration
 

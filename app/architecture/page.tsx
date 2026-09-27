@@ -18,7 +18,7 @@ const SANDBOXES = [
 ];
 
 const TODAY: { part: string; today: string; prod: string; real: boolean }[] = [
-  { part: "Studio, auth, data", today: "Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with row-level security on every table", prod: "Same, plus SAML SSO, SCIM and regional data residency", real: true },
+  { part: "Studio, auth, data", today: "Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with row-level security on every table", prod: "The studio backend runs in each regional cell (service identities, residency, long-lived streams); Vercel keeps the marketing site. Plus SAML SSO, SCIM and regional data residency", real: true },
   { part: "Planner", today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference", prod: "Same contract, routed through the model gateway", real: true },
   { part: "Model gateway", today: "One getModel() seam, provider switch by env, per-call token and cost metering, daily budgets per person", prod: "Multi-provider routing, failover, BYOK, prompt caching", real: true },
   { part: "Agent gateway", today: "Real approval gates in the playground: tools marked “Ask first” pause for a person before running", prod: "Every production tool call, with caps, audit and traces", real: true },

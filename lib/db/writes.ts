@@ -106,7 +106,9 @@ export type LedgerInput = {
 
 export async function addLedger(supa: Supa, projectId: string, events: LedgerInput[]) {
   if (!events.length) return;
-  const rows = events.map((e) => ({
+  // Rows written together would share one now() and sort randomly; give each its own millisecond, in order.
+  const base = Date.now();
+  const rows = events.map((e, i) => ({
     project_id: projectId,
     lane: e.lane,
     kind: e.kind,
@@ -117,7 +119,7 @@ export async function addLedger(supa: Supa, projectId: string, events: LedgerInp
     object_ref: e.objectRef ?? null,
     meta: e.meta ?? null,
     checkpoint_id: e.checkpointId ?? null,
-    ...(e.createdAt ? { created_at: e.createdAt } : {}),
+    created_at: e.createdAt ?? new Date(base + i).toISOString(),
   }));
   const { error } = await supa.from("ledger_events").insert(rows);
   if (error) throw error;

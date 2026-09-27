@@ -83,7 +83,10 @@ test("import: public repo → stack report → house rules → mapped project", 
   await expect(page.getByRole("heading", { name: "House Rules" })).toBeVisible();
   await page.getByRole("button", { name: /Sign House Rules and map it/ }).click();
   await page.waitForURL(/\/p\/[0-9a-f-]+\/blueprint/, { timeout: 150_000 });
-  await expect(page.getByText("Signed").first()).toBeVisible();
+  // The activity rail may be collapsed to its slim strip at this width; the ledger entry must exist either way.
+  await expect(page.getByText(/Signed \d+ House Rules/).first()).toBeAttached();
+  await page.goto(page.url().split("?")[0].replace(/\/blueprint$/, "/code"));
+  await expect(page.getByText("Your repo · untouched")).toBeVisible();
 });
 
 test("handoff: ask a teammate → see what they see → resolve", async ({ page }) => {
