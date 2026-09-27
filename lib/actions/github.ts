@@ -24,9 +24,16 @@ export async function connectGitHub(projectId: string): Promise<{ ok: boolean; r
   return { ok: true, repo };
 }
 
+/**
+ * Sandbox pull of a teammate's commits. Only the seeded demo has that history
+ * (Priya's commits are part of its story), so nothing is invented for any
+ * other project, least of all a repository imported seconds ago.
+ */
 export async function pullFromGitHub(projectId: string): Promise<{ ok: boolean }> {
   await requireUser();
   const supa = await createClient();
+  const project = await getProject(supa, projectId);
+  if (!project?.is_demo) return { ok: false };
   await addLedger(supa, projectId, [
     { lane: "checked", kind: "change", blame: "teammate", title: "Pulled 2 commits from main", body: "Priya changed the adjuster routing threshold in agents/intake-triage/RULES.md. No conflicts. The blueprint picked it up and rehearsals still pass (sandbox).", credits: 0 },
   ]);

@@ -1,4 +1,5 @@
-import type { Block, Blueprint, Entity, Screen } from "@/lib/blueprint/schema";
+import type { Agent, Block, Blueprint, Entity, Screen } from "@/lib/blueprint/schema";
+import { houseRulePolicy, isInfraPath, ruleBlocking } from "@/lib/import/house-rules";
 import { FRAMEWORKS } from "./frameworks";
 import { agentYaml, dutiesMd, rulesMd, soulMd } from "./agentFiles";
 import type { GeneratedFile } from "./types";
@@ -259,5 +260,193 @@ jobs:
 }
 
 export function filesFor(bp: Blueprint, ref: { type: string; id: string }): GeneratedFile[] {
-  return generateFiles(bp).filter((f) => f.objectRef && f.objectRef.type === ref.type && f.objectRef.id === ref.id);
+  const files = generateFiles(bp).filter((f) => f.objectRef && f.objectRef.type === ref.type && f.objectRef.id === ref.id);
+  const agent = ref.type === "agent" ? bp.agents.find((a) => a.id === ref.id) : undefined;
+  if (agent?.origin !== "imported") return files;
+  // An imported agent's code is the owner's. Show the thin wrapper Prod AI adds, never a rewrite of it.
+  const runtime = `agents/${agent.id}/${FRAMEWORKS[agent.framework].fileName(agent)}`;
+  return files.map((f) => (f.path === runtime ? wrapperFile(agent, null, `agents/${agent.id}`) : f));
+}
+
+// ── Imported repositories: the first pull request ───────────────────────────
+
+export type HeldBackFile = { path: string; rule: string; note: string };
+export type ImportPullRequest = {
+  number: 1;
+  /** The one new folder everything is added under. Nothing outside it changes. */
+  root: string;
+  title: string;
+  branch: string;
+  files: GeneratedFile[];
+  /** Files a fresh project would get that this pull request leaves out, and the signed rule that says so. */
+  heldBack: HeldBackFile[];
+};
+export type ImportContext = {
+  repo: { owner: string; name: string };
+  /** Every file path in the repository (empty while it loads). */
+  repoPaths: string[];
+  houseRules: string[];
+  frameworks: { id: string; label: string; evidence: string }[];
+};
+
+const SOURCE_FILE = /\.(py|ts|tsx|js|mjs)$/;
+const SOURCE_RANK = ["agents.py", "agent.py", "agents.ts", "agent.ts", "graph.py", "crew.py", "main.py", "index.ts", "app.py", "server.py"];
+
+/** Best guess at the file that defines an imported framework's agents, from the stack report's evidence. */
+export function agentSourceGuess(paths: string[], frameworks: ImportContext["frameworks"], frameworkId: string): string | null {
+  const f = frameworks.find((x) => x.id === frameworkId) ?? frameworks[0];
+  const evidence = [...(f?.evidence ?? "").matchAll(/(?:dependency in|file) ([^\s·]+)/g)].map((m) => m[1]);
+  const direct = evidence.find((p) => SOURCE_FILE.test(p));
+  if (direct) return direct;
+  const dirs = [...new Set(evidence.map((p) => p.split("/").slice(0, -1).join("/")))];
+  for (const dir of dirs.length ? dirs : [""]) {
+    const inDir = paths.filter((p) => (!dir || p.startsWith(`${dir}/`)) && SOURCE_FILE.test(p) && !/(^|\/)(tests?|node_modules|\.venv|venv|examples?)\//.test(p));
+    for (const name of SOURCE_RANK) {
+      const hit = inDir.find((p) => p.split("/").pop() === name);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** A thin wrapper that loads an imported agent as it is and adds Prod AI's rules around it. `dir` is where it lives. */
+function wrapperFile(agent: Agent, source: string | null, dir: string): GeneratedFile {
+  const fw = FRAMEWORKS[agent.framework];
+  const ts = source ? /\.(ts|tsx|js|mjs)$/.test(source) : fw.language === "typescript";
+  const where = source ?? "your repository";
+  const up = "../".repeat(dir.split("/").filter(Boolean).length);
+  if (ts) {
+    const exportName = `${camel(agent.name.replace(/\bagent\b/i, ""))}Agent`;
+    const rel = source ? `${up}${source.replace(/\.(ts|tsx|js|mjs)$/, "")}` : `${up}src/agents`;
+    return {
+      path: `${dir}/wrapper.ts`,
+      lang: "ts",
+      objectRef: { type: "agent", id: agent.id },
+      content: `// Prod AI wrapper for ${agent.name} (${fw.label}).
+// Your agent is not rewritten: it is imported from ${where} exactly as it is.
+// This file only adds what Prod AI manages around it: the rules in RULES.md,
+// approval gates on irreversible tools, the audit log and rehearsals.
+// Delete this wrapper and your agent runs exactly as it did before.
+import { wrap } from "@prodai/agents";
+// Rename "${exportName}" if the agent has a different name in that file.
+import { ${exportName} as existing } from ${js(rel)};
+
+export const agent = wrap(existing, { spec: new URL("./agent.yaml", import.meta.url) });
+`,
+    };
+  }
+  const attr = snakeName(agent.name);
+  return {
+    path: `${dir}/wrapper.py`,
+    lang: "py",
+    objectRef: { type: "agent", id: agent.id },
+    content: `"""
+Prod AI wrapper for ${agent.name.replace(/"/g, "'")} (${fw.label}).
+
+Your agent is not rewritten: it is loaded from ${where} exactly as it is.
+This file only adds what Prod AI manages around it: the rules in RULES.md,
+approval gates on irreversible tools, the audit log and rehearsals.
+Delete this wrapper and your agent runs exactly as it did before.
+"""
+from pathlib import Path
+
+from prodai import load_existing, wrap  # pip install prodai
+
+SPEC = Path(__file__).with_name("agent.yaml")
+
+# Your existing agent, unchanged. Rename "${attr}" if it has a different name in that file.
+existing = load_existing(${js(source ?? "path/to/your_agent.py")}, attr=${js(attr)})
+
+agent = wrap(existing, spec=SPEC)
+`,
+  };
+}
+
+const snakeName = (name: string) => {
+  const base = kebab(name).replace(/-/g, "_") || "agent";
+  return /(^|_)agent$/.test(base) ? base : `${base}_agent`;
+};
+
+function prReadme(bp: Blueprint, ctx: ImportContext, root: string, files: GeneratedFile[], heldBack: HeldBackFile[]): string {
+  const byRule = new Map<string, string[]>();
+  for (const h of heldBack) byRule.set(h.rule, [...(byRule.get(h.rule) ?? []), h.path]);
+  return `# Prod AI for ${ctx.repo.owner}/${ctx.repo.name}
+
+Proposed in pull request #1. Not merged.
+
+Everything Prod AI adds lives in this \`${root}/\` folder. No existing file in the repository is changed, moved or deleted.
+
+- \`blueprint.json\`: the plan Prod AI mapped from this repository (${bp.screens.length} screens, ${bp.agents.length} agents, ${bp.entities.length} data types).
+- \`agents/<id>/\`: one folder per agent with its spec (\`agent.yaml\`), guardrails (\`RULES.md\`), duties and persona${bp.agents.some((a) => a.origin === "imported") ? ", and a thin wrapper around your existing agent code" : ""}.
+
+## House Rules this pull request follows
+
+${ctx.houseRules.length ? ctx.houseRules.map((r) => `- ${r}`).join("\n") : "- None signed."}
+${
+  byRule.size
+    ? `
+## Left out on purpose
+
+${[...byRule].map(([rule, paths]) => `- ${rule}\n${paths.map((p) => `  - \`${p}\``).join("\n")}`).join("\n")}
+`
+    : ""
+}
+${files.length} new files. Delete this folder and the repository is exactly as it was.
+`;
+}
+
+/**
+ * The first pull request Prod AI would open on an imported repository: only new
+ * files, all under one new folder, filtered by the signed House Rules. Agents the
+ * rules say to wrap get a thin wrapper instead of a rewrite; CI, infrastructure and
+ * a second app scaffold are held back with the rule that holds them.
+ */
+export function importPullRequest(bp: Blueprint, ctx: ImportContext): ImportPullRequest {
+  const policy = houseRulePolicy(ctx.houseRules);
+  const existing = new Set(ctx.repoPaths);
+  const hasDir = (dir: string) => ctx.repoPaths.some((p) => p.startsWith(`${dir}/`));
+  const root = ["prodai", ".prodai", "prodai-studio"].find((d) => !existing.has(d) && !hasDir(d)) ?? "prodai-studio";
+  const files: GeneratedFile[] = [];
+  const heldBack: HeldBackFile[] = [];
+  const hold = (path: string, rule: string, note: string) => heldBack.push({ path, rule, note });
+  const add = (f: GeneratedFile, original: string) => {
+    const blocked = ruleBlocking(policy, f.path);
+    if (blocked) return hold(original, blocked, "A signed House Rule keeps Prod AI out of this path.");
+    if (existing.has(f.path)) return hold(original, "Already in your repository.", "Prod AI adds files. It never overwrites yours.");
+    files.push(f);
+  };
+  const runtimeFile = (f: GeneratedFile) => {
+    if (f.objectRef?.type !== "agent") return null;
+    const agent = bp.agents.find((a) => a.id === f.objectRef!.id);
+    return agent && f.path === `agents/${agent.id}/${FRAMEWORKS[agent.framework].fileName(agent)}` ? agent : null;
+  };
+
+  for (const f of generateFiles(bp)) {
+    const agent = runtimeFile(f);
+    if (f.path === "README.md") continue; // replaced by the pull request's own README below
+    if (f.path.startsWith(".github/")) {
+      // CI only runs from .github/workflows, so it's the one file that can't live in the new folder.
+      add({ ...f, path: ".github/workflows/prodai-rehearsals.yml" }, f.path);
+    } else if (isInfraPath(f.path) && policy.infra) {
+      hold(f.path, policy.infra, "Infrastructure stays yours.");
+    } else if ((/^(app|components|lib)\//.test(f.path) || f.path === "package.json") && policy.keepFramework) {
+      hold(f.path, policy.keepFramework, "Screens would add a second app next to yours. They wait until you choose where they live.");
+    } else if (agent && agent.origin === "imported" && policy.wrapAgents) {
+      hold(f.path, policy.wrapAgents, "Your agent code stays as it is. A thin wrapper is proposed instead.");
+      add(wrapperFile(agent, agentSourceGuess(ctx.repoPaths, ctx.frameworks, agent.framework), `${root}/agents/${agent.id}`), f.path);
+    } else {
+      add({ ...f, path: `${root}/${f.path}` }, f.path);
+    }
+  }
+  const readme: GeneratedFile = { path: `${root}/README.md`, lang: "md", objectRef: { type: "brief", id: "meta" }, content: "" };
+  files.unshift(readme);
+  readme.content = prReadme(bp, ctx, root, files, heldBack);
+  return {
+    number: 1,
+    root,
+    title: `Add Prod AI specs${bp.agents.some((a) => a.origin === "imported") ? " and agent wrappers" : ""} in ${root}/`,
+    branch: "prodai/adopt",
+    files,
+    heldBack,
+  };
 }

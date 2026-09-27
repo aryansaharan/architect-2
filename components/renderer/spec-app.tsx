@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useMemo, useState } from "react";
-import { BatteryFull, Bell, Check, Menu, Search, SignalHigh, Wifi } from "lucide-react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { BatteryFull, Bell, Check, Menu, Search, SignalHigh, Sparkles, Wifi, X } from "lucide-react";
 import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { DynamicIcon } from "@/components/icon";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ import { AppContext, type AppCtx, type AppMode } from "./app-context";
 import { RenderBlock } from "./blocks";
 
 const RADIUS = { sm: "4px", md: "8px", lg: "12px" } as const;
+/** Below this frame width the agent chat folds into a drawer and the sidebar into an icon rail, so tables keep their columns. */
+export const ROOMY_WIDTH = 1200;
 
 export type WrapBlock = (block: Block, screen: Screen, node: React.ReactNode) => React.ReactNode;
 
@@ -20,6 +22,7 @@ export function SpecApp({
   projectId,
   wrapBlock,
   overlay,
+  navMarks,
 }: {
   bp: Blueprint;
   mode: AppMode;
@@ -29,6 +32,8 @@ export function SpecApp({
   projectId?: string;
   wrapBlock?: WrapBlock;
   overlay?: React.ReactNode;
+  /** Screens to mark in the app's own navigation (e.g. unresolved comments), by screen id. */
+  navMarks?: Record<string, number>;
 }) {
   const [internalScreen, setInternalScreen] = useState(bp.screens[0]?.id);
   const screenId = controlledScreen && bp.screens.some((s) => s.id === controlledScreen) ? controlledScreen : internalScreen && bp.screens.some((s) => s.id === internalScreen) ? internalScreen : bp.screens[0].id;
@@ -36,12 +41,27 @@ export function SpecApp({
   const [selectedRow, setSelectedRow] = useState<Record<string, number>>({});
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [menu, setMenu] = useState(false);
+  // The frame's own width, not the window's: the studio preview sits beside panels.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [frameWidth, setFrameWidth] = useState<number | null>(null);
+  // Measured before paint, so a narrow frame never flashes the wide layout first.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setFrameWidth(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const phone = device === "phone";
+  const compact = !phone && (device === "tablet" || (frameWidth !== null && frameWidth < ROOMY_WIDTH));
+  const [chatOpen, setChatOpen] = useState(false);
 
   const navigate = useCallback(
     (id: string) => {
       setInternalScreen(id);
       onScreenChange?.(id);
       setMenu(false);
+      setChatOpen(false);
     },
     [onScreenChange],
   );
@@ -55,14 +75,20 @@ export function SpecApp({
       const hasChat = (s: Screen) => [...s.regions.main, ...s.regions.side].some((b) => b.type === "chat" && b.agentId === agentId);
       const fire = () => window.dispatchEvent(new CustomEvent("architect:ask-agent", { detail: { agentId, prompt } }));
       const name = bp.agents.find((a) => a.id === agentId)?.name ?? "The agent";
-      if (hasChat(screen)) return fire();
+      // A folded chat drawer opens, so the answer is seen as it arrives.
+      const inDrawer = (s: Screen) => compact && s.regions.side.some((b) => b.type === "chat" && b.agentId === agentId);
+      if (hasChat(screen)) {
+        if (inDrawer(screen)) setChatOpen(true);
+        return fire();
+      }
       const target = bp.screens.find(hasChat);
       if (target) {
         navigate(target.id);
+        if (inDrawer(target)) setChatOpen(true);
         setTimeout(fire, 350);
       } else toast(`${name} is on it.`);
     },
-    [bp, screen, navigate, toast],
+    [bp, screen, navigate, toast, compact],
   );
 
   const ctx = useMemo<AppCtx>(
@@ -86,37 +112,43 @@ export function SpecApp({
   const style = { "--app-primary": theme.primary, "--app-radius": RADIUS[theme.radius] } as React.CSSProperties;
   const team = bp.screens.filter((s) => s.audience !== "customer");
   const publicScreens = bp.screens.filter((s) => s.audience === "customer");
-  const phone = device === "phone";
   const initial = bp.meta.name.slice(0, 1).toUpperCase();
   const render = (b: Block) => {
     const node = <RenderBlock block={b} />;
     return <div key={b.id}>{wrapBlock ? wrapBlock(b, screen, node) : node}</div>;
   };
+  // Narrow frames: the side chat folds into a drawer (one tap away) and other side blocks follow the main column.
+  const drawerChats = compact ? screen.regions.side.filter((b): b is Extract<Block, { type: "chat" }> => b.type === "chat") : [];
+  const sideInline = compact ? screen.regions.side.filter((b) => b.type !== "chat") : screen.regions.side;
+  const drawerAgent = drawerChats[0] ? bp.agents.find((a) => a.id === drawerChats[0].agentId) : undefined;
+  const chatVisible = chatOpen && drawerChats.length > 0;
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className={cn("relative flex h-full min-h-0 bg-slate-50 font-sans text-slate-900 antialiased", phone && "app-phone flex-col", theme.density === "compact" && "text-[13px]")} style={style}>
+      <div ref={rootRef} className={cn("relative flex h-full min-h-0 overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased", phone && "app-phone flex-col", theme.density === "compact" && "text-[13px]")} style={style}>
         {!phone && (
-          <aside className={cn("flex shrink-0 flex-col border-r border-slate-200 bg-white", device === "tablet" ? "w-[184px]" : "w-[220px]")}>
-            <div className="flex items-center gap-2.5 px-4 py-4">
-              <span className="grid size-7 place-items-center rounded-lg text-[13px] font-bold text-white" style={{ background: "var(--app-primary)" }}>{initial}</span>
-              <span className="truncate text-[13.5px] font-semibold">{bp.meta.name}</span>
+          <aside className={cn("flex shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-300", compact ? "w-[60px]" : "w-[220px]")}>
+            <div className={cn("flex items-center gap-2.5 py-4", compact ? "justify-center px-2" : "px-4")}>
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style={{ background: "var(--app-primary)" }} title={compact ? bp.meta.name : undefined}>{initial}</span>
+              {!compact && <span className="truncate text-[13.5px] font-semibold">{bp.meta.name}</span>}
             </div>
             <nav className="flex-1 space-y-0.5 px-2" aria-label="App">
-              {team.map((s) => <NavItem key={s.id} s={s} active={s.id === screen.id} onClick={() => navigate(s.id)} />)}
+              {team.map((s) => <NavItem key={s.id} s={s} active={s.id === screen.id} onClick={() => navigate(s.id)} iconOnly={compact} marks={navMarks?.[s.id]} />)}
               {publicScreens.length > 0 && (
                 <>
-                  <p className="px-2.5 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-slate-400">Public pages</p>
-                  {publicScreens.map((s) => <NavItem key={s.id} s={s} active={s.id === screen.id} onClick={() => navigate(s.id)} />)}
+                  {compact ? <hr className="mx-2 my-3 border-slate-100" /> : <p className="px-2.5 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-slate-400">Public pages</p>}
+                  {publicScreens.map((s) => <NavItem key={s.id} s={s} active={s.id === screen.id} onClick={() => navigate(s.id)} iconOnly={compact} marks={navMarks?.[s.id]} />)}
                 </>
               )}
             </nav>
-            <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-3">
-              <span className="grid size-7 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">MS</span>
-              <span className="min-w-0">
-                <span className="block truncate text-[12.5px] font-medium">Maya Singh</span>
-                <span className="block truncate text-[11px] text-slate-400">{bp.meta.auth.enabled ? "Signed in with SSO" : "Guest"}</span>
-              </span>
+            <div className={cn("flex items-center gap-2 border-t border-slate-100 py-3", compact ? "justify-center px-2" : "px-4")}>
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600" title={compact ? "Maya Singh" : undefined}>MS</span>
+              {!compact && (
+                <span className="min-w-0">
+                  <span className="block truncate text-[12.5px] font-medium">Maya Singh</span>
+                  <span className="block truncate text-[11px] text-slate-400">{bp.meta.auth.enabled ? "Signed in with SSO" : "Guest"}</span>
+                </span>
+              )}
             </div>
           </aside>
         )}
@@ -145,25 +177,55 @@ export function SpecApp({
                 <h1 className="truncate text-[16px] font-semibold tracking-tight">{screen.title}</h1>
                 <p className="truncate text-[12.5px] text-slate-500">{screen.purpose}</p>
               </div>
-              <div className="ml-auto flex items-center gap-2 text-slate-400">
-                <span className="hidden h-8 items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5 text-[12.5px] lg:flex"><Search className="size-3.5" />Search</span>
+              <div className="ml-auto flex shrink-0 items-center gap-2 text-slate-400">
+                {drawerChats.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setChatOpen((o) => !o)}
+                    aria-expanded={chatVisible}
+                    aria-controls="app-chat-drawer"
+                    className={cn("inline-flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] border px-2.5 text-[12.5px] font-medium transition-colors", chatVisible ? "border-transparent text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50")}
+                    style={chatVisible ? { background: "var(--app-primary)" } : undefined}
+                  >
+                    <Sparkles className="size-3.5" />
+                    {drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent"}
+                  </button>
+                )}
+                {!compact && <span className="hidden h-8 items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5 text-[12.5px] lg:flex"><Search className="size-3.5" />Search</span>}
                 <span className="grid size-8 place-items-center rounded-[var(--app-radius)] border border-slate-200"><Bell className="size-3.5" /></span>
               </div>
             </header>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className={cn("mx-auto grid gap-5", phone ? "p-3" : device === "tablet" ? "p-4" : "p-6", screen.layout === "form" && !phone ? "max-w-5xl" : "max-w-[1400px]")}>
-              {screen.regions.side.length > 0 && !phone ? (
-                <div className={cn("grid items-start gap-5", screen.layout === "split" ? "grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]" : screen.layout === "form" ? "grid-cols-[minmax(0,1.5fr)_minmax(240px,1fr)]" : "grid-cols-[minmax(0,2.2fr)_minmax(280px,1fr)]", device === "tablet" && "grid-cols-1")}>
+              {screen.regions.side.length > 0 && !phone && !compact ? (
+                <div className={cn("grid items-start gap-5", screen.layout === "split" ? "grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]" : screen.layout === "form" ? "grid-cols-[minmax(0,1.5fr)_minmax(240px,1fr)]" : "grid-cols-[minmax(0,2.2fr)_minmax(280px,1fr)]")}>
                   <div className="min-w-0 space-y-5">{screen.regions.main.map(render)}</div>
                   <div className="min-w-0 space-y-5">{screen.regions.side.map(render)}</div>
                 </div>
               ) : (
-                <div className={cn("min-w-0 space-y-5", screen.layout === "form" && "mx-auto w-full max-w-2xl")}>{[...screen.regions.main, ...screen.regions.side].map(render)}</div>
+                <div className={cn("min-w-0 space-y-5", screen.layout === "form" && "mx-auto w-full max-w-2xl")}>{[...screen.regions.main, ...sideInline].map(render)}</div>
               )}
             </div>
           </div>
         </div>
+        {drawerChats.length > 0 && (
+          <>
+            <button type="button" aria-hidden tabIndex={-1} onClick={() => setChatOpen(false)} className={cn("absolute inset-0 z-20 bg-slate-900/10 transition-opacity duration-300", chatVisible ? "opacity-100" : "pointer-events-none opacity-0")} />
+            {/* Kept mounted while closed, so the conversation survives toggling and "Ask" buttons still reach it. */}
+            <aside
+              id="app-chat-drawer"
+              aria-label={drawerAgent ? `Ask ${drawerAgent.name}` : "Agent chat"}
+              inert={!chatVisible}
+              className={cn("app-drawer absolute inset-y-0 right-0 z-30 flex w-[min(400px,88%)] flex-col border-l border-slate-200 bg-slate-50 shadow-[-24px_0_48px_-24px_rgb(15_23_42/0.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", chatVisible ? "translate-x-0" : "translate-x-full")}
+            >
+              <div className="flex items-center justify-end px-3 pt-2.5">
+                <button type="button" onClick={() => setChatOpen(false)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close chat"><X className="size-4" /></button>
+              </div>
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-3">{drawerChats.map(render)}</div>
+            </aside>
+          </>
+        )}
         <div className="pointer-events-none absolute bottom-4 right-4 z-20 space-y-2">
           {toasts.map((t) => (
             <div key={t.id} role="status" className="flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-[12.5px] text-white shadow-lg animate-in fade-in slide-in-from-bottom-2">
@@ -178,11 +240,19 @@ export function SpecApp({
   );
 }
 
-function NavItem({ s, active, onClick }: { s: Screen; active: boolean; onClick: () => void }) {
+function NavItem({ s, active, onClick, iconOnly = false, marks }: { s: Screen; active: boolean; onClick: () => void; iconOnly?: boolean; marks?: number }) {
   return (
-    <button onClick={onClick} aria-current={active ? "page" : undefined} className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors", active ? "font-medium" : "text-slate-600 hover:bg-slate-50")} style={active ? { background: "color-mix(in oklab, var(--app-primary) 10%, white)", color: "var(--app-primary)" } : undefined}>
+    <button
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      aria-label={iconOnly ? `${s.title}${marks ? `, ${marks} open comment${marks === 1 ? "" : "s"}` : ""}` : undefined}
+      title={iconOnly ? s.title : undefined}
+      className={cn("relative flex w-full items-center gap-2.5 rounded-lg py-2 text-left text-[13px] transition-colors", iconOnly ? "justify-center px-0" : "px-2.5", active ? "font-medium" : "text-slate-600 hover:bg-slate-50")}
+      style={active ? { background: "color-mix(in oklab, var(--app-primary) 10%, white)", color: "var(--app-primary)" } : undefined}
+    >
       <DynamicIcon name={s.icon} className="size-4 shrink-0" />
-      <span className="truncate">{s.title}</span>
+      {!iconOnly && <span className="min-w-0 flex-1 truncate">{s.title}</span>}
+      {marks ? <span className={cn("size-1.5 shrink-0 rounded-full bg-sky-500", iconOnly && "absolute right-2 top-1.5")} aria-hidden={iconOnly} title={iconOnly ? undefined : `${marks} open comment${marks === 1 ? "" : "s"}`} /> : null}
     </button>
   );
 }

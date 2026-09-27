@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Blueprint } from "@/lib/blueprint/schema";
+import type { Blueprint, Connection } from "@/lib/blueprint/schema";
 
 /**
  * What the model is asked to produce: the *decisions* (what data, which agents,
@@ -85,7 +85,9 @@ export const DraftSchema = z.object({
         audience: z.enum(["team", "customer", "admin"]),
         metrics: z
           .array(z.object({ label: z.string(), value: z.string() }))
-          .describe("2–4 headline numbers for queue/dashboard/report screens; otherwise empty"),
+          .describe(
+            "2–4 headline numbers for queue/dashboard/report screens; otherwise empty. The app counts them from the entity's sample rows, so each label names what to count: an enum option exactly ('Awaiting approval'), the data type with 'Open' ('Open requests'), a money field ('Total amount'), or a time window on a date field ('New today'). Values must match the sample rows.",
+          ),
       }),
     )
     .describe("3–5 screens; start with the screen people open first; include one 'detail' screen"),
@@ -101,14 +103,79 @@ Principles:
 - Prefer fewer, sharper agents with separated jobs over many overlapping ones.
 - Sample data must be realistic and specific to the brief, with fictional names.
 - Keep it buildable: 3–5 screens, 2–3 agents, 2–4 data types, 3–5 connections.
-- Respect the answers to the quick questions. If they say nothing is connected yet ("Nothing yet", "Nowhere yet", "None yet"), never assume an outside system is already set up: plan only the outside systems the agents truly need (fewer is better). They will be shown as needing setup.`;
+- Respect the answers to the quick questions. When they name the systems it must connect to (often several, comma-separated, e.g. "Email, SMS"), plan a connection for each one. If they say nothing is connected yet ("Nothing yet", "Nowhere yet", "None yet"), never assume an outside system is already set up: plan only the outside systems the agents truly need (fewer is better). They will be shown as needing setup.`;
+
+const NOTHING = /^(nothing|nowhere|none) yet$/i;
+
+/** True when the connections answer is "Nothing yet" (or "Nowhere yet" / "None yet") and nothing else. */
+export function isNothingOnly(connections: string[]): boolean {
+  const picked = connections.map((c) => c.trim()).filter(Boolean);
+  return picked.length > 0 && picked.every((c) => NOTHING.test(c));
+}
 
 /**
  * True when the person answered the "what must it connect to?" question with
- * "Nothing yet" (or "Nowhere yet" / "None yet"): see lib/blueprint/questions.ts.
+ * "Nothing yet" (or "Nowhere yet" / "None yet") alone: see lib/blueprint/questions.ts.
+ * The question takes several answers now ("Email, SMS"); a line that lists a
+ * real system next to "Nothing yet" doesn't count as nothing connected.
  */
 export function saysNothingConnected(answers: string): boolean {
-  return /\b(nothing|nowhere|none) yet\b/i.test(answers);
+  return answers.split("\n").some((line) => {
+    const answer = line.includes("?") ? line.slice(line.lastIndexOf("?") + 1) : line;
+    return isNothingOnly(answer.split(","));
+  });
+}
+
+/** Clean the multi-select from the questions step: strings only, short, at most 8. */
+export function cleanConnections(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out = [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim().slice(0, 40)).filter(Boolean))].slice(0, 8);
+  return out.length ? out : null;
+}
+
+type Wanted = { match: (c: Connection) => boolean; add: Omit<Connection, "id" | "status"> & { id: string } };
+/** What each answer to "what must it connect to?" means as a connection (lib/blueprint/questions.ts and components/new/connections.ts). */
+const WANTED: Record<string, Wanted> = {
+  email: { match: (c) => c.kind === "email", add: { id: "email", name: "Email", kind: "email", auth: "oauth", plain: "Reads and sends email (Gmail or Outlook). Needs setup." } },
+  "shared inbox": { match: (c) => c.kind === "email", add: { id: "shared-inbox", name: "Shared inbox", kind: "email", auth: "oauth", plain: "The support inbox where tickets arrive. Needs setup." } },
+  sms: { match: (c) => /\b(sms|twilio|text)/i.test(`${c.name} ${c.plain}`), add: { id: "sms", name: "SMS (Twilio)", kind: "http", auth: "api_key", plain: "Sends and receives text messages. Needs setup." } },
+  slack: { match: (c) => c.kind === "slack", add: { id: "slack", name: "Slack", kind: "slack", auth: "oauth", plain: "Posts updates and alerts to your team's channels. Needs setup." } },
+  "a crm": { match: (c) => c.kind === "crm", add: { id: "crm", name: "CRM", kind: "crm", auth: "oauth", plain: "Your customer records (HubSpot, Salesforce or similar). Needs setup." } },
+  hubspot: { match: (c) => c.kind === "crm", add: { id: "hubspot", name: "HubSpot", kind: "crm", auth: "oauth", plain: "Your customer records and deals. Needs setup." } },
+  salesforce: { match: (c) => c.kind === "crm", add: { id: "salesforce", name: "Salesforce", kind: "crm", auth: "oauth", plain: "Your customer records and opportunities. Needs setup." } },
+  payments: { match: (c) => c.kind === "payments", add: { id: "payments", name: "Stripe", kind: "payments", auth: "api_key", plain: "Takes and refunds payments. Needs setup." } },
+  calendar: { match: (c) => c.kind === "calendar" || /calendar|outlook|microsoft 365|google workspace/i.test(c.name), add: { id: "calendar", name: "Google Calendar", kind: "calendar", auth: "oauth", plain: "Checks availability and books time. Needs setup." } },
+  spreadsheet: { match: (c) => c.kind === "docs" || /sheet|excel|airtable/i.test(c.name), add: { id: "spreadsheet", name: "Google Sheets", kind: "docs", auth: "oauth", plain: "The spreadsheet this work lives in today. Needs setup." } },
+  "policy system": { match: (c) => /policy/i.test(c.name), add: { id: "policy-system", name: "Policy system", kind: "http", auth: "api_key", plain: "Looks up policies and coverage. Needs setup." } },
+  "hr system (workday)": { match: (c) => /workday|hris|hr system/i.test(c.name), add: { id: "workday", name: "Workday", kind: "http", auth: "oauth", plain: "The HR system of record for new hires. Needs setup." } },
+  "identity (okta)": { match: (c) => /okta|identity|sso/i.test(c.name), add: { id: "okta", name: "Okta", kind: "http", auth: "api_key", plain: "Creates and removes accounts. Needs setup." } },
+  "laptops & procurement": { match: (c) => /procure|laptop|equipment/i.test(c.name), add: { id: "procurement", name: "Procurement", kind: "http", auth: "api_key", plain: "Orders laptops and equipment. Needs setup." } },
+  zendesk: { match: (c) => /zendesk/i.test(c.name), add: { id: "zendesk", name: "Zendesk", kind: "http", auth: "oauth", plain: "Where tickets live today. Needs setup." } },
+  intercom: { match: (c) => /intercom/i.test(c.name), add: { id: "intercom", name: "Intercom", kind: "http", auth: "oauth", plain: "Where conversations live today. Needs setup." } },
+};
+
+/** Extra prompt line for the planner when specific systems were chosen. */
+export function connectionsNote(connections: string[]): string {
+  return `Important: it must connect to ${connections.join(", ")}. Plan one outside connection for each of these (a real product that fits, e.g. Gmail for Email, Twilio for SMS), give the agents the tools that use them, and add others only if the agents truly need them.`;
+}
+
+/**
+ * Deterministic guard that holds even if the model (or the offline starter)
+ * ignores the answer: every chosen system appears as a connection. Ones the
+ * plan lacked are added as needing setup. The app's database is untouched.
+ */
+export function ensureConnections(bp: Blueprint, connections: string[]): Blueprint {
+  const next = [...bp.connections];
+  const ids = new Set(next.map((c) => c.id));
+  for (const pick of connections) {
+    const w = WANTED[pick.trim().toLowerCase()];
+    if (!w || next.some(w.match) || next.length >= 8) continue;
+    let id = w.add.id;
+    for (let n = 2; ids.has(id); n++) id = `${w.add.id}-${n}`;
+    ids.add(id);
+    next.push({ ...w.add, id, status: "missing" });
+  }
+  return next.length === bp.connections.length ? bp : { ...bp, connections: next };
 }
 
 /** Extra prompt line for the planner when nothing is connected yet. */

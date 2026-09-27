@@ -2,17 +2,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Loader2, MessageSquarePlus, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, MessageSquarePlus, Plus, Trash2, X } from "lucide-react";
 import type { Block, Blueprint } from "@/lib/blueprint/schema";
 import { BLOCK_LABELS } from "@/lib/blueprint";
 import { tweakBlock, type BlockTweak } from "@/lib/actions/blueprint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { deriveKpi, screenEntityId } from "@/components/renderer/kpi";
 import { undoTo } from "../undo";
 import { useWorkspace } from "../context";
 
-/** Free, deterministic edits to one block. Bigger asks go to the composer as a Work Order. */
+/**
+ * Free, deterministic edits to one block. Bigger asks go to the composer as a Work Order.
+ * Rendered docked beside the preview (see preview-view.tsx), so it never covers the block it edits.
+ */
 export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId: string; block: Block; bp: Blueprint; onClose: () => void; onAsk: () => void }) {
   const router = useRouter();
   const ws = useWorkspace();
@@ -63,17 +67,20 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
     return n;
   });
   const label = (f: string) => entity?.fields.find((x) => x.name === f)?.label ?? f;
+  // KPI tiles count from the records when their label says what to count, so renaming one can change its number.
+  const kpiScreen = block.type === "kpis" ? bp.screens.find((s) => [...s.regions.main, ...s.regions.side].some((b) => b.id === block.id)) : undefined;
+  const kpiValue = (i: number, l: string) => (block.type === "kpis" && block.items[i] ? deriveKpi({ ...block.items[i], label: l }, bp, screenEntityId(bp, kpiScreen?.id)) : null);
 
   return (
-    <div className="panel-raised w-[320px] rounded-xl text-foreground" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between border-b border-hairline px-3 py-2.5">
+    <div className="flex h-full min-h-0 flex-col text-foreground" onClick={(e) => e.stopPropagation()}>
+      <div className="flex shrink-0 items-center justify-between border-b border-hairline px-3 py-2.5">
         <div>
           <p className="micro-label text-amber">Tweak · free</p>
           <p className="text-[13px] font-medium">{BLOCK_LABELS[block.type]}{entity ? ` · ${entity.plural}` : ""}</p>
         </div>
-        <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
       </div>
-      <div className="max-h-[380px] space-y-3 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {"title" in block && (
           <label className="block">
             <span className="micro-label">Title</span>
@@ -82,13 +89,24 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
         )}
         {block.type === "table" && (
           <div>
-            <span className="micro-label">Columns · drag order with arrows</span>
-            <ul className="mt-1.5 space-y-1">
+            <span className="micro-label">Columns · top shows first (leftmost)</span>
+            <ul className="mt-1.5 space-y-1" aria-label="Column order">
               {cols.map((c, i) => (
-                <li key={c} className="flex items-center gap-1 rounded-md border border-hairline bg-deep/60 px-2 py-1 text-[12.5px]">
+                <li
+                  key={c}
+                  tabIndex={0}
+                  aria-label={`${label(c)}, column ${i + 1} of ${cols.length}. Alt plus up or down arrow moves it.`}
+                  onKeyDown={(e) => {
+                    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+                    e.preventDefault();
+                    move(i, e.key === "ArrowUp" ? -1 : 1);
+                  }}
+                  className="flex items-center gap-1 rounded-md border border-hairline bg-deep/60 px-2 py-1 text-[12.5px] outline-none focus-visible:border-amber/60"
+                >
+                  <span className="w-4 shrink-0 font-mono text-[10.5px] text-faint">{i + 1}</span>
                   <span className="flex-1 truncate">{label(c)}</span>
-                  <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} left`}><ArrowLeft className="size-3" /></button>
-                  <button onClick={() => move(i, 1)} disabled={i === cols.length - 1} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} right`}><ArrowRight className="size-3" /></button>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} up`} title="Move up (Alt+↑)"><ArrowUp className="size-3" /></button>
+                  <button onClick={() => move(i, 1)} disabled={i === cols.length - 1} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} down`} title="Move down (Alt+↓)"><ArrowDown className="size-3" /></button>
                   <button onClick={() => setCols((x) => (x.length > 1 ? x.filter((y) => y !== c) : x))} className="rounded p-0.5 text-muted-foreground hover:text-ask" aria-label={`Hide ${label(c)}`}><X className="size-3" /></button>
                 </li>
               ))}
@@ -108,10 +126,17 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
           <div>
             <span className="micro-label">{block.type === "kpis" ? "Labels" : "Button text"}</span>
             <div className="mt-1.5 space-y-1.5">
-              {labels.map((l, i) => (
-                <Input key={i} className="h-8" value={l} onChange={(e) => setLabels((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
-              ))}
+              {labels.map((l, i) => {
+                const k = kpiValue(i, l);
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input className="h-8 min-w-0 flex-1" value={l} onChange={(e) => setLabels((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
+                    {k && <span className="w-[72px] shrink-0 truncate text-right font-mono text-[11.5px] tabular-nums" title={k.derived ? "Counted from the records" : "As written in the plan: the label doesn't say what to count"}><span className={k.derived ? "text-read" : "text-muted-foreground"}>{k.value}</span></span>}
+                  </div>
+                );
+              })}
             </div>
+            {block.type === "kpis" && <p className="mt-1.5 text-[11px] leading-snug text-faint">Green numbers are counted from the records on this screen and update as you rename.</p>}
           </div>
         )}
         {block.type === "form" && (
@@ -130,7 +155,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
           <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll get a Work Order with the price first.</p>
         )}
       </div>
-      <div className="flex items-center gap-2 border-t border-hairline p-3">
+      <div className="flex shrink-0 items-center gap-2 border-t border-hairline p-3">
         <Button size="sm" className="h-8" disabled={pending || changes.length === 0} onClick={() => save(changes, "Tweaked")}>
           {pending ? <Loader2 className="animate-spin" /> : null} Save · free
         </Button>

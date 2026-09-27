@@ -4,7 +4,9 @@ import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writ
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { modelBudgetOk } from "@/lib/llm/guard";
-import { NOTHING_CONNECTED_NOTE, markNothingConnected, saysNothingConnected } from "@/lib/llm/draft";
+import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, markNothingConnected, saysNothingConnected } from "@/lib/llm/draft";
+import { estimate } from "@/lib/blueprint/estimate";
+import type { Blueprint } from "@/lib/blueprint/schema";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -12,12 +14,24 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in first" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { brief?: string; answers?: string };
+  const body = (await req.json().catch(() => ({}))) as { brief?: string; answers?: string; connections?: unknown };
   const brief = (body.brief ?? "").trim().slice(0, 2000);
   if (brief.length < 8) return Response.json({ error: "Describe what you want in a sentence or two" }, { status: 400 });
   const answers = (body.answers ?? "").slice(0, 600);
-  // "Connect to: Nothing yet" holds twice: in the prompt, and deterministically on the result (model or starter).
-  const nothingConnected = saysNothingConnected(answers);
+  // "What must it connect to?" is a multi-select ("Email, SMS"). Older clients send only the answers text.
+  const connections = cleanConnections(body.connections);
+  // "Connect to: Nothing yet" (alone) holds twice: in the prompt, and deterministically on the result (model or starter).
+  const nothingConnected = connections ? isNothingOnly(connections) : saysNothingConnected(answers);
+  // Named systems hold twice too: the planner is told, and any it leaves out are added as needing setup.
+  const wanted = connections && !nothingConnected ? connections.filter((c) => !/^(nothing|nowhere|none) yet$/i.test(c)) : [];
+  const adjust = (bp: Blueprint): Blueprint => {
+    let next = nothingConnected ? markNothingConnected(bp) : bp;
+    if (wanted.length) {
+      const withAll = ensureConnections(next, wanted);
+      if (withAll !== next) next = { ...withAll, estimate: estimate(withAll) };
+    }
+    return next;
+  };
   const supa = await createClient();
   const allowModel = await modelBudgetOk(supa, user);
 
@@ -26,12 +40,12 @@ export async function POST(req: Request) {
       const enc = new TextEncoder();
       const send = (e: PlanEvent) => controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
       const { blueprint, mode, usage, vertical } = await streamPlan({
-        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : ""}`,
+        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : wanted.length ? `\n\n${connectionsNote(wanted)}` : ""}`,
         userId: user.id,
         allowModel,
         send,
         fallback: () => starterFor(brief).blueprint,
-        adjust: nothingConnected ? (bp) => markNothingConnected(bp) : undefined,
+        adjust: nothingConnected || wanted.length ? adjust : undefined,
         failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
       });
       try {

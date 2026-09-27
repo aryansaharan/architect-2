@@ -7,6 +7,7 @@ import { matchVertical } from "@/lib/blueprint/match";
 import { EXAMPLES } from "@/components/home/home-composer";
 import { cn } from "@/lib/utils";
 import { PlanningView, usePlanStream } from "./plan-stream";
+import { connectionsFor, isConnectionsQuestion, isNothingOption, toggleConnection } from "./connections";
 
 type Step = "describe" | "questions" | "planning";
 
@@ -17,12 +18,27 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   const planner = usePlanStream(llm);
 
   const vertical = useMemo(() => (brief.length > 12 ? matchVertical(brief) : null), [brief]);
-  const questions: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom"), [vertical]);
+  const canned: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom"), [vertical]);
+  // "What must it connect to?" takes several answers, pre-selected from what the brief names (email, texts, Slack…).
+  const conn = useMemo(() => {
+    const q = canned.find(isConnectionsQuestion);
+    return q ? connectionsFor(q, brief) : null;
+  }, [canned, brief]);
+  const questions = useMemo(() => canned.map((q) => (conn && q.id === conn.question.id ? conn.question : q)), [canned, conn]);
+  const [pickedByHand, setPicked] = useState<string[] | null>(null);
+  const handPicked = pickedByHand?.filter((o) => conn?.question.options.includes(o)) ?? [];
+  const picked = handPicked.length ? handPicked : (conn?.preselected ?? []);
 
   function plan(skip: boolean) {
     setStep("planning");
-    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, answers) }, (id) => `/p/${id}/blueprint?sel=brief:meta`);
+    const all = conn ? { ...answers, [conn.question.id]: picked.join(", ") } : answers;
+    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}/blueprint?sel=brief:meta`);
   }
+
+  const toDescribe = () => {
+    setPicked(null);
+    setStep("describe");
+  };
 
   if (step === "describe") {
     return (
@@ -37,7 +53,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
             {EXAMPLES.map((ex) => (
               <button key={ex.label} onClick={() => setBrief(ex.prompt)} className={cn("rounded-full border px-2.5 py-1 text-[12px] transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground", brief === ex.prompt ? "border-amber/50 bg-amber-soft text-foreground" : "border-hairline text-muted-foreground")}>{ex.label}</button>
             ))}
-            <Button className="sheen ml-auto shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => setStep("questions")} disabled={brief.trim().length < 12}>Next <ArrowRight /></Button>
+            <Button className="sheen ml-auto shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => { setPicked(null); setStep("questions"); }} disabled={brief.trim().length < 12}>Next <ArrowRight /></Button>
           </div>
         </div>
       </div>
@@ -53,34 +69,47 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
         <div className="panel mt-6 flex gap-3 rounded-xl p-4">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1 text-[13.5px] leading-relaxed">{brief}</p>
-          <button onClick={() => setStep("describe")} className="self-start text-muted-foreground hover:text-foreground" aria-label="Edit the brief"><Pencil className="size-3.5" /></button>
+          <button onClick={toDescribe} className="self-start text-muted-foreground hover:text-foreground" aria-label="Edit the brief"><Pencil className="size-3.5" /></button>
         </div>
         <div className="mt-6 space-y-6">
           {questions.map((q) => {
-            const current = answers[q.id] ?? q.options[q.defaultIndex];
+            const multi = conn?.question.id === q.id;
+            const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
             return (
               <fieldset key={q.id}>
-                <legend className="text-[14px] font-medium">{q.label}</legend>
+                <legend className="text-[14px] font-medium">
+                  {q.label}
+                  {multi && <span className="ml-2 text-[12px] font-normal text-muted-foreground">Pick all that apply</span>}
+                </legend>
                 <div className="mt-2.5 flex flex-wrap gap-2">
-                  {q.options.map((o) => (
-                    <button
-                      key={o}
-                      type="button"
-                      aria-pressed={current === o}
-                      onClick={() => setAnswers((a) => ({ ...a, [q.id]: o }))}
-                      className={cn("rounded-full border px-3 py-1.5 text-[13px] transition-all duration-200 active:scale-95", current === o ? "border-amber/60 bg-amber-soft text-amber shadow-[0_0_20px_-8px_rgb(223_255_79/0.6)]" : "border-hairline text-muted-foreground hover:-translate-y-px hover:border-hairline-hi hover:text-foreground")}
-                    >
-                      {current === o && <Check className="-ml-0.5 mr-1 inline size-3.5" />}
-                      {o}
-                    </button>
-                  ))}
+                  {q.options.map((o) => {
+                    const on = selected.includes(o);
+                    return (
+                      <button
+                        key={o}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o })))}
+                        className={cn("rounded-full border px-3 py-1.5 text-[13px] transition-all duration-200 active:scale-95", on ? "border-amber/60 bg-amber-soft text-amber shadow-[0_0_20px_-8px_rgb(223_255_79/0.6)]" : "border-hairline text-muted-foreground hover:-translate-y-px hover:border-hairline-hi hover:text-foreground")}
+                      >
+                        {on && <Check className="-ml-0.5 mr-1 inline size-3.5" />}
+                        {o}
+                      </button>
+                    );
+                  })}
                 </div>
+                {multi && conn.fromBrief.length > 0 && (
+                  <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <Sparkles className="size-3 text-amber" />
+                    Pre-selected from your brief: {conn.fromBrief.join(", ")}.{picked.some(isNothingOption) ? "" : " Change anything that's wrong."}
+                  </p>
+                )}
               </fieldset>
             );
           })}
         </div>
         <div className="mt-8 flex items-center gap-3">
-          <Button variant="ghost" onClick={() => setStep("describe")}><ArrowLeft /> Back</Button>
+          <Button variant="ghost" onClick={toDescribe}><ArrowLeft /> Back</Button>
           <Button variant="ghost" className="ml-auto text-muted-foreground" onClick={() => plan(true)}>Skip, use sensible defaults</Button>
           <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(239_255_148/0.35),0_10px_30px_-10px_rgb(223_255_79/0.8)]" onClick={() => plan(false)}>Plan it <ArrowRight /></Button>
         </div>

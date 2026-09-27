@@ -1,6 +1,5 @@
 import {
   BlueprintSchema,
-  defaultPermissionFor,
   type Agent,
   type Block,
   type Blueprint,
@@ -10,6 +9,7 @@ import {
   type Vertical,
 } from "@/lib/blueprint/schema";
 import { estimate } from "@/lib/blueprint/estimate";
+import { estimateRunCredits, presetPermission } from "@/lib/blueprint/describe";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { hash } from "@/lib/sim/hash";
 import type { Draft } from "./draft";
@@ -65,6 +65,19 @@ function coerce(value: string, type: string): string | number | boolean {
   }
   if (type === "boolean") return /^(true|yes|y|1)$/i.test(v);
   return v;
+}
+
+/**
+ * Headline numbers for a screen the model gave none: the record count and the
+ * size of the first status, both counted from the sample rows (the renderer
+ * recounts them live), never invented.
+ */
+function fallbackKpis(entity: Entity): Extract<Block, { type: "kpis" }>["items"] {
+  const status = entity.fields.find((f) => f.type === "enum" && /status|stage|state/i.test(f.name) && f.options?.length) ?? entity.fields.find((f) => f.type === "enum" && f.options?.length);
+  const items: Extract<Block, { type: "kpis" }>["items"] = [{ label: entity.plural, value: String(entity.sample.length), tone: "neutral" }];
+  const first = status?.options?.find((o) => entity.sample.some((r) => r[status.name] === o)) ?? status?.options?.[0];
+  if (status && first) items.push({ label: first, value: String(entity.sample.filter((r) => r[status.name] === first).length), tone: "neutral" });
+  return items;
 }
 
 export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint {
@@ -132,24 +145,27 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
         description: t.description,
         connectionId: conn.id,
         access: t.access,
-        permission: defaultPermissionFor(t.access),
+        // Supervision is a preset that writes every tool's permission, so a drafted agent never reads "Custom".
+        permission: presetPermission(a.supervision, t.access),
       };
     });
     const id = uniq(kebab(a.name), agentIds);
     const rules = a.rules.filter(Boolean).slice(0, 6);
+    const jobDescription = a.jobDescription;
+    const guardrails = rules.length ? rules : ["Ask a person when you are unsure."];
     return {
       id,
       name: a.name,
       role: a.role,
       avatarHue: hash(id) % 360,
       plain: a.description,
-      jobDescription: a.jobDescription,
-      rules: rules.length ? rules : ["Ask a person when you are unsure."],
+      jobDescription,
+      rules: guardrails,
       tools,
       supervision: a.supervision,
       knowledge: [],
       memory: { scope: a.memory, retentionDays: a.memory === "org" ? 365 : 30 },
-      cost: { creditsPerRun: Math.max(1, Math.round(1 + tools.length / 2)), model: opts.modelId },
+      cost: { creditsPerRun: estimateRunCredits({ tools, jobDescription, rules: guardrails, cost: { model: opts.modelId } }), model: opts.modelId },
       triggers: ["chat"],
       rehearsals: a.rehearsals.slice(0, 4).map((r, i) => ({ id: `r-${kebab(r.name)}-${i}`, name: r.name, input: r.input, expect: r.expect, history: [] })),
       framework: "lyzr",
@@ -183,10 +199,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
     const kpis: Block | null =
       metrics.length > 0
         ? { type: "kpis", id: bid(id, "kpis"), items: metrics }
-        : { type: "kpis", id: bid(id, "kpis"), items: [
-            { label: `${entity.plural}`, value: String(entity.sample.length * 7 + 3), tone: "neutral" },
-            { label: "Handled by agents", value: `${60 + (hash(id) % 30)}%`, tone: "good" },
-          ] };
+        : { type: "kpis", id: bid(id, "kpis"), items: fallbackKpis(entity) };
     const chat: Block | null = agent
       ? { type: "chat", id: bid(id, "chat"), agentId: agent.id, title: `Ask ${agent.name}`, placeholder: `Ask ${agent.name}…`, starters: agent.rehearsals.slice(0, 2).map((r) => r.input.slice(0, 80)) }
       : null;

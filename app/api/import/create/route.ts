@@ -5,8 +5,8 @@ import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { modelBudgetOk } from "@/lib/llm/guard";
 import type { Blueprint, Framework } from "@/lib/blueprint/schema";
-import type { ImportReport } from "@/lib/db/types";
 import { estimate } from "@/lib/blueprint/estimate";
+import { cleanTree, type ImportReportWithTree } from "@/lib/import/snapshot";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -18,9 +18,10 @@ const pretty = (s: string) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in first" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { report?: ImportReport; houseRules?: string[] };
-  const report = body.report;
-  if (!report?.repo?.name) return Response.json({ error: "Analyze a repository first" }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { report?: ImportReportWithTree; houseRules?: string[] };
+  if (!body.report?.repo?.name) return Response.json({ error: "Analyze a repository first" }, { status: 400 });
+  // The real file tree is stored with the report so the Code tab shows the repo as it is, untouched.
+  const report: ImportReportWithTree = { ...body.report, tree: cleanTree(body.report.tree) };
   const houseRules = (body.houseRules ?? []).map((r) => r.trim()).filter(Boolean).slice(0, 12);
   const supa = await createClient();
   const allowModel = await modelBudgetOk(supa, user);

@@ -1,11 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Search, Sparkles, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Search, Sparkles, Upload } from "lucide-react";
 import type { Action, Block, Entity } from "@/lib/blueprint/schema";
 import { formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { enumTone, useApp } from "./app-context";
 import { ChatBlockView } from "./chat-block";
+import { deriveKpi, screenEntityId } from "./kpi";
 
 const primaryBtn = "inline-flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] px-3 text-[13px] font-medium text-white shadow-sm transition-opacity hover:opacity-90";
 const secondaryBtn = "inline-flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50";
@@ -42,7 +43,7 @@ function useRunAction() {
 function Value({ entity, field, value }: { entity: Entity | undefined; field: string; value: unknown }) {
   const f = entity?.fields.find((x) => x.name === field);
   if (f?.type === "enum" && typeof value === "string")
-    return <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-[11.5px] font-medium ring-1 ring-inset", enumTone(value, f.options))}>{value}</span>;
+    return <span className={cn("inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11.5px] font-medium ring-1 ring-inset", enumTone(value, f.options))}>{value}</span>;
   if (f?.type === "number" && typeof value === "number" && value >= 0 && value <= 1 && /score|risk|confidence|probab/i.test(field)) {
     const tone = value >= 0.6 ? "bg-rose-500" : value >= 0.3 ? "bg-amber-500" : "bg-emerald-500";
     return (
@@ -57,16 +58,52 @@ function Value({ entity, field, value }: { entity: Entity | undefined; field: st
 }
 
 export function KpisBlock({ block }: { block: Extract<Block, { type: "kpis" }> }) {
+  const app = useApp();
+  // Numbers that can be read from the rows on this screen are counted from them, so tiles and tables agree.
+  const entityId = screenEntityId(app.bp, app.screenId);
+  const items = useMemo(() => block.items.map((k) => ({ ...k, ...deriveKpi(k, app.bp, entityId) })), [block.items, app.bp, entityId]);
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 [.app-phone_&]:grid-cols-2">
-      {block.items.map((k, i) => (
+      {items.map((k, i) => (
         <div key={i} className="rounded-[calc(var(--app-radius)+4px)] border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
           <p className="text-[12.5px] text-slate-500">{k.label}</p>
-          <p className="mt-1.5 text-[22px] font-semibold tracking-tight text-slate-900 tabular-nums">{k.value}</p>
+          <p className="mt-1.5 text-[22px] font-semibold tracking-tight text-slate-900 tabular-nums" title={k.derived ? "Counted from the records in this app" : undefined}>{k.value}</p>
           {k.delta && <p className={cn("mt-0.5 text-[12px]", k.tone === "good" ? "text-emerald-600" : k.tone === "bad" ? "text-rose-600" : "text-slate-500")}>{k.delta}</p>}
-          {!k.delta && k.tone === "bad" && <p className="mt-0.5 text-[12px] text-rose-600">Needs attention</p>}
+          {!k.delta && k.tone === "bad" && !k.zero && <p className="mt-0.5 text-[12px] text-rose-600">Needs attention</p>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Horizontal scroller with fading edges while there is more to see, so a clipped column never looks like the end. */
+function ScrollX({ children, onOverflow }: { children: React.ReactNode; onOverflow?: (more: boolean) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const left = el.scrollLeft > 2;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+      setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+  useEffect(() => onOverflow?.(edges.right), [edges.right, onOverflow]);
+  return (
+    <div className="relative">
+      <div ref={ref} className="overflow-x-auto overscroll-x-contain">{children}</div>
+      <div aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent transition-opacity duration-200", edges.left ? "opacity-100" : "opacity-0")} />
+      <div aria-hidden className={cn("pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white via-white/70 to-transparent transition-opacity duration-200", edges.right ? "opacity-100" : "opacity-0")} />
     </div>
   );
 }
@@ -89,6 +126,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
   const pages = Math.max(1, Math.ceil(rows.length / block.pageSize));
   const view = rows.slice(page * block.pageSize, (page + 1) * block.pageSize);
   const label = (c: string) => entity?.fields.find((f) => f.name === c)?.label ?? c;
+  const [moreRight, setMoreRight] = useState(false);
 
   return (
     <Card
@@ -111,7 +149,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
         </>
       }
     >
-      <div className="overflow-x-auto">
+      <ScrollX onOverflow={setMoreRight}>
         <table className="w-full text-left text-[13px]">
           <thead>
             <tr className="border-b border-slate-100 text-[12px] text-slate-500">
@@ -140,9 +178,10 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
             )}
           </tbody>
         </table>
-      </div>
-      <footer className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
+      </ScrollX>
+      <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
         <span>{rows.length} {rows.length === 1 ? entity?.name.toLowerCase() : entity?.plural.toLowerCase()}</span>
+        {moreRight && <span className="mr-auto inline-flex items-center gap-1 text-slate-400">More columns <ArrowRight className="size-3" /></span>}
         {pages > 1 && (
           <span className="flex items-center gap-1">
             <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded p-1 disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="size-3.5" /></button>
@@ -174,7 +213,7 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
                   <span className="block truncate text-[13.5px] font-medium text-slate-900">{title}</span>
                   {block.subtitleField && <span className="block truncate text-[12px] text-slate-500"><Value entity={entity} field={block.subtitleField} value={row[block.subtitleField]} /></span>}
                 </span>
-                {block.badgeField && <span className="text-[12.5px] text-slate-600"><Value entity={entity} field={block.badgeField} value={row[block.badgeField]} /></span>}
+                {block.badgeField && <span className="shrink-0 whitespace-nowrap text-[12.5px] text-slate-600"><Value entity={entity} field={block.badgeField} value={row[block.badgeField]} /></span>}
               </button>
             </li>
           );
