@@ -177,7 +177,7 @@ export function ConnectionPlain({ connection }: { connection: Connection }) {
         <ConnectionIcon kind={connection.kind} className="size-5 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium">{connection.name}</p>
-          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-amber")}>{connection.status === "configured" ? "Connected" : "Using test data · needs a key"}</p>
+          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-amber")}>{connection.status === "configured" ? "Connected" : "Not connected · test data"}</p>
         </div>
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{connectionSummary(ws.blueprint, connection)}</p>

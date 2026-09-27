@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, CircleHelp, EyeOff, FileSearch, GitBranch, Loader2, Plus, ShieldCheck, Star, X } from "lucide-react";
-import type { ImportReport } from "@/lib/db/types";
+import { ArrowRight, Bot, Check, CircleHelp, EyeOff, FileSearch, GitBranch, Loader2, Plus, ShieldCheck, Star, X } from "lucide-react";
+import type { ImportReportWithTree } from "@/lib/import/snapshot";
+import { FRAMEWORK_LABEL, describeAgents, pickAgents, type DetectedAgent } from "@/lib/import/agents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GitHubMark } from "@/components/brand/logo";
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { Term } from "@/components/arch/term";
 
 const EXAMPLES = ["openai/openai-cs-agents-demo", "langchain-ai/langgraph-example", "crewAIInc/crewAI-examples", "vercel/chatbot"];
-const READ_STEPS = ["Fetching repository details", "Listing every file", "Reading manifests and README", "Detecting stack, agents and tests", "Mapping what I understood"];
+const READ_STEPS = ["Fetching repository details", "Listing every file", "Reading manifests and README", "Reading agent definitions in the source", "Mapping what I understood"];
 
 type Step = "input" | "reading" | "report" | "mapping";
 
@@ -19,7 +20,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
   const [repo, setRepo] = useState(initialRepo);
   const [readStep, setReadStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<ImportReport | null>(null);
+  const [report, setReport] = useState<ImportReportWithTree | null>(null);
   const [rules, setRules] = useState<{ text: string; on: boolean }[]>([]);
   const [newRule, setNewRule] = useState("");
   const planner = usePlanStream(llm);
@@ -61,7 +62,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
 
   const map = () => {
     setStep("mapping");
-    void planner.start("/api/import/create", { report, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}/blueprint?sel=brief:meta`);
+    void planner.start("/api/import/create", { report, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}/blueprint`);
   };
 
   if (step === "mapping") return <PlanningView s={planner} eyebrow="Bring your existing project · mapping" onRetry={map} />;
@@ -139,6 +140,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
           ) : (
             <p className="mt-3 text-[13px] text-muted-foreground">No agent framework detected. Prod AI can add agents alongside your code.</p>
           )}
+          <DetectedAgents report={r} />
         </section>
         <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "160ms" }}>
           <h2 className="micro-label">Stack</h2>
@@ -200,5 +202,64 @@ function Coverage({ title, icon: I, tone, items, empty }: { title: string; icon:
         {items.length ? items.map((i) => <li key={i} className="font-mono text-[11.5px] text-foreground/80">{i}</li>) : <li className="text-[12px] text-muted-foreground">{empty}</li>}
       </ul>
     </div>
+  );
+}
+
+/** The agents read from the repository's own source, as written: name, where, tools. Says so plainly when there are none. */
+function DetectedAgents({ report }: { report: ImportReportWithTree }) {
+  const [open, setOpen] = useState(false);
+  const agents = report.agents;
+  if (!agents) return null; // An older cached analysis: agents weren't read then.
+  const read = report.agentScan?.filesRead.length ?? 0;
+  if (!agents.length) {
+    return (
+      <p className="mt-3 border-t border-hairline pt-3 text-[12.5px] leading-relaxed text-muted-foreground">
+        No agent definitions found in the {read} source file{read === 1 ? "" : "s"} read{report.agentScan?.toolCount ? ` (${report.agentScan.toolCount} tool${report.agentScan.toolCount === 1 ? "" : "s"} found)` : ""}. The plan&apos;s agents will be proposals, not code from your repo.
+      </p>
+    );
+  }
+  const { mapped, left, projects, project } = pickAgents(agents, report.tree);
+  const files = [...new Set(agents.map((a) => a.file))];
+  const shown = open ? agents : agents.slice(0, 6);
+  return (
+    <div className="mt-3 border-t border-hairline pt-3">
+      <p className="text-[12.5px] text-foreground/90">
+        Read {describeAgents(agents)} from {files.length === 1 ? <span className="font-mono text-[11.5px]">{files[0]}</span> : `${files.length} files`}.
+      </p>
+      <ul className="mt-2 space-y-2">
+        {shown.map((a, i) => (
+          <AgentRow key={`${a.file}-${a.name}-${i}`} a={a} mapped={mapped.includes(a)} />
+        ))}
+      </ul>
+      {agents.length > 6 && (
+        <button onClick={() => setOpen((o) => !o)} className="mt-2 text-[11.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          {open ? "Show fewer" : `Show all ${agents.length}`}
+        </button>
+      )}
+      {left.length > 0 && (
+        <p className="mt-2 text-[11.5px] leading-snug text-muted-foreground">
+          {projects > 1 ? `${projects} separate projects here. The plan maps the ${mapped.length} agents of ${project || "the root project"}/.` : `A project holds six agents, so the plan maps the first ${mapped.length}.`} The others stay listed here.
+        </p>
+      )}
+      {(report.agentScan?.candidates ?? 0) > read && <p className="mt-1 text-[11px] text-faint">Read the {read} likeliest of {report.agentScan!.candidates} candidate files.</p>}
+    </div>
+  );
+}
+
+function AgentRow({ a, mapped }: { a: DetectedAgent; mapped: boolean }) {
+  return (
+    <li className={cn("text-[12.5px]", !mapped && a.kind !== "guardrail" && "opacity-70")}>
+      <p className="flex items-center gap-1.5 font-medium">
+        <Bot className={cn("size-3.5 shrink-0", a.kind === "guardrail" ? "text-muted-foreground" : "text-read")} />
+        <span className="truncate">{a.name}</span>
+        {a.kind === "guardrail" && <span className="shrink-0 rounded-full border border-hairline px-1.5 text-[10px] font-normal text-muted-foreground">guardrail</span>}
+        {a.kind === "graph" && <span className="shrink-0 rounded-full border border-hairline px-1.5 text-[10px] font-normal text-muted-foreground">graph</span>}
+      </p>
+      <p className="truncate pl-5 font-mono text-[10.5px] text-muted-foreground" title={a.file}>
+        {FRAMEWORK_LABEL[a.framework] ?? a.framework} · {a.file.split("/").slice(-2).join("/")}
+      </p>
+      {a.tools.length > 0 && <p className="truncate pl-5 text-[11px] text-muted-foreground" title={a.tools.map((t) => t.name).join(", ")}>Tools: {a.tools.map((t) => t.name).join(", ")}</p>}
+      {a.steps && a.steps.length > 0 && <p className="truncate pl-5 text-[11px] text-muted-foreground">Nodes: {a.steps.join(" → ")}</p>}
+    </li>
   );
 }

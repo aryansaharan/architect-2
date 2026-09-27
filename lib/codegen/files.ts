@@ -153,8 +153,9 @@ ${bp.agents.map((a) => `| ${a.name} | ${a.role} | ${FRAMEWORKS[a.framework].labe
 cp .env.example .env.local   # add your keys
 npm install
 npm run dev                  # app on :3000
-npm run rehearse             # replays every agent's rehearsals
 \`\`\`
+
+Each agent's rehearsals (test conversations) live in its \`agent.yaml\`. Prod AI replays them before every change it opens.
 
 Built with Prod AI. \`blueprint.json\` is the source of truth; edit code or blueprint, both stay in sync.
 `,
@@ -166,9 +167,9 @@ Built with Prod AI. \`blueprint.json\` is the source of truth; edit code or blue
       {
         name,
         private: true,
-        scripts: { dev: "next dev", build: "next build", start: "next start", rehearse: "prodai rehearse", sync: "prodai sync" },
+        scripts: { dev: "next dev", build: "next build", start: "next start", typecheck: "tsc --noEmit" },
         dependencies: { next: "^16.3.0", react: "^19.2.0", "@supabase/ssr": "^0.12.0", ai: "^7.0.0", "@ai-sdk/anthropic": "^4.0.0", "@prodai/blocks": "^2.0.0", ...(frameworks.includes("mastra") ? { "@mastra/core": "^1.0.0" } : {}) },
-        devDependencies: { "@prodai/cli": "^2.0.0", typescript: "^5.9.0" },
+        devDependencies: { typescript: "^5.9.0" },
       },
       null,
       2,
@@ -227,21 +228,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   files.push({ path: "components/blocks/index.ts", lang: "ts", content: `// Prod AI's block library. Every block is a normal React component. Swap any of them for your own.\nexport * from "@prodai/blocks";\n` });
   files.push({ path: "supabase/schema.sql", lang: "sql", content: schemaSql(bp) });
   files.push({
-    path: ".github/workflows/rehearsals.yml",
+    path: ".github/workflows/checks.yml",
     lang: "yaml",
-    content: `name: Rehearsals
+    content: `# Type-checks and builds every pull request. Agent rehearsals run in Prod AI before it opens one.
+name: Checks
 on: [pull_request]
 jobs:
-  rehearse:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx prodai rehearse --fail-under 0.9   # blocks the merge if agents regress
-        env:
-          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+      - run: npm run typecheck
+      - run: npm run build
 `,
   });
 
@@ -287,7 +288,15 @@ export type ImportContext = {
   repoPaths: string[];
   houseRules: string[];
   frameworks: { id: string; label: string; evidence: string }[];
+  /** Where each agent read at import is defined (lib/import/agents.ts), when known. */
+  agents?: { name: string; file: string; symbol?: string; framework: string }[];
 };
+
+/** The file and symbol an imported agent was read from, matched by its name. */
+function agentSource(agent: Agent, ctx: ImportContext): { file: string; symbol?: string } | null {
+  const hit = ctx.agents?.find((a) => a.name.toLowerCase() === agent.name.toLowerCase());
+  return hit ? { file: hit.file, symbol: hit.symbol } : null;
+}
 
 const SOURCE_FILE = /\.(py|ts|tsx|js|mjs)$/;
 const SOURCE_RANK = ["agents.py", "agent.py", "agents.ts", "agent.ts", "graph.py", "crew.py", "main.py", "index.ts", "app.py", "server.py"];
@@ -310,13 +319,13 @@ export function agentSourceGuess(paths: string[], frameworks: ImportContext["fra
 }
 
 /** A thin wrapper that loads an imported agent as it is and adds Prod AI's rules around it. `dir` is where it lives. */
-function wrapperFile(agent: Agent, source: string | null, dir: string): GeneratedFile {
+function wrapperFile(agent: Agent, source: string | null, dir: string, symbol?: string): GeneratedFile {
   const fw = FRAMEWORKS[agent.framework];
   const ts = source ? /\.(ts|tsx|js|mjs)$/.test(source) : fw.language === "typescript";
   const where = source ?? "your repository";
   const up = "../".repeat(dir.split("/").filter(Boolean).length);
   if (ts) {
-    const exportName = `${camel(agent.name.replace(/\bagent\b/i, ""))}Agent`;
+    const exportName = symbol ?? `${camel(agent.name.replace(/\bagent\b/i, ""))}Agent`;
     const rel = source ? `${up}${source.replace(/\.(ts|tsx|js|mjs)$/, "")}` : `${up}src/agents`;
     return {
       path: `${dir}/wrapper.ts`,
@@ -328,14 +337,14 @@ function wrapperFile(agent: Agent, source: string | null, dir: string): Generate
 // approval gates on irreversible tools, the audit log and rehearsals.
 // Delete this wrapper and your agent runs exactly as it did before.
 import { wrap } from "@prodai/agents";
-// Rename "${exportName}" if the agent has a different name in that file.
+${symbol ? `// "${exportName}" is where Prod AI read this agent at import.` : `// Rename "${exportName}" if the agent has a different name in that file.`}
 import { ${exportName} as existing } from ${js(rel)};
 
 export const agent = wrap(existing, { spec: new URL("./agent.yaml", import.meta.url) });
 `,
     };
   }
-  const attr = snakeName(agent.name);
+  const attr = symbol ?? snakeName(agent.name);
   return {
     path: `${dir}/wrapper.py`,
     lang: "py",
@@ -354,7 +363,7 @@ from prodai import load_existing, wrap  # pip install prodai
 
 SPEC = Path(__file__).with_name("agent.yaml")
 
-# Your existing agent, unchanged. Rename "${attr}" if it has a different name in that file.
+# Your existing agent, unchanged. ${symbol ? `"${attr}" is where Prod AI read it at import.` : `Rename "${attr}" if it has a different name in that file.`}
 existing = load_existing(${js(source ?? "path/to/your_agent.py")}, attr=${js(attr)})
 
 agent = wrap(existing, spec=SPEC)
@@ -426,14 +435,15 @@ export function importPullRequest(bp: Blueprint, ctx: ImportContext): ImportPull
     if (f.path === "README.md") continue; // replaced by the pull request's own README below
     if (f.path.startsWith(".github/")) {
       // CI only runs from .github/workflows, so it's the one file that can't live in the new folder.
-      add({ ...f, path: ".github/workflows/prodai-rehearsals.yml" }, f.path);
+      add({ ...f, path: ".github/workflows/prodai-checks.yml" }, f.path);
     } else if (isInfraPath(f.path) && policy.infra) {
       hold(f.path, policy.infra, "Infrastructure stays yours.");
     } else if ((/^(app|components|lib)\//.test(f.path) || f.path === "package.json") && policy.keepFramework) {
       hold(f.path, policy.keepFramework, "Screens would add a second app next to yours. They wait until you choose where they live.");
     } else if (agent && agent.origin === "imported" && policy.wrapAgents) {
       hold(f.path, policy.wrapAgents, "Your agent code stays as it is. A thin wrapper is proposed instead.");
-      add(wrapperFile(agent, agentSourceGuess(ctx.repoPaths, ctx.frameworks, agent.framework), `${root}/agents/${agent.id}`), f.path);
+      const src = agentSource(agent, ctx);
+      add(wrapperFile(agent, src?.file ?? agentSourceGuess(ctx.repoPaths, ctx.frameworks, agent.framework), `${root}/agents/${agent.id}`, src?.symbol), f.path);
     } else {
       add({ ...f, path: `${root}/${f.path}` }, f.path);
     }

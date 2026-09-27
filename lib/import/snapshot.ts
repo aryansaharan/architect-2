@@ -1,4 +1,5 @@
 import type { ImportReport } from "@/lib/db/types";
+import type { DetectedAgent } from "./agents";
 
 /** Most files kept from an imported repository's tree (paths only). */
 export const MAX_TREE = 2500;
@@ -8,7 +9,13 @@ export const MAX_TREE = 2500;
  * path in the repository at import time, so the Code tab can show the repo as
  * it really is. Older imports have no tree; the snapshot route backfills it.
  */
-export type ImportReportWithTree = ImportReport & { tree?: string[] };
+export type ImportReportWithTree = ImportReport & {
+  tree?: string[];
+  /** Agents read from the repository's own source files (lib/import/agents.ts). Empty when none were found. */
+  agents?: DetectedAgent[];
+  /** What the agent read covered: files read, how many looked relevant, tools seen. Absent on older imports. */
+  agentScan?: { filesRead: string[]; candidates: number; toolCount: number };
+};
 
 /** What the Code tab needs to show an imported repository, untouched. */
 export type RepoSnapshot = {
@@ -23,6 +30,8 @@ export type RepoSnapshot = {
   fileCount: number;
   truncated: boolean;
   frameworks: ImportReport["frameworks"];
+  /** Where each detected agent is defined, so wrappers load the real file and symbol. */
+  agents?: { name: string; file: string; symbol?: string; framework: string }[];
   /** Where the tree came from: stored at import, fetched now, the cached examples, or the folder summary. */
   source: "import" | "github" | "cached" | "summary";
 };

@@ -113,18 +113,20 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
   if (!entities.length) throw new Error("draft has no entities");
 
   // ---- connections (always one app database)
+  // Honest from the first save: nothing outside the app is connected when a plan is made. Every outside
+  // system starts as "missing" (not connected, test data) until someone adds its keys. Only the app's own
+  // database, which Prod AI creates, is ready. The routes apply startNotConnected (draft.ts) again on top.
   const connIds = new Set<string>();
-  let missingAssigned = false;
+  let ownDb = false;
   const connections: Connection[] = draft.connections.slice(0, 6).map((c) => {
-    const needsKey = c.auth === "api_key" && c.kind !== "database";
-    const status = c.kind === "database" || !needsKey || missingAssigned ? "configured" : "missing";
-    if (status === "missing") missingAssigned = true;
+    const own = c.kind === "database" && !ownDb;
+    if (own) ownDb = true;
     return {
       id: uniq(kebab(c.name), connIds),
       name: c.name,
       kind: c.kind,
-      auth: c.kind === "database" ? "none" : c.auth,
-      status,
+      auth: own ? "none" : c.auth,
+      status: own ? "configured" : "missing",
       plain: c.description,
     };
   });

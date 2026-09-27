@@ -103,7 +103,8 @@ Principles:
 - Prefer fewer, sharper agents with separated jobs over many overlapping ones.
 - Sample data must be realistic and specific to the brief, with fictional names.
 - Keep it buildable: 3–5 screens, 2–3 agents, 2–4 data types, 3–5 connections.
-- Respect the answers to the quick questions. When they name the systems it must connect to (often several, comma-separated, e.g. "Email, SMS"), plan a connection for each one. If they say nothing is connected yet ("Nothing yet", "Nowhere yet", "None yet"), never assume an outside system is already set up: plan only the outside systems the agents truly need (fewer is better). They will be shown as needing setup.`;
+- Respect the answers to the quick questions. When they name the systems it must connect to (often several, comma-separated, e.g. "Email, SMS" or "Google Drive, QuickBooks"), plan a connection for each one, using the product named. If they say nothing is connected yet ("Nothing yet", "Nowhere yet", "None yet"), plan only the outside systems the agents truly need (fewer is better).
+- Nothing outside the app is connected when a plan is made: every outside system starts as needing setup and runs on test data until someone adds its keys. Never describe one as already connected.`;
 
 const NOTHING = /^(nothing|nowhere|none) yet$/i;
 
@@ -159,21 +160,56 @@ export function connectionsNote(connections: string[]): string {
   return `Important: it must connect to ${connections.join(", ")}. Plan one outside connection for each of these (a real product that fits, e.g. Gmail for Email, Twilio for SMS), give the agents the tools that use them, and add others only if the agents truly need them.`;
 }
 
+type Kind = Connection["kind"];
+/** What kind of system a product the person named is, for the ones WANTED doesn't know ("QuickBooks", "Google Drive"). */
+const KIND_HINTS: [RegExp, Kind, Connection["auth"]][] = [
+  [/drive|dropbox|\bbox\b|onedrive|sharepoint|s3|storage|files?\b/i, "storage", "oauth"],
+  [/sheets?|docs?\b|excel|airtable|notion|confluence|spreadsheet/i, "docs", "oauth"],
+  [/quick ?books|xero|netsuite|freshbooks|sage|stripe|paypal|square|billing|invoice|payments?/i, "payments", "oauth"],
+  [/salesforce|hubspot|pipedrive|zoho|crm/i, "crm", "oauth"],
+  [/gmail|outlook|e-?mail|inbox|mailchimp/i, "email", "oauth"],
+  [/slack|teams/i, "slack", "oauth"],
+  [/calendar|calendly|zoom/i, "calendar", "oauth"],
+];
+const tokens = (s: string) => s.toLowerCase().replace(/\([^)]*\)/g, " ").split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !/^(the|and|google|microsoft|online|app|apps|system|systems|client|clients|customer|customers|data|team|shared|internal)$/.test(t));
+
+/** True when a planned connection already is the named system ("QuickBooks Online" for "QuickBooks"). */
+function sameSystem(c: Connection, pick: string): boolean {
+  const a = new Set(tokens(`${c.name}`));
+  const b = tokens(pick);
+  return b.length > 0 && b.some((t) => a.has(t));
+}
+
 /**
  * Deterministic guard that holds even if the model (or the offline starter)
  * ignores the answer: every chosen system appears as a connection. Ones the
- * plan lacked are added as needing setup. The app's database is untouched.
+ * plan lacked are added as needing setup, including products WANTED doesn't
+ * know by name (the quick questions offer whatever the brief names). The
+ * app's database is untouched.
  */
 export function ensureConnections(bp: Blueprint, connections: string[]): Blueprint {
   const next = [...bp.connections];
   const ids = new Set(next.map((c) => c.id));
-  for (const pick of connections) {
-    const w = WANTED[pick.trim().toLowerCase()];
-    if (!w || next.some(w.match) || next.length >= 8) continue;
-    let id = w.add.id;
-    for (let n = 2; ids.has(id); n++) id = `${w.add.id}-${n}`;
+  const newId = (base: string) => {
+    let id = base || "connection";
+    for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
     ids.add(id);
-    next.push({ ...w.add, id, status: "missing" });
+    return id;
+  };
+  for (const raw of connections) {
+    const pick = raw.trim();
+    if (!pick || next.length >= 8) continue;
+    const w = WANTED[pick.toLowerCase()];
+    if (w) {
+      if (next.some(w.match)) continue;
+      next.push({ ...w.add, id: newId(w.add.id), status: "missing" });
+      continue;
+    }
+    if (next.some((c) => sameSystem(c, pick))) continue;
+    // An outside system is never the "database" kind: that one is the app's own, created by Prod AI.
+    const [, kind, auth] = KIND_HINTS.find(([re]) => re.test(pick)) ?? [null, "http" as Kind, "api_key" as const];
+    const name = pick.slice(0, 40);
+    next.push({ id: newId(name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")), name, kind, auth, status: "missing", plain: `${name}, named in your answers. Needs setup.` });
   }
   return next.length === bp.connections.length ? bp : { ...bp, connections: next };
 }
@@ -182,10 +218,18 @@ export function ensureConnections(bp: Blueprint, connections: string[]): Bluepri
 export const NOTHING_CONNECTED_NOTE = "Important: nothing is connected yet. Plan only the outside systems the agents truly need. Every one of them starts as needing setup; none is already connected.";
 
 /**
- * Deterministic guard that holds even if the model ignores the prompt: when
- * nothing is connected yet, every outside connection starts as "missing"
- * (needs setup, runs on test data). Only the app's own database is ready.
+ * Honest status for a plan that was just made (by the model, a starter, or an
+ * import): nothing outside the app is connected yet. Every outside connection
+ * starts as "missing" (not connected, runs on test data) until someone adds its
+ * keys through preflight or the connection flow. Only the app's own database,
+ * which Prod AI creates, is ready. Holds whatever the model or a starter says.
  */
-export function markNothingConnected(bp: Blueprint): Blueprint {
-  return { ...bp, connections: bp.connections.map((c) => (c.kind === "database" ? c : { ...c, status: "missing" as const })) };
+export function startNotConnected(bp: Blueprint): Blueprint {
+  // The app's own database is the first "database" connection (expand.ts adds one when the plan has none). Any other is an outside system.
+  const own = bp.connections.find((c) => c.kind === "database");
+  if (bp.connections.every((c) => c === own || c.status === "missing")) return bp;
+  return { ...bp, connections: bp.connections.map((c) => (c === own ? c : { ...c, status: "missing" as const })) };
 }
+
+/** Kept for callers of the earlier name: "Nothing yet" now means the same as every new plan. */
+export const markNothingConnected = startNotConnected;

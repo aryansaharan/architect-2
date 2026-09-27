@@ -1,4 +1,4 @@
-import type { Question } from "@/lib/blueprint/questions";
+import { briefMentions, systemsNamedIn, type Question } from "@/lib/blueprint/questions";
 
 /**
  * "What must it connect to?" read from the brief. Options the brief already
@@ -39,14 +39,25 @@ export function isConnectionsQuestion(q: Question): boolean {
   return q.id === "systems";
 }
 
-/** The connections question for this brief: options (with any the brief names) and the answers to pre-select. */
+/** An option that already covers `x` ("A CRM" covers HubSpot, "Email" covers Gmail). */
+const covered = (x: string, options: string[]) => options.some((o) => o.toLowerCase() === x.toLowerCase() || COVERS[x]?.test(o) || SIGNALS[o]?.test(x) || SIGNALS[x]?.test(o) || briefMentions(o, x) || briefMentions(x, o));
+
+/**
+ * The connections question for this brief: options (with any the brief names) and the answers to pre-select.
+ * Works for the templates and for the questions the model wrote: products the brief names ("Google Drive",
+ * "QuickBooks") are offered even when the template lacks them, and pre-selected.
+ */
 export function connectionsFor(q: Question, brief: string): { question: Question; preselected: string[]; fromBrief: string[] } {
   const nothing = q.options.find(isNothingOption);
   const base = q.options.filter((o) => !isNothingOption(o));
   const connectTo = /connect/i.test(q.label);
-  const extras = connectTo ? EXTRAS.filter((x) => !base.includes(x) && SIGNALS[x].test(brief) && !base.some((o) => COVERS[x]?.test(o))) : [];
+  const extras: string[] = [];
+  if (connectTo) {
+    for (const x of systemsNamedIn(brief).slice(0, 4)) if (!covered(x, [...base, ...extras])) extras.push(x);
+    for (const x of EXTRAS) if (SIGNALS[x].test(brief) && !covered(x, [...base, ...extras])) extras.push(x);
+  }
   const options = [...base, ...extras, ...(nothing ? [nothing] : [])];
-  const fromBrief = options.filter((o) => !isNothingOption(o) && SIGNALS[o]?.test(brief));
+  const fromBrief = options.filter((o) => !isNothingOption(o) && (SIGNALS[o]?.test(brief) || briefMentions(brief, o)));
   const fallback = q.options[q.defaultIndex];
   const preselected = fromBrief.length ? fromBrief : fallback ? [fallback] : [];
   return { question: { ...q, options, defaultIndex: Math.max(0, options.indexOf(preselected[0] ?? fallback)) }, preselected, fromBrief };

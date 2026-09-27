@@ -39,7 +39,9 @@ export async function GET(req: Request) {
     return Response.json({ content, truncated: content.length >= 120_000 }, { headers: { "Cache-Control": "private, max-age=300" } });
   }
 
-  const base = { owner, name, branch, url: report.repo.url || `https://github.com/${owner}/${name}`, folders: coverageFolders(report), fileCount: report.fileCount, frameworks: report.frameworks };
+  // Where each agent read at import is defined, so the pull request's wrappers load the real file and symbol.
+  const agents = (report.agents ?? []).filter((a) => a.kind !== "guardrail").map((a) => ({ name: a.name, file: a.file, symbol: a.symbol, framework: a.framework }));
+  const base = { owner, name, branch, url: report.repo.url || `https://github.com/${owner}/${name}`, folders: coverageFolders(report), fileCount: report.fileCount, frameworks: report.frameworks, agents };
   const snapshot = (paths: string[] | null, source: RepoSnapshot["source"]): RepoSnapshot => ({ ...base, paths, source, truncated: report.truncated || (paths !== null && paths.length < report.fileCount) });
 
   if (report.tree?.length) return Response.json(snapshot(report.tree, "import"));

@@ -1,6 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Pencil, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Pencil, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { questionsFor, renderAnswers, type Question } from "@/lib/blueprint/questions";
 import { matchVertical } from "@/lib/blueprint/match";
@@ -11,6 +11,12 @@ import { connectionsFor, isConnectionsQuestion, isNothingOption, toggleConnectio
 
 type Step = "describe" | "questions" | "planning";
 
+/** How long the page waits for the questions written for this brief. After that the templates simply stay. */
+const TAILOR_WAIT_MS = 10_000;
+
+const isQuestions = (v: unknown): v is Question[] =>
+  Array.isArray(v) && v.length === 3 && v.every((q) => q && typeof q.id === "string" && typeof q.label === "string" && Array.isArray(q.options) && q.options.length >= 2 && q.options.every((o: unknown) => typeof o === "string") && Number.isInteger(q.defaultIndex));
+
 export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm: "live" | "offline" }) {
   const [step, setStep] = useState<Step>(initialPrompt ? "questions" : "describe");
   const [brief, setBrief] = useState(initialPrompt);
@@ -18,7 +24,36 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   const planner = usePlanStream(llm);
 
   const vertical = useMemo(() => (brief.length > 12 ? matchVertical(brief) : null), [brief]);
-  const canned: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom"), [vertical]);
+  // Instant: the template questions for the closest vertical, with the brief's own systems pre-selected.
+  const template: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom", brief), [vertical, brief]);
+  // Then the three questions written for this brief (POST /api/questions), swapped in only if they arrive
+  // before the person answers anything. Never blocks: Plan it and Skip work the whole time.
+  const [tailored, setTailored] = useState<{ brief: string; questions: Question[] } | null>(null);
+  const [settledFor, setSettledFor] = useState<string | null>(null);
+  const answeredRef = useRef(false);
+  const tailoredHere = tailored?.brief === brief ? tailored.questions : null;
+  const tailoring = llm === "live" && step === "questions" && settledFor !== brief && !tailoredHere;
+  const hasTailored = Boolean(tailoredHere);
+  useEffect(() => {
+    if (llm !== "live" || step !== "questions" || brief.trim().length < 12 || hasTailored) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TAILOR_WAIT_MS);
+    fetch("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief }), signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { questions?: unknown } | null) => {
+        if (!answeredRef.current && isQuestions(j?.questions)) setTailored({ brief, questions: j.questions });
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        setSettledFor(brief);
+      });
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [llm, step, brief, hasTailored]);
+  const canned: Question[] = tailoredHere ?? template;
   // "What must it connect to?" takes several answers, pre-selected from what the brief names (email, texts, Slack…).
   const conn = useMemo(() => {
     const q = canned.find(isConnectionsQuestion);
@@ -32,12 +67,18 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   function plan(skip: boolean) {
     setStep("planning");
     const all = conn ? { ...answers, [conn.question.id]: picked.join(", ") } : answers;
-    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}/blueprint?sel=brief:meta`);
+    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}/blueprint`);
   }
 
   const toDescribe = () => {
     setPicked(null);
+    setAnswers({});
+    answeredRef.current = false;
     setStep("describe");
+  };
+  const answer = (fn: () => void) => {
+    answeredRef.current = true;
+    fn();
   };
 
   if (step === "describe") {
@@ -53,7 +94,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
             {EXAMPLES.map((ex) => (
               <button key={ex.label} onClick={() => setBrief(ex.prompt)} className={cn("rounded-full border px-2.5 py-1 text-[12px] transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground", brief === ex.prompt ? "border-amber/50 bg-amber-soft text-foreground" : "border-hairline text-muted-foreground")}>{ex.label}</button>
             ))}
-            <Button className="sheen ml-auto shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => { setPicked(null); setStep("questions"); }} disabled={brief.trim().length < 12}>Next <ArrowRight /></Button>
+            <Button className="sheen ml-auto shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => { setPicked(null); setAnswers({}); answeredRef.current = false; setStep("questions"); }} disabled={brief.trim().length < 12}>Next <ArrowRight /></Button>
           </div>
         </div>
       </div>
@@ -66,12 +107,15 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
         <p className="micro-label flex items-center gap-2"><span className="flex gap-1" aria-hidden>{[1, 2, 3].map((d) => <span key={d} className={cn("h-1 rounded-full transition-all duration-500", d <= 2 ? "w-4 bg-amber shadow-[0_0_8px_rgb(223_255_79/0.7)]" : "w-1.5 bg-hairline-hi")} />)}</span>New project · step 2 of 3</p>
         <h1 className="mt-3 font-display text-[44px] leading-tight">Three quick <em className="text-amber-grad">questions.</em></h1>
         <p className="mt-2 text-[14px] text-muted-foreground">They shape who the agents answer to. Skip them and Prod AI picks sensible, careful defaults.</p>
+        <p className="mt-1.5 flex h-4 items-center gap-1.5 text-[12px] text-muted-foreground" aria-live="polite">
+          {tailoredHere ? <><Sparkles className="size-3 text-amber" />Written for your brief.</> : tailoring ? <><Loader2 className="size-3 animate-spin text-amber" /><span className="text-shimmer">Tailoring these to your brief…</span></> : null}
+        </p>
         <div className="panel mt-6 flex gap-3 rounded-xl p-4">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="flex-1 text-[13.5px] leading-relaxed">{brief}</p>
           <button onClick={toDescribe} className="self-start text-muted-foreground hover:text-foreground" aria-label="Edit the brief"><Pencil className="size-3.5" /></button>
         </div>
-        <div className="mt-6 space-y-6">
+        <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-6", tailoredHere && "fade-up")}>
           {questions.map((q) => {
             const multi = conn?.question.id === q.id;
             const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
@@ -89,7 +133,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
                         key={o}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o })))}
+                        onClick={() => answer(() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o }))))}
                         className={cn("rounded-full border px-3 py-1.5 text-[13px] transition-all duration-200 active:scale-95", on ? "border-amber/60 bg-amber-soft text-amber shadow-[0_0_20px_-8px_rgb(223_255_79/0.6)]" : "border-hairline text-muted-foreground hover:-translate-y-px hover:border-hairline-hi hover:text-foreground")}
                       >
                         {on && <Check className="-ml-0.5 mr-1 inline size-3.5" />}

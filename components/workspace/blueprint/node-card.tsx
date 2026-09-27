@@ -162,7 +162,7 @@ export const ConnectionNode = forwardRef<HTMLButtonElement, Common & { connectio
         <div className="min-w-0 flex-1">
           <p className={TITLE} title={connection.name}>{connection.name}</p>
           <p className={cn("flex items-center gap-1 truncate text-[11.5px]", missing ? "text-amber" : "text-muted-foreground")}>
-            {missing ? <><KeyRound className="size-3" />Needs a key · test data</> : <><span className="size-1.5 rounded-full bg-read" />Connected</>}
+            {missing ? <><KeyRound className="size-3" />Not connected · test data</> : <><span className="size-1.5 rounded-full bg-read" />Connected</>}
           </p>
         </div>
       </div>

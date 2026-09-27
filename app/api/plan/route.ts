@@ -4,7 +4,7 @@ import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writ
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { modelBudgetOk } from "@/lib/llm/guard";
-import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, markNothingConnected, saysNothingConnected } from "@/lib/llm/draft";
+import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, saysNothingConnected, startNotConnected } from "@/lib/llm/draft";
 import { estimate } from "@/lib/blueprint/estimate";
 import type { Blueprint } from "@/lib/blueprint/schema";
 
@@ -24,8 +24,11 @@ export async function POST(req: Request) {
   const nothingConnected = connections ? isNothingOnly(connections) : saysNothingConnected(answers);
   // Named systems hold twice too: the planner is told, and any it leaves out are added as needing setup.
   const wanted = connections && !nothingConnected ? connections.filter((c) => !/^(nothing|nowhere|none) yet$/i.test(c)) : [];
+  // Honest from the first save: every outside connection starts as not connected (test data) until keys are
+  // added in preflight or the connection flow, whether the plan came from the model or a starter. Only the
+  // app's own database is ready. The curated demo seed is not planned here, so it keeps its configured systems.
   const adjust = (bp: Blueprint): Blueprint => {
-    let next = nothingConnected ? markNothingConnected(bp) : bp;
+    let next = startNotConnected(bp);
     if (wanted.length) {
       const withAll = ensureConnections(next, wanted);
       if (withAll !== next) next = { ...withAll, estimate: estimate(withAll) };
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
         allowModel,
         send,
         fallback: () => starterFor(brief).blueprint,
-        adjust: nothingConnected || wanted.length ? adjust : undefined,
+        adjust,
         failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
       });
       try {
@@ -57,6 +60,8 @@ export async function POST(req: Request) {
           summary: `${blueprint.screens.length} screens · ${blueprint.agents.length} agents · ${blueprint.entities.length} data types · ${blueprint.connections.length} connections`,
         });
         await supa.from("work_orders").insert({ project_id: project.id, request: brief, kind: "build", estimate: blueprint.estimate, status: "proposed" });
+        const notConnected = blueprint.connections.filter((c) => c.status === "missing").map((c) => c.name);
+        const keysNote = notConnected.length ? ` ${notConnected.join(", ")} ${notConnected.length === 1 ? "is" : "are"} not connected yet and run on test data until you add keys.` : "";
         await addLedger(supa, project.id, [
           { lane: "thought", kind: "brief", title: "You described the project", body: answers ? `${brief}\n\n${answers}` : brief },
           {
@@ -65,8 +70,8 @@ export async function POST(req: Request) {
             title: `Planned ${blueprint.screens.length} screens and ${blueprint.agents.length} agents`,
             body:
               mode === "live"
-                ? `Planned with ${usage?.model}. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing is built until you approve.`
-                : `Offline mode: started from the closest starter plan. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.`,
+                ? `Planned with ${usage?.model}. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build. Nothing is built until you approve.${keysNote}`
+                : `Offline mode: started from the closest starter plan. Planning is free. Estimated ${blueprint.estimate.minutes} min and ${blueprint.estimate.credits} credits to build.${keysNote}`,
             credits: 0,
             checkpointId: cp.id,
           },

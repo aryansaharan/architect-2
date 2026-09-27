@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, ChevronRight, CircleCheck, Copy, Download, ExternalLink, FileCode2, Folder, GitBranch, GitPullRequest, Loader2, Lock, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleCheck, Copy, Download, ExternalLink, FileCode2, Folder, GitBranch, GitPullRequest, Loader2, Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Blueprint } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, WorkOrderRow } from "@/lib/db/types";
 import { generateFiles, importPullRequest, type ImportPullRequest } from "@/lib/codegen/files";
@@ -104,7 +104,7 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
   // Imported projects: the first pull request (only new files, filtered by the House Rules). Otherwise every generated file.
   const prFor = useMemo(() => {
     if (!imported) return null;
-    const ctx = { repo: { owner: snap?.owner ?? ghOwner ?? "", name: snap?.name ?? ghName ?? ws.project.name }, repoPaths, houseRules, frameworks: snap?.frameworks ?? [] };
+    const ctx = { repo: { owner: snap?.owner ?? ghOwner ?? "", name: snap?.name ?? ghName ?? ws.project.name }, repoPaths, houseRules, frameworks: snap?.frameworks ?? [], agents: snap?.agents };
     return (bp: Blueprint) => importPullRequest(bp, ctx);
   }, [imported, snap, ghOwner, ghName, ws.project.name, repoPaths, houseRules]);
   const pr = useMemo(() => (prFor ? prFor(ws.blueprint) : null), [prFor, ws.blueprint]);
@@ -307,7 +307,7 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
                 )}
                 <div className="ml-auto flex items-center gap-1.5">
                   <Button size="sm" variant="ghost" className="h-7" onClick={() => { void navigator.clipboard.writeText(file.content); toast.success("Copied"); }}><Copy /> Copy</Button>
-                  <OpenIn />
+                  <OpenIn pr={pr} snap={snap} />
                   <Button size="sm" variant="outline" className="h-7 xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
                     <GitHubMark /> <span className="max-sm:sr-only">GitHub</span>
                   </Button>
@@ -419,25 +419,74 @@ function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: T
   );
 }
 
-function OpenIn() {
+/**
+ * The zip every "download" gives: the project's files (or, for an imported repo, only the pull request's
+ * new folder) inside one folder named like the project. Returns the folder name it used.
+ */
+function useExportBundle(pr: ImportPullRequest | null, snap: RepoSnapshot | null) {
   const ws = useWorkspace();
-  const repo = ws.project.settings.github?.repo;
-  // The folder you get from cloning the repo, or from unzipping "Download all source".
-  const folder = repo?.split("/")[1] ?? projectSlug(ws.project.name);
-  const copyCmd = (cmd: string, label: string) => {
+  return (opts: { quiet?: boolean } = {}) => {
+    const slug = pr ? (snap?.name ?? projectSlug(ws.project.name)) : projectSlug(ws.project.name);
+    const all = pr ? pr.files : generateFiles(ws.blueprint);
+    const name = pr ? `${slug}-pr-${pr.number}` : slug;
+    try {
+      const bytes = zip(all.map((f) => ({ path: `${slug}/${f.path}`, content: f.content })));
+      downloadBlob(new Blob([bytes], { type: "application/zip" }), `${name}.zip`);
+      if (!opts.quiet) toast.success(`Downloaded ${name}.zip`, { description: pr ? `${all.length} new files, all in ${pr.root}/. Nothing else in your repo.` : `${all.length} files, in their folders.` });
+    } catch {
+      // Never leave someone without their code: one text file, each file headed by its path.
+      const text = all.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
+      downloadBlob(new Blob([text], { type: "text/plain" }), `${name}-source.txt`);
+    }
+    return { zipName: `${name}.zip`, folder: slug, count: all.length };
+  };
+}
+
+/**
+ * Honest ways to get this code into an editor: the zip (always real), and a clone command only when
+ * GitHub is connected. The GitHub connection is a sandbox, so the clone says so: nothing is pushed to a
+ * project's own repo; an imported repo is real, but its pull request isn't pushed. No invented CLI.
+ */
+function OpenIn({ pr, snap }: { pr: ImportPullRequest | null; snap: RepoSnapshot | null }) {
+  const ws = useWorkspace();
+  const gh = ws.project.settings.github;
+  const repo = gh?.connected ? gh.repo : undefined;
+  const exportBundle = useExportBundle(pr, snap);
+  const openInCursor = () => {
+    const { zipName, folder, count } = exportBundle({ quiet: true });
+    toast.success(`Downloaded ${zipName}`, {
+      description: pr
+        ? `${count} new files in ${folder}/${pr.root}/. Unzip it, copy ${pr.root}/ into your clone of ${snap ? `${snap.owner}/${snap.name}` : "your repo"}, then open that folder in Cursor (File › Open Folder).`
+        : `${count} files. Unzip it, then open the ${folder} folder in Cursor (File › Open Folder).`,
+    });
+  };
+  const cloneFromGitHub = () => {
+    if (!repo) return;
+    const folder = repo.split("/")[1] ?? projectSlug(ws.project.name);
+    const cmd = `git clone https://github.com/${repo}.git && cd ${folder}`;
     void navigator.clipboard.writeText(cmd);
-    toast.success(`${label} command copied`, { description: cmd });
+    toast.success("Clone command copied", {
+      description: pr
+        ? `${cmd}. Your repo is real; PR #${pr.number} is a sandbox and isn't pushed, so its files come from the zip.`
+        : `${cmd}. Sandbox: GitHub isn't really connected in this prototype and nothing has been pushed to ${repo}, so the clone won't find it yet. Use the zip for the code.`,
+    });
   };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant="outline" className="h-7">Open in <ChevronDown /></Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuItem onSelect={() => copyCmd(`cursor ${repo ? `https://github.com/${repo}` : "."}`, "Cursor")}><ExternalLink /> Cursor</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copyCmd(repo ? `git clone https://github.com/${repo} && cd ${folder} && claude` : `unzip ${folder}.zip && cd ${folder} && claude`, "Claude Code")}><Terminal /> Claude Code</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copyCmd(`code ${repo ? `https://github.com/${repo}` : "."}`, "VS Code")}><ExternalLink /> VS Code</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copyCmd("npx @prodai/cli sync --watch", "Prod AI CLI")}><RefreshCw /> Sync with your editor (CLI)</DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuItem onSelect={openInCursor}><Download /> {pr ? `Download PR #${pr.number} (.zip), then open it in Cursor` : "Download .zip, then open the folder in Cursor"}</DropdownMenuItem>
+        {repo && (
+          <DropdownMenuItem onSelect={cloneFromGitHub} className="items-start">
+            <GitHubMark className="mt-0.5" />
+            <span className="min-w-0">
+              <span className="block">Clone from GitHub · sandbox</span>
+              <span className="block truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
+            </span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -453,22 +502,8 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
   const firstNumber = ws.project.isDemo ? 12 : pr ? pr.number + 1 : 1;
   // Only the seeded demo has a teammate history on main. Nobody has pushed to a repo imported seconds ago.
   const seededTeammate = ws.project.isDemo;
-  const ciUntouched = pr ? Boolean(ruleBlocking(houseRulePolicy(ws.project.settings.houseRules ?? []), ".github/workflows/prodai-rehearsals.yml")) : false;
-
-  function exportBundle() {
-    const slug = pr ? (snap?.name ?? projectSlug(ws.project.name)) : projectSlug(ws.project.name);
-    const all = pr ? pr.files : generateFiles(ws.blueprint);
-    const name = pr ? `${slug}-pr-${pr.number}` : slug;
-    try {
-      const bytes = zip(all.map((f) => ({ path: `${slug}/${f.path}`, content: f.content })));
-      downloadBlob(new Blob([bytes], { type: "application/zip" }), `${name}.zip`);
-      toast.success(`Downloaded ${name}.zip`, { description: pr ? `${all.length} new files, all in ${pr.root}/. Nothing else in your repo.` : `${all.length} files, in their folders.` });
-    } catch {
-      // Never leave someone without their code: one text file, each file headed by its path.
-      const text = all.map((f) => `# ===== ${f.path} =====\n${f.content}`).join("\n\n");
-      downloadBlob(new Blob([text], { type: "text/plain" }), `${name}-source.txt`);
-    }
-  }
+  const ciUntouched = pr ? Boolean(ruleBlocking(houseRulePolicy(ws.project.settings.houseRules ?? []), ".github/workflows/prodai-checks.yml")) : false;
+  const exportBundle = useExportBundle(pr, snap);
 
   return (
     <aside aria-label="GitHub" className={cn("overflow-y-auto p-4", className)}>
@@ -530,13 +565,13 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
           )}
           <p className="flex items-start gap-1.5 text-[11.5px] leading-snug text-muted-foreground">
             <Check className="mt-0.5 size-3 shrink-0 text-read" />
-            {ciUntouched ? "Your CI is untouched. Prod AI runs every rehearsal before it opens a pull request." : "CI runs every rehearsal on each pull request"}
+            {ciUntouched ? "Your CI is untouched. Prod AI runs every rehearsal before it opens a pull request." : "CI type-checks and builds each pull request. Prod AI runs every rehearsal before it opens one."}
           </p>
         </div>
       )}
       <div className="mt-6 border-t border-hairline pt-4">
         <p className="micro-label">No lock-in</p>
-        <Button variant="outline" size="sm" className="mt-2 w-full" onClick={exportBundle}><Download /> {pr ? `Download PR #${pr.number} files` : "Download all source"}</Button>
+        <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => exportBundle()}><Download /> {pr ? `Download PR #${pr.number} files` : "Download all source"}</Button>
         <p className="mt-2 text-[11px] text-faint">{pr ? `Only the new ${pr.root}/ folder: plain YAML, Markdown and thin wrappers. Delete it and your repo is exactly as it was.` : "Standard Next.js, Postgres and agent files. Runs without Prod AI."}</p>
       </div>
       {ws.checkpoints[0] && <p className="mt-6 text-[11px] text-faint">Last save point <TimeAgo iso={ws.checkpoints[0].created_at} /></p>}
