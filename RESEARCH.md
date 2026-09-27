@@ -74,34 +74,35 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 
 | Gap in the market | Evidence | What Prod AI does |
 |---|---|---|
-| **Cost you can predict** | No product quotes a task before it runs (v0 shows per-model prices only; architect.new's credits docs show no estimate); Replit users report paying for failed attempts; one Emergent reviewer reports a single bug billed 233 times | Every build and change starts as a **Work Order** with time, credits and blast radius. A live spend meter and a hard cap. Fixes for our own mistakes are free and labelled **Our fix** |
-| **Stopping doom loops** | Paid fix loops in Emergent and Replit user reports; Rocket's free Fix-it covers only errors Rocket detects, on paid plans | The **repair card** shows what was tried, why it matters and two fixes. The harness stops after the same error twice and hands it to a person (see [ARCHITECTURE.md](ARCHITECTURE.md#7-the-agent-harness)) |
-| **Governing production agents** | Replit database deletion, Cursor file deletions, Lovable data exposure | Every tool is **Read**, **Change** or **Can't undo**. Anything irreversible **asks a person first**, in the playground and in production, with rehearsals and replays |
+| **Cost you can predict** | No product quotes a task before it runs (v0 shows per-model prices only; architect.new's credits docs show no estimate); Replit users report paying for failed attempts; one Emergent reviewer reports a single bug billed 233 times | Nothing runs without a price. The sketch shows what the build will cost before **Make it real**, and every note in the margin gets the change in plain words and its price before **Apply** (a Work Order, under the hood). A live spend meter and a hard cap. Fixes for our own mistakes are free and labelled **Our fix** |
+| **Stopping doom loops** | Paid fix loops in Emergent and Replit user reports; Rocket's free Fix-it covers only errors Rocket detects, on paid plans | When a test run catches a problem, a **note on the sheet** shows what was tried, why it matters and two free fixes. The harness stops after the same error twice and hands it to a person (see [ARCHITECTURE.md](ARCHITECTURE.md#7-the-agent-harness)) |
+| **Governing production agents** | Replit database deletion, Cursor file deletions, Lovable data exposure | Every tool is **Read**, **Change** or **Can't undo**. Anything irreversible **asks a person first**, in **Try it** on the AI helpers tab and in production, with test runs (rehearsals) and replays |
 | **Agents from any framework** | Builders hard-wire one agent stack (architect.new builds Lyzr Studio agents) | One agent definition compiles to **Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK and Mastra**, with an honest list of what does not translate |
-| **Handoff between the two audiences** | Lovable cannot import repos; Rocket syncs two ways only for Next.js + TypeScript; architect.new needs branches pushed to GitHub first | **Ask a teammate** sends the exact object, the brief, recent requests and the latest diff. Engineers get a branch and a PR per Work Order; the fix comes back as a plain-English line |
-| **Importing existing agent projects** | Imports (Replit, v0) bring in code and environment; none we found maps the agents and tools inside a repo | Import detects the stack **and the agents and tools inside it**, shows a coverage map, and signs **House Rules** before it touches a file |
-| **One surface for both people** | Mode switches instead of depth (section 3) | No mode switch. **Depth is per object**: every screen, agent and connection has a Plain face, a Spec face and a Code face |
+| **Handoff between the two audiences** | Lovable cannot import repos; Rocket syncs two ways only for Next.js + TypeScript; architect.new needs branches pushed to GitHub first | **Ask a teammate** sends the exact object, the brief, recent requests and the latest diff. Engineers get a branch and a PR per change; the fix comes back as a plain-English line |
+| **Importing existing agent projects** | Imports (Replit, v0) bring in code and environment; none we found maps the agents and tools inside a repo | Import detects the stack **and the agents and tools inside it**, shows a coverage map, and agrees **House Rules** before anything is proposed. The repo stays untouched; new files arrive in one `prodai/` folder as PR #1 |
+| **One surface for both people** | Mode switches instead of depth (section 3) | No mode switch. The Sheet speaks plain English for everyone; **Under the hood** holds the Plan map (every object with Plain, Settings and Code faces), Code and GitHub, and Handoffs for whoever wants the depth |
 
 ## 5. What we borrowed, and from whom
 
 | From | Pattern | Where it lives in Prod AI |
 |---|---|---|
-| architect.new | Plan, Agents, App as the spine of a project | Blueprint, Agents and Preview tabs |
-| Emergent, architect.new | Clarifying questions before building | Three quick questions with sensible defaults |
-| Replit, Claude Code | Checkpoints you can roll back to | Save points, always free to return to |
-| Lovable, v0 | Visual edits in the preview | Point-and-tweak in Preview, 0 credits |
-| v0 | Branch per chat, PR into protected main | Branch and PR per Work Order |
-| Codex, Claude Code | Explicit permission and approval policies | Read, Change, Can't undo, with Ask first |
+| architect.new | Plan, Agents, App as the spine of a project | The Sheet (the plan as a sketch that becomes the app), the AI helpers tab, and the Plan map under the hood |
+| Emergent, architect.new | Clarifying questions before building | A few brief-aware questions on /new, with "Skip, use sensible defaults" |
+| Replit, Claude Code | Checkpoints you can roll back to | Versions: "Applied · version N" with Undo, always free to return to |
+| Lovable, v0 | Visual edits in the preview | "Point and write a note" on the real app, and point-and-tweak in Preview and tweak (0 credits) |
+| v0 | Branch per chat, PR into protected main | Branch and PR per applied change (Code and GitHub, sandboxed) |
+| Codex, Claude Code | Explicit permission and approval policies | "What it's allowed to do": Just do it, Tell me, Ask first; can't-undo actions always ask first |
 | Linear, Raycast | Keyboard-first command menu | ⌘K to jump anywhere |
 | Stripe | Clear sandbox labelling | "Test version · only you can see this" and "Sandbox" tags on everything simulated |
-| Vercel | Instant rollback by pointer switch | "Update the live version" and rollback in Ship |
+| Vercel | Instant rollback by pointer switch | Versions and rollback on the Publish tab |
 
 ## 6. What we deliberately did not copy
 
 - **A builder vs developer toggle.** Most products above split people this way. We think it is the wrong split: an ops lead reads code when it matters, and an engineer wants the plain summary when reviewing.
-- **A linear Plan → Build → Ship ribbon as the whole product.** Real projects loop; save points and Work Orders handle that better than a wizard.
-- **Chat as the only surface.** The plan, the price and the progress are pinned objects, not messages that scroll away.
-- **Credits with no receipt.** Every charge in the activity feed says what it was for, and our own fixes cost nothing.
+- **A linear Plan → Build → Ship ribbon as the whole product.** Real projects loop; versions and priced notes in the margin handle that better than a wizard.
+- **Chat on the left, preview on the right.** Nearly every builder above uses this layout, and the brief asked us not to copy any of them. Prod AI's project is one sheet of paper: the app in the middle, notes in the margin.
+- **Chat as the only surface.** The plan, the price and the progress live on the Sheet, not in messages that scroll away. Notes in the margin are threads tied to what they changed.
+- **Credits with no receipt.** Every charge in the margin's thread says what it was for, and our own fixes cost nothing.
 
 ## 7. Sources
 
