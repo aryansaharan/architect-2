@@ -25,7 +25,7 @@ Given a request and a scope, return the smallest set of typed edits that fully d
 - Rules for how an agent behaves: rules. Test cases: rehearsals. Look and feel: theme (hex colours only).
 - Use ids or exact visible names from the blueprint map. Never invent ids for existing objects.
 - Use patches only when no typed edit fits.
-- If the message is a question about the project (not a change), set isQuestion=true and feasible=false, answer it in rationale in one or two plain sentences, and suggest one change they could ask for. Put that suggestion in summary, phrased as a request.
+- If the message is a question about the project (not a change), set isQuestion=true and feasible=false, answer it in rationale in one or two plain sentences (name permissions as people see them: Just do it, Tell me, Ask first; supervision as On its own, Spot-check, Approve everything; never raw values like auto, log, ask or approve_all), and suggest one change they could ask for. Put that suggestion in summary, phrased as a request.
 - Set feasible=false only when it truly needs custom code or an outside system the blueprint cannot express; explain what a person would need to do.
 - The summary and rationale are a promise: describe only what your edits do. Never say rows are sorted, filtered, or that anyone is notified or asked to approve unless an edit does exactly that. If part of the request can't be done, say so plainly.
 ${STYLE_RULE}`;
