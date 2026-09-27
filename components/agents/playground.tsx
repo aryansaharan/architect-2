@@ -7,15 +7,32 @@ import { ArrowUp, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import type { Agent, Blueprint } from "@/lib/blueprint/schema";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/arch/badges";
-import { setToolPermission } from "@/lib/actions/blueprint";
+import { allowToolAlways } from "@/lib/actions/agents";
+import { PERMISSION_LABEL, supervisionView } from "@/lib/blueprint/describe";
 import { cn } from "@/lib/utils";
 import { useAgentChat } from "./use-agent-chat";
 import { ApprovalCard, isToolPart, TraceRow } from "./chat-parts";
 import { Markdown } from "@/components/markdown";
 
-export function Playground({ projectId, agent, bp, llm, initialPrompt }: { projectId: string; agent: Agent; bp: Blueprint; llm: "live" | "offline"; initialPrompt?: string }) {
+export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSaved }: { projectId: string; agent: Agent; bp: Blueprint; llm: "live" | "offline"; initialPrompt?: string; onRunSaved?: () => void }) {
   const router = useRouter();
-  const chat = useAgentChat(projectId, agent.id);
+  // Spend and permissions shown elsewhere in the studio are refreshed once the conversation is out of view,
+  // never mid-chat (see use-agent-chat.ts for why a refresh here blanked the tab).
+  const stale = useRef(false);
+  const chat = useAgentChat(projectId, agent.id, {
+    onTurnEnd: () => {
+      stale.current = true;
+      onRunSaved?.();
+    },
+  });
+  const refresh = router.refresh; // the same function for the router's lifetime, so this cleanup only runs on unmount
+  useEffect(() => {
+    const s = stale;
+    return () => {
+      if (s.current) refresh();
+    };
+  }, [refresh]);
+  const sup = supervisionView(agent);
   const [text, setText] = useState(initialPrompt ?? "");
   const scroller = useRef<HTMLDivElement>(null);
   const busy = chat.status === "submitted" || chat.status === "streaming";
@@ -33,9 +50,11 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
 
   const respond = async (approvalId: string, toolId: string, decision: "once" | "always" | "deny") => {
     if (decision === "always") {
-      const r = await setToolPermission(projectId, agent.id, toolId, "log");
-      if (r.ok) toast.success("Won't ask again for this", { description: "Changed to “Do it and tell me”. You can undo it from save points." });
-      router.refresh();
+      const r = await allowToolAlways(projectId, agent.id, toolId);
+      if (r.ok) {
+        stale.current = true;
+        toast.success("Won't ask again for this", { description: `Changed to “${PERMISSION_LABEL.log}”. Every change is a save point, so you can go back any time.` });
+      } else toast.error(r.error);
     }
     void chat.addToolApprovalResponse({ id: approvalId, approved: decision !== "deny", reason: decision === "deny" ? "Denied by a person in the playground" : undefined });
   };
@@ -58,6 +77,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt }: { proje
             <Avatar name={agent.name} hue={agent.avatarHue} size={44} className="mx-auto" />
             <p className="mt-3 text-[14px] font-medium">Talk to {agent.name} like a new colleague.</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">Watch what it looks up, what it changes, and where it stops to ask you.</p>
+            <p className="mt-1.5 text-[11.5px] text-faint">Supervision: <span className="text-muted-foreground">{sup.label}</span>{sup.mode === "approve_all" ? ", so every tool asks you first." : sup.mode === "custom" ? ", each tool follows its own permission." : ", anything that can't be undone asks you first."}</p>
             <div className="mt-4 flex flex-col gap-2">
               {agent.rehearsals.slice(0, 3).map((r) => (
                 <button key={r.id} onClick={() => send(r.input)} className="rounded-lg border border-hairline px-3 py-2 text-left text-[12.5px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground">

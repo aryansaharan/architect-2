@@ -299,7 +299,7 @@ export const supportFixture: BlueprintInput = {
         { label: "Customers", source: "entity", ref: "customer" },
       ],
       memory: { scope: "project", retentionDays: 90 },
-      cost: { creditsPerRun: 1, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["on_create", "chat"],
       rehearsals: [
         { id: "r-enterprise-outage", name: "Enterprise webhooks down", input: "Pinecrest Bank (Enterprise): \"All our webhooks started returning 502 ten minutes ago. Payment reconciliation has stopped.\"", expect: "Category Outage, priority Urgent, tagged 'possible-outage'; reason mentions Enterprise and production impact.", history: [] },
@@ -326,8 +326,8 @@ export const supportFixture: BlueprintInput = {
         "Keep replies under 180 words.",
       ],
       tools: [
-        { id: "read_ticket", name: "Read ticket", description: "Read a ticket, its full thread and attachments from Zendesk.", connectionId: "zendesk", access: "read", permission: "auto" },
-        { id: "search_help_centre", name: "Search help centre", description: "Search published help centre articles and return matching passages.", connectionId: "help-centre", access: "read", permission: "auto" },
+        { id: "read_ticket", name: "Read ticket", description: "Read a ticket, its full thread and attachments from Zendesk.", connectionId: "zendesk", access: "read", permission: "ask" },
+        { id: "search_help_centre", name: "Search help centre", description: "Search published help centre articles and return matching passages.", connectionId: "help-centre", access: "read", permission: "ask" },
         { id: "send_reply", name: "Send reply", description: "Email the approved reply to the customer from support@northwind.cloud.", connectionId: "gmail", access: "irreversible", permission: "ask" },
       ],
       supervision: "approve_all",
@@ -337,7 +337,7 @@ export const supportFixture: BlueprintInput = {
         { label: "Public status page", source: "url", ref: "https://status.northwind.cloud" },
       ],
       memory: { scope: "project", retentionDays: 60 },
-      cost: { creditsPerRun: 3, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["on_create", "manual", "chat"],
       rehearsals: [
         { id: "r-howto-article", name: "How-to with an article", input: "\"How do I rotate my API keys without any downtime?\"", expect: "Numbered steps from 'Rotating API keys safely', article linked, confidence ≥ 0.8, waiting for approval.", history: [] },
@@ -373,7 +373,7 @@ export const supportFixture: BlueprintInput = {
         { label: "Tickets", source: "entity", ref: "ticket" },
       ],
       memory: { scope: "org", retentionDays: 180 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["on_create", "schedule", "chat"],
       rehearsals: [
         { id: "r-webhook-outage", name: "Webhook outage", input: "Four customers report webhook 502 errors within 18 minutes; two are on Enterprise.", expect: "Suspected incident declared; the page waits for approval; one message in #support-incidents listing all 4 tickets.", history: [] },

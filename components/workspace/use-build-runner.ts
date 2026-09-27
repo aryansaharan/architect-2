@@ -21,6 +21,8 @@ export type BuildRunner = {
   repair: RepairPlan | null;
   repairChoice: "a" | "b" | null;
   speed: number;
+  /** Estimated price taken from the demo balance when this build started (null for replays and resumed builds). Refunded if the build is stopped. */
+  charged: number | null;
   progress: number;
   nodeState: (ref: ObjectRef) => NodeState | null;
   start: (opts?: { replay?: boolean }) => Promise<void>;
@@ -50,7 +52,7 @@ function beforeRecordedFix(bp: Blueprint, fix: LedgerRow | null): Blueprint {
   const ti = ai === -1 ? -1 : bp.agents[ai].tools.findIndex((t) => t.access === "irreversible" && t.permission === "ask" && (!toolId || t.id === toolId));
   if (ti === -1) return bp;
   const before = structuredClone(bp);
-  before.agents[ai].tools[ti].permission = "log"; // "Do it and tell me": what the gate replaced
+  before.agents[ai].tools[ti].permission = "log"; // "Tell me": what the gate replaced
   return planRepair(before).objectRef.id === agentId ? before : bp;
 }
 
@@ -63,6 +65,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
   const [index, setIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [repairChoice, setRepairChoice] = useState<"a" | "b" | null>(null);
+  const [charged, setCharged] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useRef<"build" | "replay">("build");
 
@@ -105,6 +108,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
       setSteps(buildTimeline(replay ? beforeRecordedFix(blueprint, recordedFix) : blueprint));
       setIndex(0);
       setRepairChoice(null);
+      setCharged(null);
       setSpeed(buildState === "building" && !replay ? 4 : 1);
       if (!replay) {
         const r = await startBuild(projectId);
@@ -112,6 +116,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
           toast.error(r.error);
           return;
         }
+        setCharged(r.credits ? r.credits : null);
       }
       setStatus("running");
     },
@@ -170,6 +175,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
     repair: derived.repair,
     repairChoice,
     speed,
+    charged,
     progress: derived.progress,
     nodeState,
     start,

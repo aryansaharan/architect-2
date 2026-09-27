@@ -87,14 +87,14 @@ export function ApprovalCard({
       </p>
       {part.input?.query && <p className={cn("mt-1.5 rounded-md px-2 py-1.5 font-mono text-[11.5px]", studio ? "bg-deep text-foreground/85" : "bg-white text-slate-700")}>{part.input.query}</p>}
       <p className={cn("mt-2 text-[12px]", studio ? "text-muted-foreground" : "text-slate-600")}>
-        {irreversible ? "This can't be undone, so it always asks a person first." : "You asked to approve this before it runs."} Sandbox: nothing leaves the building in the test version.
+        {irreversible ? "This can't be undone, so it always asks a person first." : "This tool is set to “Ask first”, so it waits for you."} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(223_255_79/0.7)]" : "bg-slate-900 text-white")}>
           <Check className="size-3.5" /> Allow once
         </button>
         {!irreversible && (
-          <button onClick={() => onRespond("always")} className={cn("inline-flex h-8 items-center rounded-md border px-3 text-[12.5px]", studio ? "border-hairline hover:bg-raised" : "border-slate-200 bg-white text-slate-700")}>
+          <button onClick={() => onRespond("always")} title="Sets this tool to “Tell me”: it runs straight away and tells you what it did." className={cn("inline-flex h-8 items-center rounded-md border px-3 text-[12.5px]", studio ? "border-hairline hover:bg-raised" : "border-slate-200 bg-white text-slate-700")}>
             Always allow
           </button>
         )}

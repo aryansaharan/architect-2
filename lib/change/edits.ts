@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import type { ChangeOperation } from "@/lib/db/types";
 import { applyOperation } from "@/lib/blueprint/pointer";
+import { applySupervision } from "@/lib/blueprint/describe";
 
 /**
  * The model decides, code does the rest: instead of hand-writing JSON Pointer
@@ -232,7 +233,7 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
     if (!hit && p.agent !== "*") problems.push(`permissions: no tool "${p.tool}" on ${agents.map((a) => a.name).join(", ")}`);
   }
 
-  for (const s of e.supervision) for (const a of many(next.agents, s.agent, agentNames)) a.supervision = s.level;
+  for (const s of e.supervision) for (const a of many(next.agents, s.agent, agentNames)) applySupervision(a, s.level);
 
   for (const r of e.rules) {
     for (const a of many(next.agents, r.agent, agentNames)) {

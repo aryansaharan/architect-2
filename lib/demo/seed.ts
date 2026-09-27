@@ -2,7 +2,8 @@ import "server-only";
 import type { Supa } from "@/lib/supabase/server";
 import { starterBlueprint, STARTERS } from "@/lib/blueprint/fixtures";
 import { applyOps, markBuilt } from "@/lib/blueprint/apply";
-import { planRepair } from "@/lib/sim/repair";
+import { planRepair, repairLedgerTitle } from "@/lib/sim/repair";
+import { toolsOffPreset } from "@/lib/blueprint/describe";
 import { shortId } from "@/lib/sim/hash";
 import { addCheckpoint, addLedger, createProject, logUsage, updateProject } from "@/lib/db/writes";
 import { preflight } from "@/lib/sim/preflight";
@@ -48,6 +49,10 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   const built = withBuildRehearsals(planned, markBuilt(repaired.ok ? repaired.blueprint : planned), at(24), at(26));
   const rehearsed = built.agents.flatMap((a) => a.rehearsals);
   const passed = rehearsed.filter((r) => r.history[r.history.length - 1]?.pass).length;
+  // Every agent's supervision must match its tool permissions after the build (e.g. Settlement: Approve everything, every tool on Ask first).
+  const mismatched = built.agents.filter((a) => toolsOffPreset(a).length);
+  if (mismatched.length) console.warn("[seed] supervision and tool permissions disagree for", mismatched.map((a) => a.id).join(", "));
+  const { credits: buildCredits, minutes: buildMinutes } = planned.estimate;
 
   const project = await createProject(supa, {
     ownerId: userId,
@@ -78,9 +83,9 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
 
   await addLedger(supa, project.id, [
     { lane: "thought", kind: "brief", title: "You described the project", body: STARTERS.claims.brief, createdAt: at(0) },
-    { lane: "thought", kind: "work_order", title: "Plan ready · 5 screens, 3 agents", body: "Estimated 24 min and 96 credits (≈ $0.96). You approved it.", checkpointId: cp1.id, credits: 0, createdAt: at(2) },
-    { lane: "did", kind: "build_step", title: "Built 5 screens and put 3 agents on duty", body: "Intake Queue, Claim Detail, Adjuster Desk, Payouts, File a Claim.", credits: 96, createdAt: at(24) },
-    { lane: "checked", kind: "repair", blame: "system_fix", title: "Caught: Settlement could send money without asking", body: repair.options[0].narration, objectRef: { type: "agent", id: "settlement" }, credits: 0, createdAt: at(25) },
+    { lane: "thought", kind: "work_order", title: `Plan ready · ${planned.screens.length} screens, ${planned.agents.length} agents`, body: `Estimated ${buildMinutes} min and ${buildCredits} credits (≈ $${(buildCredits / 100).toFixed(2)}), taken from your demo balance. You approved it.`, checkpointId: cp1.id, credits: 0, createdAt: at(2) },
+    { lane: "did", kind: "build_step", title: `Built ${built.screens.length} screens and put ${built.agents.length} agents on duty`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, createdAt: at(24) },
+    { lane: "checked", kind: "repair", blame: "system_fix", title: repairLedgerTitle(repair), body: repair.options[0].narration, objectRef: repair.objectRef, credits: 0, meta: { planId: repair.id, optionId: "a", changelog: repair.options[0].changelog }, createdAt: at(25) },
     { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsed.length} conversations · ${passed} passed`, credits: 0, checkpointId: cp2.id, createdAt: at(27) },
     { lane: "did", kind: "ship", title: "Went live on Prod Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
     { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0.7, createdAt: at(90) },
@@ -136,7 +141,7 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     created_at: at(90),
   });
 
-  await logUsage(supa, { userId, projectId: project.id, kind: "build", credits: 96, meta: { note: "Work Order estimate", scripted: true } });
+  await logUsage(supa, { userId, projectId: project.id, kind: "build", credits: buildCredits, meta: { note: "Work Order estimate", scripted: true } });
   await logUsage(supa, { userId, projectId: project.id, kind: "agent_run", provider: "anthropic", model: "claude-opus-5", inputTokens: 2140, outputTokens: 610, costUsd: 0.02595, credits: 0.7, meta: { agentId: "intake-triage", scripted: true } });
 
   await updateProject(supa, project.id, { current_checkpoint_id: cp2.id });

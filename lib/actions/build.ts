@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
 import { applyOps, markBuilt } from "@/lib/blueprint/apply";
-import { planRepair } from "@/lib/sim/repair";
+import { planRepair, repairLedgerTitle } from "@/lib/sim/repair";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -30,7 +30,7 @@ export async function startBuild(projectId: string): Promise<Result & { credits?
         lane: "thought",
         kind: "work_order",
         title: "You approved the Work Order",
-        body: `Build ${project.blueprint.screens.length} screens and ${project.blueprint.agents.length} agents · est. ${project.blueprint.estimate.minutes} min.`,
+        body: `Build ${project.blueprint.screens.length} screens and ${project.blueprint.agents.length} agents · est. ${project.blueprint.estimate.minutes} min. ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
         credits,
       },
     ]);
@@ -57,7 +57,7 @@ export async function resolveRepair(projectId: string, planId: string, optionId:
         lane: "checked",
         kind: "repair",
         blame: "system_fix",
-        title: `Caught: ${plan.title.replace(/^Rehearsal caught /, "")}`,
+        title: repairLedgerTitle(plan),
         body: option.narration,
         objectRef: plan.objectRef,
         credits: 0,
@@ -121,8 +121,9 @@ export async function cancelBuild(projectId: string): Promise<Result> {
     await updateProject(supa, projectId, { build_state: "draft" });
     await supa.from("work_orders").update({ status: "proposed" }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
     await logUsage(supa, { userId: user.id, projectId, kind: "refund", credits: -credits, meta: { note: "Build stopped at repair, refunded" } });
+    // Stopping is the person's choice, not a fix Prod AI made: log it as theirs (no "Our fix" badge, not counted as a fix).
     await addLedger(supa, projectId, [
-      { lane: "did", kind: "restore", blame: "system_fix", title: "You stopped the build. Nothing was charged", body: `The ${credits}-credit estimate was refunded. The plan is exactly as you left it.`, credits: 0 },
+      { lane: "did", kind: "restore", blame: "user", title: "Stopped the build · refunded", body: `The ${credits}-credit estimated price went back on your demo balance. Nothing was charged, and the plan is exactly as you left it.`, credits: 0 },
     ]);
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true };

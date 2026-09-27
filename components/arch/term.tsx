@@ -14,7 +14,7 @@ export const GLOSSARY = {
   "house-rules": { term: "House Rules", plain: "Promises Prod AI keeps about your existing code, such as “never change the framework”.", dev: "Path and policy constraints enforced on every change and PR." },
   preflight: { term: "Preflight", plain: "The checklist before going live: sign-in, keys, approvals, rehearsals, a spending cap and where data is stored.", dev: "Pre-deploy gates. Blocking checks stop the release." },
   supervision: { term: "Supervision", plain: "How closely a person watches an agent: on its own, spot-checked, or approving everything.", dev: "Human-in-the-loop policy per agent." },
-  "ask-first": { term: "Ask first", plain: "The agent stops and asks a person before this action, because it can't be undone.", dev: "Tool call requires approval (toolApproval: user-approval)." },
+  "ask-first": { term: "Ask first", plain: "The agent stops and asks a person before this action. Always on for actions that can't be undone, and on for everything under Approve everything.", dev: "Tool call requires approval (toolApproval: user-approval)." },
   credits: { term: "Credits", plain: "How work is priced. 1 credit is about $0.01, and you always see the price before anything runs.", dev: "Metered model tokens and compute at list price." },
   "our-fix": { term: "Our fix", plain: "A problem Prod AI caused and fixed itself. You are never charged for these.", dev: "Repair operations billed at 0 credits and recorded in the ledger." },
   handoff: { term: "Handoff", plain: "Send a question to an engineer with everything attached. The answer comes back as a sentence.", dev: "An issue with object ref, prompt history and last diff attached." },

@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
-import { BlueprintSchema, defaultPermissionFor, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
+import { BlueprintSchema, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { getModel } from "@/lib/llm/provider";
@@ -15,12 +15,13 @@ import { costOf } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import { modelBudgetOk } from "@/lib/llm/guard";
-import { FRAMEWORK_LABEL } from "@/lib/blueprint/describe";
+import { applySupervision, estimateRunCredits, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
+import type { LedgerKind } from "@/lib/db/types";
 import { agentLocationError, agentNameFromLocation } from "@/lib/import/detect";
 
 type R = { ok: true; agentId?: string; summary?: string } | { ok: false; error: string };
 
-async function save(projectId: string, bp: Blueprint, title: string, body: string, agentId: string, credits = 0) {
+async function save(projectId: string, bp: Blueprint, title: string, body: string, agentId: string, credits = 0, opts: { kind?: LedgerKind; revalidate?: boolean } = {}) {
   const supa = await createClient();
   const parsed = BlueprintSchema.safeParse(bp);
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid agent");
@@ -29,8 +30,66 @@ async function save(projectId: string, bp: Blueprint, title: string, body: strin
   parsed.data.estimate = estimate(parsed.data);
   await updateProject(supa, projectId, { blueprint: parsed.data });
   const cp = await addCheckpoint(supa, projectId, { label: title.slice(0, 60), kind: "change", blueprint: parsed.data });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "change", title, body, credits, objectRef: { type: "agent", id: agentId }, checkpointId: cp.id }]);
-  revalidatePath(`/p/${projectId}`, "layout");
+  await addLedger(supa, projectId, [{ lane: "did", kind: opts.kind ?? "change", title, body, credits, objectRef: { type: "agent", id: agentId }, checkpointId: cp.id }]);
+  if (opts.revalidate !== false) revalidatePath(`/p/${projectId}`, "layout");
+}
+
+/**
+ * Choose how closely an agent is watched. Supervision is a preset, not a second
+ * permission system: it rewrites every tool's permission (lib/blueprint/describe.ts),
+ * so the agent label and its tools can never contradict each other.
+ */
+export async function applySupervisionPreset(projectId: string, agentId: string, level: Agent["supervision"]): Promise<R> {
+  await requireUser();
+  const supa = await createClient();
+  const project = await getProject(supa, projectId);
+  if (!project) return { ok: false, error: "Project not found" };
+  const bp = structuredClone(project.blueprint);
+  const agent = bp.agents.find((a) => a.id === agentId);
+  if (!agent) return { ok: false, error: "Agent not found" };
+  const before = new Map(agent.tools.map((t) => [t.id, t.permission]));
+  applySupervision(agent, level);
+  const changed = agent.tools.filter((t) => before.get(t.id) !== t.permission);
+  const label = SUPERVISION_LABEL[level].label;
+  try {
+    await save(
+      projectId,
+      bp,
+      `${agent.name}: ${label.toLowerCase()}`,
+      changed.length ? `Preset applied. ${changed.map((t) => `${t.name}: ${PERMISSION_LABEL[t.permission]}`).join(" · ")}. Direct edit: free.` : "Preset applied. Every tool already matched. Direct edit: free.",
+      agentId,
+      0,
+      { kind: "permission" },
+    );
+    return { ok: true, summary: changed.length ? `${changed.length} tool${changed.length === 1 ? "" : "s"} updated to match` : "Every tool already matched" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save" };
+  }
+}
+
+/**
+ * "Always allow" from a playground approval card: the tool moves to "Tell me".
+ * Deliberately doesn't revalidate the page: a router refresh while the chat is
+ * still streaming swapped the Agents tab for its loading skeleton. The playground
+ * refreshes the rest of the studio once the conversation is out of view.
+ */
+export async function allowToolAlways(projectId: string, agentId: string, toolId: string): Promise<R> {
+  await requireUser();
+  const supa = await createClient();
+  const project = await getProject(supa, projectId);
+  if (!project) return { ok: false, error: "Project not found" };
+  const bp = structuredClone(project.blueprint);
+  const agent = bp.agents.find((a) => a.id === agentId);
+  const tool = agent?.tools.find((t) => t.id === toolId);
+  if (!agent || !tool) return { ok: false, error: "Tool not found" };
+  if (tool.access === "irreversible") return { ok: false, error: "Actions that can't be undone always ask first" };
+  tool.permission = "log";
+  try {
+    await save(projectId, bp, `${agent.name} · ${tool.name}: tell me`, "You chose “Always allow” in the playground. Direct edit: free.", agentId, 0, { kind: "permission", revalidate: false });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save" };
+  }
 }
 
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "agent";
@@ -139,12 +198,13 @@ export async function addAgentFromDescription(projectId: string, description: st
           while (toolIds.has(tid)) tid += "_2";
           toolIds.add(tid);
           const conn = bp.connections.find((c) => c.name.toLowerCase() === t.connection.toLowerCase()) ?? bp.connections.find((c) => t.connection.toLowerCase().includes(c.name.toLowerCase().split(" ")[0])) ?? db;
-          return { id: tid, name: t.name, description: t.description, connectionId: conn.id, access: t.access, permission: defaultPermissionFor(t.access) };
+          // Supervision is a preset: every tool's permission follows it, so the two never disagree.
+          return { id: tid, name: t.name, description: t.description, connectionId: conn.id, access: t.access, permission: presetPermission(o.supervision, t.access) };
         }),
         supervision: o.supervision,
         knowledge: [],
         memory: { scope: "project", retentionDays: 30 },
-        cost: { creditsPerRun: 2, model: m.id },
+        cost: { creditsPerRun: 0, model: m.id },
         triggers: ["chat"],
         rehearsals: o.rehearsals.slice(0, 4).map((x, i) => ({ id: `r-${kebab(x.name)}-${i}`, name: x.name, input: x.input, expect: x.expect, history: [] })),
         framework: "lyzr",
@@ -165,20 +225,22 @@ export async function addAgentFromDescription(projectId: string, description: st
       name,
       role: "New agent",
       avatarHue: hash(id) % 360,
-      plain: `${text} It starts with read access only. Give it more when you trust it.`,
+      plain: `${text} It starts with read access only, and approves everything: it asks before each look-up. Loosen it when you trust it.`,
       jobDescription: `You are ${name}. ${text} Use your tools to look things up before answering, keep answers short, and hand anything you're unsure about to a person.`,
       rules: ["Hand anything you're unsure about to a person.", "Never act outside this project's data."],
-      tools: [{ id: "look_up", name: "Look things up", description: "Search the project's records.", connectionId: db.id, access: "read", permission: "auto" }],
+      // Starts careful: Approve everything, so even its one look-up tool asks first until you loosen it.
+      tools: [{ id: "look_up", name: "Look things up", description: "Search the project's records.", connectionId: db.id, access: "read", permission: presetPermission("approve_all", "read") }],
       supervision: "approve_all",
       knowledge: [],
       memory: { scope: "session", retentionDays: 30 },
-      cost: { creditsPerRun: 1, model: m?.id ?? "claude-opus-5" },
+      cost: { creditsPerRun: 0, model: m?.id ?? "claude-opus-5" },
       triggers: ["chat"],
       rehearsals: [{ id: "r-first", name: "First question", input: `A typical request: ${text.slice(0, 80)}`, expect: "Looks it up and answers briefly.", history: [] }],
       framework: "lyzr",
       origin: "generated",
     };
   }
+  agent.cost.creditsPerRun = estimateRunCredits(agent);
   bp.agents.push(agent);
   try {
     await save(projectId, bp, `Added ${agent.name}`, `${agent.role}. ${agent.tools.length} tools · ${agent.tools.filter((t) => t.permission === "ask").length} ask first.`, agent.id, credits);

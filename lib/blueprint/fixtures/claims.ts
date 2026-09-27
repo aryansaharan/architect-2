@@ -280,7 +280,7 @@ export const claimsFixture: BlueprintInput = {
         { label: "Adjusters", source: "entity", ref: "adjuster" },
       ],
       memory: { scope: "project", retentionDays: 90 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["on_create", "chat"],
       rehearsals: [
         { id: "r-auto-standard", name: "Standard auto claim", input: "Rear-end collision, $4,200, policy active.", expect: "Classified Auto, routed to an auto adjuster under capacity.", history: [] },
@@ -312,7 +312,7 @@ export const claimsFixture: BlueprintInput = {
       supervision: "autonomous",
       knowledge: [{ label: "SIU red-flag checklist", source: "document", ref: "siu-red-flags.md" }],
       memory: { scope: "org", retentionDays: 365 },
-      cost: { creditsPerRun: 3, model: "claude-opus-5" },
+      cost: { creditsPerRun: 4, model: "claude-opus-5" },
       triggers: ["on_create", "chat"],
       rehearsals: [
         { id: "r-new-policy", name: "Policy 12 days old", input: "$9,800 theft claim on a policy opened 12 days ago.", expect: "Score ≥ 0.6 with 'policy age' as a listed signal.", history: [] },
@@ -336,14 +336,16 @@ export const claimsFixture: BlueprintInput = {
         "Payouts above $25,000 also need a team lead.",
       ],
       tools: [
-        { id: "read_claim", name: "Read claim", description: "Read a claim record and its attachments.", connectionId: "claims-db", access: "read", permission: "auto" },
+        // Approve everything: every tool asks first. Issue payment was left on "Tell me" when the plan was drafted;
+        // that slip is what the first build's rehearsal catches (lib/sim/repair.ts) and the recommended fix gates it.
+        { id: "read_claim", name: "Read claim", description: "Read a claim record and its attachments.", connectionId: "claims-db", access: "read", permission: "ask" },
         { id: "issue_payment", name: "Issue payment", description: "Send money to the payee through the payouts provider.", connectionId: "payouts-api", access: "irreversible", permission: "log" },
-        { id: "notify_slack", name: "Post in Slack", description: "Post a message in #claims-payouts.", connectionId: "slack", access: "write", permission: "log" },
+        { id: "notify_slack", name: "Post in Slack", description: "Post a message in #claims-payouts.", connectionId: "slack", access: "write", permission: "ask" },
       ],
       supervision: "approve_all",
       knowledge: [{ label: "Deductible schedule", source: "document", ref: "deductibles-2026.csv" }],
       memory: { scope: "session", retentionDays: 30 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 4, model: "claude-opus-5" },
       triggers: ["manual", "chat"],
       rehearsals: [
         { id: "r-standard-payout", name: "Standard payout", input: "CLM-20935 for Grace Liu is approved at $1,640. Pay her by ACH.", expect: "Asks a person before sending the $1,640 payment.", history: [] },

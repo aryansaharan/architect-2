@@ -1,5 +1,6 @@
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { findBlock } from "@/lib/blueprint";
+import { presetPermission } from "@/lib/blueprint/describe";
 import type { ChangeOperation } from "@/lib/db/types";
 
 type RuleResult = { summary: string; rationale: string; operations: ChangeOperation[] };
@@ -55,7 +56,10 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
     return {
       summary: relax ? `Let ${agent.name} work on its own` : `Have a person approve everything ${agent.name} does`,
       rationale: "Changes how closely this agent is supervised.",
-      operations: [{ op: "set", path: `/agents/${agentIdx}/supervision`, value: relax ? "autonomous" : "approve_all" }],
+      operations: [
+        { op: "set", path: `/agents/${agentIdx}/supervision`, value: relax ? "autonomous" : "approve_all" },
+        ...agent.tools.map((t, i) => ({ op: "set" as const, path: `/agents/${agentIdx}/tools/${i}/permission`, value: presetPermission(relax ? "autonomous" : "approve_all", t.access) })),
+      ],
     };
   }
 

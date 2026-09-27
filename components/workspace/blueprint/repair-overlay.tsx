@@ -10,6 +10,9 @@ import { cancelBuild } from "@/lib/actions/build";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 import { Term } from "@/components/arch/term";
+import { SimulatedChip } from "./build-console";
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 export function RepairOverlay() {
   const ws = useWorkspace();
@@ -48,8 +51,9 @@ export function RepairOverlay() {
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-fix/30 bg-fix/10"><ShieldAlert className="size-4 text-fix" /></span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="micro-label">Checked · rehearsal</p>
+                <p className="micro-label">Checked · <Term k="rehearsal">rehearsal</Term></p>
                 <span className="rounded-full border border-fix/30 bg-fix/10 px-2 py-px text-[11px] font-medium text-fix"><Term k="our-fix" /> · free</span>
+                <SimulatedChip />
               </div>
               <h2 id="repair-title" className="mt-1 text-[17px] font-semibold leading-snug">{plan.title}</h2>
             </div>
@@ -84,7 +88,7 @@ export function RepairOverlay() {
                   <p className="mt-2 text-[13.5px] font-medium leading-snug">{o.label}</p>
                   <p className="mt-1 flex-1 text-[12.5px] leading-relaxed text-muted-foreground">{o.narration}</p>
                   <p className="mt-2 font-mono text-[11px] text-faint">
-                    Changes {o.blastRadius.screens} screen{o.blastRadius.screens === 1 ? "" : "s"} · {o.blastRadius.agents} agent · {o.blastRadius.files} files
+                    Changes: {plural(o.blastRadius.screens, "screen")} · {plural(o.blastRadius.agents, "agent")} · {plural(o.blastRadius.files, "file")}
                   </p>
                   <Button
                     ref={i === 0 ? first : undefined}
@@ -102,7 +106,7 @@ export function RepairOverlay() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 p-5 pt-4 max-sm:border-t max-sm:border-hairline max-sm:pt-3">
-          <p className="text-[12px] text-muted-foreground">Either way, it re-runs every rehearsal before you see the app.</p>
+          <p className="text-[12px] text-muted-foreground">Either way, it re-runs every practice conversation before you see the app.</p>
           {ws.build.mode === "build" ? (
             <Button
               variant="ghost"
@@ -115,11 +119,11 @@ export function RepairOverlay() {
                 setStopping(false);
                 if (!r.ok) return toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped. Nothing was charged", { description: "Your plan is exactly as you left it." });
+                toast.success("Build stopped. Nothing was charged", { description: "The estimated price went back on your demo balance. Your plan is exactly as you left it." });
                 router.refresh();
               }}
             >
-              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan · refunded
+              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan · estimate refunded
             </Button>
           ) : (
             <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={() => ws.build.dismiss()}>

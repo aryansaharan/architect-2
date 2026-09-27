@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Segmented } from "@/components/arch/segmented";
 import { AccessChip, Avatar } from "@/components/arch/badges";
+import { Term } from "@/components/arch/term";
 import type { Agent, AgentTool, Framework, ToolPermission } from "@/lib/blueprint/schema";
 import { Frameworks } from "@/lib/blueprint/schema";
-import { agentSummary, connectionName, FRAMEWORK_LABEL, MEMORY_LABEL, PERMISSION_LABEL, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
+import { agentSummary, connectionName, FRAMEWORK_LABEL, MEMORY_LABEL, PERMISSION_LABEL, PERMISSION_PLAIN, presetPermission, SUPERVISION_LABEL, supervisionView } from "@/lib/blueprint/describe";
+import { rehearsalSummary } from "@/lib/sim/preflight";
 import { creditsUsd } from "@/lib/format";
-import { setFramework, setSupervision, setToolPermission, updateAgentText } from "@/lib/actions/blueprint";
+import { setFramework, setToolPermission, updateAgentText } from "@/lib/actions/blueprint";
+import { applySupervisionPreset } from "@/lib/actions/agents";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 
-export function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+export function Section({ title, children, aside }: { title: React.ReactNode; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <section className="mt-5 first:mt-1">
       <div className="mb-2 flex items-center justify-between">
@@ -36,7 +39,7 @@ export function PermissionRow({ tool, compact }: { tool: AgentTool; compact?: bo
         <span className="block truncate text-[12.5px]">{tool.name}</span>
         {!compact && <span className="block truncate text-[11px] text-muted-foreground">{connectionName(ws.blueprint, tool.connectionId)}</span>}
       </span>
-      <span className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-ask" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
+      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-ask" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
         {PERMISSION_LABEL[tool.permission]}
       </span>
     </li>
@@ -46,8 +49,9 @@ export function PermissionRow({ tool, compact }: { tool: AgentTool; compact?: bo
 export function AgentPlain({ agent }: { agent: Agent }) {
   const ws = useWorkspace();
   const s = agentSummary(ws.blueprint, agent);
-  const reh = agent.rehearsals;
-  const passed = reh.filter((r) => r.history.length && r.history[r.history.length - 1].pass).length;
+  const sup = supervisionView(agent);
+  // Counted exactly like the go-live checklist: a rehearsal that hasn't run counts as not passing.
+  const reh = rehearsalSummary({ ...ws.blueprint, agents: [agent] });
   return (
     <div>
       <div className="flex items-center gap-3 pt-1">
@@ -60,7 +64,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{agent.plain}</p>
       {s.ungated.length > 0 && (
         <p className="mt-3 rounded-lg border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">
-          {s.ungated.map((t) => t.name).join(", ")} can&apos;t be undone and doesn&apos;t ask first. Preflight will block going live until it does.
+          {s.ungated.map((t) => t.name).join(", ")} can&apos;t be undone and doesn&apos;t ask first. The go-live checklist (<Term k="preflight">Preflight</Term>) will block going live until it does.
         </p>
       )}
 
@@ -71,12 +75,12 @@ export function AgentPlain({ agent }: { agent: Agent }) {
         </p>
       </Section>
 
-      <Section title="How closely it's watched">
+      <Section title={<>How closely it&apos;s watched · <Term k="supervision">supervision</Term></>}>
         <div className="flex gap-2.5 rounded-lg border border-hairline bg-deep/60 p-2.5">
           <Gauge className="mt-0.5 size-4 shrink-0 text-amber" />
           <p className="text-[12.5px]">
-            <span className="font-medium">{SUPERVISION_LABEL[agent.supervision].label}.</span>{" "}
-            <span className="text-muted-foreground">{SUPERVISION_LABEL[agent.supervision].plain}</span>
+            <span className="font-medium">{sup.label}.</span>{" "}
+            <span className="text-muted-foreground">{sup.plain}</span>
           </p>
         </div>
       </Section>
@@ -95,8 +99,8 @@ export function AgentPlain({ agent }: { agent: Agent }) {
       <Section title="At a glance">
         <dl className="grid grid-cols-2 gap-2">
           <Stat icon={Brain} label="Remembers" value={MEMORY_LABEL[agent.memory.scope].replace("Remembers ", "").replace("Shares memory ", "")} />
-          <Stat icon={Coins} label="Cost per run" value={`~${agent.cost.creditsPerRun} cr (≈ ${creditsUsd(agent.cost.creditsPerRun)})`} />
-          <Stat icon={ShieldCheck} label="Rehearsals" value={reh.length ? `${passed || (ws.project.buildState === "built" ? reh.length : 0)} of ${reh.length} passing` : "None yet"} />
+          <Stat icon={Coins} label="Cost per run" value={`~${agent.cost.creditsPerRun} credits (≈ ${creditsUsd(agent.cost.creditsPerRun)})`} />
+          <Stat icon={ShieldCheck} label={<Term k="rehearsal">Rehearsals</Term>} value={reh.total ? `${reh.passing} of ${reh.total} passing${reh.notRun ? ` · ${reh.notRun} not run yet` : ""}` : "None yet"} />
           <Stat icon={Gauge} label="Works on" value={s.screens.length ? s.screens.map((x) => x.title).join(", ") : "Background only"} />
         </dl>
       </Section>
@@ -104,7 +108,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
   );
 }
 
-function Stat({ icon: I, label, value }: { icon: typeof Brain; label: string; value: string }) {
+function Stat({ icon: I, label, value }: { icon: typeof Brain; label: React.ReactNode; value: string }) {
   return (
     <div className="rounded-lg border border-hairline bg-deep/60 p-2.5">
       <dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><I className="size-3" />{label}</dt>
@@ -119,24 +123,52 @@ export function AgentSpec({ agent }: { agent: Agent }) {
   const [pending, start] = useTransition();
   const [job, setJob] = useState(agent.jobDescription);
   const [rules, setRules] = useState(agent.rules.join("\n"));
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string) =>
+  const sup = supervisionView(agent);
+  const run = (fn: () => Promise<{ ok: boolean; error?: string; summary?: string }>, msg: string) =>
     start(async () => {
       const r = await fn();
-      if (r.ok) toast.success(msg, { description: "Free · saved as a save point" });
+      if (r.ok) toast.success(msg, { description: `${r.summary ? `${r.summary} · ` : ""}Free · saved as a save point you can go back to` });
       else toast.error(r.error ?? "Couldn't save");
       router.refresh();
     });
 
   return (
     <div>
-      <Section title="Permissions" aside={pending ? <Loader2 className="size-3 animate-spin text-muted-foreground" /> : null}>
+      <Section title={<Term k="supervision">Supervision</Term>} aside={pending ? <Loader2 className="size-3 animate-spin text-muted-foreground" /> : <span className="text-[11px] text-faint">a preset for every tool</span>}>
+        <Segmented<Agent["supervision"] | "custom">
+          ariaLabel="Supervision"
+          size="xs"
+          className="w-full [&>button]:flex-1 [&>button]:justify-center"
+          value={sup.mode}
+          onChange={(v) => v !== "custom" && v !== sup.mode && run(() => applySupervisionPreset(ws.project.id, agent.id, v), `${agent.name}: ${SUPERVISION_LABEL[v].label}`)}
+          options={[
+            { value: "autonomous", label: "On its own", title: "Read: Just do it · Change: Tell me · Can't undo: Ask first" },
+            { value: "spot_check", label: "Spot-check", title: "Same as On its own, and a person reviews a sample of finished runs" },
+            { value: "approve_all", label: "Approve everything", title: "Every tool: Ask first" },
+          ]}
+        />
+        <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
+          {sup.mode === "custom" ? (
+            <><span className="font-medium text-foreground">Custom.</span> {sup.plain}</>
+          ) : (
+            <>Picking a preset sets every tool below: {(["read", "write", "irreversible"] as const).map((a, i) => (
+              <span key={a}>{i ? " · " : ""}{a === "read" ? "Read" : a === "write" ? "Change" : "Can't undo"} <span className="text-foreground/85">{PERMISSION_LABEL[presetPermission(sup.mode as Agent["supervision"], a)]}</span></span>
+            ))}.{sup.mode === "spot_check" ? " A person also reviews a sample of finished runs." : ""} Change one tool and this shows Custom.</>
+          )}
+        </p>
+      </Section>
+
+      <Section title="Permissions · per tool">
         <ul className="space-y-2">
           {agent.tools.map((t) => (
             <li key={t.id} className="rounded-lg border border-hairline bg-deep/60 p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block truncate font-mono text-[12px]">{t.id}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{connectionName(ws.blueprint, t.connectionId)}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {connectionName(ws.blueprint, t.connectionId)}
+                    {sup.offPreset.some((x) => x.id === t.id) && <span className="text-change"> · differs from {SUPERVISION_LABEL[agent.supervision].label}</span>}
+                  </span>
                 </span>
                 <AccessChip access={t.access} />
               </div>
@@ -146,30 +178,11 @@ export function AgentSpec({ agent }: { agent: Agent }) {
                 className="mt-2 w-full [&>button]:flex-1 [&>button]:justify-center"
                 value={t.permission}
                 onChange={(v) => run(() => setToolPermission(ws.project.id, agent.id, t.id, v), `${t.name}: ${PERMISSION_LABEL[v]}`)}
-                options={[
-                  { value: "auto", label: "Just do it" },
-                  { value: "log", label: "Tell me" },
-                  { value: "ask", label: "Ask first" },
-                ]}
+                options={(["auto", "log", "ask"] as const).map((p) => ({ value: p, label: PERMISSION_LABEL[p], title: PERMISSION_PLAIN[p] }))}
               />
             </li>
           ))}
         </ul>
-      </Section>
-
-      <Section title="Supervision">
-        <Segmented<Agent["supervision"]>
-          ariaLabel="Supervision"
-          size="xs"
-          className="w-full [&>button]:flex-1 [&>button]:justify-center"
-          value={agent.supervision}
-          onChange={(v) => run(() => setSupervision(ws.project.id, agent.id, v), SUPERVISION_LABEL[v].label)}
-          options={[
-            { value: "autonomous", label: "On its own" },
-            { value: "spot_check", label: "Spot-check" },
-            { value: "approve_all", label: "Approve all" },
-          ]}
-        />
       </Section>
 
       <Section title="Framework" aside={<span className="text-[11px] text-faint">same agent, any runtime</span>}>

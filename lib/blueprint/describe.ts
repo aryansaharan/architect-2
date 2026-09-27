@@ -1,5 +1,7 @@
-import type { Agent, AgentTool, Blueprint, Connection, Entity, Screen } from "./schema";
+import type { Agent, AgentTool, Blueprint, Connection, Entity, Screen, ToolAccess, ToolPermission } from "./schema";
 import { allBlocks, BLOCK_LABELS } from "./index";
+import { USD_PER_CREDIT } from "./estimate";
+import { priceFor } from "@/lib/llm/pricing";
 
 /** Plain-English sentences for the "Plain" face. Deterministic, no model needed. */
 
@@ -9,17 +11,95 @@ export const ACCESS_LABEL: Record<AgentTool["access"], string> = {
   irreversible: "Can't be undone",
 };
 
-export const PERMISSION_LABEL: Record<AgentTool["permission"], string> = {
+/**
+ * One vocabulary everywhere. Tool level: Just do it / Tell me / Ask first.
+ * Agent level (supervision): On its own / Spot-check / Approve everything,
+ * which is a preset that writes every tool's permission (see SUPERVISION_PRESET).
+ */
+export const PERMISSION_LABEL: Record<ToolPermission, string> = {
   auto: "Just do it",
-  log: "Do it and tell me",
-  ask: "Ask me first",
+  log: "Tell me",
+  ask: "Ask first",
 };
 
-export const SUPERVISION_LABEL: Record<Agent["supervision"], { label: string; plain: string }> = {
-  autonomous: { label: "Works on its own", plain: "Acts without waiting, and every action is logged." },
-  spot_check: { label: "Spot-checked", plain: "Acts on its own; a person reviews a sample of its work each day." },
-  approve_all: { label: "Approves everything", plain: "Prepares work, then waits for a person to approve each action." },
+export const PERMISSION_PLAIN: Record<ToolPermission, string> = {
+  auto: "Runs straight away.",
+  log: "Runs straight away and tells you what it did.",
+  ask: "Waits for a person to approve it every time.",
 };
+
+type Supervision = Agent["supervision"];
+
+/**
+ * Supervision is a preset, not a second permission system: choosing one sets
+ * every tool's permission. Tools that can't be undone always ask first.
+ * On its own and Spot-check set the same permissions; Spot-check also has a
+ * person review a sample of finished runs.
+ */
+export const SUPERVISION_PRESET: Record<Supervision, Record<ToolAccess, ToolPermission>> = {
+  autonomous: { read: "auto", write: "log", irreversible: "ask" },
+  spot_check: { read: "auto", write: "log", irreversible: "ask" },
+  approve_all: { read: "ask", write: "ask", irreversible: "ask" },
+};
+
+export const SUPERVISION_LABEL: Record<Supervision, { label: string; plain: string }> = {
+  autonomous: { label: "On its own", plain: "Looks things up and makes changes without waiting, and tells you what it changed. Anything that can't be undone still asks first." },
+  spot_check: { label: "Spot-check", plain: "Works like On its own, and a person reviews a sample of its finished runs." },
+  approve_all: { label: "Approve everything", plain: "Every tool asks first. It prepares the work, then waits for a person to approve each action." },
+};
+
+export function presetPermission(level: Supervision, access: ToolAccess): ToolPermission {
+  return SUPERVISION_PRESET[level][access];
+}
+
+/** Choose a preset: sets the agent's supervision and rewrites every tool's permission to match (in place). */
+export function applySupervision(agent: Agent, level: Supervision): Agent {
+  agent.supervision = level;
+  for (const t of agent.tools) t.permission = presetPermission(level, t.access);
+  return agent;
+}
+
+/** Tools whose permission no longer matches the agent's supervision preset. */
+export function toolsOffPreset(agent: Pick<Agent, "supervision" | "tools">): AgentTool[] {
+  return agent.tools.filter((t) => t.permission !== presetPermission(agent.supervision, t.access));
+}
+
+export type SupervisionView = { mode: Supervision | "custom"; label: string; plain: string; offPreset: AgentTool[] };
+
+/**
+ * The honest supervision label. When someone changes a single tool so it no
+ * longer matches the preset, the agent reads "Custom" instead of claiming a
+ * preset its tools contradict.
+ */
+export function supervisionView(agent: Pick<Agent, "supervision" | "tools">): SupervisionView {
+  const offPreset = toolsOffPreset(agent);
+  if (!offPreset.length) return { mode: agent.supervision, ...SUPERVISION_LABEL[agent.supervision], offPreset };
+  const preset = SUPERVISION_LABEL[agent.supervision].label;
+  return {
+    mode: "custom",
+    label: "Custom",
+    plain: `Set tool by tool. ${list(offPreset.map((t) => `${t.name} is on “${PERMISSION_LABEL[t.permission]}”`))}, unlike ${preset}. Pick a preset to reset every tool.`,
+    offPreset,
+  };
+}
+
+/**
+ * Typical credits for one playground conversation, from list prices and the
+ * shape of real runs: a prompt that grows with the job description, rules and
+ * tools; roughly one model call per two tools (plus the reply); and about 320
+ * output tokens per call for tool arguments, thinking and the answer.
+ * Calibrated against live claude-opus-5 runs (Settlement: 3.4 and 4.8 credits).
+ */
+export function estimateRunCredits(agent: Pick<Agent, "tools" | "jobDescription" | "rules"> & { cost: { model: string } }): number {
+  const tools = agent.tools.length;
+  const calls = Math.min(4, 1 + Math.ceil(tools / 2));
+  const prompt = 600 + Math.ceil((agent.jobDescription.length + agent.rules.join(" ").length) / 4) + 100 * tools;
+  const input = calls * prompt + (300 * calls * (calls - 1)) / 2;
+  const output = 320 * calls;
+  const p = priceFor(agent.cost.model);
+  const usd = (input * p.in + output * p.out) / 1e6;
+  return Math.max(1, Math.round(usd / USD_PER_CREDIT));
+}
 
 export const MEMORY_LABEL: Record<Agent["memory"]["scope"], string> = {
   none: "Remembers nothing between conversations",
@@ -67,7 +147,7 @@ export function agentSummary(bp: Blueprint, a: Agent) {
     ungated: risky.filter((t) => t.permission !== "ask"),
     sentence: [
       reads.length ? `Reads ${list(reads.map((t) => connectionName(bp, t.connectionId)))}.` : null,
-      writes.length ? `Changes ${list(writes.map((t) => lowerFirst(t.name)))}, and each change is logged.` : null,
+      writes.length ? `Changes ${list(writes.map((t) => lowerFirst(t.name)))}${writes.every((t) => t.permission === "ask") ? " once a person approves" : ", and each change is logged"}.` : null,
       risky.length ? `${risky.length === 1 ? "One action" : `${risky.length} actions`} can't be undone (${list(risky.map((t) => lowerFirst(t.name)))}).` : null,
     ]
       .filter(Boolean)

@@ -313,7 +313,7 @@ export const salesFixture: BlueprintInput = {
         { label: "Lumen customer stories", source: "url", ref: "https://lumenanalytics.com/customers" },
       ],
       memory: { scope: "project", retentionDays: 180 },
-      cost: { creditsPerRun: 4, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["manual", "on_create", "chat"],
       rehearsals: [
         { id: "r-good-fit", name: "Well-documented target", input: "Research Fernway Payments (fernway.com).", expect: "Brief lists Snowflake, dbt and Segment, names 3 contacts including the VP Data, fit score ≥ 70, every fact linked.", history: [] },
@@ -350,7 +350,7 @@ export const salesFixture: BlueprintInput = {
         { label: "Signals", source: "entity", ref: "signal" },
       ],
       memory: { scope: "org", retentionDays: 365 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["schedule", "chat"],
       rehearsals: [
         { id: "r-new-leader", name: "New data leader", input: "Press release: Brightwater Logistics hires Aisha Karim, formerly at Stripe, as VP Data.", expect: "Strong 'Leadership change' signal logged to HubSpot with the press release link.", history: [] },
@@ -377,8 +377,8 @@ export const salesFixture: BlueprintInput = {
         "No fake personalisation: only compliments that are true and sourced.",
       ],
       tools: [
-        { id: "read_crm", name: "Read HubSpot", description: "Read the account's brief, contacts and email preferences in HubSpot.", connectionId: "hubspot", access: "read", permission: "auto" },
-        { id: "draft_email", name: "Draft email", description: "Save an email as a draft in the rep's Gmail.", connectionId: "gmail", access: "write", permission: "log" },
+        { id: "read_crm", name: "Read HubSpot", description: "Read the account's brief, contacts and email preferences in HubSpot.", connectionId: "hubspot", access: "read", permission: "ask" },
+        { id: "draft_email", name: "Draft email", description: "Save an email as a draft in the rep's Gmail.", connectionId: "gmail", access: "write", permission: "ask" },
         { id: "send_email", name: "Send email", description: "Send the approved email from the rep's Gmail.", connectionId: "gmail", access: "irreversible", permission: "ask" },
       ],
       supervision: "approve_all",
@@ -388,7 +388,7 @@ export const salesFixture: BlueprintInput = {
         { label: "Contacts", source: "entity", ref: "contact" },
       ],
       memory: { scope: "project", retentionDays: 90 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["manual", "chat"],
       rehearsals: [
         { id: "r-funding-email", name: "Funding signal", input: "Fernway Payments just raised a $62M Series C; contact is Dana Kim, VP Data; owner is Priya Nakamura.", expect: "Draft under 120 words that opens with the Series C, uses one proof point, ends with a question; saved as a draft, not sent.", history: [] },

@@ -1,11 +1,17 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 
-export function useAgentChat(projectId: string, agentId: string) {
-  const router = useRouter();
+/**
+ * The playground conversation. It never calls router.refresh(): useChat keeps its
+ * state in an external store, and a store update landing while a refresh is still
+ * loading makes React render that refresh as blocking, so the page segment falls
+ * back to app/p/[id]/loading.tsx and the conversation, approval card and replay
+ * vanish behind a skeleton. Callers get `onTurnEnd` instead and update local state
+ * (the run is already saved by then: the route persists it before the stream closes).
+ */
+export function useAgentChat(projectId: string, agentId: string, opts: { onTurnEnd?: () => void } = {}) {
   const [runId, setRunId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`));
   const [mode, setMode] = useState<"live" | "scripted" | "budget" | null>(null);
   const transport = useMemo(
@@ -26,7 +32,7 @@ export function useAgentChat(projectId: string, agentId: string) {
     id: `${projectId}:${agentId}:${runId}`,
     transport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-    onFinish: () => router.refresh(),
+    onFinish: () => opts.onTurnEnd?.(), // useChat always calls the latest callbacks
   });
   return {
     ...chat,

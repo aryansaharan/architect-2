@@ -8,7 +8,7 @@ import { BlueprintSchema, type Agent, type Blueprint, type Connection, type Fram
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { findBlock } from "@/lib/blueprint";
-import { FRAMEWORK_LABEL, PERMISSION_LABEL, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
+import { FRAMEWORK_LABEL, PERMISSION_LABEL, SUPERVISION_LABEL, applySupervision } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -68,7 +68,7 @@ export async function setSupervision(projectId: string, agentId: string, supervi
     { type: "agent", id: agentId },
     (bp) => {
       const a = agentOf(bp, agentId);
-      a.supervision = supervision;
+      applySupervision(a, supervision);
       return `${a.name}: ${SUPERVISION_LABEL[supervision].label.toLowerCase()}`;
     },
     "permission",

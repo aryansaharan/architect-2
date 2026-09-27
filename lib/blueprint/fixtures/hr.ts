@@ -322,7 +322,7 @@ export const hrFixture: BlueprintInput = {
         { label: "New hires", source: "entity", ref: "hire" },
       ],
       memory: { scope: "project", retentionDays: 120 },
-      cost: { creditsPerRun: 2, model: "claude-opus-5" },
+      cost: { creditsPerRun: 3, model: "claude-opus-5" },
       triggers: ["on_create", "chat"],
       rehearsals: [
         { id: "r-clinical-hire", name: "Clinical hire", input: "Registered Nurse, Emergency, St. Anne's, full-time, starts Oct 6.", expect: "Plan includes Epic and Pyxis access; HIPAA, Bloodborne and Fire due by Oct 2; site tour on day one; every task has an owner.", history: [] },
@@ -349,10 +349,10 @@ export const hrFixture: BlueprintInput = {
         "Have requests ready 5 working days before the start date.",
       ],
       tools: [
-        { id: "read_hris", name: "Read Workday", description: "Read the new hire's role, department and start date.", connectionId: "workday", access: "read", permission: "auto" },
+        { id: "read_hris", name: "Read Workday", description: "Read the new hire's role, department and start date.", connectionId: "workday", access: "read", permission: "ask" },
         { id: "create_account", name: "Create account", description: "Create the new hire's Okta account and assign role-based app access.", connectionId: "okta", access: "irreversible", permission: "ask" },
         { id: "order_laptop", name: "Order laptop", description: "Place a laptop order from the approved hardware catalogue.", connectionId: "procurement", access: "irreversible", permission: "ask" },
-        { id: "notify_it", name: "Post in Slack", description: "Post a summary of a hire's requests in #it-onboarding.", connectionId: "slack", access: "write", permission: "log" },
+        { id: "notify_it", name: "Post in Slack", description: "Post a summary of a hire's requests in #it-onboarding.", connectionId: "slack", access: "write", permission: "ask" },
       ],
       supervision: "approve_all",
       knowledge: [
@@ -361,7 +361,7 @@ export const hrFixture: BlueprintInput = {
         { label: "IT requests", source: "entity", ref: "it-request" },
       ],
       memory: { scope: "project", retentionDays: 180 },
-      cost: { creditsPerRun: 3, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["manual", "on_create", "chat"],
       rehearsals: [
         { id: "r-nurse-access", name: "Nurse accounts", input: "Registered Nurse, Emergency, St. Anne's, starts Oct 6.", expect: "Okta, Microsoft 365, Epic (RN) and Pyxis requested, all waiting for IT approval; one Slack summary posted.", history: [] },
@@ -398,7 +398,7 @@ export const hrFixture: BlueprintInput = {
         { label: "Training records", source: "entity", ref: "training" },
       ],
       memory: { scope: "org", retentionDays: 365 },
-      cost: { creditsPerRun: 1, model: "claude-opus-5" },
+      cost: { creditsPerRun: 5, model: "claude-opus-5" },
       triggers: ["schedule", "chat"],
       rehearsals: [
         { id: "r-due-soon", name: "Due in 2 days", input: "Nurse has HIPAA due Friday, 40% complete, starts Monday.", expect: "One friendly reminder with the course link and time left; manager not copied.", history: [] },

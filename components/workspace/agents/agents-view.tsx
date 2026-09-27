@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
@@ -12,9 +12,11 @@ import { Avatar, AccessChip } from "@/components/arch/badges";
 import { TimeAgo } from "@/components/time-ago";
 import { CodeView } from "@/components/arch/code-view";
 import { Segmented } from "@/components/arch/segmented";
+import { Term } from "@/components/arch/term";
 import { Playground } from "@/components/agents/playground";
 import { AgentPlain, AgentSpec } from "../inspector/agent-faces";
-import { FRAMEWORK_LABEL, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
+import { FRAMEWORK_LABEL, supervisionView } from "@/lib/blueprint/describe";
+import { rehearsalSummary } from "@/lib/sim/preflight";
 import { FRAMEWORKS } from "@/lib/codegen/frameworks";
 import { agentYaml, rulesMd, soulMd } from "@/lib/codegen/agentFiles";
 import { addRehearsal, runRehearsals } from "@/lib/actions/agents";
@@ -27,11 +29,28 @@ import { Markdown } from "@/components/markdown";
 
 type Tab = "overview" | "playground" | "rehearsals" | "replay" | "code";
 
+/** One agent's rehearsals, counted exactly like the go-live checklist (a rehearsal that hasn't run counts as not passing). */
+const agentRehearsals = (bp: Parameters<typeof rehearsalSummary>[0], agent: Agent) => rehearsalSummary({ ...bp, agents: [agent] });
+
 export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunRow[]; initialAgent?: string; initialTab?: Tab }) {
   const ws = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
   const agents = ws.blueprint.agents;
+  // Replay stays current without a router refresh (which blanked the tab mid-chat): after each playground turn,
+  // fetch the saved runs and show them until the server props catch up.
+  const [fetched, setFetched] = useState<{ base: AgentRunRow[]; list: AgentRunRow[] } | null>(null);
+  const allRuns = fetched && fetched.base === runs ? fetched.list : runs;
+  const refreshRuns = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/chat?projectId=${encodeURIComponent(ws.project.id)}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as { runs: AgentRunRow[] };
+      setFetched({ base: runs, list: body.runs });
+    } catch {
+      // Replay catches up on the next page load.
+    }
+  }, [runs, ws.project.id]);
   const [agentId, setAgentId] = useState(initialAgent && agents.some((a) => a.id === initialAgent) ? initialAgent : agents[0].id);
   const [tab, setTab] = useState<Tab>(initialTab ?? "overview");
   const [adding, setAdding] = useState(false);
@@ -50,9 +69,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
         </div>
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
           {agents.map((a) => {
-            const reh = a.rehearsals;
-            const last = reh.filter((r) => r.history.length);
-            const passing = last.filter((r) => r.history[r.history.length - 1].pass).length;
+            const reh = agentRehearsals(ws.blueprint, a);
             const ungated = a.tools.some((t) => t.access === "irreversible" && t.permission !== "ask");
             return (
               <li key={a.id}>
@@ -69,8 +86,12 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
                   </span>
                   <span className="relative mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                     <span>{FRAMEWORK_LABEL[a.framework]}</span>
-                    <span>{SUPERVISION_LABEL[a.supervision].label}</span>
-                    {last.length > 0 && <span className={passing === last.length ? "text-read" : "text-ask"}>{passing}/{last.length} rehearsals</span>}
+                    <span>{supervisionView(a).label}</span>
+                    {reh.total > 0 && (
+                      <span className={reh.failing ? "text-ask" : reh.notRun ? "text-amber" : "text-read"}>
+                        {reh.passing}/{reh.total} rehearsals passing{reh.notRun ? ` · ${reh.notRun} not run yet` : ""}
+                      </span>
+                    )}
                     {ungated && <span className="text-ask">ungated action</span>}
                     {a.origin !== "generated" && <span className="text-change">{a.origin === "imported" ? "imported" : "remote"}</span>}
                   </span>
@@ -86,7 +107,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
           <Avatar name={agent.name} hue={agent.avatarHue} size={34} />
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold">{agent.name}</p>
-            <p className="truncate text-[12px] text-muted-foreground">{agent.role} · ~{agent.cost.creditsPerRun} cr per run (≈ {creditsUsd(agent.cost.creditsPerRun)})</p>
+            <p className="truncate text-[12px] text-muted-foreground">{agent.role} · ~{agent.cost.creditsPerRun} <Term k="credits">credits</Term> per run (≈ {creditsUsd(agent.cost.creditsPerRun)})</p>
           </div>
           <select aria-label="Agent" value={agent.id} onChange={(e) => pick(e.target.value)} className="ml-2 h-8 rounded-md border border-hairline bg-deep px-2 text-[12.5px] md:hidden">
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -117,9 +138,9 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             >
               {tab === "overview" && <Overview agent={agent} />}
-              {tab === "playground" && <Playground projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} />}
+              {tab === "playground" && <Playground projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} onRunSaved={refreshRuns} />}
               {tab === "rehearsals" && <Rehearsals agent={agent} />}
-              {tab === "replay" && <Replay agent={agent} runs={runs.filter((r) => r.agent_id === agent.id)} />}
+              {tab === "replay" && <Replay agent={agent} runs={allRuns.filter((r) => r.agent_id === agent.id)} />}
               {tab === "code" && <AgentCode agent={agent} />}
             </motion.div>
           </AnimatePresence>
@@ -151,9 +172,9 @@ function Rehearsals({ agent }: { agent: Agent }) {
   const [pending, start] = useTransition();
   const [running, setRunning] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", input: "", expect: "" });
-  const withHistory = agent.rehearsals.filter((r) => r.history.length);
-  const passing = withHistory.filter((r) => r.history[r.history.length - 1].pass).length;
-  const rate = withHistory.length ? passing / withHistory.length : null;
+  // Same counting as the go-live checklist: a rehearsal that hasn't run counts as not passing.
+  const sum = agentRehearsals(ws.blueprint, agent);
+  const rate = sum.total ? sum.rate : null;
   // trend: pass rate per run index (last 8 runs)
   const runsCount = Math.max(0, ...agent.rehearsals.map((r) => r.history.length));
   const trend = Array.from({ length: Math.min(8, runsCount) }, (_, k) => {
@@ -182,7 +203,10 @@ function Rehearsals({ agent }: { agent: Agent }) {
           <div className="panel rounded-xl p-4">
             <p className="micro-label">Reliability</p>
             <p className={cn("mt-2 text-[34px] font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.9 ? "text-read" : rate >= 0.8 ? "text-amber" : "text-ask")}>{rate === null ? "n/a" : `${Math.round(rate * 100)}%`}</p>
-            <p className="text-[12.5px] text-muted-foreground">{rate === null ? "Not rehearsed yet." : `${passing} of ${withHistory.length} rehearsals passing on the latest run.`} Going live needs 80%.</p>
+            <p className="text-[12.5px] text-muted-foreground">
+              {rate === null ? "No rehearsals yet." : `${sum.passing} of ${sum.total} passing on their latest run.`}
+              {sum.notRun ? ` ${sum.notRun} not run yet, so ${sum.notRun === 1 ? "it counts" : "they count"} as not passing.` : ""} Going live needs 80%.
+            </p>
             {trend.length > 1 && (
               <div className="mt-3 flex h-10 items-end gap-1" aria-label="Pass rate over recent runs">
                 {trend.map((t, i) => <span key={i} className={cn("flex-1 rounded-sm", t >= 0.9 ? "bg-read/70" : t >= 0.8 ? "bg-amber/70" : "bg-ask/70")} style={{ height: `${Math.max(10, t * 100)}%` }} />)}
@@ -191,7 +215,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
           </div>
           <div className="panel flex flex-col justify-between rounded-xl p-4">
             <div>
-              <p className="text-[14px] font-medium">Rehearsals are conversations {agent.name} must get right before anyone relies on it.</p>
+              <p className="text-[14px] font-medium"><Term k="rehearsal">Rehearsals</Term> are practice conversations {agent.name} must get right before anyone relies on it.</p>
               <p className="mt-1 text-[12.5px] text-muted-foreground">They run on every build and every pull request. If you loosen a permission, the rehearsal that depends on it will catch it.</p>
             </div>
             <Button className="mt-3 w-fit" onClick={runAll} disabled={running !== null || !agent.rehearsals.length}>
@@ -211,7 +235,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
                     <p className="text-[13px] font-medium">{r.name}</p>
                     <p className="mt-0.5 text-[12.5px] text-muted-foreground"><span className="text-foreground/80">When:</span> {r.input}</p>
                     <p className="text-[12.5px] text-muted-foreground"><span className="text-foreground/80">Should:</span> {r.expect}</p>
-                    {last && <p className={cn("mt-1.5 text-[12px]", last.pass ? "text-read" : "text-ask")}>{last.note} · <TimeAgo iso={last.at} /></p>}
+                    {last ? <p className={cn("mt-1.5 text-[12px]", last.pass ? "text-read" : "text-ask")}>{last.note} · <TimeAgo iso={last.at} /></p> : running !== i && <p className="mt-1.5 text-[12px] text-amber">Not run yet, so it counts as not passing.</p>}
                   </div>
                   {last && !last.pass && (
                     <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => { ws.setScope({ type: "agent", id: agent.id }); ws.focusComposer({ type: "agent", id: agent.id }); }}>
@@ -299,7 +323,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                       </li>
                     );
                   })}
-                  <li className="pt-1 text-[11.5px] text-faint">Run {r.id.slice(0, 8)} · save point {ws.checkpoints.find((c) => c.id === r.checkpoint_id)?.seq ?? "?"} · {r.input_tokens.toLocaleString()} in / {r.output_tokens.toLocaleString()} out</li>
+                  <li className="pt-1 text-[11.5px] text-faint">Run {r.id.slice(0, 8)} · on <Term k="save-point">save point</Term> {ws.checkpoints.find((c) => c.id === r.checkpoint_id)?.seq ?? "?"} · {r.input_tokens.toLocaleString()} in / {r.output_tokens.toLocaleString()} out</li>
                 </ol>
               )}
             </div>
@@ -348,7 +372,7 @@ function AgentCode({ agent }: { agent: Agent }) {
           <p className="mt-1 text-[12px] text-muted-foreground">Approval gates compile to {mod.label}&apos;s own mechanism. Rehearsals run the same way in every framework.</p>
         </div>
         {fw !== agent.framework && (
-          <Button className="mt-4 w-full" disabled={pending} onClick={() => start(async () => { const r = await setFramework(ws.project.id, agent.id, fw); if (r.ok) toast.success(`${agent.name} now runs on ${mod.label}`, { description: "Free · saved as a save point" }); else toast.error(r.error); router.refresh(); })}>
+          <Button className="mt-4 w-full" disabled={pending} onClick={() => start(async () => { const r = await setFramework(ws.project.id, agent.id, fw); if (r.ok) toast.success(`${agent.name} now runs on ${mod.label}`, { description: "Free · saved as a save point you can go back to" }); else toast.error(r.error); router.refresh(); })}>
             {pending ? <Loader2 className="animate-spin" /> : null} Run {agent.name} on {mod.label}
           </Button>
         )}

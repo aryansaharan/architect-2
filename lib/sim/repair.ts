@@ -1,11 +1,13 @@
-import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
+import type { Agent, Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import type { ChangeOperation } from "@/lib/db/types";
+import { PERMISSION_LABEL, presetPermission } from "@/lib/blueprint/describe";
 
 export type RepairOption = {
   id: "a" | "b";
   label: string;
   narration: string;
   credits: number;
+  /** What the fix touches. Shown in plain words ("Changes 1 screen · 1 agent · 2 files"). */
   blastRadius: { screens: number; agents: number; files: number };
   recommended?: boolean;
   ops: ChangeOperation[];
@@ -21,6 +23,25 @@ export type RepairPlan = {
   agentName: string;
   options: [RepairOption, RepairOption];
 };
+
+/** The history (ledger) title for a repair, shared by real builds and the seeded demo so both read the same. */
+export function repairLedgerTitle(plan: Pick<RepairPlan, "title">): string {
+  return `Caught: ${plan.title.replace(/^Rehearsal caught /, "")}`;
+}
+
+/**
+ * Supervision is a preset: switching it also rewrites every tool's permission
+ * (lib/blueprint/describe.ts), so a fix that changes supervision says so in its ops.
+ */
+function supervisionOps(ai: number, agent: Agent, level: Agent["supervision"]): ChangeOperation[] {
+  return [
+    { op: "set", path: `/agents/${ai}/supervision`, value: level },
+    ...agent.tools.flatMap((t, ti): ChangeOperation[] => {
+      const want = presetPermission(level, t.access);
+      return t.permission === want ? [] : [{ op: "set", path: `/agents/${ai}/tools/${ti}/permission`, value: want }];
+    }),
+  ];
+}
 
 /**
  * The "turn 3" moment. Every first build runs rehearsals; the rehearsal
@@ -39,7 +60,7 @@ export function planRepair(bp: Blueprint): RepairPlan {
       id: `gate-${agent.id}-${tool.id}`,
       title: `Rehearsal caught ${agent.name} trying to ${tool.name.toLowerCase()} without asking`,
       tried: `In the “${rehearsal}” rehearsal, ${agent.name} called ${tool.name.toLowerCase()} straight away.`,
-      whyFailed: `${tool.name} can't be undone, but it was set to “Do it and tell me”. A mistake here would reach the real world before anyone could stop it.`,
+      whyFailed: `${tool.name} can't be undone, but it was set to “${PERMISSION_LABEL[tool.permission]}”. A mistake here would reach the real world before anyone could stop it.`,
       objectRef: { type: "agent", id: agent.id },
       agentName: agent.name,
       options: [
@@ -56,12 +77,11 @@ export function planRepair(bp: Blueprint): RepairPlan {
         {
           id: "b",
           label: `Hand every “${tool.name}” to a person`,
-          narration: `${agent.name} now prepares the work and a person carries it out. Slower, but nothing leaves without a human.`,
+          narration: `${agent.name} now approves everything: every tool asks first, and it prepares “${tool.name}” for a person to carry out. Slower, but nothing leaves without a human.`,
           credits: 0,
           blastRadius: { screens: 1, agents: 1, files: 3 },
           ops: [
-            { op: "set", path: `/agents/${ai}/supervision`, value: "approve_all" },
-            { op: "set", path: `/agents/${ai}/tools/${ti}/permission`, value: "ask" },
+            ...supervisionOps(ai, agent, "approve_all"),
             { op: "set", path: `/agents/${ai}/rules`, value: [...rules, `Never ${tool.name.toLowerCase()} yourself. Prepare it for a person to carry out.`] },
           ],
           changelog: `${agent.name} now prepares “${tool.name}” for a person instead of doing it itself.`,
@@ -95,12 +115,12 @@ export function planRepair(bp: Blueprint): RepairPlan {
       },
       {
         id: "b",
-        label: "Have a person review its replies",
-        narration: `${agent.name}'s replies now wait for a person before they're sent.`,
+        label: "Have a person approve everything it does",
+        narration: `${agent.name} now approves everything: every tool asks first, so its replies and actions wait for a person.`,
         credits: 0,
         blastRadius: { screens: 0, agents: 1, files: 2 },
-        ops: [{ op: "set", path: `/agents/${ai}/supervision`, value: "approve_all" }],
-        changelog: `A person now reviews ${agent.name}'s replies before they go out.`,
+        ops: supervisionOps(ai, agent, "approve_all"),
+        changelog: `A person now approves everything ${agent.name} does before it happens.`,
       },
     ],
   };

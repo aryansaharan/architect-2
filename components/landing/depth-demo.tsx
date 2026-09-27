@@ -4,6 +4,7 @@ import { Segmented } from "@/components/arch/segmented";
 import { AccessChip, Avatar } from "@/components/arch/badges";
 import { CodeView } from "@/components/arch/code-view";
 import { cn } from "@/lib/utils";
+import { PERMISSION_LABEL } from "@/lib/blueprint/describe";
 
 type Tool = { name: string; where: string; access: "read" | "write" | "irreversible"; permission: string };
 
@@ -38,7 +39,7 @@ export function DepthDemo({ agent, yaml }: { agent: { name: string; role: string
                 <li key={t.name} className="flex items-center gap-2.5 rounded-lg border border-hairline bg-deep/60 px-2.5 py-2">
                   <AccessChip access={t.access} />
                   <span className="flex-1 text-[12.5px]">{t.name}</span>
-                  <span className={cn("text-[11.5px] font-medium", t.permission === "Ask me first" ? "text-ask" : "text-muted-foreground")}>{t.permission}</span>
+                  <span className={cn("text-[11.5px] font-medium", t.permission === PERMISSION_LABEL.ask ? "text-ask" : "text-muted-foreground")}>{t.permission}</span>
                 </li>
               ))}
             </ul>
@@ -57,7 +58,7 @@ export function DepthDemo({ agent, yaml }: { agent: { name: string; role: string
                     <td className="py-2">{t.name.toLowerCase().replace(/ /g, "_")}</td>
                     <td className="py-2 text-muted-foreground">{t.where}</td>
                     <td className="py-2">{t.access}</td>
-                    <td className={cn("py-2", t.permission === "Ask me first" && "text-ask")}>{t.permission === "Ask me first" ? "ask" : t.permission === "Do it and tell me" ? "log" : "auto"}</td>
+                    <td className={cn("py-2", t.permission === PERMISSION_LABEL.ask && "text-ask")}>{t.permission === PERMISSION_LABEL.ask ? "ask" : t.permission === PERMISSION_LABEL.log ? "log" : "auto"}</td>
                   </tr>
                 ))}
               </tbody>

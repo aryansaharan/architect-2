@@ -49,7 +49,7 @@ export function buildTools(bp: Blueprint, agent: Agent): ToolSet {
   for (const t of agent.tools) {
     const conn = bp.connections.find((c) => c.id === t.connectionId);
     set[t.id] = tool({
-      description: `${t.description} (${conn?.name ?? t.connectionId}; access: ${t.access}${t.permission === "ask" ? "; a person must approve each call" : ""})`,
+      description: `${t.description} (${conn?.name ?? t.connectionId}; access: ${t.access}${approvalFor(t) === "user-approval" ? "; a person must approve each call" : ""})`,
       inputSchema: z.object({ query: z.string().describe("What to look up, change or send. Be specific (ids, names, amounts).") }),
       execute: async ({ query }) => stubResult(bp, agent, t, query),
     });
@@ -59,7 +59,14 @@ export function buildTools(bp: Blueprint, agent: Agent): ToolSet {
 
 export type ApprovalMode = "user-approval" | "approved" | "not-applicable";
 
-/** Blueprint permission → AI SDK approval. "ask" (or anything irreversible) always needs a person. */
+/**
+ * Blueprint permission → AI SDK approval. The tool's own permission is the single
+ * source of truth: supervision is a preset that writes these permissions
+ * (lib/blueprint/describe.ts SUPERVISION_PRESET), so "Approve everything" arrives
+ * here as every tool on "ask". Anything irreversible always needs a person, even
+ * if someone set it looser (preflight blocks going live until it asks).
+ * Codegen (lib/codegen/frameworks/util.ts planTools) gates exactly the same tools.
+ */
 export function approvalFor(t: AgentTool): ApprovalMode {
   if (t.permission === "ask" || t.access === "irreversible") return "user-approval";
   if (t.permission === "log") return "approved";

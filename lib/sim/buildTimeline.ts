@@ -27,7 +27,10 @@ export type TimelineStep =
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
-/** Deterministic, plain-English build script for a blueprint. ~25–35 s at 1×. */
+/**
+ * Deterministic, plain-English build script for a blueprint. ~25–35 s at normal speed.
+ * The steps are a scripted playback over the real plan (labelled "Simulated build" in the console).
+ */
 export function buildTimeline(bp: Blueprint): TimelineStep[] {
   const steps: TimelineStep[] = [];
   const s = (x: Omit<Extract<TimelineStep, { kind: "step" }>, "kind" | "durationMs"> & { durationMs?: number }) =>
@@ -106,7 +109,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
     id: "rehearse",
     lane: "checked",
     title: `Rehearsing ${rehearsals} conversations`,
-    detail: "Every agent plays through its test cases before anyone sees it.",
+    detail: "Rehearsals are practice conversations: every agent plays through its test cases before anyone sees it.",
     durationMs: 2200,
     logs: bp.agents.flatMap((a) => a.rehearsals.map((r) => `${a.name} · ${r.name}`)),
   });
