@@ -1,34 +1,21 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** The mark: a firefly's light trail drawing a P, its glowing head closing the loop on the swarm's rhythm. */
+/** The mark: an ink P drawn in one stroke, closed by a small accent dot. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={cn("size-5 overflow-visible", className)} aria-hidden>
-      <defs>
-        <linearGradient id="ww-trail" x1="7" y1="21" x2="18" y2="4" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#3fe0c5" stopOpacity="0.35" />
-          <stop offset="0.5" stopColor="#8dff9e" />
-          <stop offset="1" stopColor="#dfff4f" />
-        </linearGradient>
-        <radialGradient id="ww-head">
-          <stop offset="0" stopColor="#fffbe0" />
-          <stop offset="0.35" stopColor="#dfff4f" />
-          <stop offset="1" stopColor="#dfff4f" stopOpacity="0" />
-        </radialGradient>
-      </defs>
       <path
         className="logo-trail"
         pathLength={1}
         d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2"
         fill="none"
-        stroke="url(#ww-trail)"
+        stroke="var(--foreground)"
         strokeWidth="2.1"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle className="logo-head" cx="10.8" cy="13.6" r="4.2" fill="url(#ww-head)" />
-      <circle cx="10.8" cy="13.6" r="1.25" fill="#fffbe0" />
+      <circle cx="10.8" cy="13.6" r="1.9" fill="var(--amber)" />
     </svg>
   );
 }

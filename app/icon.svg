@@ -1,18 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="t" x1="9" y1="28" x2="24" y2="5" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3fe0c5" stop-opacity="0.45"/>
-      <stop offset="0.5" stop-color="#8dff9e"/>
-      <stop offset="1" stop-color="#dfff4f"/>
-    </linearGradient>
-    <radialGradient id="h">
-      <stop offset="0" stop-color="#fffbe0"/>
-      <stop offset="0.35" stop-color="#dfff4f"/>
-      <stop offset="1" stop-color="#dfff4f" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="32" height="32" rx="8" fill="#060a09"/>
-  <path d="M10 26.6V8.8c0-2 1.6-3.6 3.6-3.6H17c3.7 0 6.7 2.8 6.7 6.4s-3 6.4-6.7 6.4h-2.8" fill="none" stroke="url(#t)" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="14.2" cy="18" r="4.8" fill="url(#h)"/>
-  <circle cx="14.2" cy="18" r="1.6" fill="#fffbe0"/>
+  <rect width="32" height="32" rx="8" fill="#f7f5f0"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#e4dfd4"/>
+  <path d="M10 26.6V8.8c0-2 1.6-3.6 3.6-3.6H17c3.7 0 6.7 2.8 6.7 6.4s-3 6.4-6.7 6.4h-2.8" fill="none" stroke="#1a1a17" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="14.2" cy="18" r="2.4" fill="#1f4d3a"/>
 </svg>

@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Architects_Daughter, Caveat, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-// Wonder and work: a soft, luminous serif for the moments, a clear grotesk for the tool, a mono for the code.
-const display = Fraunces({ variable: "--font-wonder", subsets: ["latin"], style: ["normal", "italic"], axes: ["SOFT", "WONK", "opsz"] });
+// Pencil for thinking (titles, notes, sketches), a clear grotesk for the tool, a mono for code.
+const pencil = Caveat({ variable: "--font-pencil", subsets: ["latin"] });
+const sketch = Architects_Daughter({ variable: "--font-sketch", subsets: ["latin"], weight: "400" });
 const sans = Hanken_Grotesk({ variable: "--font-work", subsets: ["latin"] });
 const mono = JetBrains_Mono({ variable: "--font-code", subsets: ["latin"] });
 
@@ -17,13 +18,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
 };
 
-export const viewport: Viewport = { themeColor: "#060a09", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#f7f5f0", colorScheme: "light" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`dark ${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
+      className={`${pencil.variable} ${sketch.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full">
