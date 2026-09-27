@@ -68,9 +68,9 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 ## 11. Visual language
 
-**Decision.** A dark studio with one amber accent; the generated app previews in its own light theme.
+**Decision.** "Nightfield": a night-meadow studio lit by one signature, firefly chartreuse drifting into candle, teal and moonlight. Fraunces for the moments that should feel like wonder, Hanken Grotesk for the tool, JetBrains Mono for code. The generated app previews in its own light theme.
 
-**Why.** The contrast separates "the tool" from "the thing you're building" at a glance. Semantic colours are reserved for meaning: green reads, blue changes, rose can't be undone, violet is Prod AI fixing its own mistake.
+**Why.** The contrast separates "the tool" from "the thing you're building" at a glance, and the palette is deliberately unlike the purple and amber most AI builders share. The motif is the thesis: on the landing page a swarm of fireflies blinks at random, then falls into one rhythm as a plan comes together (the Kuramoto model, the standard model of how real fireflies synchronise). Many small agents, coordinated well enough to trust in production. Semantic colours are reserved for meaning: green reads, blue changes, rose can't be undone, violet is Prod AI fixing its own mistake.
 
 ## What I cut, and what's next
 
