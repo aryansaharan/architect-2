@@ -1,7 +1,7 @@
-// Live QA against a deployment with a real model: node scripts/live-qa.mjs https://architect-2-aryan.vercel.app
+// Live QA against a deployment with a real model: node scripts/live-qa.mjs https://prod-ai-studio.vercel.app
 // Exercises a novel brief end to end and prints what happened at each step (live vs offline, timings).
 import { chromium } from "@playwright/test";
-const base = process.argv[2] ?? "https://architect-2-aryan.vercel.app";
+const base = process.argv[2] ?? "https://prod-ai-studio.vercel.app";
 const brief = process.argv[3] ?? "A reservations desk for a busy restaurant group: take bookings from the website and WhatsApp, remind guests the day before, manage the waitlist, and ask the manager before refunding any deposit.";
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

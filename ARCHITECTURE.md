@@ -30,7 +30,7 @@ How Prod AI (my prototype for Lyzr's Architect 2.0 brief) runs in production, se
 
 Sections 1 to 19 describe the target platform, sized for 5,000 people in the studio at once. That is not what we build first. [Section 21](#21-phasing-buy-first-build-when-it-pays) says what runs at launch, the numeric trigger for each build-out, and what each phase costs to run and staff.
 
-- Interactive version: **[architect-2-aryan.vercel.app/architecture](https://architect-2-aryan.vercel.app/architecture)**. Hover over or focus (Tab) a numbered badge to highlight that flow's lines and read the step.
+- Interactive version: **[prod-ai-studio.vercel.app/architecture](https://prod-ai-studio.vercel.app/architecture)**. Hover over or focus (Tab) a numbered badge to highlight that flow's lines and read the step.
 - Diagram files: [`public/docs/architecture-diagram.png`](public/docs/architecture-diagram.png) · [`public/docs/architecture.pdf`](public/docs/architecture.pdf)
 - Product decisions: [`DECISIONS.md`](DECISIONS.md) · Market research: [`RESEARCH.md`](RESEARCH.md)
 
@@ -114,7 +114,7 @@ What I give up is Vercel's zero-ops hosting and per-PR previews for the studio. 
 
 ## 3. Prompt to production
 
-One request, end to end. The eight steps match the eight numbered badges on the diagram and the flow cards on the [architecture page](https://architect-2-aryan.vercel.app/architecture). Latencies are design targets.
+One request, end to end. The eight steps match the eight numbered badges on the diagram and the flow cards on the [architecture page](https://prod-ai-studio.vercel.app/architecture). Latencies are design targets.
 
 **Step 1. Describe.**
 - **Services:** Builder studio → CDN + WAF (Cloudflare) → API gateway (regional Envoy) → Web app + BFF (in the workspace's cell) → Project service, Budget + billing.

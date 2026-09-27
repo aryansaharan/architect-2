@@ -26,7 +26,7 @@ export function Showcase() {
           <span className="size-2.5 rounded-full bg-[#ff5f57]/80" />
           <span className="size-2.5 rounded-full bg-[#febc2e]/80" />
           <span className="size-2.5 rounded-full bg-[#28c840]/80" />
-          <span className="mx-auto rounded-md bg-raised px-3 py-0.5 font-mono text-[11px] text-muted-foreground">architect-2-aryan.vercel.app/p/claims-triage-desk/blueprint</span>
+          <span className="mx-auto rounded-md bg-raised px-3 py-0.5 font-mono text-[11px] text-muted-foreground">prod-ai-studio.vercel.app/p/claims-triage-desk/blueprint</span>
         </div>
         <Image src="/showcase/studio.png" alt="The Prod AI studio: a blueprint canvas with screens, agents, data and connections, and an inspector showing the Settlement agent's permissions" width={1440} height={900} className="block h-auto w-full" priority={false} />
       </motion.div>

@@ -1,6 +1,6 @@
 // Live check of "ask for a change" on a deployment: node scripts/live-changes.mjs [baseUrl]
 import { chromium } from "@playwright/test";
-const base = process.argv[2] ?? "https://architect-2-aryan.vercel.app";
+const base = process.argv[2] ?? "https://prod-ai-studio.vercel.app";
 const REQUESTS = [
   ["screen:intake-queue", "Add a column for SLA risk to the claims table"],
   [null, "Make every agent ask before it sends a message to anyone"],
