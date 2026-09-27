@@ -33,7 +33,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
   const nodes = useRef(new Map<string, HTMLElement>());
   const [paths, setPaths] = useState<Path[]>([]);
   const [hover, setHover] = useState<string | null>(null);
-  // Which sides have more plan to scroll to: those edges fade and get a nudge button.
+  // Which sides have more plan to scroll to: those edges get a nudge button.
   const [more, setMore] = useState({ left: false, right: false });
   const changeOrderOpen = useChangeOrderOpen();
 
@@ -164,7 +164,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
   const dock = !quiet ? null : interrupted ? "resume" : ws.project.buildState === "draft" ? (ws.project.source === "import" ? "mapped" : "quote") : null;
   const columns = [
     { title: "Screens", hint: "what people see", icon: Blocks, count: bp.screens.length },
-    { title: "Agents", hint: "who does the work", icon: Bot, count: bp.agents.length },
+    { title: "AI helpers", hint: "who does the work", icon: Bot, count: bp.agents.length },
     { title: "Data", hint: "what's stored", icon: Database, count: bp.entities.length },
     { title: "Connections", hint: "what it touches", icon: Plug, count: bp.connections.length },
   ];
@@ -173,14 +173,14 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
     <div className="relative flex h-full min-h-0 flex-col">
       <div className={cn("flex items-center gap-3 border-b border-hairline px-5 py-2.5", ws.selected && "lg:max-xl:pr-[376px]")}>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium">{bp.meta.tagline}</p>
+          <p className="truncate font-pencil text-[24px] leading-[1.15]">{bp.meta.tagline}</p>
           <p className="truncate text-[11.5px] text-muted-foreground">
-            The plan is the product: click anything to read it in plain English, change it, or see its code.
+            The plan map: click anything to read it in plain English, change it, or see its code.
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {ws.project.buildState === "built" && !running && (
-            <Button variant="outline" size="sm" className="h-8" onClick={() => ws.build.start({ replay: true })}>
+            <Button variant="outline" size="sm" className="h-8 bg-panel" onClick={() => ws.build.start({ replay: true })}>
               <Play /> Replay how it was built
             </Button>
           )}
@@ -209,43 +209,29 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
           >
             {/* Sized by the grid, not by a measured width: a stale wider SVG would hold the canvas open and push lines under the inspector. */}
             <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden>
-              <defs>
-                <linearGradient id="edge-hot" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0%" stopColor="#dfff4f" stopOpacity="0.35" />
-                  <stop offset="50%" stopColor="#efff94" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#dfff4f" stopOpacity="0.35" />
-                </linearGradient>
-                <filter id="edge-glow" x="-20%" y="-50%" width="140%" height="200%">
-                  <feGaussianBlur stdDeviation="3" />
-                </filter>
-              </defs>
               {paths.map((p, i) => {
                 const hot = Boolean(related && related.has(p.from) && related.has(p.to));
                 const dashed = p.kind === "agent-connection";
                 return (
                   <g key={`${p.from}-${p.to}`}>
+                    {/* Pencil lines: graphite, dashed where an agent reaches outside the app. */}
                     {dashed ? (
-                      <motion.path d={p.d} fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth={1.2} strokeDasharray="3 4" initial={{ opacity: 0 }} animate={{ opacity: hot ? 0 : 1 }} transition={{ duration: 0.6, delay: 0.5 + i * 0.015 }} />
+                      <motion.path d={p.d} fill="none" stroke="rgb(63 61 56 / 0.28)" strokeWidth={1.25} strokeDasharray="4 5" strokeLinecap="round" initial={{ opacity: 0 }} animate={{ opacity: hot ? 0 : 1 }} transition={{ duration: 0.6, delay: 0.5 + i * 0.015 }} />
                     ) : (
-                      <motion.path d={p.d} fill="none" stroke="rgb(255 255 255 / 0.12)" strokeWidth={1.2} initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0.25 : 1 }} transition={{ pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.45 + i * 0.02 }, opacity: { duration: 0.3 } }} />
+                      <motion.path d={p.d} fill="none" stroke="rgb(63 61 56 / 0.3)" strokeWidth={1.25} strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0 : 1 }} transition={{ pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.45 + i * 0.02 }, opacity: { duration: 0.3 } }} />
                     )}
-                    {hot && (
-                      <>
-                        <path d={p.d} fill="none" stroke="#dfff4f" strokeOpacity={0.45} strokeWidth={4} filter="url(#edge-glow)" />
-                        <path d={p.d} fill="none" stroke="url(#edge-hot)" strokeWidth={1.6} />
-                        <path d={p.d} fill="none" stroke="#fff4dc" strokeOpacity={0.9} strokeWidth={1.4} strokeLinecap="round" className="flow" />
-                      </>
-                    )}
+                    {/* The lines around what you point at, inked in the accent. Data only moves along them while a build runs. */}
+                    {hot && <path d={p.d} fill="none" stroke="var(--amber)" strokeOpacity={0.85} strokeWidth={1.6} strokeLinecap="round" strokeDasharray={dashed ? "4 5" : undefined} className={running ? "flow" : undefined} />}
                   </g>
                 );
               })}
             </svg>
             {columns.map((c) => (
               <div key={c.title} data-tour-avoid className="relative z-[1] mb-3 flex min-w-0 items-baseline gap-2">
-                <c.icon className="size-3.5 shrink-0 translate-y-0.5 text-muted-foreground" aria-hidden />
-                <h3 className="text-[12px] font-semibold uppercase tracking-wider text-foreground/80">{c.title}</h3>
-                <span className="font-mono text-[11px] text-faint">{c.count}</span>
-                <span className="truncate text-[11px] text-faint">· {c.hint}</span>
+                <c.icon className="size-3.5 shrink-0 translate-y-px text-muted-foreground" aria-hidden />
+                <h3 className="font-pencil text-[24px] leading-none text-foreground">{c.title}</h3>
+                <span className="text-[11.5px] text-muted-foreground">{c.count}</span>
+                <span className="truncate text-[11.5px] text-muted-foreground">· {c.hint}</span>
               </div>
             ))}
             <div className="relative z-[1] space-y-3">
@@ -277,7 +263,6 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
         {dock === "resume" && interrupted && <ResumeDock key="resume" build={interrupted} />}
       </AnimatePresence>
 
-      {running && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[5] shadow-[inset_0_0_160px_rgb(223_255_79/0.09)] transition-opacity" />}
       <AnimatePresence>{running && <BuildConsole key="console" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "repair" && <RepairOverlay key="repair" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "done" && <BuildComplete key="complete" />}</AnimatePresence>
@@ -287,11 +272,11 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
 }
 
 const dockMotion = {
-  initial: { opacity: 0, y: 24, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1, transition: { type: "spring" as const, stiffness: 240, damping: 24, delay: 0.35 } },
-  exit: { opacity: 0, y: 16, scale: 0.98, transition: { duration: 0.2 } },
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const, delay: 0.3 } },
+  exit: { opacity: 0, y: 8, transition: { duration: 0.15 } },
 };
-const dockPanel = "beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(223_255_79/0.45)]";
+const dockPanel = "sketch pointer-events-auto w-full max-w-[860px] bg-raised p-4 shadow-[0_10px_30px_-18px_rgb(26_26_23/0.35)]";
 
 /**
  * The server says this project is mid-build, but nothing is running here: the tab was closed or
@@ -309,8 +294,8 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
       <motion.section aria-label="Interrupted build" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
-            <p className="micro-label text-amber">Build paused · nothing more to pay</p>
-            <p className="mt-1 text-[15px] font-semibold">Your build was interrupted {where}.</p>
+            <p className="text-[12px] font-medium text-amber">Build paused · nothing more to pay</p>
+            <p className="mt-0.5 font-pencil text-[26px] leading-tight">Your build was interrupted {where}.</p>
             <p className="mt-0.5 text-[12.5px] text-muted-foreground">
               {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
               {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the estimate back.
@@ -336,7 +321,7 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
             </Button>
             <Button
               size="lg"
-              className="btn-solstice sheen h-9 px-4"
+              className="h-9 px-4"
               disabled={busy !== null}
               onClick={async () => {
                 setBusy("resume");
@@ -363,13 +348,13 @@ function MappedDock() {
     <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
       <motion.section aria-label="Imported project" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-hairline bg-deep/60"><FolderGit2 className="size-4 text-amber" /></span>
+          <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas"><FolderGit2 className="size-4 text-amber" /></span>
           <div className="min-w-0 flex-1">
-            <p className="micro-label text-amber">Adopted · nothing was built or charged</p>
-            <p className="mt-1 text-[15px] font-semibold">Mapped. Your repo is untouched.</p>
+            <p className="text-[12px] font-medium text-amber">Adopted · nothing was built or charged</p>
+            <p className="mt-0.5 font-pencil text-[26px] leading-tight">Mapped. Your repo is untouched.</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
           </div>
-          <Button size="lg" className="btn-solstice sheen ml-auto h-9 px-4" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">
+          <Button size="lg" className="ml-auto h-9 px-4" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">
             Describe your first change <ArrowRight />
           </Button>
         </div>
@@ -379,7 +364,7 @@ function MappedDock() {
 }
 
 /**
- * A soft fade where the plan continues off-screen, with a small button to scroll a column's worth.
+ * Where the plan continues off-screen: a small button to scroll a column's worth.
  * Keyboard users reach every card with Tab (the browser scrolls it into view), so the button stays out of the tab order.
  */
 function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boolean; onNudge: () => void }) {
@@ -389,7 +374,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
       aria-hidden
       className={cn(
         "pointer-events-none absolute inset-y-0 z-[4] flex w-16 items-center transition-opacity duration-300",
-        side === "left" ? "left-0 justify-start bg-gradient-to-r from-canvas via-canvas/75 to-transparent pl-2" : "right-0 justify-end bg-gradient-to-l from-canvas via-canvas/75 to-transparent pr-3",
+        side === "left" ? "left-0 justify-start pl-2" : "right-0 justify-end pr-3",
         show ? "opacity-100" : "opacity-0",
       )}
     >
@@ -398,7 +383,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
         tabIndex={-1}
         onClick={onNudge}
         className={cn(
-          "grid size-7 place-items-center rounded-full border border-hairline bg-raised/90 text-muted-foreground shadow-[0_6px_20px_-6px_rgb(0_0_0/0.8)] backdrop-blur transition-colors hover:border-amber/40 hover:text-foreground",
+          "grid size-7 place-items-center rounded-full border border-hairline bg-raised text-muted-foreground shadow-[0_2px_6px_-2px_rgb(26_26_23/0.2)] transition-colors hover:border-amber/40 hover:text-foreground",
           show ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
@@ -408,10 +393,10 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
   );
 }
 
-/** Cards cascade in column by column on first paint. */
+/** Cards settle onto the page column by column on first paint: a short fade, nothing bouncing. */
 function Land({ col, i, children }: { col: number; i: number; children: React.ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 28, delay: col * 0.07 + i * 0.045 }}>
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: col * 0.06 + i * 0.04 }}>
       {children}
     </motion.div>
   );

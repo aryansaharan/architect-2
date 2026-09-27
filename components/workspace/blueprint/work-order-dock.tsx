@@ -28,15 +28,15 @@ export function WorkOrderDock() {
       <motion.section
         aria-label="Work Order"
         data-tour-avoid="hard"
-        initial={{ opacity: 0, y: 40, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 240, damping: 24, delay: 0.55 } }}
-        exit={{ opacity: 0, y: 30, scale: 0.98, transition: { duration: 0.2 } }}
-        className="beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(223_255_79/0.45)]"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: 0.4 } }}
+        exit={{ opacity: 0, y: 8, transition: { duration: 0.15 } }}
+        className="sketch pointer-events-auto w-full max-w-[860px] bg-raised p-4 shadow-[0_10px_30px_-18px_rgb(26_26_23/0.35)]"
       >
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <p className="micro-label text-amber"><Term k="work-order" /> · nothing has run yet</p>
-            <p className="mt-1 text-[15px] font-semibold">Build {bp.meta.name}</p>
+            <p className="text-[12px] font-medium text-amber"><Term k="work-order" /> · nothing has run yet</p>
+            <p className="mt-0.5 font-pencil text-[28px] leading-tight">Build {bp.meta.name}</p>
           </div>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px]">
             <div className="flex items-center gap-1.5"><Clock className="size-3.5 shrink-0 text-muted-foreground" /><dt className="sr-only">Time</dt><dd>{time.real} <span className="text-muted-foreground">· {time.here}</span></dd></div>
@@ -49,7 +49,7 @@ export function WorkOrderDock() {
                     {est.credits} credits ≈ {creditsUsd(est.credits)} <ChevronDown className="size-3" />
                   </PopoverTrigger>
                   <PopoverContent className="w-72" align="center">
-                    <p className="micro-label">Where the price comes from</p>
+                    <p className="text-[12px] font-medium text-muted-foreground">Where the price comes from</p>
                     <ul className="mt-2 space-y-1.5 text-[12.5px]">
                       {est.breakdown.map((b) => (
                         <li key={b.label} className="flex justify-between"><span className="text-muted-foreground">{b.label}</span><span className="font-mono">{b.credits} cr</span></li>
@@ -61,13 +61,13 @@ export function WorkOrderDock() {
               </dd>
             </div>
             <div className="flex items-center gap-1.5"><FileCode2 className="size-3.5 text-muted-foreground" /><dt className="sr-only">Files</dt><dd>{est.files} files</dd></div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-ask" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-amber" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
           </dl>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">Change the plan</Button>
             <Button
               size="lg"
-              className="btn-solstice sheen h-9 px-4"
+              className="h-9 px-4"
               disabled={starting || over}
               onClick={async () => {
                 setStarting(true);
@@ -79,13 +79,13 @@ export function WorkOrderDock() {
             </Button>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-hairline pt-3 text-[12px] text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-dashed border-hairline-hi pt-3 text-[12px] text-muted-foreground">
           <span>Your cap: {ws.usage.cap} credits · {Math.round(remaining)} left this month</span>
           {missing.length > 0 && (
             <span className="inline-flex items-center gap-1 text-amber"><KeyRound className="size-3" />{missing.map((c) => c.name).join(", ")} will use test data until you add a key</span>
           )}
           <span>Confidence: {est.confidence}</span>
-          {over && <span className="text-ask">This would pass your cap. Raise it in Settings first.</span>}
+          {over && <span className="font-medium text-foreground">This would pass your cap. Raise it in Settings first.</span>}
         </div>
       </motion.section>
     </div>

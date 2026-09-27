@@ -189,7 +189,7 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
                       {repoUrl && <li className="pt-1 font-sans text-[11.5px]"><a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-foreground/80 underline-offset-2 hover:underline">Browse every file on GitHub <ExternalLink className="size-3" /></a></li>}
                     </ul>
                   ) : snapshot === null ? (
-                    <div className="space-y-1.5 px-1 py-1" aria-hidden>{[70, 55, 62, 48].map((w) => <div key={w} className="shimmer h-3.5 rounded" style={{ width: `${w}%` }} />)}</div>
+                    <div className="space-y-1.5 px-1 py-1" aria-hidden>{[70, 55, 62, 48].map((w) => <div key={w} className="h-3.5 rounded bg-deep" style={{ width: `${w}%` }} />)}</div>
                   ) : repoUrl ? (
                     <a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 font-sans text-[11.5px] text-foreground/80 underline-offset-2 hover:underline">Open it on GitHub <ExternalLink className="size-3" /></a>
                   ) : null}
@@ -210,11 +210,11 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
             {pr && <p className="mb-3 text-[11.5px] leading-relaxed text-muted-foreground">Changes to PR #{pr.number} between save points. Your repo&apos;s own files never appear here.</p>}
-            <label className="micro-label">From</label>
+            <label className="text-[12px] font-medium text-muted-foreground">From</label>
             <select value={compare.from?.meta.id ?? ""} onChange={(e) => setCompare("from", e.target.value)} className="mt-1 h-8 w-full rounded-md border border-hairline bg-deep px-2 text-[12px]">
               {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>#{c.seq} {c.label}</option>)}
             </select>
-            <label className="micro-label mt-3 block">To</label>
+            <label className="mt-3 block text-[12px] font-medium text-muted-foreground">To</label>
             <select value={compare.to?.meta.id ?? ""} onChange={(e) => setCompare("to", e.target.value)} className="mt-1 h-8 w-full rounded-md border border-hairline bg-deep px-2 text-[12px]">
               {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>#{c.seq} {c.label}</option>)}
             </select>
@@ -222,10 +222,10 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
               {diffs.map((d) => (
                 <li key={d.path}>
                   <a href={`#diff-${d.path}`} className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-[11.5px] hover:bg-raised">
-                    <span className={cn("size-1.5 shrink-0 rounded-full", d.status === "added" ? "bg-read" : d.status === "removed" ? "bg-ask" : "bg-amber")} />
+                    <span className={cn("size-1.5 shrink-0 rounded-full", d.status === "added" ? "bg-read" : d.status === "removed" ? "bg-foreground/40" : "bg-change")} title={d.status} />
                     <span className="min-w-0 flex-1 truncate">{d.path}</span>
                     <span className="text-read">+{d.additions}</span>
-                    <span className="text-ask">−{d.deletions}</span>
+                    <span className="text-muted-foreground">−{d.deletions}</span>
                   </a>
                 </li>
               ))}
@@ -325,18 +325,18 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
             )}
             <div className="space-y-4">
               {diffs.map((d) => (
-                <section key={d.path} id={`diff-${d.path}`} className="overflow-hidden rounded-xl border border-hairline">
+                <section key={d.path} id={`diff-${d.path}`} className="overflow-hidden rounded-md border border-hairline">
                   <header className="flex items-center gap-2 border-b border-hairline bg-panel px-3 py-2 font-mono text-[12px]">
                     <span className="truncate">{d.path}</span>
                     <span className="ml-auto text-read">+{d.additions}</span>
-                    <span className="text-ask">−{d.deletions}</span>
+                    <span className="text-muted-foreground">−{d.deletions}</span>
                   </header>
                   <div className="code-face overflow-x-auto py-1 text-[12px] leading-[1.6]">
                     {d.hunks.map((h, hi) => (
                       <div key={hi}>
-                        <div className="px-3 py-0.5 text-change/80">{h.header}</div>
+                        <div className="bg-change/[0.06] px-3 py-0.5 text-change">{h.header}</div>
                         {h.lines.map((l, li) => (
-                          <div key={li} className={cn("whitespace-pre px-3", l.startsWith("+") ? "bg-read/10 text-read" : l.startsWith("-") ? "bg-ask/10 text-ask" : "text-foreground/60")}>{l || " "}</div>
+                          <div key={li} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") ? "border-read bg-read/10 text-foreground" : l.startsWith("-") ? "border-foreground/30 bg-foreground/[0.05] text-muted-foreground" : "border-transparent text-foreground/70")}>{l || " "}</div>
                         ))}
                       </div>
                     ))}
@@ -370,7 +370,7 @@ function HeldBack({ pr }: { pr: ImportPullRequest }) {
   }, [pr]);
   if (!groups.length) return null;
   return (
-    <div className="mt-2.5 rounded-lg border border-hairline bg-deep/50 font-sans">
+    <div className="mt-2.5 rounded-md border border-hairline bg-panel font-sans">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11.5px] text-muted-foreground hover:text-foreground">
         {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
         <ShieldCheck className="size-3 shrink-0 text-amber" />
@@ -507,7 +507,7 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
 
   return (
     <aside aria-label="GitHub" className={cn("overflow-y-auto p-4", className)}>
-      <p className="flex items-center gap-2 text-[13px] font-semibold"><GitHubMark /> Your code on GitHub</p>
+      <p className="flex items-center gap-2 font-pencil text-[24px] leading-none"><GitHubMark className="size-4" /> Your code on GitHub</p>
       {!gh?.connected ? (
         <div className="mt-3">
           <p className="text-[12.5px] leading-relaxed text-muted-foreground">Keep a copy of every file in your own repository. Each Work Order becomes a branch and a change for review, and edits you push come back into the blueprint.</p>
@@ -518,15 +518,15 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
         </div>
       ) : (
         <div className="mt-3 space-y-4">
-          <div className="rounded-lg border border-hairline bg-deep/60 p-2.5">
+          <div className="rounded-md border border-hairline bg-panel p-2.5">
             <p className="truncate font-mono text-[12px]">{gh.repo}</p>
             <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><GitBranch className="size-3" />{pr ? `${snap?.branch ?? "main"} · pull requests only · sandbox` : "main · two-way sync on · sandbox"}</p>
           </div>
           <div>
-            <p className="micro-label">Changes for review</p>
+            <p className="text-[12px] font-medium text-muted-foreground">Changes for review</p>
             <ul className="mt-2 space-y-1.5">
               {pr && (
-                <li className="rounded-lg border border-read/25 bg-read/[0.05] p-2">
+                <li className="rounded-md border border-read/25 bg-read/[0.05] p-2">
                   <p className="flex items-start gap-1.5 text-[12px]">
                     <GitPullRequest className="mt-0.5 size-3 shrink-0 text-read" />
                     <span className="min-w-0 flex-1 leading-snug">{pr.title}</span>
@@ -541,7 +541,7 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
               )}
               {!pr && changes.length === 0 && <li className="text-[12px] text-muted-foreground">Your next approved Work Order opens one here.</li>}
               {changes.map((w, i) => (
-                <li key={w.id} className="rounded-lg border border-hairline p-2">
+                <li key={w.id} className="rounded-md border border-hairline bg-panel p-2">
                   <p className="flex items-start gap-1.5 text-[12px]">
                     <GitPullRequest className={cn("mt-0.5 size-3 shrink-0", w.status === "done" ? "text-fix" : "text-read")} />
                     <span className="min-w-0 flex-1 leading-snug">{w.proposal?.summary ?? w.request}</span>
@@ -556,9 +556,9 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
             </ul>
           </div>
           {seededTeammate && (
-            <div className="rounded-lg border border-change/25 bg-change/[0.06] p-2.5">
+            <div className="rounded-md border border-change/25 bg-change/[0.05] p-2.5">
               <p className="text-[12px]">Priya pushed 2 commits to <span className="font-mono">main</span></p>
-              <Button size="sm" variant="outline" className="mt-2 h-7 w-full" disabled={pending} onClick={() => start(async () => { await pullFromGitHub(ws.project.id); toast.success("Pulled 2 commits", { description: "No conflicts. Rehearsals still pass." }); router.refresh(); })}>
+              <Button size="sm" variant="outline" className="mt-2 h-7 w-full bg-panel" disabled={pending} onClick={() => start(async () => { await pullFromGitHub(ws.project.id); toast.success("Pulled 2 commits", { description: "No conflicts. Rehearsals still pass." }); router.refresh(); })}>
                 {pending ? <Loader2 className="animate-spin" /> : <RefreshCw />} Pull into the blueprint
               </Button>
             </div>
@@ -570,7 +570,7 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
         </div>
       )}
       <div className="mt-6 border-t border-hairline pt-4">
-        <p className="micro-label">No lock-in</p>
+        <p className="text-[12px] font-medium text-muted-foreground">No lock-in</p>
         <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => exportBundle()}><Download /> {pr ? `Download PR #${pr.number} files` : "Download all source"}</Button>
         <p className="mt-2 text-[11px] text-faint">{pr ? `Only the new ${pr.root}/ folder: plain YAML, Markdown and thin wrappers. Delete it and your repo is exactly as it was.` : "Standard Next.js, Postgres and agent files. Runs without Prod AI."}</p>
       </div>

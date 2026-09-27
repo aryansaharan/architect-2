@@ -31,7 +31,7 @@ export function CodeFace({ objectRef }: { objectRef: ObjectRef }) {
     <div className="-mx-4">
       <div className="flex gap-1 overflow-x-auto border-b border-hairline px-4 pb-2">
         {files.map((f, i) => (
-          <button key={f.path} onClick={() => setActive(i)} className={cn("shrink-0 rounded-md px-2 py-1 font-mono text-[11px]", i === active ? "bg-raised text-foreground" : "text-muted-foreground hover:text-foreground")}>
+          <button key={f.path} onClick={() => setActive(i)} aria-pressed={i === active} className={cn("shrink-0 rounded-md px-2 py-1 font-mono text-[11px]", i === active ? "border border-hairline bg-panel text-foreground" : "border border-transparent text-muted-foreground hover:text-foreground")}>
             {f.path.split("/").pop()}
           </button>
         ))}

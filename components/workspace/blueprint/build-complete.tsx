@@ -1,67 +1,40 @@
 "use client";
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { ArrowRight, Check, Rocket, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FireflyField } from "@/components/fx/firefly-field";
 import { useWorkspace } from "../context";
 
-/** The moment a build lands: lights lift off the canvas in one rhythm, a sweep of light, then a quiet "it's ready". */
+/** The moment a build lands: no fireworks, just a calm note on the plan that it's real now. */
 export function BuildComplete() {
   const ws = useWorkspace();
   const replay = ws.build.mode === "replay";
   const bp = ws.blueprint;
-  const [celebrating, setCelebrating] = useState(!replay);
-  useEffect(() => {
-    const t = setTimeout(() => setCelebrating(false), 7000);
-    return () => clearTimeout(t);
-  }, []);
   return (
-    <>
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[6] overflow-hidden">
-        {celebrating && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 1, 0] }} transition={{ duration: 7, times: [0, 0.08, 0.7, 1] }} className="absolute inset-0">
-            <FireflyField variant="rise" density={0.7} initialHarmony={0.9} />
-          </motion.div>
-        )}
-        <motion.div
-          initial={{ x: "-60%", opacity: 0 }}
-          animate={{ x: "160%", opacity: [0, 1, 1, 0] }}
-          transition={{ duration: 1.6, ease: [0.45, 0, 0.2, 1] }}
-          className="absolute inset-y-0 w-1/3 bg-[linear-gradient(90deg,transparent,rgb(239_255_148/0.10),rgb(239_255_148/0.22),rgb(239_255_148/0.10),transparent)] blur-md"
-        />
-      </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-5">
-        <motion.section
-          role="status"
-          initial={{ opacity: 0, y: 30, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 24, delay: 0.5 } }}
-          exit={{ opacity: 0, y: 20, transition: { duration: 0.2 } }}
-          className="panel-raised pointer-events-auto flex w-full max-w-[760px] items-center gap-4 rounded-2xl p-4 shadow-[0_0_0_1px_rgb(61_214_140/0.25),0_20px_60px_-12px_rgb(0_0_0/0.8),0_0_60px_-20px_rgb(61_214_140/0.5)]"
-        >
-          <motion.span
-            initial={{ scale: 0, rotate: -30 }}
-            animate={{ scale: 1, rotate: 0, transition: { type: "spring", stiffness: 420, damping: 16, delay: 0.75 } }}
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-read/15 text-read ring-1 ring-read/30"
-          >
-            <Check className="size-5" strokeWidth={2.5} />
-          </motion.span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[14.5px] font-semibold">{replay ? "That's how it was built." : `${bp.meta.name} is built and rehearsed.`}</p>
-            <p className="text-[12.5px] text-muted-foreground">
-              {replay ? "Replays are free. Nothing was changed." : `${bp.screens.length} screens, ${bp.agents.length} agents on duty. Saved as a save point you can always return to.`}
-            </p>
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-5">
+      <motion.section
+        role="status"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: 0.2 } }}
+        exit={{ opacity: 0, y: 8, transition: { duration: 0.15 } }}
+        className="sticky-note pointer-events-auto flex w-full max-w-[720px] flex-wrap items-center gap-x-5 gap-y-3 rounded-sm px-5 py-4"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="font-pencil text-[34px] leading-none">{replay ? "That's how it was built." : "It's real."}</p>
+          <p className="mt-1.5 text-[12.5px] text-foreground/75">
+            {replay
+              ? "Replays are free. Nothing was changed."
+              : `${bp.meta.name} is built and rehearsed: ${bp.screens.length} screens and ${bp.agents.length} AI helper${bp.agents.length === 1 ? "" : "s"}. Saved as a save point you can always return to.`}
+          </p>
+        </div>
+        {!replay && (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button asChild size="sm" variant="outline" className="h-8 bg-panel"><Link href={`/p/${ws.project.id}/ship`}>Publish</Link></Button>
+            <Button asChild size="sm" className="h-8"><Link href={`/p/${ws.project.id}/preview`}>Open it <ArrowRight /></Link></Button>
           </div>
-          {!replay && (
-            <div className="flex shrink-0 items-center gap-2">
-              <Button asChild size="sm" variant="outline" className="h-8"><Link href={`/p/${ws.project.id}/ship`}><Rocket /> Go live</Link></Button>
-              <Button asChild size="sm" className="btn-solstice sheen h-8"><Link href={`/p/${ws.project.id}/preview`}>Open preview <ArrowRight /></Link></Button>
-            </div>
-          )}
-          <button onClick={() => ws.build.dismiss()} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
-        </motion.section>
-      </div>
-    </>
+        )}
+        <button onClick={() => ws.build.dismiss()} aria-label="Dismiss" className="-mr-1 self-start text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+      </motion.section>
+    </div>
   );
 }

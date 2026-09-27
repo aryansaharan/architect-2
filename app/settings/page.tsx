@@ -27,13 +27,13 @@ export default async function SettingsPage() {
   const connections = [...new Map(projects.flatMap((p) => p.blueprint.connections.map((c) => [c.name, { ...c, project: p.name }] as const))).values()];
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/85 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/95">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-6">
           <Logo href="/home" />
           {/* The same items, in the same order, as the Home header (app/home/page.tsx). */}
           <nav className="ml-4 hidden items-center gap-1 text-[13px] md:flex" aria-label="Main">
             {MAIN_NAV.map((n) => (
-              <Link key={n.href} href={n.href} aria-current={n.href === "/settings" ? "page" : undefined} className={n.href === "/settings" ? "rounded-md bg-raised px-2.5 py-1.5 font-medium" : "rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground"}>{n.label}</Link>
+              <Link key={n.href} href={n.href} aria-current={n.href === "/settings" ? "page" : undefined} className={n.href === "/settings" ? "rounded-md border border-hairline bg-panel px-2.5 py-1.5 font-medium" : "rounded-md border border-transparent px-2.5 py-1.5 text-muted-foreground hover:text-foreground"}>{n.label}</Link>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">

@@ -11,11 +11,24 @@ const KW: Record<string, string[]> = {
 
 type Tok = { t: string; c?: string };
 
+/**
+ * A light theme for code on the paper well (like GitHub Light, tuned to the paper palette):
+ * ink text, the green accent for keywords, blue keys, navy strings and a warm brown for numbers.
+ * Every colour stays above 4.5:1 on the well.
+ */
+const SYNTAX = {
+  comment: "text-muted-foreground italic",
+  key: "text-change",
+  string: "text-[#0a3069]",
+  constant: "text-[#8a4a0b]",
+  keyword: "text-amber font-medium",
+} as const;
+
 function tokenize(code: string, lang: Lang): Tok[] {
   const l = lang === "tsx" ? "ts" : lang;
   if (l === "md") {
     return code.split(/(\n)/).map((line) =>
-      /^#{1,6} /.test(line) ? { t: line, c: "text-amber font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground/90" } : /^\|/.test(line) ? { t: line, c: "text-change/90" } : { t: line },
+      /^#{1,6} /.test(line) ? { t: line, c: "text-amber font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground" } : /^\|/.test(line) ? { t: line, c: "text-change" } : { t: line },
     );
   }
   const comment = l === "py" || l === "yaml" || l === "sh" || l === "env" || l === "toml" ? "#[^\\n]*" : l === "sql" ? "--[^\\n]*" : l === "ts" ? "\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/" : "(?!)";
@@ -33,7 +46,7 @@ function tokenize(code: string, lang: Lang): Tok[] {
     const [whole, c, k, s, d, w, n] = m;
     out.push({
       t: whole,
-      c: c ? "text-faint italic" : k ? "text-change" : s ? "text-read/90" : d ? "text-fix" : w ? "text-amber/90" : n ? "text-fix" : undefined,
+      c: c ? SYNTAX.comment : k ? SYNTAX.key : s ? SYNTAX.string : d ? SYNTAX.constant : w ? SYNTAX.keyword : n ? SYNTAX.constant : undefined,
     });
     last = i + whole.length;
   }
@@ -58,8 +71,8 @@ export function CodeView({ code, lang, className, lineNumbers = true, highlightL
       <code className="block min-w-max py-3">
         {lines.map((line, i) => (
           <span key={i} className={cn("flex px-3", highlightLines?.has(i + 1) && "bg-amber-soft")}>
-            {lineNumbers && <span className="mr-4 inline-block w-7 shrink-0 select-none text-right text-faint/70">{i + 1}</span>}
-            <span className="whitespace-pre text-foreground/85">
+            {lineNumbers && <span className="mr-4 inline-block w-7 shrink-0 select-none text-right text-faint">{i + 1}</span>}
+            <span className="whitespace-pre text-foreground/90">
               {line.map((t, j) => (
                 <Fragment key={j}>{t.c ? <span className={t.c}>{t.t}</span> : t.t}</Fragment>
               ))}

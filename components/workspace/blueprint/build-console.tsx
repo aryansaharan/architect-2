@@ -17,7 +17,7 @@ export function SimulatedChip({ className }: { className?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className={cn("inline-flex h-5 shrink-0 cursor-help items-center gap-1 rounded-full border border-hairline bg-deep/60 px-2 text-[11px] font-medium normal-case tracking-normal text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-amber/50", className)}>
+        <span tabIndex={0} className={cn("inline-flex h-5 shrink-0 cursor-help items-center gap-1 rounded-full border border-hairline bg-canvas px-2 text-[11px] font-medium normal-case tracking-normal text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-amber/50", className)}>
           <FlaskConical className="size-3" aria-hidden />
           Simulated build
           <span className="sr-only">: {SIMULATED_NOTE}</span>
@@ -42,35 +42,33 @@ export function BuildConsole() {
       <motion.section
         aria-label="Build progress"
         aria-live="polite"
-        initial={{ opacity: 0, y: 30, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, transition: { duration: 0.2 } }}
-        transition={{ type: "spring", stiffness: 260, damping: 26 }}
-        className="aurora panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8, transition: { duration: 0.15 } }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="panel-raised pointer-events-auto w-full max-w-[860px] overflow-hidden rounded-lg"
       >
-        <div className="h-1 overflow-hidden rounded-t-2xl bg-deep">
-          <motion.div className="bg-solstice relative h-full shadow-[0_0_16px_rgb(141_255_158/0.8)]" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ type: "spring", stiffness: 90, damping: 20 }}>
-            <span className="shimmer absolute inset-0" />
-          </motion.div>
+        <div className="h-1 overflow-hidden bg-deep">
+          <motion.div className="h-full bg-amber" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ duration: 0.5, ease: "easeOut" }} />
         </div>
         <div className="flex items-center gap-4 p-4">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-amber/30 bg-amber-soft">
-            <Loader2 className="size-4 animate-spin text-amber" />
+          <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas">
+            <Loader2 className="size-4 animate-spin text-amber" aria-hidden />
           </span>
           <div className="relative min-w-0 flex-1 overflow-hidden">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="micro-label">{b.mode === "replay" ? "Replay · nothing is charged" : finishing ? "Saving" : b.status === "repair" ? "Paused · waiting for you" : `Step ${Math.min(done + 1, steps.length)} of ${steps.length}`}</p>
+              <p className="text-[12px] text-muted-foreground">{b.mode === "replay" ? "Replay · nothing is charged" : finishing ? "Saving" : b.status === "repair" ? "Paused · waiting for you" : `Step ${Math.min(done + 1, steps.length)} of ${steps.length}`}</p>
               <SimulatedChip />
             </div>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={finishing ? "finishing" : b.status === "repair" ? "repair" : (cur?.id ?? "working")}
-                initial={{ opacity: 0, y: 14, filter: "blur(4px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -14, filter: "blur(4px)" }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               >
-                <p className="mt-0.5 truncate text-[14px] font-medium">{finishing ? <>Saving the build as a <Term k="save-point">save point</Term> you can come back to…</> : b.status === "repair" ? "Prod AI caught a problem" : cur?.title ?? "Working…"}</p>
+                <p className="mt-0.5 truncate font-pencil text-[22px] leading-tight">{finishing ? <>Saving the build as a <Term k="save-point">save point</Term> you can come back to…</> : b.status === "repair" ? "Prod AI caught a problem" : cur?.title ?? "Working…"}</p>
                 {cur?.detail && !finishing && <p className="truncate text-[12px] text-muted-foreground">{cur.detail}</p>}
               </motion.div>
             </AnimatePresence>
@@ -100,9 +98,9 @@ export function BuildConsole() {
           </p>
         ) : null}
         {logs && (
-          <div className="code-face max-h-48 overflow-y-auto rounded-b-2xl border-t border-hairline px-4 py-3 text-[11.5px] leading-relaxed">
+          <div className="code-face max-h-48 overflow-y-auto border-t border-hairline px-4 py-3 text-[11.5px] leading-relaxed">
             {b.completed.slice(-6).map((s) => (
-              <div key={s.id} className="text-foreground/60">
+              <div key={s.id} className="text-foreground/70">
                 <span className="text-read">✓</span> {s.title}
                 {s.file && <span className="text-faint"> · {s.file}</span>}
               </div>
@@ -112,7 +110,7 @@ export function BuildConsole() {
                 <span className="text-amber">›</span> {cur.title}
                 {cur.file && <span className="text-faint"> · {cur.file}</span>}
                 {cur.logs?.map((l, i) => (
-                  <div key={i} className="pl-4 text-foreground/50">{l}</div>
+                  <div key={i} className="pl-4 text-muted-foreground">{l}</div>
                 ))}
               </div>
             )}

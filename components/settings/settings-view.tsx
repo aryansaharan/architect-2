@@ -23,15 +23,15 @@ const SECTIONS = [
 ];
 
 // Planning and quotes are logged at 0 credits (they're free), so paid "llm" events are agents drafted from a description.
-const KIND_LABEL: Record<string, string> = { llm: "Drafting new agents", build: "Builds", change: "Changes", agent_run: "Agent conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
+const KIND_LABEL: Record<string, string> = { llm: "Drafting new AI helpers", build: "Builds", change: "Changes", agent_run: "AI helper conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
 
 const CATALOG = [
   { provider: "github", name: "GitHub", body: "Two-way sync, branch per change, CI rehearsals." },
-  { provider: "gmail", name: "Gmail", body: "Agents draft and send email. Sending always asks first." },
+  { provider: "gmail", name: "Gmail", body: "AI helpers draft and send email. Sending always asks first." },
   { provider: "slack", name: "Slack", body: "Post updates and approvals to channels." },
   { provider: "hubspot", name: "HubSpot", body: "Read and update CRM records." },
   { provider: "jira", name: "Jira", body: "Create and triage issues." },
-  { provider: "google-drive", name: "Google Drive", body: "Give agents documents to read." },
+  { provider: "google-drive", name: "Google Drive", body: "Give AI helpers documents to read." },
   { provider: "notion", name: "Notion", body: "Knowledge bases and runbooks." },
   { provider: "mcp", name: "Any MCP server", body: "Bring tools from your own MCP servers." },
 ];
@@ -97,35 +97,36 @@ export function SettingsView({
   return (
     <div className="mx-auto grid max-w-6xl gap-10 px-6 py-10 md:grid-cols-[200px_1fr]">
       <nav className="sticky top-24 hidden h-fit space-y-0.5 md:block" aria-label="Settings sections">
-        {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground hover:bg-raised hover:text-foreground">{s.label}</a>)}
+        <p className="px-2.5 pb-2 font-pencil text-[34px] leading-none">Settings</p>
+        {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground hover:bg-panel hover:text-foreground">{s.label}</a>)}
       </nav>
       <main id="main" className="min-w-0 space-y-12">
         <section id="usage" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Usage &amp; budget</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
+          <h2 className="font-pencil text-[32px] leading-none">Usage &amp; budget</h2>
+          <p className="mt-2 text-[13px] text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="panel rounded-xl p-4">
-              <p className="micro-label">This month</p>
-              <p className="mt-2 text-[28px] font-semibold tabular-nums">{formatCredits(month.credits)} <span className="text-[13px] font-normal text-muted-foreground">≈ {creditsUsd(month.credits)} · real model spend {creditsUsd(month.costUsd * 100)}</span></p>
+            <div className="panel rounded-md p-4">
+              <p className="text-[12.5px] text-muted-foreground">This month</p>
+              <p className="mt-1 font-pencil text-[40px] leading-none tabular-nums">{formatCredits(month.credits)} <span className="font-sans text-[13px] text-muted-foreground">≈ {creditsUsd(month.credits)} · real model spend {creditsUsd(month.costUsd * 100)}</span></p>
               <ul className="mt-4 space-y-2">
                 {kinds.map(([k, v]) => (
                   <li key={k} className="text-[12.5px]">
                     <div className="flex justify-between"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("font-mono", v < 0 && "text-read")}>{v < 0 ? "−" : ""}{formatCredits(Math.abs(v))}</span></div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-raised"><div className={cn("h-full rounded-full", v < 0 ? "bg-read" : "bg-amber")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-read" : "bg-amber/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
                   </li>
                 ))}
                 {kinds.length === 0 && <li className="text-[12.5px] text-muted-foreground">Nothing spent yet.</li>}
               </ul>
             </div>
-            <div className="panel rounded-xl p-4">
-              <p className="micro-label">By agent (conversations)</p>
+            <div className="panel rounded-md p-4">
+              <p className="text-[12.5px] text-muted-foreground">By AI helper (conversations)</p>
               <ul className="mt-3 space-y-1.5 text-[12.5px]">
                 {agents.map(([id, v]) => <li key={id} className="flex justify-between"><span>{agentNames[id] ?? id}</span><span className="font-mono">{formatCredits(v)}</span></li>)}
-                {agents.length === 0 && <li className="text-muted-foreground">No agent conversations yet. Try the Playground.</li>}
+                {agents.length === 0 && <li className="text-muted-foreground">No conversations yet. Try a helper from its Try it panel.</li>}
               </ul>
             </div>
           </div>
-          <div className="panel mt-4 rounded-xl">
+          <div className="panel mt-4 rounded-md">
             <p className="border-b border-hairline px-4 py-3 text-[13px] font-medium">Spending caps · per project, per month</p>
             <ul className="divide-y divide-hairline">
               {projects.map((p) => {
@@ -135,7 +136,7 @@ export function SettingsView({
                   <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 truncate text-[13px] hover:underline">{p.name}</Link>
                     <span className="w-40">
-                      <span className="block h-1.5 overflow-hidden rounded-full bg-raised"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-ask" : pct > 0.7 ? "bg-amber" : "bg-read")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
+                      <span className="block h-1.5 overflow-hidden rounded-full bg-deep"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-foreground/70" : "bg-amber/70")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
                       <span className="mt-1 block text-[11px] text-muted-foreground">{Math.round(p.used)} of {p.cap} credits</span>
                     </span>
                     <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -143,7 +144,7 @@ export function SettingsView({
                       <Input type="number" min={10} max={100000} className="h-8 w-24" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} aria-invalid={err ? true : undefined} aria-describedby={err ? `cap-err-${p.id}` : undefined} />
                     </label>
                     <Button size="sm" variant="outline" className="h-8" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok && r.warning) toast.warning(`Cap set to ${r.value} credits a month`, { description: r.warning }); else if (r.ok) toast.success(`Cap set to ${r.value} credits a month`); else toast.error(r.error); router.refresh(); })}>Save</Button>
-                    {err && <p id={`cap-err-${p.id}`} className="basis-full text-right text-[11.5px] text-ask">{err}</p>}
+                    {err && <p id={`cap-err-${p.id}`} className="basis-full text-right text-[11.5px] font-medium text-foreground/85">{err}</p>}
                   </li>
                 );
               })}
@@ -153,8 +154,8 @@ export function SettingsView({
         </section>
 
         <section id="connections" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Connections</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">What your agents may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
+          <h2 className="font-pencil text-[32px] leading-none">Connections</h2>
+          <p className="mt-2 text-[13px] text-muted-foreground">What your AI helpers may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {CATALOG.map((c) => {
               const account = connected.has(c.provider);
@@ -163,12 +164,12 @@ export function SettingsView({
               // Connected only inside a project: it's managed there, so this card shows it but doesn't toggle it.
               const projectOnly = on && !account;
               return (
-                <div key={c.provider} className="panel flex flex-col rounded-xl p-4">
+                <div key={c.provider} className="panel flex flex-col rounded-md p-4">
                   <p className="flex items-center gap-2 text-[13.5px] font-medium">{c.provider === "github" ? <GitHubMark /> : <Plug className="size-4 text-muted-foreground" />}{c.name}</p>
                   <p className="mt-1 flex-1 text-[12px] text-muted-foreground">{c.body}</p>
                   {projectOnly && <p className="mt-2 truncate text-[11px] text-muted-foreground" title={via.join(", ")}>In {via[0]}{via.length > 1 ? ` and ${via.length - 1} more` : ""}</p>}
                   {/* Secondary on purpose: eight bright buttons in a row would shout. Connected cards read as a quiet status. */}
-                  <Button size="sm" variant={on ? "ghost" : "outline"} className={cn("mt-3 h-8", on && "border border-read/25 text-read hover:text-read")} disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
+                  <Button size="sm" variant={on ? "ghost" : "outline"} className={cn("mt-3 h-8", on ? "border border-read/25 text-read hover:text-read" : "bg-panel")} disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
                     {on ? <><Check /> Connected</> : "Connect"}
                   </Button>
                 </div>
@@ -176,7 +177,7 @@ export function SettingsView({
             })}
           </div>
           {connections.length > 0 && (
-            <div className="panel mt-4 rounded-xl">
+            <div className="panel mt-4 rounded-md">
               <p className="border-b border-hairline px-4 py-3 text-[13px] font-medium">Used by your projects</p>
               <ul className="divide-y divide-hairline">
                 {connections.map((c) => {
@@ -186,7 +187,7 @@ export function SettingsView({
                       <ConnectionIcon kind={c.kind} className="size-3.5 text-muted-foreground" />
                       <span className="flex-1">{c.name}</span>
                       <span className="text-muted-foreground">{c.project}</span>
-                      <span className={ok ? "text-read" : "text-amber"}>{ok ? "connected" : "needs a key"}</span>
+                      <span className={ok ? "text-read" : "text-muted-foreground"}>{ok ? "connected" : "needs a key"}</span>
                     </li>
                   );
                 })}
@@ -196,9 +197,9 @@ export function SettingsView({
         </section>
 
         <section id="keys" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Keys &amp; passwords</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">Private keys for other services. Encrypted at rest, never shown in logs, never sent to a model.</p>
-          <ul className="panel mt-5 divide-y divide-hairline rounded-xl">
+          <h2 className="font-pencil text-[32px] leading-none">Keys &amp; passwords</h2>
+          <p className="mt-2 text-[13px] text-muted-foreground">Private keys for other services. Encrypted at rest, never shown in logs, never sent to a model.</p>
+          <ul className="panel mt-5 divide-y divide-hairline rounded-md">
             {connections.filter((c) => c.auth === "api_key").map((c) => (
               <li key={c.name} className="flex items-center gap-3 px-4 py-3 text-[12.5px]">
                 <KeyRound className="size-3.5 text-muted-foreground" />
@@ -212,26 +213,26 @@ export function SettingsView({
         </section>
 
         <section id="team" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Team &amp; roles</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">Not everyone should be able to change everything.</p>
+          <h2 className="font-pencil text-[32px] leading-none">Team &amp; roles</h2>
+          <p className="mt-2 text-[13px] text-muted-foreground">Not everyone should be able to change everything.</p>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
               { role: "Owner", body: "Everything, including billing, caps and going live." },
-              { role: "Editor", body: "Change plans, approve Work Orders, run agents. Can't raise caps." },
-              { role: "Viewer", body: "Use the test version, comment, and approve agent actions. Can't change anything." },
+              { role: "Editor", body: "Change plans, approve Work Orders, try AI helpers. Can't raise caps." },
+              { role: "Viewer", body: "Use the test version, comment, and approve AI helper actions. Can't change anything." },
             ].map((r) => (
-              <div key={r.role} className="panel rounded-xl p-4">
+              <div key={r.role} className="panel rounded-md p-4">
                 <p className="text-[13.5px] font-medium">{r.role}</p>
                 <p className="mt-1 text-[12px] text-muted-foreground">{r.body}</p>
               </div>
             ))}
           </div>
-          <ul className="panel mt-4 divide-y divide-hairline rounded-xl text-[12.5px]">
+          <ul className="panel mt-4 divide-y divide-hairline rounded-md text-[12.5px]">
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">{user.name}{user.email ? ` · ${user.email}` : ""}</span><span className="text-amber">Owner</span></li>
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Priya Raman · Platform engineer</span><span className="text-muted-foreground">Editor</span></li>
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Maya Singh · Claims lead</span><span className="text-muted-foreground">Viewer</span></li>
           </ul>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => void copyInvite()}><UserRoundPlus /> Invite someone</Button>
+          <Button variant="outline" size="sm" className="mt-3 bg-panel" onClick={() => void copyInvite()}><UserRoundPlus /> Invite someone</Button>
           {invite && (
             <div className="mt-2.5 max-w-lg">
               <label htmlFor="invite-link" className="text-[11.5px] text-muted-foreground">{invite.copied ? "Copied to your clipboard. Sandbox: it opens sign-in." : "Copy this link and send it. Sandbox: it opens sign-in."}</label>
@@ -241,25 +242,25 @@ export function SettingsView({
         </section>
 
         <section id="deploy" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Deploy targets</h2>
+          <h2 className="font-pencil text-[32px] leading-none">Deploy targets</h2>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
               { icon: Cloud, name: "Prod Cloud", body: "Managed, instant, regional. Real in this prototype.", on: true },
               { icon: Server, name: "Vercel", body: "Your team, your deploy previews.", on: connected.has("vercel") },
-              { icon: Container, name: "Your VPC / on-prem", body: "Docker bundle and agent runtime images.", on: false },
+              { icon: Container, name: "Your VPC / on-prem", body: "Docker bundle and runtime images for your AI helpers.", on: false },
             ].map((t) => (
-              <div key={t.name} className="panel rounded-xl p-4">
+              <div key={t.name} className="panel rounded-md p-4">
                 <p className="flex items-center gap-2 text-[13.5px] font-medium"><t.icon className="size-4 text-muted-foreground" />{t.name}</p>
                 <p className="mt-1 text-[12px] text-muted-foreground">{t.body}</p>
-                <p className={cn("mt-2 text-[11.5px]", t.on ? "text-read" : "text-muted-foreground")}>{t.on ? "Ready" : "Set up from a project's Ship tab"}</p>
+                <p className={cn("mt-2 text-[11.5px]", t.on ? "text-read" : "text-muted-foreground")}>{t.on ? "Ready" : "Set up from a project's Publish page"}</p>
               </div>
             ))}
           </div>
         </section>
 
         <section id="account" className="scroll-mt-24">
-          <h2 className="text-[20px] font-semibold">Account</h2>
-          <div className="panel mt-5 rounded-xl p-4 text-[13px]">
+          <h2 className="font-pencil text-[32px] leading-none">Account</h2>
+          <div className="panel mt-5 rounded-md p-4 text-[13px]">
             <p>{user.isAnonymous ? "You're a guest. Your work is saved in this browser session." : `Signed in${user.provider ? ` with ${user.provider}` : ""}${user.email ? ` as ${user.email}` : ""}.`}</p>
             {user.isAnonymous && <Button asChild size="sm" className="mt-3"><Link href="/login?next=/settings">Sign in to keep this work</Link></Button>}
           </div>

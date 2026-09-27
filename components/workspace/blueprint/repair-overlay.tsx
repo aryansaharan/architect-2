@@ -29,43 +29,43 @@ export function RepairOverlay() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-      animate={{ opacity: 1, backdropFilter: "blur(4px)" }}
-      exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
-      transition={{ duration: 0.3 }}
-      className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/70 p-3 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/85 p-3 sm:p-6"
     >
       <motion.section
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="repair-title"
-        initial={{ opacity: 0, scale: 0.94, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.18 } }}
-        transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.05 }}
-        className="panel-raised flex max-h-full w-full max-w-[720px] flex-col overflow-hidden rounded-2xl shadow-[0_0_0_1px_rgb(180_140_255/0.18),0_30px_90px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(180_140_255/0.45)]"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 6, transition: { duration: 0.15 } }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+        className="sketch flex max-h-full w-full max-w-[720px] flex-col overflow-hidden bg-raised shadow-[0_16px_40px_-20px_rgb(26_26_23/0.35)]"
       >
         {/* On short or narrow screens the card is taller than the canvas: the body scrolls, the way out stays put. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="flex items-start gap-3 border-b border-hairline p-5">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-fix/30 bg-fix/10"><ShieldAlert className="size-4 text-fix" /></span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-md border border-fix/30 bg-fix/10"><ShieldAlert className="size-4 text-fix" /></span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="micro-label">Checked · <Term k="rehearsal">rehearsal</Term></p>
+                <p className="text-[12px] text-muted-foreground">Caught in a <Term k="rehearsal">practice run</Term></p>
                 <span className="rounded-full border border-fix/30 bg-fix/10 px-2 py-px text-[11px] font-medium text-fix"><Term k="our-fix" /> · free</span>
                 <SimulatedChip />
               </div>
-              <h2 id="repair-title" className="mt-1 text-[17px] font-semibold leading-snug">{plan.title}</h2>
+              <h2 id="repair-title" className="mt-1 font-pencil text-[28px] leading-tight">{plan.title}</h2>
             </div>
             {agent && <Avatar name={agent.name} hue={agent.avatarHue} size={34} />}
           </div>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <div>
-              <p className="micro-label">What it tried</p>
+              <p className="text-[12px] font-medium text-muted-foreground">What it tried</p>
               <p className="mt-1.5 text-[13px] leading-relaxed">{plan.tried}</p>
             </div>
             <div>
-              <p className="micro-label">Why it matters</p>
+              <p className="text-[12px] font-medium text-muted-foreground">Why it matters</p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{plan.whyFailed}</p>
             </div>
           </div>
@@ -75,26 +75,26 @@ export function RepairOverlay() {
               return (
                 <motion.div
                   key={o.id}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 26, delay: 0.2 + i * 0.08 }}
-                  className={cn("flex flex-col rounded-xl border p-4 transition-transform duration-300 hover:-translate-y-0.5", o.recommended ? "beam border-amber/40 bg-amber-soft" : "border-hairline bg-deep/60")}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.15 + i * 0.06 }}
+                  className={cn("flex flex-col rounded-md border p-4", o.recommended ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel")}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="grid size-5 place-items-center rounded font-mono text-[11px] uppercase text-muted-foreground ring-1 ring-hairline">{o.id}</span>
+                    <span className="grid size-5 place-items-center rounded font-sketch text-[12px] uppercase text-muted-foreground ring-1 ring-hairline-hi">{o.id}</span>
                     {o.recommended && <span className="text-[11px] font-medium text-amber">Recommended</span>}
                     <span className="ml-auto text-[11px] text-fix">Free</span>
                   </div>
                   <p className="mt-2 text-[13.5px] font-medium leading-snug">{o.label}</p>
                   <p className="mt-1 flex-1 text-[12.5px] leading-relaxed text-muted-foreground">{o.narration}</p>
-                  <p className="mt-2 font-mono text-[11px] text-faint">
+                  <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Changes: {plural(o.blastRadius.screens, "screen")} · {plural(o.blastRadius.agents, "agent")} · {plural(o.blastRadius.files, "file")}
                   </p>
                   <Button
                     ref={i === 0 ? first : undefined}
                     size="sm"
                     variant={o.recommended ? "default" : "outline"}
-                    className="mt-3 h-8"
+                    className={cn("mt-3 h-8", !o.recommended && "bg-panel")}
                     disabled={Boolean(ws.build.repairChoice)}
                     onClick={() => ws.build.choose(o.id)}
                   >

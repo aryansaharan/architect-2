@@ -40,7 +40,7 @@ export function ScreenPlain({ screen }: { screen: Screen }) {
   const ents = [...(rel.screenEntities.get(screen.id) ?? [])].map((id) => ws.blueprint.entities.find((e) => e.id === id)!).filter(Boolean);
   return (
     <div>
-      <div className="mt-1 overflow-hidden rounded-lg border border-hairline bg-white/[0.02] p-3">
+      <div className="mt-1 overflow-hidden rounded-md border border-hairline bg-panel p-3">
         <ScreenThumb screen={screen} large />
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{screen.plain}</p>
@@ -49,11 +49,11 @@ export function ScreenPlain({ screen }: { screen: Screen }) {
         <p className="text-[12.5px]">{screen.audience === "customer" ? "Your customers. No sign-in needed for this screen." : screen.audience === "admin" ? "Admins only." : "Your team, after signing in."}</p>
       </Section>
       {agents.length > 0 && (
-        <Section title="Agents on this screen">
+        <Section title="AI helpers on this screen">
           <ul className="space-y-1.5">
             {agents.map((a) => (
               <li key={a.id}>
-                <button onClick={() => ws.select({ type: "agent", id: a.id })} className="flex w-full items-center gap-2.5 rounded-lg border border-hairline bg-deep/60 px-2.5 py-2 text-left hover:border-amber/40">
+                <button onClick={() => ws.select({ type: "agent", id: a.id })} className="flex w-full items-center gap-2.5 rounded-md border border-hairline bg-panel px-2.5 py-2 text-left hover:border-amber/40">
                   <Avatar name={a.name} hue={a.avatarHue} size={24} />
                   <span className="text-[12.5px]">{a.name}</span>
                   <span className="ml-auto truncate text-[11px] text-muted-foreground">{a.role}</span>
@@ -68,7 +68,7 @@ export function ScreenPlain({ screen }: { screen: Screen }) {
           <p className="text-[12.5px]">{list(ents.map((e) => e.plural))}</p>
         </Section>
       )}
-      <Button asChild variant="outline" size="sm" className="mt-5 w-full">
+      <Button asChild variant="outline" size="sm" className="mt-5 w-full bg-panel">
         <Link href={`/p/${ws.project.id}/preview?screen=${screen.id}`}>Open it in Preview <ArrowRight /></Link>
       </Button>
     </div>
@@ -98,7 +98,7 @@ export function ScreenSpec({ screen }: { screen: Screen }) {
         <ol className="space-y-1.5">
           {allBlocks(screen).map((b) => (
             <li key={b.id}>
-              <button onClick={() => ws.select({ type: "block", id: b.id })} className="flex w-full items-center gap-2 rounded-lg border border-hairline bg-deep/60 px-2.5 py-1.5 text-left text-[12px] hover:border-amber/40">
+              <button onClick={() => ws.select({ type: "block", id: b.id })} className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left text-[12px] hover:border-amber/40">
                 <span className="font-mono text-[10.5px] text-faint">{screen.regions.main.includes(b) ? "main" : "side"}</span>
                 <span className="text-muted-foreground">{BLOCK_LABELS[b.type]}</span>
                 <span className="ml-auto truncate">{blockTitle(b)}</span>
@@ -122,7 +122,7 @@ export function EntityPlain({ entity }: { entity: Entity }) {
       <p className="mt-1 text-[13px] leading-relaxed text-foreground/90">{entity.plain}</p>
       <p className="mt-2 text-[12.5px] text-muted-foreground">{entitySummary(ws.blueprint, entity)}</p>
       <Section title={`Sample records · ${entity.sample.length}`} aside={<span className="text-[11px] text-faint">test version only</span>}>
-        <div className="overflow-hidden rounded-lg border border-hairline">
+        <div className="overflow-hidden rounded-md border border-hairline bg-panel">
           <table className="w-full text-left text-[11.5px]">
             <thead className="bg-deep text-muted-foreground">
               <tr>{cols.map((f) => <th key={f.name} className="px-2 py-1.5 font-medium">{f.label ?? f.name}</th>)}</tr>
@@ -148,11 +148,11 @@ export function EntitySpec({ entity }: { entity: Entity }) {
   return (
     <div>
       <Section title={`Fields · ${entity.fields.length}`}>
-        <ul className="divide-y divide-hairline overflow-hidden rounded-lg border border-hairline">
+        <ul className="divide-y divide-hairline overflow-hidden rounded-md border border-hairline">
           {entity.fields.map((f) => (
-            <li key={f.name} className="flex items-center gap-2 bg-deep/60 px-2.5 py-1.5 text-[12px]">
+            <li key={f.name} className="flex items-center gap-2 bg-panel px-2.5 py-1.5 text-[12px]">
               <span className="font-mono">{f.name}</span>
-              <span className="ml-auto rounded bg-raised px-1.5 font-mono text-[10.5px] text-muted-foreground">{f.type}</span>
+              <span className="ml-auto rounded bg-deep px-1.5 font-mono text-[10.5px] text-muted-foreground">{f.type}</span>
             </li>
           ))}
         </ul>
@@ -175,7 +175,7 @@ export function ConnectionPlain({ connection }: { connection: Connection }) {
   const { pending, run } = useSave();
   return (
     <div>
-      <div className="mt-1 flex items-center gap-3 rounded-lg border border-hairline bg-deep/60 p-3">
+      <div className="mt-1 flex items-center gap-3 rounded-md border border-hairline bg-panel p-3">
         <ConnectionIcon kind={connection.kind} className="size-5 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium">{connection.name}</p>
@@ -184,13 +184,13 @@ export function ConnectionPlain({ connection }: { connection: Connection }) {
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{connectionSummary(ws.blueprint, connection)}</p>
       {connection.status === "missing" && (
-        <div className="mt-4 rounded-lg border border-amber/30 bg-amber-soft p-3">
+        <div className="sticky-note mt-4 rounded-sm p-3">
           <p className="text-[12.5px]">Don&apos;t have the key? Ask a teammate. They&apos;ll get this connection and exactly where it&apos;s used.</p>
           <div className="mt-2.5 flex gap-2">
             <Button size="sm" className="h-7" disabled={pending} onClick={() => run(() => setConnectionStatus(ws.project.id, connection.id, "configured"), `${connection.name} connected (sandbox)`)}>
               <KeyRound /> Add a sandbox key
             </Button>
-            <Button size="sm" variant="outline" className="h-7" onClick={() => ws.openHandoff({ type: "connection", id: connection.id })}>Ask a teammate</Button>
+            <Button size="sm" variant="outline" className="h-7 bg-panel" onClick={() => ws.openHandoff({ type: "connection", id: connection.id })}>Ask a teammate</Button>
           </div>
         </div>
       )}
@@ -205,10 +205,10 @@ export function ConnectionSpec({ connection }: { connection: Connection }) {
     <div>
       <Section title="Settings">
         <dl className="grid grid-cols-2 gap-2 text-[12px]">
-          <div className="rounded-lg border border-hairline bg-deep/60 p-2"><dt className="text-muted-foreground">Kind</dt><dd className="font-mono">{connection.kind}</dd></div>
-          <div className="rounded-lg border border-hairline bg-deep/60 p-2"><dt className="text-muted-foreground">Auth</dt><dd className="font-mono">{connection.auth}</dd></div>
-          <div className="rounded-lg border border-hairline bg-deep/60 p-2"><dt className="text-muted-foreground">Status</dt><dd className="font-mono">{connection.status}</dd></div>
-          <div className="rounded-lg border border-hairline bg-deep/60 p-2"><dt className="text-muted-foreground">Id</dt><dd className="truncate font-mono">{connection.id}</dd></div>
+          <div className="rounded-md border border-hairline bg-panel p-2"><dt className="text-muted-foreground">Kind</dt><dd className="font-mono">{connection.kind}</dd></div>
+          <div className="rounded-md border border-hairline bg-panel p-2"><dt className="text-muted-foreground">Auth</dt><dd className="font-mono">{connection.auth}</dd></div>
+          <div className="rounded-md border border-hairline bg-panel p-2"><dt className="text-muted-foreground">Status</dt><dd className="font-mono">{connection.status}</dd></div>
+          <div className="rounded-md border border-hairline bg-panel p-2"><dt className="text-muted-foreground">Id</dt><dd className="truncate font-mono">{connection.id}</dd></div>
         </dl>
       </Section>
       <Section title="Tools that use it">
@@ -236,7 +236,7 @@ export function BlockPlain({ block, screen }: { block: Block; screen: Screen }) 
     <div>
       <p className="mt-1 text-[13px] leading-relaxed">{text}</p>
       <p className="mt-2 text-[12px] text-muted-foreground">On {screen.title}. Tip: in Preview, hover it and choose Tweak to edit it for free.</p>
-      <Button asChild variant="outline" size="sm" className="mt-4 w-full">
+      <Button asChild variant="outline" size="sm" className="mt-4 w-full bg-panel">
         <Link href={`/p/${ws.project.id}/preview?screen=${screen.id}&tweak=${block.id}`}>Tweak it in Preview <ArrowRight /></Link>
       </Button>
     </div>
@@ -246,7 +246,7 @@ export function BlockPlain({ block, screen }: { block: Block; screen: Screen }) 
 export function BlockSpec({ block }: { block: Block }) {
   return (
     <Section title="Block settings">
-      <pre className="code-face overflow-auto rounded-lg border border-hairline p-3 text-[11.5px] leading-relaxed text-foreground/85">{JSON.stringify(block, null, 2)}</pre>
+      <pre className="code-face overflow-auto rounded-md border border-hairline p-3 text-[11.5px] leading-relaxed text-foreground/85">{JSON.stringify(block, null, 2)}</pre>
     </Section>
   );
 }
@@ -262,8 +262,8 @@ export function BriefPlain() {
       <p className="mt-2 text-[13px] leading-relaxed text-foreground/90">{bp.meta.plain}</p>
       <Section title="What's in it">
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
-          {[["Screens", bp.screens.length], ["Agents", bp.agents.length], ["Kinds of data", bp.entities.length], ["Connections", bp.connections.length]].map(([k, v]) => (
-            <div key={k} className="rounded-lg border border-hairline bg-deep/60 p-2.5"><dt className="text-[11px] text-muted-foreground">{k}</dt><dd className="text-lg font-semibold tabular-nums">{v}</dd></div>
+          {[["Screens", bp.screens.length], ["AI helpers", bp.agents.length], ["Kinds of data", bp.entities.length], ["Connections", bp.connections.length]].map(([k, v]) => (
+            <div key={k} className="rounded-md border border-hairline bg-panel p-2.5"><dt className="text-[11px] text-muted-foreground">{k}</dt><dd className="font-pencil text-[30px] leading-none tabular-nums">{v}</dd></div>
           ))}
         </dl>
       </Section>

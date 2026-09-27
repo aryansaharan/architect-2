@@ -18,21 +18,24 @@ type Common = {
   onHover: (h: boolean) => void;
 };
 
+/**
+ * A card on the plan, drawn like a box on paper: a soft graphite line with uneven corners.
+ * Selected is the one accent; building is a quiet ink line moving down, never a glow.
+ */
 const shell = (c: Common) =>
   cn(
-    "@container group relative block w-full rounded-xl border text-left outline-none transition-[opacity,border-color,box-shadow,transform,filter] duration-300 ease-out",
-    "bg-[linear-gradient(180deg,rgb(255_255_255/0.03),rgb(255_255_255/0)_45%)] bg-panel",
-    "hover:-translate-y-0.5 hover:border-hairline-hi hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_12px_30px_-10px_rgb(0_0_0/0.7)] focus-visible:ring-2 focus-visible:ring-amber/60",
-    c.selected
-      ? "border-amber/70 shadow-[0_0_0_1px_rgb(223_255_79/0.45),0_0_44px_-8px_rgb(223_255_79/0.55),0_14px_34px_-12px_rgb(0_0_0/0.8)]"
-      : "border-hairline shadow-[inset_0_1px_0_rgb(255_255_255/0.035),0_1px_2px_rgb(0_0_0/0.45)]",
-    c.dimmed && "opacity-30 saturate-50",
-    c.buildState === "pending" && "opacity-40 saturate-50",
-    c.buildState === "active" && "beam border-amber/40 shadow-[0_0_50px_-10px_rgb(223_255_79/0.6)]",
+    "@container group relative block w-full text-left outline-none transition-[opacity,border-color,box-shadow,transform,filter] duration-300 ease-out",
+    "sketch border-[rgb(63_61_56/0.42)] bg-panel",
+    "hover:-translate-y-0.5 hover:border-[rgb(63_61_56/0.7)] hover:shadow-[0_8px_18px_-12px_rgb(26_26_23/0.35)] focus-visible:ring-2 focus-visible:ring-amber/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+    c.selected && "border-amber shadow-[0_0_0_2px_rgb(31_77_58/0.16)] hover:border-amber",
+    c.dimmed && "opacity-35",
+    c.buildState === "pending" && "pencil-state",
+    c.buildState === "active" && "border-amber",
+    c.buildState === "done" && "ink-in",
   );
 
 /** Card titles wrap to two lines instead of cutting names like "Dispatch Coordinator" short. */
-const TITLE = "line-clamp-2 min-w-0 break-words text-[13px] font-medium leading-snug";
+const TITLE = "line-clamp-2 min-w-0 break-words font-sketch text-[13.5px] leading-snug";
 
 function Scan({ s }: { s: NodeState | null }) {
   return s === "active" ? <span className="scanline" aria-hidden /> : null;
@@ -43,10 +46,10 @@ function BuildMark({ s }: { s: NodeState | null }) {
   return (
     <motion.span
       key={s}
-      initial={{ scale: 0, rotate: -45 }}
-      animate={{ scale: 1, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 520, damping: 18 }}
-      className={cn("absolute -right-1.5 -top-1.5 z-[3] grid size-5 place-items-center rounded-full border", s === "done" ? "border-read/40 bg-[#10231a] text-read shadow-[0_0_12px_rgb(61_214_140/0.5)]" : "border-amber/50 bg-[#241a08] text-amber")}
+      initial={{ opacity: 0, scale: 0.6 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={cn("absolute -right-1.5 -top-1.5 z-[3] grid size-5 place-items-center rounded-full border bg-panel", s === "done" ? "border-read/50 text-read" : "border-amber/50 text-amber")}
     >
       {s === "done" ? <Check className="size-3" strokeWidth={3} /> : <Loader2 className="size-3 animate-spin" />}
     </motion.span>
@@ -61,10 +64,10 @@ export const ScreenNode = forwardRef<HTMLButtonElement, Common & { screen: Scree
       <div className="flex items-start gap-2 px-3 pt-2.5">
         <DynamicIcon name={screen.icon} className="mt-[3px] size-3.5 shrink-0 text-muted-foreground" />
         <span className={cn(TITLE, "flex-1")} title={screen.title}>{screen.title}</span>
-        <span className={cn("mt-px shrink-0 rounded px-1.5 py-px text-[10px]", screen.audience === "customer" ? "bg-change/10 text-change" : "bg-raised text-muted-foreground")}>{screen.audience === "customer" ? "customers" : screen.audience}</span>
+        <span className={cn("mt-px shrink-0 rounded px-1.5 py-px text-[10px]", screen.audience === "customer" ? "bg-change/10 text-change" : "bg-deep text-muted-foreground")}>{screen.audience === "customer" ? "customers" : screen.audience}</span>
       </div>
       <div className="px-3 pb-3 pt-2">
-        <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-1.5">
+        <div className="rounded-md border border-hairline bg-canvas p-1.5">
           <ScreenThumb screen={screen} primary={primary} />
         </div>
       </div>
@@ -102,15 +105,15 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
         <div className="min-w-0 flex-1">
           <p className="flex items-start gap-2">
             <span className={cn(TITLE, "flex-1")} title={agent.name}>{agent.name}</span>
-            <span className="mt-px hidden shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint @[230px]:inline-block" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
+            <span className="mt-px hidden shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-muted-foreground @[230px]:inline-block" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
           </p>
           <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground" title={agent.role}>{agent.role}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2.5 overflow-hidden border-t border-hairline px-3 py-2">
+      <div className="flex items-center gap-2.5 overflow-hidden border-t border-dashed border-hairline-hi px-3 py-2">
         {n.read > 0 && <Dot cls="bg-read" n={n.read} label="read" title={`${plural(n.read, "tool reads", "tools read")} without asking`} />}
         {n.change > 0 && <Dot cls="bg-change" n={n.change} label="change" title={`${plural(n.change, "tool changes", "tools change")} things you can undo, without asking`} />}
-        {n.ask > 0 && <Dot cls="bg-ask" n={n.ask} label={<>ask<span className="hidden @[230px]:inline"> first</span></>} title={`${plural(n.ask, "tool asks", "tools ask")} a person first, every time`} />}
+        {n.ask > 0 && <Dot cls="bg-amber" n={n.ask} label={<>ask<span className="hidden @[230px]:inline"> first</span></>} title={`${plural(n.ask, "tool asks", "tools ask")} a person first, every time`} />}
         {n.ungated > 0 && <Dot cls="bg-ask" n={n.ungated} label="ungated" title={`${plural(n.ungated, "tool", "tools")} can't be undone and ${n.ungated === 1 ? "doesn't" : "don't"} ask first`} warn />}
         {agent.tools.length === 0 && <span className="text-[10.5px] text-faint">No tools yet</span>}
       </div>
@@ -135,7 +138,7 @@ export const EntityNode = forwardRef<HTMLButtonElement, Common & { entity: Entit
       <BuildMark s={c.buildState} />
       <Scan s={c.buildState} />
       <div className="flex items-center gap-2.5 p-3">
-        <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><Database className="size-3.5 text-muted-foreground" /></span>
+        <span className="grid size-7 place-items-center rounded-md border border-hairline bg-canvas"><Database className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0">
           <p className={TITLE} title={entity.plural}>{entity.plural}</p>
           <p className="truncate text-[11.5px] text-muted-foreground">{entity.fields.length} details · {entity.sample.length} sample records</p>
@@ -143,7 +146,7 @@ export const EntityNode = forwardRef<HTMLButtonElement, Common & { entity: Entit
       </div>
       <div className="flex flex-wrap gap-1 px-3 pb-3">
         {entity.fields.slice(0, 4).map((f) => (
-          <span key={f.name} className="rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint">{f.name}</span>
+          <span key={f.name} className="rounded bg-deep px-1.5 py-px font-mono text-[10px] text-muted-foreground">{f.name}</span>
         ))}
         {entity.fields.length > 4 && <span className="px-1 font-mono text-[10px] text-faint">+{entity.fields.length - 4}</span>}
       </div>
@@ -158,7 +161,7 @@ export const ConnectionNode = forwardRef<HTMLButtonElement, Common & { connectio
       <BuildMark s={c.buildState} />
       <Scan s={c.buildState} />
       <div className="flex items-center gap-2.5 p-3">
-        <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><ConnectionIcon kind={connection.kind} className="size-3.5 text-muted-foreground" /></span>
+        <span className="grid size-7 place-items-center rounded-md border border-hairline bg-canvas"><ConnectionIcon kind={connection.kind} className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0 flex-1">
           <p className={TITLE} title={connection.name}>{connection.name}</p>
           <p className={cn("flex items-center gap-1 truncate text-[11.5px]", missing ? "text-amber" : "text-muted-foreground")}>

@@ -17,7 +17,7 @@ export type Face = "plain" | "spec" | "code";
 const TYPE_META: Record<ResolvedObject["type"], { label: string; icon: typeof Bot }> = {
   screen: { label: "Screen", icon: LayoutDashboard },
   block: { label: "Block", icon: Square },
-  agent: { label: "Agent", icon: Bot },
+  agent: { label: "AI helper", icon: Bot },
   entity: { label: "Data", icon: Database },
   connection: { label: "Connection", icon: Plug },
   brief: { label: "Project", icon: FileText },
@@ -45,14 +45,14 @@ export function Inspector() {
             : resolved.value.name;
 
   return (
-    <aside aria-label="Inspector" className="flex h-full w-[392px] shrink-0 flex-col border-l border-hairline bg-panel/60 max-2xl:w-[360px]">
+    <aside aria-label="Inspector" className="flex h-full w-[392px] shrink-0 flex-col border-l border-hairline bg-canvas max-2xl:w-[360px]">
       <div className="flex items-start gap-3 border-b border-hairline px-4 pb-3 pt-3.5">
-        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-hairline bg-raised">
+        <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-md border border-hairline bg-panel">
           <meta.icon className="size-3.5 text-muted-foreground" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="micro-label">{meta.label}</p>
-          <h2 className="truncate text-[15px] font-semibold leading-tight">{name}</h2>
+          <p className="text-[11.5px] text-muted-foreground">{meta.label}</p>
+          <h2 className="truncate font-pencil text-[28px] leading-[1.15]">{name}</h2>
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1" onClick={() => ws.select(null)} aria-label="Close inspector">
           <X />
@@ -65,20 +65,20 @@ export function Inspector() {
           onChange={setFace}
           options={[
             { value: "plain", label: "Plain", title: "What it does, in plain English" },
-            { value: "spec", label: "Spec", title: "The structured settings, editable" },
+            { value: "spec", label: "Settings", title: "The structured settings, editable" },
             { value: "code", label: <><FileCode2 className="size-3" />Code</>, title: "The generated files" },
           ]}
         />
-        <span className="text-[11px] text-faint">same object, three depths</span>
+        <span className="text-[11px] text-faint">words, settings, code</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={`${face}-${target.type}-${target.id}`}
-            initial={{ opacity: 0, y: 6, filter: "blur(3px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.1 } }}
+            transition={{ duration: 0.2 }}
           >
             {face === "plain" && <PlainFace resolved={resolved} />}
             {face === "spec" && <SpecFace resolved={resolved} />}
@@ -87,17 +87,17 @@ export function Inspector() {
         </AnimatePresence>
       </div>
       <div className="flex gap-2 border-t border-hairline p-3">
-        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.focusComposer(target)}>
+        <Button variant="outline" size="sm" className="h-8 flex-1 bg-panel" onClick={() => ws.focusComposer(target)}>
           <MessageSquarePlus /> Ask for a change
         </Button>
-        <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => ws.openHandoff(target)}>
+        <Button variant="outline" size="sm" className="h-8 flex-1 bg-panel" onClick={() => ws.openHandoff(target)}>
           <UsersRound /> Ask a teammate
         </Button>
       </div>
       {resolved.type === "agent" && (
         <div className="border-t border-hairline px-3 pb-3 pt-2">
           <Button asChild size="sm" variant="ghost" className="h-8 w-full text-muted-foreground">
-            <Link href={`/p/${ws.project.id}/agents?agent=${resolved.value.id}`}>Open playground, rehearsals and replays →</Link>
+            <Link href={`/p/${ws.project.id}/agents?agent=${resolved.value.id}`}>Try it, and see its tests and replays →</Link>
           </Button>
         </div>
       )}

@@ -3,7 +3,7 @@ import { useCallback, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, CircleX, FlaskConical, History, Loader2, Play, Plus, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, CircleX, Code2, History, Loader2, Play, Plus, ShieldCheck, Wand2 } from "lucide-react";
 import type { Agent } from "@/lib/blueprint/schema";
 import type { AgentRunRow } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,7 @@ import { CodeView } from "@/components/arch/code-view";
 import { Segmented } from "@/components/arch/segmented";
 import { Term } from "@/components/arch/term";
 import { Playground } from "@/components/agents/playground";
-import { AgentPlain, AgentSpec } from "../inspector/agent-faces";
-import { FRAMEWORK_LABEL, supervisionView } from "@/lib/blueprint/describe";
+import { AgentSpec, PermissionEditorList, SupervisionPicker } from "../inspector/agent-faces";
 import { rehearsalSummary } from "@/lib/sim/preflight";
 import { FRAMEWORKS } from "@/lib/codegen/frameworks";
 import { agentYaml, rulesMd, soulMd } from "@/lib/codegen/agentFiles";
@@ -27,17 +26,25 @@ import { useWorkspace } from "../context";
 import { AddAgentDialog } from "./add-agent-dialog";
 import { Markdown } from "@/components/markdown";
 
+/** Tabs the URL may ask for (?tab=). "overview" and "playground" open the helper itself; the rest are developer details. */
 type Tab = "overview" | "playground" | "rehearsals" | "replay" | "code";
+type DevTab = "rehearsals" | "replay" | "code" | "setup";
 
-/** One agent's rehearsals, counted exactly like the go-live checklist (a rehearsal that hasn't run counts as not passing). */
+/** One helper's practice runs, counted exactly like the publish checklist (one that hasn't run counts as not passing). */
 const agentRehearsals = (bp: Parameters<typeof rehearsalSummary>[0], agent: Agent) => rehearsalSummary({ ...bp, agents: [agent] });
+
+const fade = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.2 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
 
 export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunRow[]; initialAgent?: string; initialTab?: Tab }) {
   const ws = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
   const agents = ws.blueprint.agents;
-  // Replay stays current without a router refresh (which blanked the tab mid-chat): after each playground turn,
+  // Replay stays current without a router refresh (which blanked the tab mid-chat): after each test conversation,
   // fetch the saved runs and show them until the server props catch up.
   const [fetched, setFetched] = useState<{ base: AgentRunRow[]; list: AgentRunRow[] } | null>(null);
   const allRuns = fetched && fetched.base === runs ? fetched.list : runs;
@@ -52,7 +59,9 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
     }
   }, [runs, ws.project.id]);
   const [agentId, setAgentId] = useState(initialAgent && agents.some((a) => a.id === initialAgent) ? initialAgent : agents[0].id);
-  const [tab, setTab] = useState<Tab>(initialTab ?? "overview");
+  const devFromUrl = initialTab === "rehearsals" || initialTab === "replay" || initialTab === "code";
+  const [dev, setDev] = useState(devFromUrl);
+  const [devTab, setDevTab] = useState<DevTab>(devFromUrl ? (initialTab as DevTab) : "rehearsals");
   const [adding, setAdding] = useState(false);
   const agent = agents.find((a) => a.id === agentId) ?? agents[0];
   const pick = (id: string) => {
@@ -62,108 +71,158 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex w-[280px] shrink-0 flex-col border-r border-hairline max-md:hidden">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="micro-label">Team · {agents.length} agent{agents.length === 1 ? "" : "s"}</h2>
-          <Button size="sm" variant="outline" className="h-7" onClick={() => setAdding(true)}><Plus /> Add</Button>
+      <aside aria-label="AI helpers" className="flex w-[260px] shrink-0 flex-col border-r border-hairline max-md:hidden">
+        <div className="flex items-end justify-between gap-2 px-4 pb-2 pt-4">
+          <h2 className="font-pencil text-[28px] leading-none">AI helpers</h2>
+          <span className="pb-0.5 text-[12px] text-muted-foreground">{agents.length}</span>
         </div>
-        <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
+        <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 pt-2">
           {agents.map((a) => {
-            const reh = agentRehearsals(ws.blueprint, a);
-            const ungated = a.tools.some((t) => t.access === "irreversible" && t.permission !== "ask");
+            const ungated = a.tools.filter((t) => t.access === "irreversible" && t.permission !== "ask").length;
+            const current = a.id === agent.id;
             return (
               <li key={a.id}>
-                <button onClick={() => pick(a.id)} aria-current={a.id === agent.id} className={cn("relative w-full rounded-xl border p-3 text-left transition-[border-color,transform] duration-200", a.id === agent.id ? "border-transparent" : "border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi")}>
-                  {a.id === agent.id && (
-                    <motion.span layoutId="agent-pick" aria-hidden className="absolute inset-0 rounded-xl border border-amber/50 bg-[linear-gradient(180deg,rgb(223_255_79/0.14),rgb(223_255_79/0.05))] shadow-[0_0_30px_-12px_rgb(223_255_79/0.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />
+                <button
+                  onClick={() => pick(a.id)}
+                  aria-current={current}
+                  className={cn(
+                    "w-full rounded-sm p-3 text-left transition-[transform,border-color] duration-200",
+                    current ? "sticky-note ring-1 ring-amber/40" : "border border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi",
                   )}
-                  <span className="relative flex items-center gap-2.5">
-                    <Avatar name={a.name} hue={a.avatarHue} size={30} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium">{a.name}</span>
-                      <span className="block truncate text-[11.5px] text-muted-foreground">{a.role}</span>
-                    </span>
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Avatar name={a.name} hue={a.avatarHue} size={28} />
+                    <span className="min-w-0 flex-1 truncate font-pencil text-[22px] leading-tight">{a.name}</span>
                   </span>
-                  <span className="relative mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                    <span>{FRAMEWORK_LABEL[a.framework]}</span>
-                    <span>{supervisionView(a).label}</span>
-                    {reh.total > 0 && (
-                      <span className={reh.failing ? "text-ask" : reh.notRun ? "text-amber" : "text-read"}>
-                        {reh.passing}/{reh.total} rehearsals passing{reh.notRun ? ` · ${reh.notRun} not run yet` : ""}
-                      </span>
-                    )}
-                    {ungated && <span className="text-ask">ungated action</span>}
-                    {a.origin !== "generated" && <span className="text-change">{a.origin === "imported" ? "imported" : "remote"}</span>}
-                  </span>
+                  <span className="mt-1 block text-[12px] leading-snug text-muted-foreground">{a.role}</span>
+                  {ungated > 0 && <span className="mt-1.5 block text-[11.5px] text-ask">{ungated === 1 ? "1 action that can't be undone doesn't" : `${ungated} actions that can't be undone don't`} ask first</span>}
+                  {a.origin !== "generated" && <span className="mt-1.5 block text-[11px] text-change">{a.origin === "imported" ? "Brought in from your code" : "Runs somewhere else"}</span>}
                 </button>
               </li>
             );
           })}
         </ul>
-      </div>
+        <div className="border-t border-hairline p-3">
+          <Button size="sm" variant="outline" className="h-8 w-full" onClick={() => setAdding(true)}><Plus /> Add a helper</Button>
+        </div>
+      </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-center gap-3 border-b border-hairline px-5 py-3">
-          <Avatar name={agent.name} hue={agent.avatarHue} size={34} />
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold">{agent.name}</p>
-            <p className="truncate text-[12px] text-muted-foreground">{agent.role} · ~{agent.cost.creditsPerRun} <Term k="credits">credits</Term> per run (≈ {creditsUsd(agent.cost.creditsPerRun)})</p>
-          </div>
-          <select aria-label="Agent" value={agent.id} onChange={(e) => pick(e.target.value)} className="ml-2 h-8 rounded-md border border-hairline bg-deep px-2 text-[12.5px] md:hidden">
-            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <Button size="sm" variant="outline" className="h-8 md:hidden" onClick={() => setAdding(true)} aria-label="Add an agent"><Plus /> Add</Button>
-          <Segmented<Tab>
-            className="ml-auto max-lg:w-full max-lg:overflow-x-auto"
-            ariaLabel="Agent view"
-            value={tab}
-            onChange={setTab}
-            options={[
-              { value: "overview", label: "Overview" },
-              { value: "playground", label: <><Sparkles className="size-3.5" />Playground</> },
-              { value: "rehearsals", label: <><FlaskConical className="size-3.5" />Rehearsals</> },
-              { value: "replay", label: <><History className="size-3.5" />Replay</> },
-              { value: "code", label: "Code" },
-            ]}
-          />
+        <div className="flex min-h-12 flex-wrap items-center gap-2 border-b border-hairline px-4 py-2 sm:px-5">
+          {dev ? (
+            <>
+              <Button variant="ghost" size="sm" className="-ml-2 h-8 text-muted-foreground" onClick={() => setDev(false)}>
+                <ArrowLeft /> {agent.name}
+              </Button>
+              <p className="font-pencil text-[22px] leading-none">Details for developers</p>
+              <Segmented<DevTab>
+                className="ml-auto max-lg:w-full max-lg:overflow-x-auto"
+                ariaLabel="Developer details"
+                value={devTab}
+                onChange={setDevTab}
+                options={[
+                  { value: "rehearsals", label: "Tests & reliability" },
+                  { value: "replay", label: <><History className="size-3.5" />Replay</> },
+                  { value: "code", label: <><Code2 className="size-3.5" />Code</> },
+                  { value: "setup", label: "Job description & memory" },
+                ]}
+              />
+            </>
+          ) : (
+            <>
+              <select aria-label="AI helper" value={agent.id} onChange={(e) => pick(e.target.value)} className="h-8 min-w-0 rounded-md border border-hairline bg-panel px-2 text-[12.5px] md:hidden">
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <Button size="sm" variant="outline" className="h-8 md:hidden" onClick={() => setAdding(true)} aria-label="Add an AI helper"><Plus /> Add</Button>
+              <p className="text-[12.5px] text-muted-foreground max-md:hidden">Each helper does one job, only the way you allow.</p>
+              <Button variant="ghost" size="sm" className="ml-auto h-8 text-muted-foreground" onClick={() => setDev(true)}>
+                <Code2 /> Details for developers <ChevronRight />
+              </Button>
+            </>
+          )}
         </div>
         <div className="min-h-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${tab}-${agent.id}`}
-              className="h-full"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {tab === "overview" && <Overview agent={agent} />}
-              {tab === "playground" && <Playground projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} onRunSaved={refreshRuns} />}
-              {tab === "rehearsals" && <Rehearsals agent={agent} />}
-              {tab === "replay" && <Replay agent={agent} runs={allRuns.filter((r) => r.agent_id === agent.id)} />}
-              {tab === "code" && <AgentCode agent={agent} />}
+            <motion.div key={dev ? `dev-${devTab}-${agent.id}` : `helper-${agent.id}`} className="h-full" {...fade}>
+              {!dev ? (
+                <HelperView agent={agent} onRunSaved={refreshRuns} onDetails={() => setDev(true)} />
+              ) : devTab === "rehearsals" ? (
+                <Rehearsals agent={agent} />
+              ) : devTab === "replay" ? (
+                <Replay agent={agent} runs={allRuns.filter((r) => r.agent_id === agent.id)} />
+              ) : devTab === "code" ? (
+                <AgentCode agent={agent} />
+              ) : (
+                <div className="h-full overflow-y-auto">
+                  <div className="mx-auto max-w-3xl px-6 py-6">
+                    <AgentSpec key={agent.id} agent={agent} only={["job", "rules", "memory"]} />
+                  </div>
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
-      <AddAgentDialog open={adding} onOpenChange={setAdding} onAdded={(id) => { setAdding(false); pick(id); setTab("overview"); }} />
+      <AddAgentDialog open={adding} onOpenChange={setAdding} onAdded={(id) => { setAdding(false); setDev(false); pick(id); }} />
     </div>
   );
 }
 
-function Overview({ agent }: { agent: Agent }) {
-  // Side by side (each column scrolls) from lg up. Below that it is one scrolling page: two stacked scroll areas
-  // would each get half the height, and on a phone that clipped "What it's allowed to do" out of sight.
+/**
+ * The helper itself, for everyone: a sticky note with its name, its job and what it's allowed to do,
+ * beside a small test conversation. Everything developer-shaped is one click away, not in the way.
+ */
+function HelperView({ agent, onRunSaved, onDetails }: { agent: Agent; onRunSaved: () => void; onDetails: () => void }) {
+  const ws = useWorkspace();
+  const ungated = agent.tools.filter((t) => t.access === "irreversible" && t.permission !== "ask");
   return (
-    <div className="h-full min-h-0 overflow-y-auto lg:grid lg:grid-cols-2 lg:overflow-hidden">
-      <div className="border-hairline px-4 py-5 max-lg:border-b sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:border-r">
-        <p className="micro-label mb-3 text-amber">Plain · for everyone</p>
-        <AgentPlain agent={agent} />
+    <div className="h-full min-h-0 overflow-y-auto xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:overflow-hidden">
+      <div className="px-4 py-5 sm:px-6 xl:min-h-0 xl:overflow-y-auto">
+        <article aria-label={`${agent.name}, an AI helper`} className="sticky-note mx-auto max-w-[560px] rounded-sm px-5 pb-5 pt-4">
+          <div className="flex items-start gap-3">
+            <Avatar name={agent.name} hue={agent.avatarHue} size={40} className="mt-1" />
+            <div className="min-w-0 flex-1">
+              <h2 className="font-pencil text-[38px] leading-none">{agent.name}</h2>
+              <p className="mt-1.5 text-[14px] leading-snug text-foreground/85">{agent.role}</p>
+            </div>
+          </div>
+
+          {ungated.length > 0 && (
+            <p className="mt-4 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] leading-snug text-ask">
+              {ungated.map((t) => t.name).join(", ")} can&apos;t be undone and doesn&apos;t ask first. Set {ungated.length === 1 ? "it" : "them"} to Ask first before you publish.
+            </p>
+          )}
+
+          <section className="mt-5" aria-labelledby="allowed-title">
+            <h3 id="allowed-title" className="font-pencil text-[25px] leading-none">What it&apos;s allowed to do</h3>
+            <p className="mb-2.5 mt-1 text-[12px] text-muted-foreground">
+              <span className="text-foreground/80">Just do it</span> runs straight away · <span className="text-foreground/80">Tell me</span> runs and tells you · <span className="text-foreground/80">Ask first</span> waits for you
+            </p>
+            <PermissionEditorList agent={agent} />
+          </section>
+
+          <section className="mt-5 border-t border-dashed border-[#e6d9a6] pt-4" aria-label="Set every action at once">
+            <p className="mb-1.5 text-[12px] text-muted-foreground">Or set them all at once</p>
+            <SupervisionPicker agent={agent} />
+          </section>
+
+          <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+            <span>About {agent.cost.creditsPerRun} <Term k="credits">credits</Term> a conversation (≈ {creditsUsd(agent.cost.creditsPerRun)})</span>
+            <span aria-hidden>·</span>
+            <button onClick={onDetails} className="underline decoration-dotted underline-offset-4 hover:text-foreground">Details for developers</button>
+          </p>
+        </article>
       </div>
-      <div className="px-4 py-5 sm:px-6 lg:min-h-0 lg:overflow-y-auto">
-        <p className="micro-label mb-3 text-amber">Spec · change it here, free</p>
-        <AgentSpec agent={agent} />
-      </div>
+
+      <section aria-labelledby="try-title" className="flex h-[620px] min-h-0 flex-col border-hairline max-xl:border-t xl:h-full xl:border-l">
+        <div className="px-4 pt-4 sm:px-5">
+          <h3 id="try-title" className="font-pencil text-[30px] leading-none">Try it</h3>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">A small test conversation. It uses sample data, so nothing real happens.</p>
+        </div>
+        <div className="min-h-0 flex-1">
+          <Playground key={agent.id} projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} onRunSaved={onRunSaved} />
+        </div>
+      </section>
     </div>
   );
 }
@@ -174,7 +233,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
   const [pending, start] = useTransition();
   const [running, setRunning] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", input: "", expect: "" });
-  // Same counting as the go-live checklist: a rehearsal that hasn't run counts as not passing.
+  // Same counting as the publish checklist: a rehearsal that hasn't run counts as not passing.
   const sum = agentRehearsals(ws.blueprint, agent);
   const rate = sum.total ? sum.rate : null;
   // trend: pass rate per run index (last 8 runs)
@@ -202,16 +261,16 @@ function Rehearsals({ agent }: { agent: Agent }) {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl px-6 py-6">
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
-          <div className="panel rounded-xl p-4">
-            <p className="micro-label">Reliability</p>
-            <p className={cn("mt-2 text-[34px] font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.9 ? "text-read" : rate >= 0.8 ? "text-amber" : "text-ask")}>{rate === null ? "n/a" : `${Math.round(rate * 100)}%`}</p>
-            <p className="text-[12.5px] text-muted-foreground">
+          <div className="panel rounded-md p-4">
+            <p className="text-[12px] text-muted-foreground">Reliability</p>
+            <p className={cn("mt-1 font-pencil text-[48px] leading-none tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.8 ? "text-read" : "text-foreground")}>{rate === null ? "n/a" : `${Math.round(rate * 100)}%`}</p>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
               {rate === null ? "No rehearsals yet." : `${sum.passing} of ${sum.total} passing on their latest run.`}
-              {sum.notRun ? ` ${sum.notRun} not run yet, so ${sum.notRun === 1 ? "it counts" : "they count"} as not passing.` : ""} Going live needs 80%.
+              {sum.notRun ? ` ${sum.notRun} not run yet, so ${sum.notRun === 1 ? "it counts" : "they count"} as not passing.` : ""} Publishing needs 80%.
             </p>
             {trend.length > 1 && (
               <div className="mt-3">
-                {/* Only the latest run carries a status colour, and it matches the number above: at 100% nothing here is red.
+                {/* Only the latest run carries a status colour, and it matches the number above.
                     Earlier runs stay as grey history (their height is how many passed), so a fixed failure doesn't read as a live one. */}
                 <div className="flex h-10 items-end gap-1" role="img" aria-label={`Pass rate over the last ${trend.length} runs: ${trend.map((t) => `${Math.round(t * 100)}%`).join(", ")}`}>
                   {trend.map((t, i) => {
@@ -220,7 +279,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
                       <span
                         key={i}
                         title={`${latest ? "Latest run" : `Run ${i + 1} of ${trend.length}`}: ${Math.round(t * 100)}% passed`}
-                        className={cn("flex-1 rounded-sm", latest ? (t >= 0.9 ? "bg-read/70" : t >= 0.8 ? "bg-amber/70" : "bg-ask/70") : "bg-muted-foreground/25")}
+                        className={cn("flex-1 rounded-sm", latest ? (t >= 0.8 ? "bg-read/70" : "bg-foreground/55") : "bg-muted-foreground/25")}
                         style={{ height: `${Math.max(10, t * 100)}%` }}
                       />
                     );
@@ -230,7 +289,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
               </div>
             )}
           </div>
-          <div className="panel flex flex-col justify-between rounded-xl p-4">
+          <div className="panel flex flex-col justify-between rounded-md p-4">
             <div>
               <p className="text-[14px] font-medium"><Term k="rehearsal">Rehearsals</Term> are practice conversations {agent.name} must get right before anyone relies on it.</p>
               <p className="mt-1 text-[12.5px] text-muted-foreground">They run on every build and every pull request. If you loosen a permission, the rehearsal that depends on it will catch it.</p>
@@ -245,14 +304,14 @@ function Rehearsals({ agent }: { agent: Agent }) {
           {agent.rehearsals.map((r, i) => {
             const last = r.history[r.history.length - 1];
             return (
-              <li key={r.id} className={cn("panel rounded-xl p-3.5", last && !last.pass && "border-ask/40")}>
+              <li key={r.id} className={cn("panel rounded-md p-3.5", last && !last.pass && "border-foreground/30")}>
                 <div className="flex items-start gap-3">
-                  {running === i ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-read" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-ask" />}
+                  {running === i ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline-hi" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-read" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-foreground/70" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{r.name}</p>
                     <p className="mt-0.5 text-[12.5px] text-muted-foreground"><span className="text-foreground/80">When:</span> {r.input}</p>
                     <p className="text-[12.5px] text-muted-foreground"><span className="text-foreground/80">Should:</span> {r.expect}</p>
-                    {last ? <p className={cn("mt-1.5 text-[12px]", last.pass ? "text-read" : "text-ask")}>{last.note} · <TimeAgo iso={last.at} /></p> : running !== i && <p className="mt-1.5 text-[12px] text-amber">Not run yet, so it counts as not passing.</p>}
+                    {last ? <p className={cn("mt-1.5 text-[12px]", last.pass ? "text-read" : "font-medium text-foreground")}>{last.pass ? "" : "Failed: "}{last.note} · <TimeAgo iso={last.at} /></p> : running !== i && <p className="mt-1.5 text-[12px] text-muted-foreground">Not run yet, so it counts as not passing.</p>}
                   </div>
                   {last && !last.pass && (
                     <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => { ws.setScope({ type: "agent", id: agent.id }); ws.focusComposer({ type: "agent", id: agent.id }); }}>
@@ -265,7 +324,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
           })}
         </ul>
 
-        <div className="panel mt-5 rounded-xl p-4">
+        <div className="panel mt-5 rounded-md p-4">
           <p className="text-[13px] font-medium">Add a rehearsal</p>
           <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1.4fr_1.4fr_auto]">
             <Input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" aria-label="Rehearsal name" />
@@ -287,24 +346,24 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
   if (!runs.length)
     return (
       <div className="grid h-full place-items-center p-8 text-center">
-        <div>
+        <div className="max-w-sm">
           <History className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-[14px] font-medium">No runs yet</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">Every conversation with {agent.name} is saved here: what it looked up, what it changed, who approved what, and what it cost.</p>
+          <p className="mt-3 font-pencil text-[24px] leading-none">No runs yet</p>
+          <p className="mt-2 text-[12.5px] text-muted-foreground">Every conversation with {agent.name} is saved here: what it looked up, what it changed, who approved what, and what it cost.</p>
         </div>
       </div>
     );
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-2 px-6 py-6">
-        <p className="micro-label mb-2">Replay &amp; audit log · {runs.length} run{runs.length === 1 ? "" : "s"}</p>
+        <p className="mb-2 text-[12.5px] text-muted-foreground">Replay and audit log · {runs.length} run{runs.length === 1 ? "" : "s"}</p>
         {runs.map((r) => {
           const expanded = open === r.id;
           const firstUser = r.transcript.find((t) => t.role === "user")?.text ?? "Conversation";
           const approvals = r.tool_calls.filter((t) => t.approval === "approved").length;
           const denied = r.tool_calls.filter((t) => t.approval === "denied" || t.state === "denied").length;
           return (
-            <div key={r.id} className="panel overflow-hidden rounded-xl">
+            <div key={r.id} className="panel overflow-hidden rounded-md">
               <button onClick={() => setOpen(expanded ? null : r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={expanded}>
                 <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
                 <span className="min-w-0 flex-1">
@@ -312,7 +371,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                   <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground [&>span]:whitespace-nowrap">
                     <span>{r.tool_calls.length} tool call{r.tool_calls.length === 1 ? "" : "s"}</span>
                     {approvals > 0 && <span className="text-read">{approvals} approved by a person</span>}
-                    {denied > 0 && <span className="text-ask">{denied} denied</span>}
+                    {denied > 0 && <span className="text-foreground/80">{denied} denied</span>}
                     <span>{(r.input_tokens + r.output_tokens).toLocaleString()} tokens · {formatUsd(Number(r.cost_usd))}</span>
                     <span>{r.mode === "scripted" ? "scripted" : "live"}</span>
                   </span>
@@ -339,7 +398,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                           <AccessChip access={t.access} className="min-w-0 max-w-full whitespace-nowrap"><span className="truncate">{name}</span></AccessChip>
                         </span>
                         <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={query || undefined}>{query}</span>
-                        <span className={cn("ml-auto shrink-0 whitespace-nowrap text-[11px]", t.approval === "approved" ? "text-read" : t.approval === "denied" ? "text-ask" : "text-faint")}>
+                        <span className={cn("ml-auto shrink-0 whitespace-nowrap text-[11px]", t.approval === "approved" ? "text-read" : t.approval === "denied" ? "text-foreground/80" : "text-faint")}>
                           {t.approval === "approved" ? "approved by a person" : t.approval === "denied" ? "denied" : t.approval === "logged" ? "logged" : "automatic"}
                         </span>
                       </li>
@@ -370,26 +429,27 @@ function AgentCode({ agent }: { agent: Agent }) {
     <div className="grid h-full min-h-0 lg:grid-cols-[1fr_300px]">
       <div className="flex min-h-0 flex-col border-hairline lg:border-r">
         <div className="flex flex-wrap items-center gap-1 border-b border-hairline px-3 py-2">
+          <span className="mr-1 text-[11.5px] text-muted-foreground">Framework</span>
           {Object.values(FRAMEWORKS).map((m) => (
-            <button key={m.id} onClick={() => setFw(m.id)} className={cn("rounded-md px-2.5 py-1 text-[12px]", m.id === fw ? "bg-raised text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {m.label}{m.id === agent.framework && <span className="ml-1 text-amber">●</span>}
+            <button key={m.id} onClick={() => setFw(m.id)} aria-pressed={m.id === fw} className={cn("rounded-md border px-2.5 py-1 text-[12px]", m.id === fw ? "border-hairline bg-panel text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+              {m.label}{m.id === agent.framework && <span className="ml-1 text-[10.5px] text-amber">in use</span>}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1 border-b border-hairline px-3 py-1.5">
           {([["runtime", mod.fileName(preview)], ["yaml", "agent.yaml"], ["soul", "SOUL.md"], ["rules", "RULES.md"]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setFile(k)} className={cn("rounded px-2 py-0.5 font-mono text-[11px]", file === k ? "bg-deep text-foreground" : "text-muted-foreground hover:text-foreground")}>{l}</button>
+            <button key={k} onClick={() => setFile(k)} aria-pressed={file === k} className={cn("rounded px-2 py-0.5 font-mono text-[11px]", file === k ? "bg-deep text-foreground" : "text-muted-foreground hover:text-foreground")}>{l}</button>
           ))}
-          <span className="ml-auto font-mono text-[10.5px] text-faint">{mod.install}</span>
+          <span className="ml-auto truncate font-mono text-[10.5px] text-faint">{mod.install}</span>
         </div>
         <CodeView code={code} lang={lang} className="min-h-0 flex-1" />
       </div>
       <div className="overflow-y-auto p-5">
-        <p className="micro-label">What doesn&apos;t translate to {mod.label}</p>
+        <p className="font-pencil text-[21px] leading-none">What doesn&apos;t translate to {mod.label}</p>
         <ul className="mt-3 space-y-3">
           {mod.notes(preview, ws.blueprint).map((n) => <li key={n} className="text-[12.5px] leading-relaxed text-muted-foreground">{n}</li>)}
         </ul>
-        <div className="mt-6 rounded-xl border border-hairline p-3">
+        <div className="mt-6 rounded-md border border-hairline bg-panel p-3">
           <p className="flex items-center gap-2 text-[12.5px] font-medium"><ShieldCheck className="size-3.5 text-read" />Same permissions everywhere</p>
           <p className="mt-1 text-[12px] text-muted-foreground">Approval gates compile to {mod.label}&apos;s own mechanism. Rehearsals run the same way in every framework.</p>
         </div>

@@ -55,7 +55,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
     start(async () => {
       const r = lane === "describe" ? await addAgentFromDescription(ws.project.id, text) : await addAgentFromSource(ws.project.id, { kind: lane === "code" ? "code" : "endpoint", location: loc, framework: lane === "code" ? fw : undefined, protocol: lane === "endpoint" ? protocol : undefined });
       if (!r.ok) return void toast.error(r.error);
-      toast.success("Agent added", { description: "It starts careful. Loosen permissions when you trust it." });
+      toast.success("AI helper added", { description: "It starts careful. Loosen what it may do once you trust it." });
       router.refresh();
       onAdded(r.agentId!);
       setText("");
@@ -68,8 +68,8 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Add an agent</DialogTitle>
-          <DialogDescription>Describe a new one, or bring one you already have. Every agent gets the same permissions, rehearsals and replay.</DialogDescription>
+          <DialogTitle className="font-pencil text-[30px] font-medium leading-none">Add an AI helper</DialogTitle>
+          <DialogDescription>Describe what it should do, or bring an agent you already have. Every helper gets the same permissions, practice runs and replay.</DialogDescription>
         </DialogHeader>
         <Segmented<Lane>
           ariaLabel="How to add"
@@ -84,37 +84,37 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
         />
         {lane === "describe" && (
           <div>
-            <label htmlFor="agent-desc" className="micro-label">What should it do?</label>
-            <Textarea id="agent-desc" rows={4} className="mt-1.5 text-[13px]" value={text} disabled={drafting} onChange={(e) => setText(e.target.value)} placeholder="Checks every payout above $10,000 against the claim file and flags anything that doesn't add up. Never approves payouts itself." />
+            <label htmlFor="agent-desc" className="text-[12.5px] font-medium">What should it do?</label>
+            <Textarea id="agent-desc" rows={4} className="paper-lines mt-1.5 bg-panel py-0 text-[13px]" value={text} disabled={drafting} onChange={(e) => setText(e.target.value)} placeholder="Checks every payout above $10,000 against the claim file and flags anything that doesn't add up. Never approves payouts itself." />
             {drafting ? (
-              <div className="mt-2.5 rounded-lg border border-amber/25 bg-amber-soft p-3" role="status" aria-live="polite">
+              <div className="mt-2.5 rounded-md border border-hairline bg-panel p-3" role="status" aria-live="polite">
                 <ol className="space-y-1.5">
                   {STAGES.map((st, i) => (
                     <li key={st.label} className={cn("flex items-center gap-2 text-[12.5px] transition-opacity duration-300", i > stage ? "opacity-35" : "opacity-100")}>
                       {i < stage ? <Check className="size-3.5 shrink-0 text-read" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 shrink-0 animate-spin text-amber" aria-hidden /> : <span className="grid size-3.5 shrink-0 place-items-center" aria-hidden><span className="size-1 rounded-full bg-faint" /></span>}
-                      <span className={cn(i === stage ? "text-shimmer" : i < stage ? "text-muted-foreground" : "text-faint")}>{st.label}</span>
+                      <span className={cn(i === stage ? "text-foreground" : i < stage ? "text-muted-foreground" : "text-faint")}>{st.label}</span>
                     </li>
                   ))}
                 </ol>
                 <p className="mt-2.5 text-[11px] text-muted-foreground">{ws.llm === "live" ? "Claude is drafting it. This usually takes 10 to 15 seconds." : "Offline mode: starting from a careful template."}</p>
               </div>
             ) : (
-              <p className="mt-1.5 text-[11.5px] text-muted-foreground">{ws.llm === "live" ? "Claude drafts the job description, rules, tools and rehearsals. You review before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
+              <p className="mt-1.5 text-[11.5px] text-muted-foreground">{ws.llm === "live" ? "Claude drafts its job, rules, actions and practice runs. You review before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
             )}
           </div>
         )}
         {lane === "code" && (
           <div className="space-y-3">
             <div>
-              <label htmlFor="agent-repo" className="micro-label">Where the agent lives</label>
+              <label htmlFor="agent-repo" className="text-[12.5px] font-medium">Where the agent lives</label>
               <Input id="agent-repo" className="mt-1.5 h-9 font-mono text-[12.5px]" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="github.com/acme/agents/tree/main/fraud_review.py" />
-              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] text-ask">{locError}</p>}
+              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] font-medium text-foreground/85">{locError}</p>}
             </div>
             <div>
-              <p className="micro-label">Framework</p>
+              <p className="text-[12.5px] font-medium">Framework</p>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {Frameworks.map((f) => (
-                  <button key={f} onClick={() => setFw(f)} className={cn("rounded-md border px-2 py-1.5 text-[12px]", fw === f ? "border-amber/50 bg-amber-soft text-amber" : "border-hairline text-muted-foreground hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
+                  <button key={f} onClick={() => setFw(f)} className={cn("rounded-md border px-2 py-1.5 text-[12px]", fw === f ? "border-amber/50 bg-amber-soft text-amber" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
                 ))}
               </div>
             </div>
@@ -124,9 +124,9 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
         {lane === "endpoint" && (
           <div className="space-y-3">
             <div>
-              <label htmlFor="agent-url" className="micro-label">Endpoint</label>
+              <label htmlFor="agent-url" className="text-[12.5px] font-medium">Endpoint</label>
               <Input id="agent-url" type="url" inputMode="url" className="mt-1.5 h-9 font-mono text-[12.5px]" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="https://agents.acme.com/mcp/fraud-review" />
-              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] text-ask">{locError}</p>}
+              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] font-medium text-foreground/85">{locError}</p>}
             </div>
             <Segmented ariaLabel="Protocol" value={protocol} onChange={setProtocol} options={[{ value: "mcp", label: "MCP" }, { value: "http", label: "HTTP" }, { value: "a2a", label: "A2A" }]} />
             <p className="text-[11.5px] text-muted-foreground">Treated like a colleague on another team: every request goes through your permissions and is logged.</p>
@@ -135,7 +135,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button disabled={pending || (lane === "describe" ? text.trim().length < 10 : !loc.trim() || showLocError)} onClick={submit}>
-            {pending ? <Loader2 className="animate-spin" /> : null} {drafting ? "Drafting…" : "Add agent"}
+            {pending ? <Loader2 className="animate-spin" /> : null} {drafting ? "Drafting…" : "Add helper"}
           </Button>
         </div>
       </DialogContent>

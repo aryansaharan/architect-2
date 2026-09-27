@@ -36,12 +36,12 @@ export function TraceRow({ part, tool, bp, theme = "studio" }: { part: ToolPart;
     : "running";
   const studio = theme === "studio";
   return (
-    <div className={cn("rounded-lg border text-[12px]", studio ? "border-hairline bg-deep/70" : "border-slate-200 bg-slate-50")}>
+    <div className={cn("rounded-lg border text-[12px]", studio ? "border-hairline bg-panel" : "border-slate-200 bg-slate-50")}>
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left" aria-expanded={open}>
         <I className={cn("size-3.5 shrink-0", access === "read" ? "text-read" : access === "write" ? "text-change" : "text-ask", !studio && (access === "read" ? "text-emerald-600" : access === "write" ? "text-blue-600" : "text-rose-600"))} />
         <span className={cn("font-medium", studio ? "text-foreground" : "text-slate-800")}>{tool?.name ?? part.type.slice(5)}</span>
         <span className={cn("truncate", studio ? "text-muted-foreground" : "text-slate-500")}>{part.input?.query ? `“${part.input.query}”` : ""}</span>
-        <span className={cn("ml-auto shrink-0", part.state === "output-denied" ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-faint" : "text-slate-400")}>
+        <span className={cn("ml-auto shrink-0", part.state === "output-denied" ? (studio ? "text-foreground/80" : "text-rose-600") : studio ? "text-faint" : "text-slate-400")}>
           {status === "running" || status === "approved · running" ? <Loader2 className="inline size-3 animate-spin" /> : null} {status}
         </span>
         <ChevronRight className={cn("size-3 shrink-0 transition-transform", open && "rotate-90", studio ? "text-faint" : "text-slate-400")} />
@@ -50,7 +50,7 @@ export function TraceRow({ part, tool, bp, theme = "studio" }: { part: ToolPart;
         <div className={cn("border-t px-2.5 py-2 font-mono text-[11px] leading-relaxed", studio ? "border-hairline text-muted-foreground" : "border-slate-200 text-slate-600")}>
           <p>tool: {part.type.slice(5)} · {tool ? connectionName(bp, tool.connectionId) : ""} · access: {access}</p>
           {part.output !== undefined && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap">{JSON.stringify(part.output, null, 2)}</pre>}
-          {part.errorText && <p className="mt-1 text-ask">{part.errorText}</p>}
+          {part.errorText && <p className={cn("mt-1", studio ? "text-foreground/85" : "text-rose-600")}>{part.errorText}</p>}
         </div>
       )}
     </div>
@@ -59,7 +59,7 @@ export function TraceRow({ part, tool, bp, theme = "studio" }: { part: ToolPart;
 
 /**
  * Rose means "can't be undone" everywhere in the product, so only those actions get the rose card.
- * Anything else that waits (a look-up or an undoable change set to "Ask first") gets a calmer gold card,
+ * Anything else that waits (a look-up or an undoable change set to "Ask first") gets a calm paper note,
  * so the danger colour keeps its meaning and people don't learn to click through it.
  */
 const GATE_COPY = {
@@ -91,42 +91,42 @@ export function ApprovalCard({
       role="group"
       aria-label="Approval needed"
       data-gate={irreversible ? "irreversible" : "ask"}
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         "rounded-xl border p-3",
         irreversible
-          ? studio ? "pulse-rose border-ask/40 bg-[linear-gradient(180deg,rgb(255_107_122/0.10),rgb(255_107_122/0.04))]" : "border-rose-200 bg-rose-50"
-          : studio ? "border-sol-gold/30 bg-[linear-gradient(180deg,rgb(255_242_166/0.07),rgb(255_242_166/0.02))]" : "border-amber-200 bg-amber-50/70",
+          ? studio ? "border-ask/40 bg-ask/[0.06]" : "border-rose-200 bg-rose-50"
+          : studio ? "sticky-note border-[#e6d9a6]" : "border-amber-200 bg-amber-50/70",
       )}
     >
       <p className={cn("flex items-center gap-2 text-[13px] font-semibold", studio ? "text-foreground" : "text-slate-900")}>
-        <Icon className={cn("size-4 shrink-0", irreversible ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-sol-gold" : "text-amber-600")} />
+        <Icon className={cn("size-4 shrink-0", irreversible ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-amber" : "text-amber-600")} />
         <span className="min-w-0">{agent.name} wants to {lowerFirst(tool?.name ?? part.type.slice(5))}</span>
         <span
           className={cn(
             "ml-auto shrink-0 whitespace-nowrap rounded-full border px-2 py-px text-[10.5px] font-medium",
-            irreversible ? (studio ? "border-ask/35 text-ask" : "border-rose-200 bg-white text-rose-700") : studio ? "border-sol-gold/30 text-sol-gold" : "border-amber-200 bg-white text-amber-700",
+            irreversible ? (studio ? "border-ask/35 bg-panel text-ask" : "border-rose-200 bg-white text-rose-700") : studio ? "border-amber/30 bg-panel text-amber" : "border-amber-200 bg-white text-amber-700",
           )}
         >
           {copy.tag}
         </span>
       </p>
-      {part.input?.query && <p className={cn("mt-1.5 rounded-md px-2 py-1.5 font-mono text-[11.5px]", studio ? "bg-deep text-foreground/85" : "bg-white text-slate-700")}>{part.input.query}</p>}
+      {part.input?.query && <p className={cn("mt-1.5 rounded-md px-2 py-1.5 font-mono text-[11.5px]", studio ? "border border-hairline bg-panel text-foreground/85" : "bg-white text-slate-700")}>{part.input.query}</p>}
       <p className={cn("mt-2 text-[12px]", studio ? "text-muted-foreground" : "text-slate-600")}>
         {copy.body} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => onRespond("once")} className={cn("sheen inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-transform active:scale-[0.97]", studio ? "bg-amber text-primary-foreground shadow-[0_6px_20px_-6px_rgb(223_255_79/0.7)]" : "bg-slate-900 text-white")}>
+        <button onClick={() => onRespond("once")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-colors active:scale-[0.98]", studio ? "bg-amber text-primary-foreground hover:bg-amber-hi" : "bg-slate-900 text-white")}>
           <Check className="size-3.5" /> Allow once
         </button>
         {!irreversible && (
-          <button onClick={() => onRespond("always")} title="Sets this tool to “Tell me”: it runs straight away and tells you what it did." className={cn("inline-flex h-8 items-center rounded-md border px-3 text-[12.5px]", studio ? "border-hairline hover:bg-raised" : "border-slate-200 bg-white text-slate-700")}>
+          <button onClick={() => onRespond("always")} title="Sets this tool to “Tell me”: it runs straight away and tells you what it did." className={cn("inline-flex h-8 items-center rounded-md border px-3 text-[12.5px]", studio ? "border-hairline bg-panel hover:bg-raised" : "border-slate-200 bg-white text-slate-700")}>
             Always allow
           </button>
         )}
-        <button onClick={() => onRespond("deny")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[12.5px]", studio ? "border-hairline text-muted-foreground hover:bg-raised" : "border-slate-200 bg-white text-slate-600")}>
+        <button onClick={() => onRespond("deny")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[12.5px]", studio ? "border-hairline bg-panel text-muted-foreground hover:bg-raised" : "border-slate-200 bg-white text-slate-600")}>
           <X className="size-3.5" /> Deny
         </button>
       </div>
