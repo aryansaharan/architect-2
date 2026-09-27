@@ -480,7 +480,7 @@ Code outside markers is hand-owned by definition. When ownership of a region mov
 
 1. *Detect.* The region's content no longer hashes to `9c1e41`.
 2. *Three-way merge.* **Base** is the last generated version (the region as codegen wrote it at `9c1e41`, stored with the release). **Ours** is what codegen produces from the current Blueprint. **Theirs** is Sam's version. The merge runs on the syntax tree (tree-sitter), falling back to a line-level diff3. There are three outcomes:
-   - *Only Sam changed it* (the common case). Sam's version wins, and reverse sync (below) tries to express the change as Blueprint operations. If it can, the region stays blueprint-owned and its hash is updated. If it cannot, **ownership moves to Sam**: the markers and the ownership map change in one commit, and the Blueprint object is marked code-owned.
+   - *Only Sam changed it* (the common case). Sam's version wins, and reverse sync (below) tries to express the change as Blueprint operations. If it can, the region stays Blueprint-owned and its hash is updated. If it cannot, **ownership moves to Sam**: the markers and the ownership map change in one commit, and the Blueprint object is marked code-owned.
    - *Both changed, and the merge is clean.* Both land, the verifier runs, and the activity feed gets one line ("Sam's Priority column merged with your SLA column").
    - *Both changed, and they conflict.* Nothing is written. The Work Order pauses on a conflict card.
 3. *Verify.* A reconcile result is a normal build step: types, lint, tests and rehearsals must pass before it is committed to the Work Order branch.
@@ -927,7 +927,7 @@ Restores are tested monthly and failover is rehearsed in a quarterly game day.
 
 *Observability.*
 - **Traces:** OpenTelemetry from the browser click through the BFF, Temporal (trace context in workflow headers), the harness, the model gateway and into the VM over vsock. Traces from live apps run through the agent gateway and the runtime's model gateway. LLM calls are spans with model, tokens and cost attributes.
-- **Metrics:** request rate, errors and duration per service. Plus sandbox pool depth, resume p95 (same host and cross host), host memory, tokens per minute per provider, 429 rate, failover count, prompt-cache hit rate, repair cycles per build, quote accuracy and queue depth.
+- **Metrics:** request rate, errors and duration per service, plus sandbox pool depth, resume p95 (same host and cross host), host memory, tokens per minute per provider, 429 rate, failover count, prompt-cache hit rate, repair cycles per build, quote accuracy and queue depth.
 - **Logs:** structured JSON tagged with tenant, project and Work Order ids, with PII redacted at the collector.
 - **SLOs** (see [section 17](#17-scaling-to-thousands-of-concurrent-users)) use multi-window burn-rate alerts. 2% of the monthly error budget burned in 1 hour pages someone; 10% in 3 days opens a ticket.
 
@@ -944,7 +944,7 @@ Restores are tested monthly and failover is rehearsed in a quarterly game day.
 | Resource | Assumption | Estimate |
 |---|---|---|
 | Awake sandboxes | ~30% of people have work running, the rest are snapshotted | ~1,500 microVMs |
-| Sandbox hosts | 4 GB each, memory bound, 384 GB per host, 25% headroom | ~20 bare-metal hosts per region at peak |
+| Sandbox hosts | 4 GB each, memory bound, 384 GiB per host, 25% headroom | ~20 bare-metal hosts per region at peak |
 | Model traffic | ~20% actively generating, ~2 calls a minute, ~8k input and ~1k output tokens per call | ~16M input and ~2M output tokens a minute, about 70% of input served from prompt cache; about $2,100 an hour at list prices ([section 18](#18-model-unit-economics)) |
 | Realtime | One connection per open studio | 5,000 connections, about 1,000 per cell; one NATS cluster with WebSocket gateways handles 100k+ |
 | Database writes | ~1 build event per second per active build, batched | ~1,000 writes a second across the region, about 200 per cell's Postgres primary |
@@ -1015,7 +1015,7 @@ Output includes thinking tokens. Other providers enter through the model gateway
 - **Caching saves 39%** ($15.15 → $9.30). **Routing saves 54%** against running everything on the frontier model. It costs 15% more than running everything on Sonnet 5, and that premium buys frontier quality on the two steps where mistakes are expensive: plans are shown to people and priced, and repair diagnosis decides whether a loop converges.
 - **Live agents are billed to the app, not the builder's plan.** 1,000 runs of the example agent cost about $35 on Sonnet 5, $18 on Haiku 4.5 or $88 on Opus 5, metered by the agent gateway against the app's budget cap. With a BYOK key, the provider bills the customer directly.
 
-**Who absorbs repair-loop overruns.** Every model call carries a cause tag: `planned` (work the person approved), `repair.ours` (fixing a verifier failure in code we generated or changed), or `repair.theirs` (a failure in hand-owned code or caused by an external service, offered as a separately priced fix and never charged silently). "Our fix · free" means `repair.ours` usage is posted to a platform expense account in the ledger, never to the customer's credits. At one repair cycle per build that is 12 × $0.24 ≈ $2.84 per builder per month, about 30% of model spend. First-pass build success is therefore the quality metric with the most direct effect on margin: every 0.1 fewer repair cycles per build saves about $0.28 per builder per month. Caps on what the platform absorbs:
+**Who absorbs repair-loop overruns.** Every model call carries a cause tag: `planned` (work the person approved), `repair.ours` (fixing a verifier failure in code we generated or changed), or `repair.theirs` (a failure in hand-owned code or caused by an external service, offered as a separately priced fix and never charged silently). "Our fix · free" means `repair.ours` usage is posted to a platform expense account in the ledger, never to the customer's credits. At one repair cycle per build that is 12 × $0.24 ≈ $2.88 per builder per month, about 30% of model spend. First-pass build success is therefore the quality metric with the most direct effect on margin: every 0.1 fewer repair cycles per build saves about $0.29 per builder per month. Caps on what the platform absorbs:
 
 1. **Step budget per Work Order**: at most 3 repair cycles, and total tokens at most 2x the quote's p50 estimate. Hitting either stops the loop, restores the last save point and opens a handoff ([section 7](#7-the-agent-harness)).
 2. **Doom-loop kill switch**: the same normalised error signature twice stops the loop at once, even inside the first cycle.
@@ -1108,13 +1108,13 @@ From day one we build only what is the product, or what no vendor can see: the B
 | Model spend a month, at section 18's $9.30 per builder | About $9k | About $93k at 10,000 builders | About $465k |
 | Engineers | 5-6: two on product, one on the harness and evals, one on the Blueprint and codegen, one or two on platform (gateways, deploy, on-call) | 12-15: adds a sandbox fleet team (3), runtime and gateways (2), SRE (2), security (1) | 25-35: adds on-call per region, a data platform team, compliance, a second sandbox team |
 
-Phase 0 and 1 in detail, per month: Vercel about $1k; the managed cluster about $4k; E2B about $2k (Pro plan, a concurrency add-on and about 6,600 sandbox hours); Fly Machines about $3k; Supabase about $1k; Temporal Cloud about $1k; Neon about $2k; Cloudflare about $1k; observability about $2k; Redis, S3 and the rest about $2k. In phase 0 and 1 infrastructure costs more per builder than models do, and nearly all of it is fixed: exactly the situation in which buying beats building.
+Phase 0 and 1 in detail, per month: Vercel about $1k; the managed cluster about $4k; E2B about $2k (Pro plan, a concurrency add-on and about 6,600 sandbox hours); Fly Machines about $3k; Supabase about $1k; Temporal Cloud about $1k; Neon about $2k; Cloudflare about $1k; observability about $2k; Redis, S3 and the rest about $2k. In phases 0 and 1 infrastructure costs more per builder than models do, and nearly all of it is fixed: exactly the situation in which buying beats building.
 
 What does not change across phases: the Blueprint, Work Orders and their prices, the harness contract, the gateway API, the ledger, delegation grants and the agent gateway's policy model. Phases swap what runs underneath them.
 
 ## 22. Trade-offs and alternatives considered
 
-- **Build vs buy, and when.** Building the whole platform first would delay launch by about a year and needs a platform team before there is revenue. Buying everything forever would leave us short of the isolation, latency and residency that enterprise buyers need. We buy first and build each part when its trigger fires ([section 21](#21-phasing-buy-first-build-when-it-pays)).
+- **Build vs buy, and when.** Building the whole platform first would delay launch by about a year and need a platform team before there is revenue. Buying everything forever would leave us short of the isolation, latency and residency that enterprise buyers need. We buy first and build each part when its trigger fires ([section 21](#21-phasing-buy-first-build-when-it-pays)).
 - **Build vs buy sandboxes.** E2B runs every sandbox until one of section 21's triggers fires, with our egress proxy keeping secrets out of the VM. We then run our own Firecracker fleet, because host affinity, lazy restore, the vsock agent and execution without a sub-processor need hosts we control, and keep E2B as burst capacity for eligible work ([section 6](#6-sandboxing)).
 - **Temporal vs a queue.** A plain queue plus a state table is simpler on day one, but builds with human approvals in the middle are exactly what durable workflows are for.
 - **Blueprint-first vs code-first.** Code-first (like IDE agents) is more flexible; Blueprint-first is what lets non-technical people review a plan, price it and roll it back. We keep both by giving every region of code one owner and reconciling edits with a three-way merge, and by letting custom code live outside the Blueprint under House Rules ([section 8](#8-blueprint-and-code-keeping-them-in-sync)).

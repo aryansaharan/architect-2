@@ -11,7 +11,7 @@ export type Question = { id: string; label: string; options: string[]; defaultIn
 
 const CAREFUL: Question = {
   id: "care",
-  label: "How careful should the agents be?",
+  label: "How careful should the AI helpers be?",
   options: ["Ask me before anything leaves the building", "Act, then tell me", "Fully on their own"],
   defaultIndex: 0,
 };

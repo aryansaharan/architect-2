@@ -89,7 +89,7 @@ export default async function Landing() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-28 sm:px-6 sm:pt-36">
+        <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-14 sm:px-6 sm:pt-20">
           <h2 className="text-center font-display text-[46px] leading-none sm:text-[56px]">How it works</h2>
           <ol className="mt-14 grid gap-14 md:grid-cols-3 md:gap-10">
             {STEPS.map((s, i) => (
@@ -105,7 +105,7 @@ export default async function Landing() {
         </section>
 
         {/* The product, once */}
-        <section className="mx-auto max-w-5xl px-5 pt-28 sm:px-6 sm:pt-36" aria-label="What a project looks like">
+        <section className="mx-auto max-w-5xl px-5 pt-14 sm:px-6 sm:pt-20" aria-label="What a project looks like">
           <figure>
             <div className="panel overflow-hidden rounded-xl p-1.5">
               <Image
@@ -123,7 +123,7 @@ export default async function Landing() {
         </section>
 
         {/* For developers */}
-        <section id="developers" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-28 sm:px-6 sm:pt-36">
+        <section id="developers" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-14 sm:px-6 sm:pt-20">
           <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
             <div>
               <p className="font-sketch text-[13px] text-muted-foreground">For developers</p>
@@ -167,7 +167,7 @@ export default async function Landing() {
         </section>
 
         {/* Honest seams */}
-        <section id="real" className="mx-auto max-w-4xl scroll-mt-20 px-5 pt-28 sm:px-6 sm:pt-36">
+        <section id="real" className="mx-auto max-w-4xl scroll-mt-20 px-5 pt-14 sm:px-6 sm:pt-20">
           <h2 className="font-display text-[38px] leading-none sm:text-[44px]">What&apos;s real in this prototype</h2>
           <div className="mt-8 grid gap-8 sm:grid-cols-2">
             <div>
@@ -196,7 +196,7 @@ export default async function Landing() {
         </section>
       </main>
 
-      <footer className="mt-28 border-t border-hairline sm:mt-36">
+      <footer className="mt-16 border-t border-hairline sm:mt-24">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-8 text-[13px] text-muted-foreground sm:px-6">
           <Logo />
           <span>Built by Aryan Saharan for Lyzr&apos;s Architect 2.0 brief.</span>

@@ -51,7 +51,7 @@ export function RepairOverlay() {
             <span className="grid size-9 shrink-0 place-items-center rounded-md border border-fix/30 bg-fix/10"><ShieldAlert className="size-4 text-fix" /></span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[12px] text-muted-foreground">Caught in a <Term k="rehearsal">practice run</Term></p>
+                <p className="text-[12px] text-muted-foreground">Caught in a <Term k="rehearsal">test run</Term></p>
                 <span className="rounded-full border border-fix/30 bg-fix/10 px-2 py-px text-[11px] font-medium text-fix"><Term k="our-fix" /> · free</span>
                 <SimulatedChip />
               </div>
@@ -119,7 +119,7 @@ export function RepairOverlay() {
                 setStopping(false);
                 if (!r.ok) return toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped. Nothing was charged", { description: "The estimated price went back on your demo balance. Your plan is exactly as you left it." });
+                toast.success("Build stopped. Nothing was charged", { description: "The credits went back on your demo balance. Your plan is exactly as you left it." });
                 router.refresh();
               }}
             >

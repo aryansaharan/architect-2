@@ -85,7 +85,7 @@ export async function allowToolAlways(projectId: string, agentId: string, toolId
   if (tool.access === "irreversible") return { ok: false, error: "Actions that can't be undone always ask first" };
   tool.permission = "log";
   try {
-    await save(projectId, bp, `${agent.name} · ${tool.name}: tell me`, "You chose “Always allow” in the playground. Direct edit: free.", agentId, 0, { kind: "permission", revalidate: false });
+    await save(projectId, bp, `${agent.name} · ${tool.name}: tell me`, "You chose “Always allow” in Try it. Direct edit: free.", agentId, 0, { kind: "permission", revalidate: false });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't save" };

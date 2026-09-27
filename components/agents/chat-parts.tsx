@@ -130,7 +130,7 @@ export function ApprovalCard({
           <X className="size-3.5" /> Deny
         </button>
       </div>
-      {irreversible && <p className={cn("mt-2 text-[11px]", studio ? "text-faint" : "text-slate-400")}>“Always” isn&apos;t offered for actions that can&apos;t be undone.</p>}
+      {irreversible && <p className={cn("mt-2 text-[11px]", studio ? "text-faint" : "text-slate-400")}>“Always allow” isn&apos;t offered for actions that can&apos;t be undone.</p>}
     </motion.div>
   );
 }

@@ -11,11 +11,11 @@ export default function Privacy() {
         <li>If you sign in with Google: your name, email address and profile picture, provided by Google.</li>
         <li>If you sign in with an email link: your email address.</li>
         <li>If you continue as a guest (no account): an anonymous session identifier.</li>
-        <li>What you create: project descriptions, plans, comments, and conversations with agents in the playground.</li>
+        <li>What you create: project descriptions, plans, comments, and conversations with AI helpers in Try it.</li>
         <li>Usage records: model token counts and credits, used for the spend meter and daily limits.</li>
       </ul>
       <h2>How it&apos;s used</h2>
-      <p>Only to run the product: to sign you in, save your projects, and show your usage. Descriptions and agent conversations are sent to Anthropic&apos;s Claude API to generate plans and replies. Nothing is sold or shared for advertising.</p>
+      <p>Only to run the product: to sign you in, save your projects, and show your usage. Descriptions and AI helper conversations are sent to Anthropic&apos;s Claude API to generate plans and replies. Nothing is sold or shared for advertising.</p>
       <h2>Where it&apos;s stored</h2>
       <p>Data is stored in a Supabase Postgres database in the United States, with row-level security so each account can only read its own projects. The app is hosted on Vercel.</p>
       <h2>Deleting your data</h2>

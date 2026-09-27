@@ -41,7 +41,7 @@ export async function saveCheckpoint(projectId: string, label: string): Promise<
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false };
   const cp = await addCheckpoint(supa, projectId, { label: label.slice(0, 60) || "Manual save point", kind: "change", blueprint: project.blueprint });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Saved a save point · ${cp.label}`, credits: 0, checkpointId: cp.id }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Made a save point · ${cp.label}`, credits: 0, checkpointId: cp.id }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }

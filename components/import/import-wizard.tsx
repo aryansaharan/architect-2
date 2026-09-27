@@ -100,7 +100,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
             ))}
           </div>
           {error && <p role="alert" className="mt-4 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">{error}</p>}
-          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-[12.5px] leading-relaxed text-muted-foreground">Private repository? Connect GitHub from any project&apos;s Code tab (a sandbox in this prototype). ZIP and Figma imports are next on the list.</p>
+          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-[12.5px] leading-relaxed text-muted-foreground">Private repository? Connect GitHub from Code and GitHub in any project (a sandbox in this prototype). ZIP and Figma imports are next on the list.</p>
         </div>
         {step === "reading" && (
           <ol className="panel mt-4 space-y-1.5 rounded-xl px-5 py-4 text-[13.5px]" aria-live="polite" aria-label="Reading the repository">

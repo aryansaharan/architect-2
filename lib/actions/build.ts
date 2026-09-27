@@ -196,7 +196,7 @@ export async function completeBuild(projectId: string): Promise<Result> {
         body: built.screens.map((s) => s.title).join(", ") + ".",
         checkpointId: cp.id,
       },
-      { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsals} conversations · ${passed} passed`, ...(passed < rehearsals ? { body: "Open Agents › Rehearsals to see what failed and fix it." } : {}), checkpointId: cp.id },
+      { lane: "checked", kind: "rehearsal", title: `Rehearsed ${rehearsals} conversations · ${passed} passed`, ...(passed < rehearsals ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), checkpointId: cp.id },
     ]);
     await supa.from("work_orders").update({ status: "done", resolved_at: now }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
     revalidatePath(`/p/${projectId}`, "layout");

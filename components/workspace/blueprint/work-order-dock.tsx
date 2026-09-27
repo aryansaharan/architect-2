@@ -84,7 +84,7 @@ export function WorkOrderDock() {
             <span className="inline-flex items-center gap-1 text-brand"><KeyRound className="size-3" />{missing.map((c) => c.name).join(", ")} will use test data until you add a key</span>
           )}
           <span>Confidence: {est.confidence}</span>
-          {over && <span className="font-medium text-foreground">This would pass your cap. Raise it in Settings first.</span>}
+          {over && <span className="font-medium text-foreground">This would go past your cap. Raise it in Settings first.</span>}
         </div>
       </motion.section>
     </div>

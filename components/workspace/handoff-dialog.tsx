@@ -34,7 +34,7 @@ export function HandoffDialog() {
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="font-pencil text-[30px] font-medium leading-none">Ask a teammate</DialogTitle>
-          <DialogDescription>They get everything they need to help: no screenshots, no “what did you click?”.</DialogDescription>
+          <DialogDescription>They get everything they need to help: no screenshots, no “what did you click?”</DialogDescription>
         </DialogHeader>
         {ws.handoffTarget && <HandoffForm key={`${ws.handoffTarget.type}:${ws.handoffTarget.id}`} />}
       </DialogContent>

@@ -125,7 +125,7 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
     id: "rehearse-again",
     lane: "checked",
     title: `Re-ran rehearsals · ${passed} of ${rehearsals} passed`,
-    detail: passed === rehearsals ? "The fix held. Nothing else changed." : "Some still fail. Open Agents › Rehearsals after the build to see why.",
+    detail: passed === rehearsals ? "The fix held. Nothing else changed." : "Some still fail. Open AI helpers › Tests & reliability after the build to see why.",
     tone: passed === rehearsals ? "ok" : "warn",
     durationMs: 1600,
   });

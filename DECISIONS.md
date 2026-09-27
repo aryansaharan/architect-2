@@ -32,7 +32,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 ## 5. Irreversible actions always ask
 
-**Decision.** Tools are Read, Change or Can't undo, and each AI helper's card says in plain words "What it's allowed to do": **Just do it**, **Tell me** or **Ask first**. Anything that can't be undone always asks first, whatever the setting. The approval in **Try it** offers "Always" for changes you can undo, but never for actions you can't.
+**Decision.** Tools are Read, Change or Can't undo, and each AI helper's card says in plain words "What it's allowed to do": **Just do it**, **Tell me** or **Ask first**. Anything that can't be undone always asks first, whatever the setting. The approval in **Try it** offers **Always allow** for changes you can undo, but never for actions you can't.
 
 **Why.** It is the one rule a non-technical owner can check at a glance, and the one an engineer can enforce in any framework. The same permission compiles to the AI SDK's tool approval in the playground and to each framework's own mechanism in generated code.
 

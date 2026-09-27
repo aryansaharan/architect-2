@@ -35,7 +35,7 @@ export async function pullFromGitHub(projectId: string): Promise<{ ok: boolean }
   const project = await getProject(supa, projectId);
   if (!project?.is_demo) return { ok: false };
   await addLedger(supa, projectId, [
-    { lane: "checked", kind: "change", blame: "teammate", title: "Pulled 2 commits from main", body: "Priya changed the adjuster routing threshold in agents/intake-triage/RULES.md. No conflicts. The blueprint picked it up and rehearsals still pass (sandbox).", credits: 0 },
+    { lane: "checked", kind: "change", blame: "teammate", title: "Pulled 2 commits from main", body: "Priya changed the adjuster routing threshold in agents/intake-triage/RULES.md. No conflicts. The plan picked it up and rehearsals still pass (sandbox).", credits: 0 },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };

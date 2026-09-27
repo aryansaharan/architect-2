@@ -62,7 +62,7 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
   bp.estimate = estimate(bp);
   await updateProject(supa, projectId, { blueprint: bp });
   const cp = await addCheckpoint(supa, projectId, { label: title.slice(0, 60), kind: "change", blueprint: bp, summary: "Fixed from Preflight" });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: `Preflight: ${title.toLowerCase()}`, credits: 0, checkpointId: cp.id, body: "One-click fix from the Ship tab, free." }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: `Preflight: ${title.toLowerCase()}`, credits: 0, checkpointId: cp.id, body: "One-click fix from the Publish tab, free." }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }

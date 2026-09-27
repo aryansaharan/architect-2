@@ -177,7 +177,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
       </div>
       {s.ungated.length > 0 && (
         <p className="mt-3 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">
-          {s.ungated.map((t) => t.name).join(", ")} can&apos;t be undone and doesn&apos;t ask first. Publishing stays blocked until it does.
+          {s.ungated.map((t) => t.name).join(", ")} can&apos;t be undone and {s.ungated.length === 1 ? "doesn't ask first. Publishing stays blocked until it does." : "don't ask first. Publishing stays blocked until they do."}
         </p>
       )}
 
@@ -212,7 +212,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
         <dl className="grid grid-cols-2 gap-2">
           <Stat icon={Brain} label="Remembers" value={MEMORY_LABEL[agent.memory.scope].replace("Remembers ", "").replace("Shares memory ", "")} />
           <Stat icon={Coins} label="Cost per conversation" value={`~${agent.cost.creditsPerRun} credits (≈ ${creditsUsd(agent.cost.creditsPerRun)})`} />
-          <Stat icon={ShieldCheck} label={<Term k="rehearsal">Practice runs</Term>} value={reh.total ? `${reh.passing} of ${reh.total} passing${reh.notRun ? ` · ${reh.notRun} not run yet` : ""}` : "None yet"} />
+          <Stat icon={ShieldCheck} label={<Term k="rehearsal">Test runs</Term>} value={reh.total ? `${reh.passing} of ${reh.total} passing${reh.notRun ? ` · ${reh.notRun} not run yet` : ""}` : "None yet"} />
           <Stat icon={Gauge} label="Works on" value={s.screens.length ? s.screens.map((x) => x.title).join(", ") : "Background only"} />
         </dl>
       </Section>

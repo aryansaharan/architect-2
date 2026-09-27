@@ -22,7 +22,7 @@ const STAGES = [
   { at: 0, label: "Reading your description…" },
   { at: 2500, label: "Choosing tools and permissions…" },
   { at: 6000, label: "Writing its rules and job description…" },
-  { at: 9500, label: "Planning rehearsals…" },
+  { at: 9500, label: "Planning test runs…" },
   { at: 12500, label: "Checking it fits the project…" },
 ];
 
@@ -69,7 +69,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="font-pencil text-[30px] font-medium leading-none">Add an AI helper</DialogTitle>
-          <DialogDescription>Describe what it should do, or bring an agent you already have. Every helper gets the same permissions, practice runs and replay.</DialogDescription>
+          <DialogDescription>Describe what it should do, or bring an agent you already have. Every helper gets the same permissions, test runs and replay.</DialogDescription>
         </DialogHeader>
         <Segmented<Lane>
           ariaLabel="How to add"
@@ -99,7 +99,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
                 <p className="mt-2.5 text-[11px] text-muted-foreground">{ws.llm === "live" ? "Claude is drafting it. This usually takes 10 to 15 seconds." : "Offline mode: starting from a careful template."}</p>
               </div>
             ) : (
-              <p className="mt-1.5 text-[11.5px] text-muted-foreground">{ws.llm === "live" ? "Claude drafts its job, rules, actions and practice runs. You review before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
+              <p className="mt-1.5 text-[11.5px] text-muted-foreground">{ws.llm === "live" ? "Claude drafts its job, rules, actions and test runs. You review before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
             )}
           </div>
         )}
@@ -118,7 +118,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
                 ))}
               </div>
             </div>
-            <p className="text-[11.5px] text-muted-foreground">Runs unchanged. Prod AI wraps its tool calls with permissions and adds rehearsals and replay, no rewrite.</p>
+            <p className="text-[11.5px] text-muted-foreground">Runs unchanged, with no rewrite. Prod AI wraps its tool calls with permissions and adds test runs and replay.</p>
           </div>
         )}
         {lane === "endpoint" && (

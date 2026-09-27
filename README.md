@@ -25,7 +25,7 @@ My answer to Lyzr's **Architect 2.0** brief ("a vibe-coding platform for both te
 
 1. Open **[prod-ai-studio.vercel.app](https://prod-ai-studio.vercel.app)**, write what you want on the ruled sheet (or pick *Claims desk*), and press **Make it**.
 2. Sign in with Google or an email link, or **continue as a guest** (you start from scratch; nothing is seeded).
-3. Answer the few questions (or **Skip, use sensible defaults**) and watch the plan drawn as a sketch forming.
+3. Answer the few questions (or **Skip, use sensible defaults**) and watch the plan being drawn as a sketch.
 4. On the **Sheet**, read your app as a pencil sketch: screen cards, AI helpers as sticky notes, connections, and the price on ruled lines. Press **Make it real** and watch each screen ink in (**Skip to end** if you're in a hurry).
 5. A test run catches a problem: pick one of the two free fixes in the note on the sheet. Then **"It's real."**: try the app, switch devices, or **Point and write a note**.
 6. Write a note in the margin, e.g. *"Add a column for priority"*. Read the change and its price, **Apply** it, then **Undo** if you like.
@@ -48,7 +48,7 @@ Short on time? **[/demo](https://prod-ai-studio.vercel.app/demo)** opens a finis
 
 ## For developers
 
-Everything technical is one click away under **Under the hood**, and it is real code over the same plan:
+Everything technical is one click away in **Under the hood**, and it is real code over the same plan:
 
 - **Plan map.** The blueprint canvas: screens, AI helpers, data and connections with live relations. Click anything for an inspector with **Plain · Settings · Code** faces (the generated files for that object).
 - **Preview and tweak.** Use the app on desktop, tablet and phone; point-and-tweak copy and columns for free; pin comments.

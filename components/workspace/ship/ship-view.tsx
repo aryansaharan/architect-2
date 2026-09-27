@@ -36,7 +36,7 @@ function useOrigin(): string {
 /** A name as a URL-safe slug: "Claims Desk" → "claims-desk". */
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
-const STEPS = ["Packaging the current save point", "Getting a server ready", "Setting up the database, with each row private to its owner", "Registering AI helpers and their approval gates", "Warming up", "Checking the live link answers"];
+const STEPS = ["Packaging the current save point", "Getting a server ready", "Setting up the database, with each row private to its owner", "Registering AI helpers and their ask-first steps", "Warming up", "Checking the live link answers"];
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -50,7 +50,7 @@ function attentionLine(c: PreflightCheck, bp: ReturnType<typeof useWorkspace>["b
       return `${plural(n, "action")} that can't be undone ${n === 1 ? "doesn't" : "don't"} ask first`;
     }
     case "rehearsals":
-      return !built ? "It isn't built yet" : c.status === "fail" ? "Too many practice runs fail" : "Some practice runs haven't run yet";
+      return !built ? "It isn't built yet" : c.status === "fail" ? "Too many test runs fail" : "Some test runs haven't run yet";
     case "keys": {
       const n = bp.connections.filter((x) => x.status === "missing").length;
       return `${plural(n, "connection")} still ${n === 1 ? "uses" : "use"} test data`;
@@ -103,7 +103,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const buildCredits = bp.estimate.credits;
   const overCap = ws.project.buildState === "draft" && buildCredits > Math.max(0, ws.usage.cap - ws.usage.credits);
   const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build · free" : overCap ? "Review the build" : `Build it · ${buildCredits} credits`;
-  const buildDetail = buildRunning ? "Building now. Practice runs happen near the end of the build." : interrupted ? "The build was interrupted before its practice runs. Resuming is free: it was already paid for." : null;
+  const buildDetail = buildRunning ? "Building now. Test runs happen near the end of the build." : interrupted ? "The build was interrupted before its test runs. Resuming is free: it was already paid for." : null;
 
   const [fixing, setFixing] = useState<Parameters<typeof fixPreflight>[1] | null>(null);
   const fix = (action: Parameters<typeof fixPreflight>[1]) => {

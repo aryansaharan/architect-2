@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Prod AI: describe an app, watch it appear, change it by chatting, publish it";
+export const alt = "Prod AI: sketch your app, make it real, change it with notes in the margin, publish it";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -16,11 +16,11 @@ export default function OpengraphImage() {
           <span style={{ fontSize: 36, fontWeight: 600, fontFamily: "sans-serif" }}>Prod AI</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <span style={{ fontSize: 80, lineHeight: 1.04, letterSpacing: -2 }}>Describe an app.</span>
-          <span style={{ fontSize: 80, lineHeight: 1.04, letterSpacing: -2, color: "#1f4d3a" }}>Watch it appear.</span>
+          <span style={{ fontSize: 80, lineHeight: 1.04, letterSpacing: -2 }}>Sketch your app.</span>
+          <span style={{ fontSize: 80, lineHeight: 1.04, letterSpacing: -2, color: "#1f4d3a" }}>Get a production app.</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 24, color: "#66635a", fontFamily: "sans-serif" }}>
-          <span>Chat to change it · publish in one click</span>
+          <span>Change it with notes in the margin · publish in one click</span>
           <span>Architect 2.0 prototype for Lyzr</span>
         </div>
       </div>

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in first" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as { report?: ImportReportWithTree; houseRules?: string[] };
-  if (!body.report?.repo?.name) return Response.json({ error: "Analyze a repository first" }, { status: 400 });
+  if (!body.report?.repo?.name) return Response.json({ error: "Analyse a repository first" }, { status: 400 });
   // The real file tree is stored with the report so the Code tab shows the repo as it is, untouched.
   // The agents read from the repo's source come back from the client too, so they are cleaned the same way.
   const scan = body.report.agentScan;

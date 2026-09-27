@@ -148,7 +148,7 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
       <ol className="mt-5 flex flex-wrap gap-x-6 gap-y-1.5 font-pencil text-[21px] text-foreground/80">
         <li><span className="text-faint">1.</span> Try it below</li>
         <li><span className="text-faint">2.</span> Point at anything you&apos;d change and write a note</li>
-        <li><span className="text-faint">3.</span> Publish. We check a few things before you publish.</li>
+        <li><span className="text-faint">3.</span> Publish. We check a few things first.</li>
       </ol>
       {ws.project.buildState === "built" && (
         <button type="button" onClick={() => void ws.build.start({ replay: true })} className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-[12.5px] text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground">

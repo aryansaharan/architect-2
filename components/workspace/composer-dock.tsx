@@ -451,7 +451,7 @@ function ChangeCard({
                 </div>
                 {order.overBudget && (
                   <p className="mt-2 text-[11.5px] leading-snug text-foreground">
-                    This would pass your spending cap, so it can&apos;t be applied yet.{" "}
+                    This would go past your spending cap, so it can&apos;t be applied yet.{" "}
                     <Link href="/settings#usage" className="text-brand underline underline-offset-2">
                       Change the cap
                     </Link>

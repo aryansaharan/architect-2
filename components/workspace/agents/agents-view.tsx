@@ -189,7 +189,7 @@ function HelperView({ agent, onRunSaved, onDetails }: { agent: Agent; onRunSaved
 
           {ungated.length > 0 && (
             <p className="mt-4 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] leading-snug text-ask">
-              {ungated.map((t) => t.name).join(", ")} can&apos;t be undone and doesn&apos;t ask first. Set {ungated.length === 1 ? "it" : "them"} to Ask first before you publish.
+              {ungated.map((t) => t.name).join(", ")} can&apos;t be undone and {ungated.length === 1 ? "doesn't" : "don't"} ask first. Set {ungated.length === 1 ? "it" : "them"} to Ask first before you publish.
             </p>
           )}
 

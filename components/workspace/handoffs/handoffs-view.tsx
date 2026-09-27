@@ -322,7 +322,7 @@ function RequesterView({ h }: { h: HandoffRow }) {
             {h.resolved_at && <TimeAgo iso={h.resolved_at} className="ml-auto text-[11.5px] text-faint" />}
           </div>
           <p className="mt-2.5 font-pencil text-[24px] leading-snug">{h.resolution}</p>
-          <p className="mt-3 text-[12px] text-muted-foreground">It&apos;s in the test version now, and saved as a save point you can go back from.</p>
+          <p className="mt-3 text-[12px] text-muted-foreground">It&apos;s in the test version now, saved as a save point you can always go back to.</p>
         </div>
       ) : (
         <div className="panel flex flex-wrap items-center gap-3 rounded-md p-4">

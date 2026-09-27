@@ -310,7 +310,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
         </section>
 
         <p className="mt-14 text-[13px] text-muted-foreground">
-          Service by service reasoning, the sequence diagrams and the prototype-to-production map are in{" "}
+          Service-by-service reasoning, the sequence diagrams and the prototype-to-production map are in{" "}
           <a className="text-foreground underline decoration-dotted underline-offset-4" href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer">ARCHITECTURE.md</a>.
         </p>
       </main>

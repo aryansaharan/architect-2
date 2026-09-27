@@ -296,7 +296,7 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
             <p className="mt-0.5 font-pencil text-[26px] leading-tight">Your build was interrupted {where}.</p>
             <p className="mt-0.5 text-[12.5px] text-muted-foreground">
               {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
-              {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the estimate back.
+              {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the credits back.
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -311,7 +311,7 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
                 setBusy(null);
                 if (!r.ok) return void toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped. Nothing was charged", { description: "The estimated price went back on your demo balance." });
+                toast.success("Build stopped. Nothing was charged", { description: "The credits went back on your demo balance." });
                 router.refresh();
               }}
             >

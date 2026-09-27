@@ -44,14 +44,14 @@ export function preflight(
       status: ungated.length ? "fail" : "pass",
       detail: ungated.length
         ? `${ungated.map(({ a, t }) => `${a.name} · ${t.name}`).join(", ")} can act without asking.`
-        : `${irreversible.length} action${irreversible.length === 1 ? "" : "s"} gated across ${bp.agents.length} agents.`,
+        : `${irreversible.length} action${irreversible.length === 1 ? "" : "s"} gated across ${bp.agents.length} AI helper${bp.agents.length === 1 ? "" : "s"}.`,
       blocking: true,
       fix: ungated.length ? { label: "Add approval gates", action: "gate_irreversible" } : undefined,
     },
     {
       id: "rehearsals",
       label: "Rehearsals pass",
-      plain: "Every agent has played through its test conversations.",
+      plain: "Every AI helper has played through its test conversations.",
       status: !built || reh.rate < 0.8 ? "fail" : reh.failing || reh.notRun || reh.unrehearsed.length ? "warn" : "pass",
       detail: !built ? "Build the project first. Rehearsals run as part of the build." : reh.detail,
       blocking: true,
@@ -70,7 +70,7 @@ export function preflight(
     {
       id: "budget",
       label: "Spending cap is set",
-      plain: "Agents stop and tell you before they spend past your cap.",
+      plain: "AI helpers stop and tell you before they spend past your cap.",
       status: opts.budgetCapCredits > 0 ? "pass" : "fail",
       detail: opts.budgetCapCredits > 0 ? `${opts.budgetCapCredits} credits a month (≈ $${(opts.budgetCapCredits / 100).toFixed(2)}).` : "No cap. A busy day could cost anything.",
       blocking: true,
@@ -79,7 +79,7 @@ export function preflight(
     {
       id: "residency",
       label: "Data stays where you chose",
-      plain: "Records and agent memory are stored in one region.",
+      plain: "Records and AI helper memory are stored in one region.",
       status: "pass",
       detail: `Stored in ${REGION_LABEL[region]}.`,
       blocking: false,
@@ -111,11 +111,11 @@ export function rehearsalSummary(bp: Blueprint) {
   const parts: string[] = [];
   if (all.length && ran.length) parts.push(`${passing} of ${all.length} passing on their latest run (${Math.round(rate * 100)}%).`);
   else if (all.length) parts.push(`None of the ${all.length} rehearsals has run yet.`);
-  else parts.push("No agent has any rehearsals yet. Add them in Agents › Rehearsals.");
+  else parts.push("No AI helper has any rehearsals yet. Add them in AI helpers › Tests & reliability.");
   if (failing) parts.push(`${failing} failing.`);
   if (unrehearsed.length && unrehearsed.length < bp.agents.length) parts.push(`Not rehearsed yet: ${unrehearsed.join(", ")}.`);
   else if (notRun && ran.length) parts.push(`${notRun} ${notRun === 1 ? "hasn't" : "haven't"} run yet.`);
-  if (all.length && (notRun || unrehearsed.length)) parts.push("Run them in Agents › Rehearsals.");
+  if (all.length && (notRun || unrehearsed.length)) parts.push("Run them in AI helpers › Tests & reliability.");
   return { total: all.length, passing, failing, notRun, unrehearsed, rate, detail: parts.join(" ") };
 }
 
