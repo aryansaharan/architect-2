@@ -146,6 +146,23 @@ export function buildTimeline(bp: Blueprint): TimelineStep[] {
   return steps;
 }
 
+/**
+ * The script for a build that was interrupted (a closed tab, a reload) and where to pick it up.
+ * `stoppedAt` is the step id this browser remembers; without it the build replays from the start.
+ * When the repair decision was already made (and applied to `bp`), its question is dropped so it is
+ * never asked or applied twice, and the build picks up no earlier than just after it. When it wasn't,
+ * the build never skips past it.
+ */
+export function resumeTimeline(bp: Blueprint, opts: { repairDecided: boolean; stoppedAt?: string | null }): { steps: TimelineStep[]; startAt: number } {
+  const full = buildTimeline(bp);
+  const repairAt = full.findIndex((st) => st.kind === "repair");
+  const steps = opts.repairDecided ? full.filter((st) => st.kind !== "repair") : full;
+  const at = opts.stoppedAt ? steps.findIndex((st) => st.id === opts.stoppedAt) : -1;
+  let startAt = Math.max(0, at);
+  if (repairAt >= 0) startAt = opts.repairDecided ? Math.max(startAt, repairAt) : Math.min(startAt, repairAt);
+  return { steps, startAt };
+}
+
 export function totalDuration(steps: TimelineStep[]): number {
   return steps.reduce((ms, st) => ms + (st.kind === "step" ? st.durationMs : 0), 0);
 }

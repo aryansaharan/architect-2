@@ -1,12 +1,16 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Blocks, Bot, ChevronLeft, ChevronRight, Database, Play, Plug } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { ArrowRight, Blocks, Bot, ChevronLeft, ChevronRight, Database, FolderGit2, GitPullRequest, Loader2, Play, Plug, RotateCw, Undo2 } from "lucide-react";
 import type { ObjectRef, ObjectType } from "@/lib/blueprint/schema";
 import { relations } from "@/lib/blueprint";
+import { cancelBuild } from "@/lib/actions/build";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import type { InterruptedBuild } from "../use-build-runner";
 import { AgentNode, ConnectionNode, EntityNode, ScreenNode } from "./node-card";
 import { WorkOrderDock } from "./work-order-dock";
 import { BuildConsole } from "./build-console";
@@ -95,6 +99,16 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
     };
   }, [measure]);
 
+  // The planner hands over with the brief selected (?sel=brief:meta), which opened the inspector over the new plan.
+  // Let the plan land unobstructed: close it once, on arrival. The inspector opens again as soon as someone clicks.
+  const arrival = useRef(ws.selected?.type === "brief" && ws.project.buildState === "draft");
+  const { select } = ws;
+  useEffect(() => {
+    if (!arrival.current) return;
+    arrival.current = false;
+    select(null);
+  }, [select]);
+
   const selectedKey = ws.selected && CANVAS_TYPES.includes(ws.selected.type) ? key(ws.selected.type, ws.selected.id) : null;
   const focusKey = hover ?? selectedKey;
 
@@ -143,6 +157,11 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
   };
 
   const running = ws.build.status !== "idle" && ws.build.status !== "done";
+  // One dock at a time, in its own row under the plan so it never covers a card. While a change Work Order
+  // waits in the composer, the dock steps aside: one decision at a time.
+  const interrupted = ws.build.interrupted;
+  const quiet = !running && ws.build.status !== "done" && !changeOrderOpen;
+  const dock = !quiet ? null : interrupted ? "resume" : ws.project.buildState === "draft" ? (ws.project.source === "import" ? "mapped" : "quote") : null;
   const columns = [
     { title: "Screens", hint: "what people see", icon: Blocks, count: bp.screens.length },
     { title: "Agents", hint: "who does the work", icon: Bot, count: bp.agents.length },
@@ -184,7 +203,8 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
             ref={container}
             className={cn(
               "relative grid min-w-[860px] grid-cols-4 gap-x-8 px-5 pt-6 @min-[1060px]/canvas:gap-x-12 @min-[1060px]/canvas:px-7 @min-[1240px]/canvas:gap-x-14 @min-[1240px]/canvas:px-8",
-              running || ws.project.buildState === "draft" ? "pb-56" : "pb-16",
+              // The build console floats over the bottom of the plan: leave room to scroll every card past it.
+              running ? "pb-56" : "pb-16",
             )}
           >
             {/* Sized by the grid, not by a measured width: a stale wider SVG would hold the canvas open and push lines under the inspector. */}
@@ -246,13 +266,114 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
         <EdgeFade side="right" show={more.right} onNudge={() => nudge(1)} />
       </div>
 
+      <AnimatePresence>
+        {dock === "quote" && (
+          // The Work Order renders as a floating overlay; here it sits in flow, in its own row above the composer.
+          <div key="quote" className="relative z-10 shrink-0 [&>div]:static [&>div]:pt-2">
+            <WorkOrderDock />
+          </div>
+        )}
+        {dock === "mapped" && <MappedDock key="mapped" />}
+        {dock === "resume" && interrupted && <ResumeDock key="resume" build={interrupted} />}
+      </AnimatePresence>
+
       {running && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 top-[52px] z-[5] shadow-[inset_0_0_160px_rgb(223_255_79/0.09)] transition-opacity" />}
-      {/* While a change Work Order waits in the composer, the build quote steps aside: one decision at a time. */}
-      <AnimatePresence>{ws.project.buildState === "draft" && !running && ws.build.status !== "done" && !changeOrderOpen && <WorkOrderDock key="dock" />}</AnimatePresence>
       <AnimatePresence>{running && <BuildConsole key="console" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "repair" && <RepairOverlay key="repair" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "done" && <BuildComplete key="complete" />}</AnimatePresence>
       {tour && !running && <Tour nodes={nodes} scroller={scroller} />}
+    </div>
+  );
+}
+
+const dockMotion = {
+  initial: { opacity: 0, y: 24, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1, transition: { type: "spring" as const, stiffness: 240, damping: 24, delay: 0.35 } },
+  exit: { opacity: 0, y: 16, scale: 0.98, transition: { duration: 0.2 } },
+};
+const dockPanel = "beam panel-raised pointer-events-auto w-full max-w-[860px] rounded-2xl p-4 shadow-[0_24px_70px_-16px_rgb(0_0_0/0.85),0_0_60px_-24px_rgb(223_255_79/0.45)]";
+
+/**
+ * The server says this project is mid-build, but nothing is running here: the tab was closed or
+ * reloaded. The price was already taken, so resuming is free; stopping refunds it.
+ */
+function ResumeDock({ build }: { build: InterruptedBuild }) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const [busy, setBusy] = useState<"resume" | "stop" | null>(null);
+  // The estimate taken when the build was approved (newest Work Order entry in the history).
+  const paid = ws.ledger.find((r) => r.kind === "work_order")?.credits ?? 0;
+  const where = build.step ? `at step ${build.step} of ${build.total}` : "before it finished";
+  return (
+    <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
+      <motion.section aria-label="Interrupted build" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <p className="micro-label text-amber">Build paused · nothing more to pay</p>
+            <p className="mt-1 text-[15px] font-semibold">Your build was interrupted {where}.</p>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+              {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
+              {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the estimate back.
+            </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 text-muted-foreground"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("stop");
+                const r = await cancelBuild(ws.project.id).catch(() => ({ ok: false as const, error: "Couldn't reach Prod AI. Try again." }));
+                setBusy(null);
+                if (!r.ok) return void toast.error(r.error);
+                ws.build.dismiss();
+                toast.success("Build stopped. Nothing was charged", { description: "The estimated price went back on your demo balance." });
+                router.refresh();
+              }}
+            >
+              {busy === "stop" ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and refund
+            </Button>
+            <Button
+              size="lg"
+              className="btn-solstice sheen h-9 px-4"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy("resume");
+                await ws.build.start();
+                setBusy(null);
+              }}
+            >
+              {busy === "resume" ? <Loader2 className="animate-spin" /> : <RotateCw />} Resume · free
+            </Button>
+          </div>
+        </div>
+      </motion.section>
+    </div>
+  );
+}
+
+/**
+ * An imported repo isn't rebuilt: Prod AI adopts it as it is. So there's no build quote, only the
+ * way in to the first change, which lands as a pull request.
+ */
+function MappedDock() {
+  const ws = useWorkspace();
+  return (
+    <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
+      <motion.section aria-label="Imported project" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-hairline bg-deep/60"><FolderGit2 className="size-4 text-amber" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="micro-label text-amber">Adopted · nothing was built or charged</p>
+            <p className="mt-1 text-[15px] font-semibold">Mapped. Your repo is untouched.</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
+          </div>
+          <Button size="lg" className="btn-solstice sheen ml-auto h-9 px-4" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">
+            Describe your first change <ArrowRight />
+          </Button>
+        </div>
+      </motion.section>
     </div>
   );
 }

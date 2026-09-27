@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getCheckpoint, getLiveSiteForProject, getProject } from "@/lib/db/queries";
@@ -9,6 +10,7 @@ import { shortId } from "@/lib/sim/hash";
 import { estimate } from "@/lib/blueprint/estimate";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import type { DeploymentRow } from "@/lib/db/types";
+import { siteUrl } from "@/lib/env";
 
 type R = { ok: true; slug?: string; message?: string } | { ok: false; error: string };
 
@@ -33,6 +35,7 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
     title = `Added ${n} approval gate${n === 1 ? "" : "s"}`;
   } else if (action === "sandbox_keys") {
     const names = bp.connections.filter((c) => c.status === "missing").map((c) => c.name);
+    if (!names.length) return { ok: true, message: "Every connection already has a key." };
     bp.connections.forEach((c) => (c.status = "configured"));
     title = `Added sandbox keys for ${names.join(", ")}`;
   } else if (action === "run_rehearsals") {
@@ -66,14 +69,27 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
 
 const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
 
+/** The origin people reach this app on (the one the request came from), so shared links are full URLs. */
+async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const origin = h.get("origin");
+  if (origin && /^https?:\/\/[^/]+$/.test(origin)) return origin;
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (host) return `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+  return siteUrl();
+}
+
 export async function goLive(projectId: string, target: DeploymentRow["target"], domain?: string): Promise<R> {
   await requireUser();
   const supa = await createClient();
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false, error: "Project not found" };
-  const checks = preflight(project.blueprint, { budgetCapCredits: project.settings.budgetCapCredits, built: project.build_state === "built", region: project.settings.region });
+  const checks = preflight(project.blueprint, { budgetCapCredits: project.settings.budgetCapCredits, built: project.build_state === "built" || project.source === "import", region: project.settings.region });
   if (!canGoLive(checks)) return { ok: false, error: "Preflight has blocking issues. Fix them first." };
   const summary = checks.map((c) => ({ id: c.id, label: c.label, pass: c.status !== "fail" }));
+  // Going live with connections on test data is allowed (a warning, not a blocker), but the history says so.
+  const keys = checks.find((c) => c.id === "keys");
+  const testData = keys?.status === "warn" ? ` Heads up: ${keys.detail}` : "";
 
   if (target !== "architect_cloud") {
     await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: project.current_checkpoint_id, status: "sandbox", preflight: summary, url: null });
@@ -91,13 +107,14 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
 
   const existing = await getLiveSiteForProject(supa, projectId);
   const slug = existing?.slug ?? `${kebab(project.name) || "app"}-${shortId(projectId)}`;
-  const cp = await addCheckpoint(supa, projectId, { label: "Went live", kind: "ship", blueprint: project.blueprint, summary: `Live at /live/${slug}` });
+  const link = `${await requestOrigin()}/live/${slug}`;
+  const cp = await addCheckpoint(supa, projectId, { label: "Went live", kind: "ship", blueprint: project.blueprint, summary: `Live at ${link}` });
   if (existing) await supa.from("live_sites").update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("slug", slug);
   else await supa.from("live_sites").insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
-    { lane: "did", kind: "ship", title: existing ? "Updated the live version" : "Went live on Prod Cloud", body: `Anyone with the link can open /live/${slug}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}`, checkpointId: cp.id },
+    { lane: "did", kind: "ship", title: existing ? "Updated the live version" : "Went live on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${testData}`, checkpointId: cp.id },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, slug };

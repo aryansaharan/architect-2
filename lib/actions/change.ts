@@ -40,7 +40,10 @@ export async function requestChange(projectId: string, request: string, scope: O
     .insert({ project_id: projectId, request: text, kind: "change", estimate: { credits: proposal.credits, minutes: proposal.minutes }, proposal: { ...proposal, scope } as ChangeProposal, status: "proposed" })
     .select("*")
     .single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[change] could not save the quote:", error.message);
+    return { ok: false, error: "Couldn't save the quote. Nothing was charged. Try again." };
+  }
   return { ok: true, workOrder: data as WorkOrderRow, overBudget: spent.credits + proposal.credits > cap };
 }
 
@@ -55,9 +58,22 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
   const order = wo as WorkOrderRow;
   if (order.status !== "proposed" || !order.proposal) return { ok: false, error: "This Work Order was already handled" };
   const applied = applyOps(project.blueprint, order.proposal.operations);
-  if (!applied.ok) return { ok: false, error: `The change no longer fits the project (${applied.error}). Ask again.` };
+  if (!applied.ok) {
+    console.warn("[change] quote no longer applies:", applied.error);
+    return { ok: false, error: "The project changed since this quote, so it no longer fits. Nothing was charged. Ask again for a fresh quote." };
+  }
+  // Claim the Work Order before touching anything: a double click or a second tab applies (and charges) it once.
+  const { data: claimed, error: claimError } = await supa.from("work_orders").update({ status: "approved" }).eq("id", workOrderId).eq("project_id", projectId).eq("status", "proposed").select("id");
+  if (claimError) return { ok: false, error: "Couldn't approve it just now. Nothing was charged. Try again." };
+  if (!claimed?.length) return { ok: false, error: "This Work Order was already handled" };
 
-  await updateProject(supa, projectId, { blueprint: applied.blueprint });
+  try {
+    await updateProject(supa, projectId, { blueprint: applied.blueprint });
+  } catch (e) {
+    console.error("[change] could not apply:", e instanceof Error ? e.message : e);
+    await supa.from("work_orders").update({ status: "proposed" }).eq("id", workOrderId);
+    return { ok: false, error: "Couldn't apply the change just now. Nothing was charged. Try again." };
+  }
   const cp = await addCheckpoint(supa, projectId, { label: order.proposal.summary.slice(0, 60), kind: "change", blueprint: applied.blueprint, summary: order.request });
   await addLedger(supa, projectId, [
     {

@@ -4,9 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
-import {
-  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, MessageSquarePlus, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus,
-} from "lucide-react";
+import { Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, MessageSquarePlus, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus, Pause } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -64,6 +62,10 @@ export function TopBar() {
             <span className="inline-flex h-5 items-center gap-1 rounded-full border border-hairline px-2 text-[11px] font-medium text-muted-foreground">
               <Play className="size-2.5" aria-hidden />Replaying
             </span>
+          ) : ws.build.interrupted ? (
+            <Link href={`/p/${ws.project.id}/blueprint`} className="inline-flex h-5 items-center gap-1 rounded-full border border-amber/40 bg-amber-soft px-2 text-[11px] font-medium text-amber hover:border-amber/70">
+              <Pause className="size-2.5" aria-hidden />Build paused · resume
+            </Link>
           ) : (
             <StatusBadge state={building ? "building" : ws.project.buildState} live={Boolean(ws.liveSlug)} />
           )}

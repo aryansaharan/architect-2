@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -28,13 +28,23 @@ const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag
 /** A plain hostname: dot-separated labels of letters, digits and inner hyphens, ending in a real TLD. */
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 
+/** This site's origin, so live links read and copy as full URLs. Empty during server rendering. */
+const noSubscribe = () => () => {};
+function useOrigin(): string {
+  return useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
+}
+
+/** A name as a URL-safe slug: "Claims Desk" → "claims-desk". */
+const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
+
 const STEPS = ["Packaging the current save point", "Provisioning the runtime", "Applying the database schema with row-level security", "Registering agents and their approval gates", "Warming up", "Checking the live URL answers"];
 
 export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
   const bp = ws.blueprint;
-  const built = ws.project.buildState === "built";
+  // An imported repo is already built (it is the user's own code), so it needs rehearsals, not a charged build.
+  const built = ws.project.buildState === "built" || ws.project.source === "import";
   const checks = useMemo(() => preflight(bp, { budgetCapCredits: ws.project.settings.budgetCapCredits, built, region: ws.project.settings.region }), [bp, ws.project.settings, built]);
   const ready = canGoLive(checks);
   const blocking = checks.filter((c) => c.blocking && c.status === "fail").length;
@@ -52,15 +62,40 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   // Forgive a pasted URL ("https://claims.example.com/"); anything else must be a real hostname.
   const host = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const domainValid = !host || HOSTNAME.test(host);
+  const projectSlug = slugify(ws.project.name) || "app";
+  // Suggest a domain that fits this project, not someone else's.
+  const exampleDomain = `app.${slugify(ws.project.name) || "yourcompany"}.com`;
+  const origin = useOrigin();
+  const liveUrl = ws.liveSlug ? `${origin}/live/${ws.liveSlug}` : "";
 
-  const fix = (action: Parameters<typeof fixPreflight>[1]) =>
+  // Preflight's "Build it": start the build (or pick up one that was interrupted) right here, then show it running on the plan.
+  const buildRunning = ws.build.mode === "build" && (ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing");
+  const interrupted = ws.project.buildState === "building" && !buildRunning;
+  const buildCredits = bp.estimate.credits;
+  const overCap = ws.project.buildState === "draft" && buildCredits > Math.max(0, ws.usage.cap - ws.usage.credits);
+  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build · free" : overCap ? "Review the build" : `Build it · ${buildCredits} credits`;
+  const buildDetail = buildRunning ? "Building now. Rehearsals run near the end of the build." : interrupted ? "The build was interrupted before rehearsals ran. Resuming is free: it was already paid for." : null;
+
+  const [fixing, setFixing] = useState<Parameters<typeof fixPreflight>[1] | null>(null);
+  const fix = (action: Parameters<typeof fixPreflight>[1]) => {
+    setFixing(action);
     start(async () => {
-      if (action === "build_first") return router.push(`/p/${ws.project.id}/blueprint`);
-      const r = await fixPreflight(ws.project.id, action);
-      if (r.ok) toast.success("Fixed", { description: "Free · saved as a save point" });
-      else toast.error(r.error);
-      router.refresh();
+      await runFix(action);
+      setFixing(null);
     });
+  };
+  const runFix = async (action: Parameters<typeof fixPreflight>[1]) => {
+    if (action === "build_first") {
+      // Over the cap, the Work Order on the plan explains why and what to do; otherwise start or resume here.
+      if (!buildRunning && !overCap && !(await ws.build.start())) return;
+      router.push(`/p/${ws.project.id}/blueprint`);
+      return;
+    }
+    const r = await fixPreflight(ws.project.id, action);
+    if (r.ok) toast.success("Fixed", { description: "Free · saved as a save point" });
+    else toast.error(r.error);
+    router.refresh();
+  };
 
   async function deploy() {
     for (let i = 0; i < STEPS.length; i++) {
@@ -78,7 +113,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
 
   function downloadBundle() {
     const files = generateFiles(bp).filter((f) => ["docker-compose.yml", ".env.example", "README.md", "supabase/schema.sql"].includes(f.path) || f.path.startsWith("agents/"));
-    const slug = `${ws.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app"}-bundle`;
+    const slug = `${projectSlug}-bundle`;
     try {
       downloadBlob(new Blob([zip(files.map((f) => ({ path: `${slug}/${f.path}`, content: f.content })))], { type: "application/zip" }), `${slug}.zip`);
     } catch {
@@ -112,9 +147,9 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <>
                 <p className="mt-1 flex items-center gap-2 text-[14px] font-medium"><span className="size-2 rounded-full bg-read pulse-read" />Anyone with the link</p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  <code className="min-w-0 flex-1 truncate rounded-md border border-hairline bg-deep px-2 py-1 font-mono text-[12px]">/live/{ws.liveSlug}</code>
-                  <Button size="icon-sm" variant="outline" className="size-7" aria-label="Copy link" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/live/${ws.liveSlug}`); toast.success("Link copied"); }}><Copy /></Button>
-                  <Button asChild size="icon-sm" variant="outline" className="size-7" aria-label="Open live version"><a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer"><ExternalLink /></a></Button>
+                  <code className="min-w-0 flex-1 truncate rounded-md border border-hairline bg-deep px-2 py-1 font-mono text-[12px]" title={liveUrl}>{liveUrl}</code>
+                  <Button size="icon-sm" variant="outline" className="size-7" aria-label="Copy link" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/live/${ws.liveSlug}`); toast.success("Link copied", { description: `${window.location.origin}/live/${ws.liveSlug}` }); }}><Copy /></Button>
+                  <Button asChild size="icon-sm" variant="outline" className="size-7" aria-label="Open live version"><a href={liveUrl || `/live/${ws.liveSlug}`} target="_blank" rel="noreferrer"><ExternalLink /></a></Button>
                 </div>
                 <p className="mt-2 text-[12px] text-muted-foreground">Published <TimeAgo iso={live.created_at} /></p>
               </>
@@ -145,11 +180,12 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   </motion.span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{c.label}</p>
-                    <p className="text-[12px] text-muted-foreground">{c.detail}</p>
+                    <p className="text-[12px] text-muted-foreground">{(c.fix?.action === "build_first" && buildDetail) || c.detail}</p>
                   </div>
                   {c.fix && (
                     <Button size="sm" variant={c.status === "fail" ? "default" : "outline"} className="h-7 shrink-0" disabled={pending} onClick={() => fix(c.fix!.action)}>
-                      {c.fix.label}
+                      {fixing === c.fix.action ? <Loader2 className="animate-spin" /> : null}
+                      {c.fix.action === "build_first" ? buildLabel : c.fix.label}
                     </Button>
                   )}
                 </motion.li>
@@ -175,7 +211,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <span className="micro-label flex items-center gap-1.5"><Globe className="size-3" />Custom domain · optional</span>
               <Input
                 className="mt-1.5 h-9"
-                placeholder="claims.harbormutual.com"
+                placeholder={exampleDomain}
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 onBlur={() => setDomainTouched(true)}
@@ -185,7 +221,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                 spellCheck={false}
               />
               {domainTouched && !domainValid ? (
-                <span id="domain-help" className="mt-1 block text-[11.5px] text-ask">That isn&apos;t a domain. Use one like claims.yourcompany.com, without spaces or symbols.</span>
+                <span id="domain-help" className="mt-1 block text-[11.5px] text-ask">That isn&apos;t a domain. Use one like {exampleDomain}, without spaces or symbols.</span>
               ) : host && domainValid ? (
                 <span id="domain-help" className="mt-1 block text-[11.5px] text-muted-foreground">Add a CNAME for <span className="font-mono">{host}</span> to <span className="font-mono">cname.prodai.app</span>. We&apos;ll check DNS and issue a certificate (sandbox).</span>
               ) : null}
@@ -299,14 +335,14 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           </section>
         </div>
       </div>
-      <AnimatePresence>{launched !== null && <LaunchMoment slug={launched} name={bp.meta.name} onClose={() => setLaunched(null)} />}</AnimatePresence>
+      <AnimatePresence>{launched !== null && <LaunchMoment slug={launched} origin={origin} name={bp.meta.name} onClose={() => setLaunched(null)} />}</AnimatePresence>
     </div>
   );
 }
 
 /** Going live deserves a moment: rings of light, the link, and the way back. */
-function LaunchMoment({ slug, name, onClose }: { slug: string; name: string; onClose: () => void }) {
-  const url = typeof window === "undefined" ? `/live/${slug}` : `${window.location.origin}/live/${slug}`;
+function LaunchMoment({ slug, origin, name, onClose }: { slug: string; origin: string; name: string; onClose: () => void }) {
+  const url = `${origin}/live/${slug}`;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -366,7 +402,7 @@ function LaunchMoment({ slug, name, onClose }: { slug: string; name: string; onC
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.5 }} className="relative mt-4 flex justify-center gap-2">
           <Button variant="ghost" className="h-10" onClick={onClose}>Back to Ship</Button>
           <Button asChild className="btn-solstice sheen h-10 px-5">
-            <a href={`/live/${slug}`} target="_blank" rel="noreferrer">Open the live version <ExternalLink /></a>
+            <a href={url} target="_blank" rel="noreferrer">Open the live version <ExternalLink /></a>
           </Button>
         </motion.div>
       </motion.div>

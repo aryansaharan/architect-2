@@ -59,10 +59,11 @@ export function preflight(
     },
     {
       id: "keys",
-      label: "Connections use real keys",
+      label: "Connections have keys",
       plain: "Connections without keys run on test data.",
+      // Any connection without a key is named and counted: this row never reads as all clear while one runs on test data.
       status: missing.length ? "warn" : "pass",
-      detail: missing.length ? `${missing.map((c) => c.name).join(", ")} ${missing.length === 1 ? "uses" : "use"} test data until a key is added.` : "All connections have keys.",
+      detail: keysDetail(bp.connections.length, missing.map((c) => c.name)),
       blocking: false,
       fix: missing.length ? { label: "Add sandbox keys", action: "sandbox_keys" } : undefined,
     },
@@ -84,6 +85,14 @@ export function preflight(
       blocking: false,
     },
   ];
+}
+
+/** The keys row in words: how many connections run on test data and which, or that none does. */
+export function keysDetail(total: number, missing: string[]): string {
+  const n = missing.length;
+  if (n) return `${n} connection${n === 1 ? " uses" : "s use"} test data: ${missing.join(", ")}. ${n === 1 ? "It stays" : "They stay"} on test data until ${n === 1 ? "a key is" : "keys are"} added.`;
+  if (!total) return "This app doesn't connect to anything outside itself.";
+  return `${total === 1 ? "Its one connection is" : `All ${total} connections are`} connected. None uses test data.`;
 }
 
 /**

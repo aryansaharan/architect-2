@@ -5,17 +5,18 @@ import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { applyOps } from "@/lib/blueprint/apply";
 import { estimateChange } from "@/lib/blueprint/estimate";
 import { objectLabel, resolveRef } from "@/lib/blueprint";
-import type { ChangeProposal } from "@/lib/db/types";
+import type { ChangeOperation, ChangeProposal } from "@/lib/db/types";
 import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { ruleProposal } from "./rules";
-import { EditsSchema, blueprintIndex, compileEdits, salvageEdits, type Edits } from "./edits";
+import { EditsSchema, blueprintIndex, draftEdits, partialRationale, salvageEdits, type Draft, type Edits } from "./edits";
 import { generateFiles } from "@/lib/codegen/files";
 import { diffFiles } from "@/lib/codegen/diff";
 
 const EDIT_INSTRUCTIONS = `You change Prod AI projects. A project is a Blueprint: data types (entities with fields and sample records), screens made of blocks, AI agents with tools and rules, and connections.
 Given a request and a scope, return the smallest set of typed edits that fully does what was asked, inside the scope when one is given.
 - New detail shown in a table: addFields (with realistic sampleValues) plus addColumns.
+- Column order ("as the second column", "first", "after Status"): addColumns with position, counting from 1 on the left, from the table's current columns in the map. Never use patches for column order.
 - "Ask before", "needs approval", "don't let it … without asking": permissions with permission "ask". "Just do it": "auto". "Tell me": "log". Name each tool, or use "*" or "irreversible".
 - New page or view: newScreens (pick the entity it shows and, if useful, the agent people talk to there).
 - Rules for how an agent behaves: rules. Test cases: rehearsals. Look and feel: theme (hex colours only).
@@ -42,6 +43,19 @@ function blastRadius(before: Blueprint, after: Blueprint) {
   return { screens, agents, files: Math.max(1, files) };
 }
 
+/** Price exactly what will be applied: the blast radius of these operations, nothing the model only intended. */
+function quoteFor(bp: Blueprint, summary: string, rationale: string, draft: { ops: ChangeOperation[]; blueprint: Blueprint }): ChangeProposal {
+  const radius = blastRadius(bp, draft.blueprint);
+  const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
+  return { summary: plainSummary(summary), rationale, operations: draft.ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" };
+}
+
+/** Model text is shown to people as written, so internals (JSON paths, patch errors) never get through. */
+const INTERNALS = /\/(?:screens|agents|entities|connections|meta)\/|path not found|json pointer|bad index|\(skipped:/i;
+const WHOLE_FALLBACK = "Here's the change, priced on exactly what it touches.";
+const plainText = (text: string, fallback: string) => (text.trim() && !INTERNALS.test(text) ? text : fallback);
+const plainSummary = (text: string) => text.replace(/\s*\(?\/(?:screens|agents|entities|connections|meta)\/[^\s)]*\)?/gi, "").trim() || "Change the project";
+
 export async function proposeChange(bp: Blueprint, request: string, scope: ObjectRef | null, opts: { allowModel?: boolean } = {}): Promise<ProposeResult> {
   const m = opts.allowModel === false ? null : getModel();
   const scopeLabel = scope ? `${scope.type} "${objectLabel(bp, scope)}" (id ${scope.id})` : "the whole project";
@@ -51,34 +65,39 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     // The compact map is enough for typed edits and keeps a quote cheap; the full JSON only rides along on a retry.
     const base = `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nBlueprint map:\n${blueprintIndex(bp)}`;
     const full = `\n\nFull blueprint JSON (for reference and patches):\n${JSON.stringify({ ...bp, estimate: undefined })}`;
+    const quote = (summary: string, rationale: string, draft: { ops: ChangeOperation[]; blueprint: Blueprint }) => quoteFor(bp, summary, rationale, draft);
     let inputTokens = 0;
     let outputTokens = 0;
     let feedback = "";
     type Usage = NonNullable<ProposeResult["usage"]>;
-    const finish = (out: Edits, usage: Usage): { result?: ProposeResult; feedback: string } => {
+    const usageSoFar = (): Usage => ({ model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) });
+    // An attempt where only part of the edits applied. Never quoted as if it were whole: it is kept
+    // only as a fallback in case the retry can't do the whole thing either.
+    const best: { partial: { out: Edits; draft: Extract<Draft, { kind: "partial" }> } | null } = { partial: null };
+    const judge = (out: Edits): ProposeResult | null => {
       if (!out.feasible || out.isQuestion) {
-        return { result: { proposal: { summary: out.summary, rationale: out.rationale, operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live", ...(out.isQuestion ? { answer: true } : {}) }, usage }, feedback: "" };
+        // A retry that gives up shouldn't throw away a first attempt that mostly worked.
+        if (best.partial) return null;
+        return { proposal: { summary: plainSummary(out.summary), rationale: plainText(out.rationale, "I can't do this one with the building blocks this app has."), operations: [], blastRadius: { screens: [], agents: [], files: 0 }, credits: 0, minutes: 0, mode: "live", ...(out.isQuestion ? { answer: true } : {}) }, usage: usageSoFar() };
       }
-      const compiled = compileEdits(bp, out, scopeScreenId);
-      if (!compiled.ops.length) return { feedback: compiled.problems.join("; ") || "the edits changed nothing" };
-      const applied = applyOps(bp, compiled.ops);
-      if (applied.ok) {
-        const radius = blastRadius(bp, applied.blueprint);
-        const est = estimateChange({ screens: radius.screens.length, agents: radius.agents.length, files: radius.files });
-        const rationale = compiled.problems.length ? `${out.rationale} (Skipped: ${compiled.problems.join("; ")}.)` : out.rationale;
-        return { result: { proposal: { summary: out.summary, rationale, operations: compiled.ops, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "live" }, usage }, feedback: "" };
+      const draft = draftEdits(bp, out, scopeScreenId);
+      if (draft.kind === "whole") return { proposal: quote(out.summary, plainText(out.rationale, WHOLE_FALLBACK), draft), usage: usageSoFar() };
+      if (draft.kind === "partial") {
+        if (!best.partial || draft.problems.length <= best.partial.draft.problems.length) best.partial = { out, draft };
+        feedback = `only part of them applied, and a change must apply whole. What failed: ${draft.problems.join("; ")}`;
+      } else {
+        feedback = draft.feedback;
       }
-      const fb = [applied.error, ...compiled.problems].join("; ");
-      console.warn("[change] edits failed validation, retrying:", fb);
-      return { feedback: fb };
+      console.warn("[change] edits did not fully apply, retrying:", feedback);
+      return null;
     };
-    // Up to two attempts: the second one sees exactly why the first failed.
+    // Up to two attempts: the second one sees exactly why the first failed or fell short.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const result = await generateText({
           model: m.model,
           instructions: EDIT_INSTRUCTIONS,
-          prompt: feedback ? `${base}${full}\n\nYour previous edits could not be applied: ${feedback}\nFix them and return the complete set of edits again.` : base,
+          prompt: feedback ? `${base}${full}\n\nYour previous edits could not be applied as asked: ${feedback}\nReturn the complete set of edits again (everything the request needs, not only the fix), using typed edits wherever one fits.` : base,
           output: Output.object({ schema: EditsSchema, name: "blueprint_edits" }),
           maxOutputTokens: 8000,
           timeout: 70_000,
@@ -88,11 +107,8 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         });
         inputTokens += result.usage.inputTokens ?? 0;
         outputTokens += result.usage.outputTokens ?? 0;
-        const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
-        const out = cleanDeep(result.output);
-        const done = finish(out, usage);
-        if (done.result) return done.result;
-        feedback = done.feedback;
+        const done = judge(cleanDeep(result.output));
+        if (done) return done;
         continue;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -103,10 +119,8 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
           const salvaged = salvageEdits(raw);
           if (e.usage) { inputTokens += e.usage.inputTokens ?? 0; outputTokens += e.usage.outputTokens ?? 0; }
           if (salvaged) {
-            const usage = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
-            const done = finish(cleanDeep(salvaged), usage);
-            if (done.result) return done.result;
-            feedback = done.feedback;
+            const done = judge(cleanDeep(salvaged));
+            if (done) return done;
             continue;
           }
         }
@@ -118,6 +132,9 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
         break;
       }
     }
+    // Still partial after the retry: quote only what applies (and price only that), and say plainly what was left out.
+    const partial = best.partial;
+    if (partial) return { proposal: quote(partial.out.summary, partialRationale(partial.draft.notes), partial.draft), usage: usageSoFar() };
   }
   const rule = ruleProposal(bp, request, scope);
   if (rule.operations.length) {

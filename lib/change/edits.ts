@@ -3,6 +3,7 @@ import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import type { ChangeOperation } from "@/lib/db/types";
 import { applyOperation } from "@/lib/blueprint/pointer";
 import { applySupervision } from "@/lib/blueprint/describe";
+import { applyOps } from "@/lib/blueprint/apply";
 
 /**
  * The model decides, code does the rest: instead of hand-writing JSON Pointer
@@ -30,8 +31,16 @@ export const EditsSchema = z.object({
     )
     .default([]).describe("New details the app stores. Adding a column for a new detail needs an addFields entry too."),
   addColumns: z
-    .array(z.object({ entity: NamedRef, field: z.string().describe("Field name (existing or just added)"), screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity"), first: z.boolean().default(false).describe("true to show it first (e.g. 'sort by')") }))
-    .default([]).describe("Show a detail as a table column"),
+    .array(
+      z.object({
+        entity: NamedRef,
+        field: z.string().describe("Field name (existing or just added)"),
+        screen: z.string().default("").describe("Screen id or title, or empty for every table of that entity"),
+        first: z.boolean().default(false).describe("true to show it first (e.g. 'sort by')"),
+        position: z.coerce.number().int().default(0).describe("Where the column goes, counting from 1 on the left: 2 = the second column. 0 = at the end. Use this for any column order; never a patch."),
+      }),
+    )
+    .default([]).describe("Show a detail as a table column, optionally at a position"),
   removeColumns: z.array(z.object({ entity: NamedRef, field: z.string(), screen: z.string().default("") })).default([]),
   permissions: z
     .array(
@@ -166,21 +175,42 @@ function buildScreen(bp: Blueprint, s: Edits["newScreens"][number]): Screen {
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
-export type Compiled = { ops: ChangeOperation[]; problems: string[] };
+/**
+ * `problems` are exact, technical reasons for the model's retry. `notes` say the same
+ * thing in plain English for the person reading the quote (one per problem, never a path).
+ */
+export type Compiled = { ops: ChangeOperation[]; problems: string[]; notes: string[] };
 
-/** Turn typed edits into JSON Pointer operations against `bp`. */
+/** Plain words for where a JSON Pointer points ("the Intake Queue screen"), so a note never shows a path. */
+function placeOf(bp: Blueprint, path: string): string {
+  const [collection, key = ""] = path.split("/").filter(Boolean);
+  const pick = <T extends { id: string }>(items: T[]) => (/^\d+$/.test(key) ? items[Number(key)] : items.find((x) => x.id === key));
+  if (collection === "screens") { const s = pick(bp.screens); return s ? `the ${s.title} screen` : "a screen"; }
+  if (collection === "agents") { const a = pick(bp.agents); return a ? a.name : "an agent"; }
+  if (collection === "entities") { const x = pick(bp.entities); return x ? x.plural : "the app's data"; }
+  if (collection === "connections") { const c = pick(bp.connections); return c ? c.name : "a connection"; }
+  if (collection === "meta") return "the app's settings";
+  return "the app";
+}
+
+/** Turn typed edits into JSON Pointer operations against `bp`. Anything that can't be done is left out and reported. */
 export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): Compiled {
   const next = structuredClone(bp);
   const problems: string[] = [];
+  const notes: string[] = [];
+  const fail = (forModel: string, forPerson: string) => {
+    problems.push(forModel);
+    notes.push(forPerson);
+  };
   const agentNames = (a: Blueprint["agents"][number]) => [a.name, a.role];
   const entityNames = (x: Blueprint["entities"][number]) => [x.name, x.plural];
 
   for (const f of e.addFields) {
     const ent = find(next.entities, f.entity, entityNames);
-    if (!ent) { problems.push(`addFields: no data type called "${f.entity}"`); continue; }
+    if (!ent) { fail(`addFields: no data type called "${f.entity}"`, `I couldn't find “${f.entity}” in this app, so “${f.name}” isn't added.`); continue; }
     const name = snake(f.name);
     if (ent.fields.some((x) => x.name === name)) continue;
-    if (ent.fields.length >= 12) { problems.push(`addFields: ${ent.plural} already has 12 details (the maximum)`); continue; }
+    if (ent.fields.length >= 12) { fail(`addFields: ${ent.plural} already has 12 details (the maximum)`, `${ent.plural} already holds 12 details, the most it can, so “${f.name}” isn't added.`); continue; }
     ent.fields.push({ name, label: title(f.name), type: f.type, ...(f.type === "enum" ? { options: f.options.length ? f.options.slice(0, 6) : ["Low", "Medium", "High"] } : {}) });
     ent.sample.forEach((row, i) => (row[name] = sampleFor(f.type, i, f.options, f.sampleValues)));
   }
@@ -195,20 +225,27 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
 
   for (const c of e.addColumns) {
     const ent = find(next.entities, c.entity, entityNames);
-    if (!ent) { problems.push(`addColumns: no data type called "${c.entity}"`); continue; }
+    if (!ent) { fail(`addColumns: no data type called "${c.entity}"`, `I couldn't find “${c.entity}” in this app, so the “${c.field}” column isn't added.`); continue; }
     let field = ent.fields.find((x) => x.name === snake(c.field) || norm(x.label ?? "") === norm(c.field));
     if (!field) {
-      if (ent.fields.length >= 12) { problems.push(`addColumns: ${ent.plural} has no "${c.field}" and is full`); continue; }
+      if (ent.fields.length >= 12) { fail(`addColumns: ${ent.plural} has no "${c.field}" and is full`, `${ent.plural} already holds 12 details, the most it can, so there's no room for “${c.field}”.`); continue; }
       field = { name: snake(c.field), label: title(c.field), type: "string" };
       ent.fields.push(field);
       ent.sample.forEach((row, i) => (row[field!.name] = sampleFor("string", i, [], [])));
     }
     const tables = tablesFor(ent.id, c.screen);
-    if (!tables.length) { problems.push(`addColumns: no table shows ${ent.plural}; add a screen for it instead`); continue; }
+    if (!tables.length) { fail(`addColumns: no table shows ${ent.plural}; add a screen for it instead`, `No table lists ${ent.plural}, so the “${c.field}” column has nowhere to go. Ask for a screen that lists them.`); continue; }
     for (const t of tables) {
       const cols = t.columns.filter((x) => x !== field!.name);
-      const withNew = c.first ? [field.name, ...cols] : [...cols, field.name];
-      t.columns = withNew.length > 8 ? (c.first ? withNew.slice(0, 8) : [...withNew.slice(0, 7), field.name]) : withNew;
+      const at = c.first ? 0 : c.position > 0 ? Math.min(c.position - 1, cols.length) : cols.length;
+      const withNew = [...cols.slice(0, at), field.name, ...cols.slice(at)];
+      // A table shows at most 8 columns: make room by dropping the last one that isn't the new column.
+      if (withNew.length > 8) {
+        let k = withNew.length - 1;
+        while (withNew[k] === field.name) k--;
+        withNew.splice(k, 1);
+      }
+      t.columns = withNew;
     }
   }
 
@@ -223,14 +260,14 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
 
   for (const p of e.permissions) {
     const agents = many(next.agents, p.agent, agentNames);
-    if (!agents.length) { problems.push(`permissions: no agent called "${p.agent}"`); continue; }
+    if (!agents.length) { fail(`permissions: no agent called "${p.agent}"`, `There's no agent called “${p.agent}”, so no permissions changed for it.`); continue; }
     let hit = 0;
     for (const a of agents) {
       const tools = p.tool === "*" ? a.tools : p.tool === "irreversible" || p.tool === "write" ? a.tools.filter((t) => t.access === p.tool) : [find(a.tools, p.tool, (t) => [t.name, t.id.replace(/_/g, " ")])].filter(Boolean) as typeof a.tools;
       tools.forEach((t) => (t.permission = p.permission));
       hit += tools.length;
     }
-    if (!hit && p.agent !== "*") problems.push(`permissions: no tool "${p.tool}" on ${agents.map((a) => a.name).join(", ")}`);
+    if (!hit && p.agent !== "*") fail(`permissions: no tool "${p.tool}" on ${agents.map((a) => a.name).join(", ")}`, `${agents.map((a) => a.name).join(" and ")} can't “${p.tool}”, so nothing changed there.`);
   }
 
   for (const s of e.supervision) for (const a of many(next.agents, s.agent, agentNames)) applySupervision(a, s.level);
@@ -256,19 +293,19 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
     const name = r.name.trim();
     if (!name) continue;
     if (r.type === "project") next.meta.name = name;
-    else if (r.type === "screen") { const s = find(next.screens, r.target, (x) => [x.title]); if (s) s.title = name; else problems.push(`renames: no screen "${r.target}"`); }
-    else if (r.type === "agent") { const a = find(next.agents, r.target, agentNames); if (a) a.name = name; else problems.push(`renames: no agent "${r.target}"`); }
+    else if (r.type === "screen") { const s = find(next.screens, r.target, (x) => [x.title]); if (s) s.title = name; else fail(`renames: no screen "${r.target}"`, `There's no screen called “${r.target}”, so nothing was renamed to “${name}”.`); }
+    else if (r.type === "agent") { const a = find(next.agents, r.target, agentNames); if (a) a.name = name; else fail(`renames: no agent "${r.target}"`, `There's no agent called “${r.target}”, so nothing was renamed to “${name}”.`); }
     else if (r.type === "entity") { const x = find(next.entities, r.target, entityNames); if (x) { x.name = name; x.plural = name.endsWith("s") ? name : `${name}s`; } }
     else { const c = find(next.connections, r.target, (x) => [x.name]); if (c) c.name = name; }
   }
 
   if (e.theme.primary && HEX.test(e.theme.primary.trim())) next.meta.theme.primary = e.theme.primary.trim().toUpperCase();
-  else if (e.theme.primary) problems.push(`theme: "${e.theme.primary}" is not a hex colour like #0F766E`);
+  else if (e.theme.primary) fail(`theme: "${e.theme.primary}" is not a hex colour like #0F766E`, `“${e.theme.primary}” isn't a colour I can use, so the colour stays as it is.`);
   if (e.theme.radius !== "keep") next.meta.theme.radius = e.theme.radius;
   if (e.theme.density !== "keep") next.meta.theme.density = e.theme.density;
 
   for (const s of e.newScreens) {
-    if (next.screens.length >= 8) { problems.push("newScreens: the app already has 8 screens (the maximum)"); break; }
+    if (next.screens.length >= 8) { fail("newScreens: the app already has 8 screens (the maximum)", "The app already has 8 screens, the most it can have, so no new screen is added."); break; }
     next.screens.push(buildScreen(next, s));
   }
 
@@ -278,7 +315,17 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
       try { value = JSON.parse(p.valueJson); } catch { value = p.valueJson; }
     }
     try { applyOperation(next as unknown, { op: p.op, path: p.path, value }); }
-    catch (err) { problems.push(`patch ${p.path}: ${err instanceof Error ? err.message : "failed"}`); }
+    catch (err) {
+      const reason = err instanceof Error ? err.message : "failed";
+      const hint = /\/(screens|agents|entities|connections)\/[^/\d]/.test(p.path) ? " Paths use array indexes from the full JSON (e.g. /screens/0/regions/main/1/columns), never ids." : "";
+      const endsUp = /\/columns(\/|$)/.test(p.path) && e.addColumns.some((c) => !c.first && !c.position);
+      fail(
+        `patch ${p.op} ${p.path}: ${reason}.${hint}${/\/columns(\/|$)/.test(p.path) ? " For column order use addColumns with position, not a patch." : ""}`,
+        endsUp
+          ? "I couldn't put the new column exactly where you asked, so it's added at the end. Ask again to move it."
+          : `I couldn't make one part of this on ${placeOf(bp, p.path)}, so that part is left out. Ask again to add it.`,
+      );
+    }
   }
 
   // Emit element-level operations: index-safe and easy to review.
@@ -294,7 +341,31 @@ export function compileEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): C
       else if (!same(before[i], item)) ops.push({ op: "set", path: `/${key}/${i}`, value: item });
     });
   }
-  return { ops, problems };
+  return { ops, problems, notes: [...new Set(notes)] };
+}
+
+/**
+ * One attempt's typed edits, judged. "whole": everything asked for applies. "partial": some
+ * of it applies and the rest was left out (retry with `problems`; if it's still partial,
+ * quote only what applies and tell the person why with `notes`). "failed": nothing usable.
+ */
+export type Draft =
+  | { kind: "whole"; ops: ChangeOperation[]; blueprint: Blueprint }
+  | { kind: "partial"; ops: ChangeOperation[]; blueprint: Blueprint; problems: string[]; notes: string[] }
+  | { kind: "failed"; feedback: string };
+
+export function draftEdits(bp: Blueprint, e: Edits, scopeScreenId?: string): Draft {
+  const compiled = compileEdits(bp, e, scopeScreenId);
+  if (!compiled.ops.length) return { kind: "failed", feedback: compiled.problems.join("; ") || "the edits changed nothing" };
+  const applied = applyOps(bp, compiled.ops);
+  if (!applied.ok) return { kind: "failed", feedback: [applied.error, ...compiled.problems].join("; ") };
+  if (compiled.problems.length) return { kind: "partial", ops: compiled.ops, blueprint: applied.blueprint, problems: compiled.problems, notes: compiled.notes };
+  return { kind: "whole", ops: compiled.ops, blueprint: applied.blueprint };
+}
+
+/** The quote text for a change that only partly applies: what was left out, in plain English, and what the price covers. */
+export function partialRationale(notes: string[]): string {
+  return `${notes.join(" ")} The price covers only what will actually change.`;
 }
 
 /** A compact map of the blueprint for the model: names, ids, fields, tables, tools. */
@@ -303,10 +374,10 @@ export function blueprintIndex(bp: Blueprint): string {
   lines.push("Data types:");
   for (const e of bp.entities) lines.push(`- ${e.name} / ${e.plural} (id ${e.id}): ${e.fields.map((f) => `${f.name}:${f.type}`).join(", ")} · ${e.sample.length} sample records`);
   lines.push("Screens:");
-  for (const s of bp.screens) {
-    const blocks = [...s.regions.main, ...s.regions.side].map((b) => (b.type === "table" ? `table(${bp.entities.find((x) => x.id === b.entityId)?.name}: ${b.columns.join(", ")})` : b.type === "chat" ? `chat(${bp.agents.find((a) => a.id === b.agentId)?.name})` : b.type));
-    lines.push(`- ${s.title} (id ${s.id}, ${s.audience}): ${blocks.join(" · ")}`);
-  }
+  bp.screens.forEach((s, i) => {
+    const blocks = [...s.regions.main, ...s.regions.side].map((b) => (b.type === "table" ? `table(${bp.entities.find((x) => x.id === b.entityId)?.name}, columns in order: ${b.columns.join(", ")})` : b.type === "chat" ? `chat(${bp.agents.find((a) => a.id === b.agentId)?.name})` : b.type));
+    lines.push(`- ${s.title} (id ${s.id}, path /screens/${i}, ${s.audience}): ${blocks.join(" · ")}`);
+  });
   lines.push("Agents:");
   for (const a of bp.agents) {
     lines.push(`- ${a.name} (id ${a.id}), supervision ${a.supervision}, ${a.rules.length} rules, ${a.rehearsals.length} rehearsals`);
@@ -340,7 +411,10 @@ export function salvageEdits(raw: unknown): Edits | null {
     if (t.radius && !["keep", "sm", "md", "lg"].includes(String(t.radius))) t.radius = "keep";
     if (t.density && !["keep", "compact", "comfortable"].includes(String(t.density))) t.density = "keep";
   }
-  arr("addColumns")?.forEach((c) => { if (typeof c.first !== "boolean") c.first = String(c.first).toLowerCase() === "true"; });
+  arr("addColumns")?.forEach((c) => {
+    if (typeof c.first !== "boolean") c.first = String(c.first).toLowerCase() === "true";
+    if (c.position !== undefined && typeof c.position !== "number") c.position = parseInt(String(c.position), 10) || 0;
+  });
   if (typeof x.feasible !== "boolean") x.feasible = String(x.feasible).toLowerCase() !== "false";
   x.summary ??= "Change the project";
   x.rationale ??= "";
