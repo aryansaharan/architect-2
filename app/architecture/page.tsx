@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Download, FileText, RotateCcw, ShieldAlert, Square } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, FileText, RotateCcw, ShieldAlert, Square } from "lucide-react";
 import { Logo, GitHubMark } from "@/components/brand/logo";
-import { ArchitectureDiagram, FLOWS } from "@/components/architecture/diagram";
+import { ArchitectureDiagram, FLOWS, W as DIAGRAM_W } from "@/components/architecture/diagram";
 
 export const metadata = {
   title: "Architecture",
@@ -17,15 +17,84 @@ const SANDBOXES = [
   { name: "Browser WebContainers", verdict: "Rejected", isolation: "Browser tab", boot: "Instant", fit: "Node only: no Python agents, no long-running jobs" },
 ];
 
-const TODAY: { part: string; today: string; prod: string; real: boolean }[] = [
-  { part: "Studio, auth, data", today: "Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with row-level security on every table", prod: "The studio backend runs in each regional cell (service identities, residency, long-lived streams); Vercel keeps the marketing site. Plus SAML SSO, SCIM and regional data residency", real: true },
-  { part: "Planner", today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference", prod: "Same contract, routed through the model gateway", real: true },
-  { part: "Model gateway", today: "One getModel() seam, provider switch by env, per-call token and cost metering, daily budgets per person", prod: "Multi-provider routing, failover, BYOK, prompt caching", real: true },
-  { part: "Agent gateway", today: "Real approval gates in the playground: tools marked “Ask first” pause for a person before running", prod: "Every production tool call, with caps, audit and traces", real: true },
-  { part: "Build + repair", today: "Deterministic build timeline with a real repair decision that changes the Blueprint and creates a save point", prod: "Full tool loop inside microVMs with verifier and budgets", real: false },
-  { part: "Sandbox + preview", today: "Preview renders the Blueprint with a spec renderer inside the studio; no untrusted code runs", prod: "Firecracker microVM per project behind the preview proxy", real: false },
-  { part: "GitHub", today: "Reads any public repo, detects stack and agent frameworks, writes House Rules; pushes and PRs are sandboxed", prod: "GitHub App with branch per Work Order and two-way sync", real: false },
-  { part: "Deploy", today: "Prod Cloud live URL is real (/live/…) with rollback; Vercel and VPC targets are sandboxed", prod: "Immutable releases, canary rollout, instant rollback", real: true },
+/** How much of each part runs in the live prototype. "Stand-in" is simulated or sandboxed and labelled in the product; "designed" is specified in ARCHITECTURE.md and not built. */
+type Status = "real" | "stand-in" | "designed";
+const STATUS_STYLE: Record<Status, string> = {
+  real: "border-read/30 bg-read/10 text-read",
+  "stand-in": "border-hairline text-muted-foreground",
+  designed: "border-dashed border-hairline-hi text-muted-foreground",
+};
+
+const TODAY: { part: string; status: { label: string; kind: Status }[]; today: string; prod: string }[] = [
+  {
+    part: "Studio, auth, data",
+    status: [{ label: "Real", kind: "real" }],
+    today: "Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with row-level security on every table",
+    prod: "The studio backend runs in each regional cell (service identities, residency, long-lived streams); Vercel keeps the marketing site. Plus SAML SSO, SCIM and regional data residency",
+  },
+  {
+    part: "Planner",
+    status: [{ label: "Real", kind: "real" }],
+    today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference",
+    prod: "Same contract, routed through the model gateway",
+  },
+  {
+    part: "Change requests",
+    status: [{ label: "Real", kind: "real" }],
+    today: "Claude returns typed edits; code resolves names and emits validated operations, with one self-repair retry; each change is a priced Work Order and a save point",
+    prod: "Same, executed by the harness in a sandbox; parallel Work Orders rebase onto a versioned Blueprint",
+  },
+  {
+    part: "Model gateway",
+    status: [
+      { label: "Model switch by environment: real", kind: "real" },
+      { label: "Routing gateway: designed", kind: "designed" },
+    ],
+    today: "One getModel() seam that picks the model from the environment, with per-call token and cost metering and daily budgets per person. One provider (Anthropic) and no gateway service",
+    prod: "A gateway service: routing by task, eval-gated switches, failover in the middle of a tool loop, prompt caching, BYOK, and a separate deployment for live apps",
+  },
+  {
+    part: "Approvals and the agent gateway",
+    status: [
+      { label: "Approval gate in the playground: real", kind: "real" },
+      { label: "Production gateway: designed", kind: "designed" },
+    ],
+    today: "Claude + AI SDK tool approval: tools marked “Ask first” pause for a person before running. Tools run on sandboxed sample data; nothing holds credentials or controls egress yet",
+    prod: "Every production tool call passes an egress gateway that holds the credentials, enforces approvals and caps, tracks untrusted content per run, and traces the call",
+  },
+  {
+    part: "Build + repair",
+    status: [
+      { label: "Build: simulated, labelled", kind: "stand-in" },
+      { label: "Repair decision: real", kind: "real" },
+    ],
+    today: "Deterministic build timeline with a real repair decision that changes the Blueprint and creates a save point",
+    prod: "Full tool loop inside microVMs with verifier and budgets",
+  },
+  {
+    part: "Sandbox + preview",
+    status: [{ label: "Simulated, labelled", kind: "stand-in" }],
+    today: "Preview renders the Blueprint with a spec renderer inside the studio; no generated or imported code runs",
+    prod: "Firecracker microVM per project behind the preview proxy; imported repos run as themselves, with a preview per exposed port",
+  },
+  {
+    part: "GitHub",
+    status: [
+      { label: "Public repo analysis: real", kind: "real" },
+      { label: "Pushes, PRs, sync: sandboxed", kind: "stand-in" },
+    ],
+    today: "Reads any public repo, detects stack and agent frameworks, maps its agents, writes House Rules; pushes and PRs are sandboxed",
+    prod: "GitHub App with a branch and worktree per Work Order, a merge queue and two-way sync",
+  },
+  {
+    part: "Deploy",
+    status: [
+      { label: "Public /live URL + rollback: real", kind: "real" },
+      { label: "Builds and releases: designed", kind: "designed" },
+    ],
+    today: "A public /live/… URL serves a published Blueprint snapshot through the spec renderer, with rollback. No build runs; Vercel and VPC targets are sandboxed",
+    prod: "Immutable releases, canary rollout, instant rollback",
+  },
 ];
 
 const NUMBERS = [
@@ -77,11 +146,22 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
           <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-panel px-3 text-[12.5px] hover:border-hairline-hi"><GitHubMark className="size-3.5" /> Full write-up</a>
         </div>
 
-        <section aria-label="Architecture diagram" className="fade-up mt-8 overflow-x-auto rounded-2xl border border-hairline bg-canvas p-2 shadow-[0_40px_120px_-40px_rgb(0_0_0/0.9),0_0_90px_-50px_rgb(63_224_197/0.35)]" style={{ animationDelay: "280ms" }}>
-          <div className="min-w-[1100px]">
-            <ArchitectureDiagram animated={!print} />
-          </div>
-        </section>
+        {/* Shown at its native width so every label stays readable: it breaks out of the page column on wide screens and scrolls sideways on narrower ones. */}
+        <div className="relative left-1/2 mt-8 -translate-x-1/2" style={{ width: `min(100vw - 3rem, ${DIAGRAM_W + 18}px)` }}>
+          {!print && (
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[12.5px] text-muted-foreground">
+              <p>Shown at native size ({DIAGRAM_W.toLocaleString("en-US")} px wide). On a narrower screen, scroll sideways.</p>
+              <a href="/docs/architecture-diagram.png" target="_blank" rel="noreferrer" className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-panel px-3 text-[12.5px] text-foreground hover:border-hairline-hi">
+                <ExternalLink className="size-3.5" /> Open full size
+              </a>
+            </div>
+          )}
+          <section aria-label="Architecture diagram" className="fade-up overflow-x-auto rounded-2xl border border-hairline bg-canvas p-2 shadow-[0_40px_120px_-40px_rgb(0_0_0/0.9),0_0_90px_-50px_rgb(63_224_197/0.35)]" style={{ animationDelay: "280ms" }}>
+            <div style={{ width: DIAGRAM_W }}>
+              <ArchitectureDiagram animated={!print} />
+            </div>
+          </section>
+        </div>
 
         <section aria-labelledby="flows" className="mt-10">
           <h2 id="flows" className="micro-label">The eight flows on the diagram</h2>
@@ -189,17 +269,25 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
         <section aria-labelledby="today" className="mt-14">
           <p className="micro-label text-amber">Honest about the seams</p>
           <h2 id="today" className="mt-2 text-[28px] font-semibold tracking-tight">What the prototype runs today, and what production adds.</h2>
+          <p className="mt-2 max-w-3xl text-[13.5px] text-muted-foreground">
+            <span className="text-read">Real</span> runs in the live prototype. <span className="text-foreground">Stand-in</span> is simulated or sandboxed, and labelled in the product.{" "}
+            <span className="text-foreground">Designed</span> is specified in ARCHITECTURE.md and not built yet.
+          </p>
           <div className="panel mt-5 overflow-x-auto rounded-2xl">
-            <table className="w-full min-w-[820px] text-left text-[13px]">
+            <table className="w-full min-w-[900px] text-left text-[13px]">
               <thead className="border-b border-hairline text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr><th className="px-4 py-3 font-medium">Part</th><th className="px-4 py-3 font-medium">In the live prototype</th><th className="px-4 py-3 font-medium">In production</th></tr>
+                <tr><th className="w-[272px] px-4 py-3 font-medium">Part</th><th className="px-4 py-3 font-medium">In the live prototype</th><th className="px-4 py-3 font-medium">In production</th></tr>
               </thead>
               <tbody className="divide-y divide-hairline">
                 {TODAY.map((r) => (
                   <tr key={r.part} className="align-top">
                     <td className="px-4 py-3">
                       <p className="font-medium">{r.part}</p>
-                      <span className={r.real ? "mt-1 inline-block rounded-full border border-read/30 bg-read/10 px-2 py-px text-[11px] text-read" : "mt-1 inline-block rounded-full border border-hairline px-2 py-px text-[11px] text-muted-foreground"}>{r.real ? "Real" : "Simulated, labelled"}</span>
+                      <div className="mt-1.5 flex flex-col items-start gap-1">
+                        {r.status.map((st) => (
+                          <span key={st.label} className={`inline-block whitespace-nowrap rounded-full border px-2 py-px text-[11px] ${STATUS_STYLE[st.kind]}`}>{st.label}</span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{r.today}</td>
                     <td className="px-4 py-3 text-muted-foreground">{r.prod}</td>

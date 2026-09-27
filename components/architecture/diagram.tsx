@@ -1,18 +1,23 @@
 import {
   Activity, Bot, BrainCircuit, Building2, CalendarClock, Cloud, Coins, Container, CreditCard, Database, DatabaseZap, FileSearch, FlaskConical, FolderKanban, GitBranch, Globe,
-  HardDrive, History, KeyRound, LayoutDashboard, Laptop, Mail, MessageSquare, Network, Package, Radio, Rocket, Router, Search, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
+  HardDrive, History, IdCard, KeyRound, LayoutDashboard, Laptop, Mail, MessageSquare, Network, Package, Radio, Rocket, Router, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 /**
  * The production architecture of Prod AI, drawn as one SVG so it scales
  * crisply on screen and exports cleanly to PNG and PDF.
- * Coordinates live on a 1824 × 1292 canvas: the planes, the data platform, then a legend band.
+ * Coordinates live on a 1824 × 1336 canvas: the planes, the data platform, then a legend band.
+ *
+ * Scope: the gradient outline is one cell (control, sandbox and runtime planes plus the per-cell
+ * data). Everything outside it is shared by a region's cells (edge, identity, warehouse,
+ * observability) or global (Cloudflare, outside services). Regional cards inside it say "Regional".
  *
  * Routing rules, so the picture stays readable as edges are added:
  * - Short verticals join neighbours inside a column (for example BFF → Orchestrator).
- * - Gutters between planes carry vertical lanes; the band above the planes (y ≈ 136-148)
- *   and the band below them (y ≈ 882-900) carry horizontal lanes.
+ * - Gutters between planes carry vertical lanes; the band above the planes (y ≈ 134-144)
+ *   and the band below them (y ≈ 882-900) carry horizontal lanes. The cell outline runs just
+ *   outside those lanes at y = 150 and x = 556, and its label sits on its bottom edge.
  * - Every plane reaches the data platform through one labelled trunk into the data bus.
  * - Solid lines are request and response, dashed lines are asynchronous, and a line's colour is
  *   the plane it belongs to. The legend at the bottom tells readers the same thing.
@@ -39,26 +44,34 @@ const TONE: Record<Tone, string> = {
 const BADGE_BG = "linear-gradient(135deg, #fff2a6, #dfff4f 50%, #8dff9e)";
 
 export const W = 1824;
-const LEGEND_Y = 1142;
-const LEGEND_H = 132;
+const LEGEND_Y = 1158;
+const LEGEND_H = 160;
 export const H = LEGEND_Y + LEGEND_H + 18;
 
 const ZONES: Zone[] = [
   { x: 300, y: 20, w: 1500, h: 108, label: "Outside services", tone: "outside" },
   { x: 24, y: 156, w: 236, h: 720, label: "People", tone: "people" },
-  { x: 300, y: 156, w: 236, h: 720, label: "Edge", hint: "ingress", tone: "edge" },
+  { x: 300, y: 156, w: 236, h: 720, label: "Edge", hint: "regional · ingress", tone: "edge" },
   { x: 576, y: 156, w: 560, h: 720, label: "Control plane", hint: "stateless · Kubernetes", tone: "control" },
   { x: 1176, y: 156, w: 292, h: 720, label: "Sandbox plane", hint: "untrusted code", tone: "sandbox" },
   { x: 1508, y: 156, w: 292, h: 720, label: "Runtime plane", hint: "live apps", tone: "runtime" },
-  { x: 24, y: 916, w: 1776, h: 206, label: "Data + platform", hint: "per cell unless marked regional", tone: "data" },
+  { x: 24, y: 916, w: 512, h: 206, label: "Regional", hint: "shared by its cells", tone: "data" },
+  { x: 576, y: 916, w: 1224, h: 206, label: "Data + platform", hint: "per cell", tone: "data" },
   { x: 24, y: LEGEND_Y, w: 1776, h: LEGEND_H, label: "Legend", hint: "how to read this diagram", tone: "outside" },
 ];
 
-/** Data platform: ten cards in one row, each with a drop from the data bus. */
-const DATA_W = 164;
-const DATA_GAP = 11.5;
+/** Data platform: ten cards in one row, each with a drop from the data bus. Three regional cards
+ * sit under the people and edge columns, outside the cell; seven per-cell cards sit inside it. */
 const DATA_Y = 978;
-const dataX = (i: number) => 40 + i * (DATA_W + DATA_GAP);
+const REGION = [
+  { x: 40, w: 140 },
+  { x: 192, w: 164 },
+  { x: 368, w: 152 },
+];
+const DATA_W = 160;
+const dataX = (i: number) => 592 + i * (DATA_W + 12);
+/** The cell boundary: control, sandbox and runtime planes plus the per-cell data. */
+const CELL = { x: 556, y: 150, w: 1256, h: 984 };
 /** Control plane: two columns with a 48 px gap between them for rails. */
 const C1 = 592;
 const C2 = 880;
@@ -66,7 +79,7 @@ const CW = 240;
 
 export const CARDS: Card[] = [
   // outside
-  { id: "identity", x: 316, y: 48, w: 204, h: 72, title: "Identity", sub: "Google, GitHub, SAML SSO", icon: UserRound, tone: "outside" },
+  { id: "identity", x: 316, y: 48, w: 204, h: 72, title: "Identity providers", sub: "Google, GitHub, SAML SSO", icon: UserRound, tone: "outside" },
   { id: "stripe", x: 592, y: 48, w: 176, h: 72, title: "Stripe", sub: "Plans and invoices", icon: CreditCard, tone: "outside" },
   { id: "providers", x: 784, y: 48, w: 336, h: 72, title: "Model providers", sub: "Anthropic · OpenAI · Google · open models (vLLM, Bedrock)", icon: BrainCircuit, tone: "outside", step: [2] },
   { id: "github", x: 1192, y: 48, w: 260, h: 72, title: "GitHub", sub: "Repos, pull requests, checks, webhooks", icon: GitBranch, tone: "outside", step: [6] },
@@ -85,7 +98,7 @@ export const CARDS: Card[] = [
   { id: "approuter", x: 316, y: 692, w: 204, h: 108, title: "App router", sub: "Custom domains, automatic TLS, live traffic to the runtime", icon: Router, tone: "edge", step: [8] },
   // control plane, column 1
   { id: "budget", x: C1, y: 196, w: CW, h: 96, title: "Budget + billing", sub: "Quote before work, meter after, caps, refunds", icon: Coins, tone: "control" },
-  { id: "bff", x: C1, y: 308, w: CW, h: 88, title: "Web app + BFF", sub: "Next.js in each cell's cluster: server actions, Supabase Auth", icon: LayoutDashboard, tone: "control" },
+  { id: "bff", x: C1, y: 308, w: CW, h: 88, title: "Web app + BFF", sub: "Next.js in each cell's cluster: server actions and sessions", icon: LayoutDashboard, tone: "control" },
   { id: "orchestrator", x: C1, y: 420, w: CW, h: 124, title: "Orchestrator", sub: "Temporal workflows for plan, build, repair, deploy and import. Durable, resumable, retried", icon: Workflow, tone: "control", step: [2] },
   { id: "project", x: C1, y: 560, w: CW, h: 96, title: "Project service", sub: "Blueprints, save points, Work Orders, diffs", icon: FolderKanban, tone: "control" },
   { id: "policy", x: C1, y: 672, w: CW, h: 112, title: "Policy + approvals", sub: "Tool permissions, House Rules, approvals, delegation grants, audit log", icon: ShieldCheck, tone: "control" },
@@ -102,7 +115,7 @@ export const CARDS: Card[] = [
     rows: ["Dev server · Next.js or Vite :3000", "Agent runtime · Python + Node", "Tests + rehearsal runner", "Language servers + repo map", "File watcher → events"],
   },
   { id: "egress", x: 1192, y: 676, w: 260, h: 96, title: "Egress proxy", sub: "Allow-listed network. Secrets are added on the way out and never live in the VM", icon: KeyRound, tone: "sandbox" },
-  { id: "mirror", x: 1192, y: 788, w: 260, h: 76, title: "Package mirror", sub: "npm and PyPI pull-through cache, scanned", icon: Package, tone: "sandbox" },
+  { id: "mirror", x: 1192, y: 788, w: 260, h: 76, title: "Package mirror", sub: "npm and PyPI pull-through cache, scanned. Regional", icon: Package, tone: "sandbox" },
   // runtime plane
   { id: "cloud", x: 1524, y: 196, w: 260, h: 100, title: "Prod Cloud", sub: "Live apps on Knative, each pod in its own microVM. Scale to zero, no secrets, no direct egress", icon: Cloud, tone: "runtime", step: [7, 8] },
   { id: "agentgw", x: 1524, y: 314, w: 260, h: 152, title: "Agent gateway", sub: "The only way out of a live app. Holds the credentials, checks permissions and approval gates, caps budgets, traces every call. Its own model gateway, apart from the studio's", icon: ShieldCheck, tone: "runtime", tags: ["Read", "Change", "Ask first"], step: [8] },
@@ -110,17 +123,18 @@ export const CARDS: Card[] = [
   { id: "jobs", x: 1524, y: 566, w: 260, h: 84, title: "Queues + schedules", sub: "Triggers, retries, long-running agent tasks", icon: CalendarClock, tone: "runtime" },
   { id: "evals", x: 1524, y: 664, w: 260, h: 84, title: "Evals in production", sub: "Rehearsals replayed on real traces, drift alerts", icon: FlaskConical, tone: "runtime" },
   { id: "selfhost", x: 1524, y: 762, w: 260, h: 90, title: "Your VPC or on-prem", sub: "Same runtime via Helm or Terraform, outbound-only tunnel", icon: Building2, tone: "runtime", step: [7] },
-  // data + platform
-  { id: "postgres", x: dataX(0), y: DATA_Y, w: DATA_W, h: 128, title: "Postgres", sub: "Supabase, one per cell. Projects, Blueprints, ledger, grants. RLS on every table", icon: Database, tone: "data" },
+  // regional: shared by every cell in the region
+  { id: "directory", ...REGION[0], y: DATA_Y, h: 128, title: "Identity", sub: "Supabase Auth, memberships, SSO and the workspace → cell directory", icon: IdCard, tone: "data" },
+  { id: "warehouse", ...REGION[1], y: DATA_Y, h: 128, title: "Usage warehouse", sub: "Tokens, credits and trace summaries (ClickHouse)", icon: Activity, tone: "data" },
+  { id: "otel", ...REGION[2], y: DATA_Y, h: 128, title: "Observability", sub: "OpenTelemetry traces, logs, LLM spans, SLOs", icon: Activity, tone: "data" },
+  // data + platform, per cell
+  { id: "postgres", x: dataX(0), y: DATA_Y, w: DATA_W, h: 128, title: "Postgres", sub: "Supabase, one per cell. Projects, Blueprints, ledger, grants, pgvector. RLS on every table", icon: Database, tone: "data" },
   { id: "redis", x: dataX(1), y: DATA_Y, w: DATA_W, h: 128, title: "Redis", sub: "Preview and app routes, locks, gateway pins. Rate limits are regional", icon: Zap, tone: "data" },
   { id: "nats", x: dataX(2), y: DATA_Y, w: DATA_W, h: 128, title: "NATS JetStream", sub: "Build events, usage, approvals. Replay from any sequence number", icon: Waypoints, tone: "data" },
   { id: "temporal", x: dataX(3), y: DATA_Y, w: DATA_W, h: 128, title: "Temporal Cloud", sub: "Workflow history, timers, task queues. Studio and runtime namespaces", icon: History, tone: "data" },
   { id: "objects", x: dataX(4), y: DATA_Y, w: DATA_W, h: 128, title: "Object storage", sub: "Sandbox snapshots, build artefacts, OCI images, repo archives", icon: HardDrive, tone: "data" },
-  { id: "vectors", x: dataX(5), y: DATA_Y, w: DATA_W, h: 128, title: "Vector index", sub: "Repo maps, docs and agent knowledge (pgvector)", icon: Search, tone: "data" },
-  { id: "vault", x: dataX(6), y: DATA_Y, w: DATA_W, h: 128, title: "Secrets vault", sub: "KMS-encrypted, regional keys. Only the egress proxy and the gateways decrypt", icon: KeyRound, tone: "data" },
-  { id: "appdb", x: dataX(7), y: DATA_Y, w: DATA_W, h: 128, title: "App databases", sub: "Neon Postgres for live apps: a branch per app and per test version", icon: DatabaseZap, tone: "data" },
-  { id: "warehouse", x: dataX(8), y: DATA_Y, w: DATA_W, h: 128, title: "Usage warehouse", sub: "Tokens, credits and trace summaries (ClickHouse). Regional", icon: Activity, tone: "data" },
-  { id: "otel", x: dataX(9), y: DATA_Y, w: DATA_W, h: 128, title: "Observability", sub: "OpenTelemetry traces, logs, LLM spans, SLOs. Regional", icon: Activity, tone: "data" },
+  { id: "vault", x: dataX(5), y: DATA_Y, w: DATA_W, h: 128, title: "Secrets vault", sub: "KMS-encrypted, regional keys. Only the egress proxy and the gateways decrypt", icon: KeyRound, tone: "data" },
+  { id: "appdb", x: dataX(6), y: DATA_Y, w: DATA_W, h: 128, title: "App databases", sub: "Neon Postgres for live apps: a branch per app and per test version", icon: DatabaseZap, tone: "data" },
 ];
 
 const byId = Object.fromEntries(CARDS.map((c) => [c.id, c]));
@@ -193,9 +207,9 @@ const dep = A("deploy", "r", 0.5);
 const ag = A("agentgw", "l", 0.3);
 const cloudIn = A("cloud", "l", 0.5);
 // horizontal lanes above the planes
-const LANE_GIT = 136;
-const LANE_GH = 142;
-const LANE_MODEL = 148;
+const LANE_GIT = 134;
+const LANE_GH = 139;
+const LANE_MODEL = 144;
 // horizontal lanes below the planes
 const LANE_EVENTS = 882;
 const LANE_PREVIEW = 888;
@@ -206,7 +220,9 @@ const BUS_Y = 962;
 const PLANE_BOTTOM = 876;
 const TRUNK_LABEL_Y = 952;
 const dataCenters = CARDS.filter((c) => c.tone === "data").map((c) => c.x + c.w / 2);
-const trunk = (x: number, tone: Tone, text: string): Edge => ({ d: line([x, PLANE_BOTTOM], [x, BUS_Y]), tone, label: { x: x + 7, y: TRUNK_LABEL_Y, text } });
+const trunk = (x: number, tone: Tone, text: string, anchor: "start" | "end" = "start"): Edge => ({
+  d: line([x, PLANE_BOTTOM], [x, BUS_Y]), tone, label: { x: anchor === "start" ? x + 7 : x - 7, y: TRUNK_LABEL_Y, text, anchor },
+});
 
 const EDGES: Edge[] = [
   // ── people ↔ edge ──────────────────────────────────────────────
@@ -225,7 +241,7 @@ const EDGES: Edge[] = [
 
   // ── outside → control ──────────────────────────────────────────
   // OIDC / SAML federation into Supabase Auth in the BFF
-  { d: orth([A("identity", "r", 0.6), [548, A("identity", "r", 0.6)[1]], [548, A("bff", "l", 0.25)[1]], A("bff", "l", 0.25)]), tone: "outside", flows: [1] },
+  { d: orth([A("identity", "r", 0.6), [544, A("identity", "r", 0.6)[1]], [544, A("bff", "l", 0.25)[1]], A("bff", "l", 0.25)]), tone: "outside", flows: [1] },
   // usage records and invoices out, signed webhooks back
   { d: orth([A("stripe", "l", 0.4), [564, A("stripe", "l", 0.4)[1]], [564, A("budget", "l")[1]], A("budget", "l")]), tone: "outside" },
   { d: line([A("gateway", "t", 0.53)[0], A("gateway", "t")[1]], [A("gateway", "t", 0.53)[0], A("providers", "b")[1]]), tone: "control", live: true, flows: [2, 3] },
@@ -259,7 +275,7 @@ const EDGES: Edge[] = [
   // live preview: proxy → sandbox dev server (HTTP + HMR WebSocket)
   { d: orth([pv, [566, pv[1]], [566, LANE_PREVIEW], [1156, LANE_PREVIEW], [1156, vmIn[1]], vmIn]), tone: "edge", live: true, flows: [4] },
   // events: sandbox → realtime hub
-  { d: orth([vmOut, [1146, vmOut[1]], [1146, LANE_EVENTS], [548, LANE_EVENTS], [548, rt[1]], rt]), tone: "sandbox", live: true, dashed: true, flows: [5] },
+  { d: orth([vmOut, [1146, vmOut[1]], [1146, LANE_EVENTS], [544, LANE_EVENTS], [544, rt[1]], rt]), tone: "sandbox", live: true, dashed: true, flows: [5] },
   // deploy trunk → Prod Cloud, your VPC, and up to Vercel
   { d: orth([dep, [1162, dep[1]], [1162, LANE_DEPLOY], [1496, LANE_DEPLOY], [1496, cloudIn[1]], cloudIn]), tone: "runtime", flows: [7] },
   { d: orth([[1496, LANE_DEPLOY], [1496, A("selfhost", "l", 0.5)[1]], A("selfhost", "l", 0.5)]), tone: "runtime", flows: [7] },
@@ -286,8 +302,8 @@ const EDGES: Edge[] = [
   // ── data platform: one bus, one trunk per plane ────────────────
   { d: line([dataCenters[0], BUS_Y], [dataCenters[dataCenters.length - 1], BUS_Y]), tone: "data" },
   ...dataCenters.map((x): Edge => ({ d: line([x, BUS_Y], [x, DATA_Y]), tone: "data" })),
-  trunk(408, "edge", "Redis routes · NATS fan-out"),
-  trunk(712, "control", "Postgres RLS · Temporal · S3 · vault · pgvector"),
+  trunk(520, "edge", "Redis routes · NATS fan-out", "end"),
+  trunk(820, "control", "Postgres RLS · Temporal · S3 · vault · pgvector"),
   trunk(1290, "sandbox", "snapshots · egress secrets · events"),
   trunk(1662, "runtime", "Neon · vault · NATS"),
 ];
@@ -310,8 +326,8 @@ const STEPS: Step[] = [
   { n: 2, at: between("bff", "orchestrator"), transport: "gRPC + Temporal", tone: "control", label: { x: 730, y: 411.5 } },
   { n: 3, at: curveAt(A("harness", "r", 0.72), A("vm", "l", 0.45), 0.5), transport: "vsock", tone: "sandbox", label: { x: 1156, y: 441, anchor: "middle" } },
   { n: 4, at: [860, LANE_PREVIEW], transport: "HTTPS + WebSocket (HMR)", tone: "edge", label: { x: 878, y: 911 } },
-  { n: 5, at: [548, 836], transport: "vsock → NATS → WebSocket", tone: "sandbox", label: { x: 572, y: 839.5 } },
-  { n: 6, at: [1290, LANE_GH], transport: "git + REST · webhooks back", tone: "control", label: { x: 1334, y: 140 } },
+  { n: 5, at: [544, 836], transport: "vsock → NATS → WebSocket", tone: "sandbox", label: { x: 572, y: 839.5 } },
+  { n: 6, at: [1290, LANE_GH], transport: "git + REST · webhooks back", tone: "control", label: { x: 1334, y: 137 } },
   { n: 7, at: [1410, LANE_DEPLOY], transport: "Knative · Vercel API · mTLS tunnel", tone: "runtime", label: { x: 1428, y: 911 } },
   { n: 8, at: curveAt(A("endusers", "r", 0.5), A("approuter", "l", 0.5), 0.3), transport: "HTTPS + WebSocket", tone: "people", label: { x: 316, y: 688 } },
 ];
@@ -425,6 +441,10 @@ function Legend({ animated, interactive }: { animated: boolean; interactive: boo
               <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden className="shrink-0"><rect x="1" y="1" width="32" height="10" rx="4" fill="none" stroke="#6c7c74" strokeDasharray="3 3" /></svg>
               <span><span className={name}>Dashed box</span>: a plane, its own trust and scaling boundary</span>
             </li>
+            <li className={row}>
+              <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden className="shrink-0"><rect x="1" y="1" width="32" height="10" rx="4" fill="none" stroke="url(#cell-stroke)" strokeWidth="1.4" strokeDasharray="7 3" /></svg>
+              <span><span className={name}>Gradient outline</span>: one cell, the blast-radius unit</span>
+            </li>
           </ul>
         </div>
         <div>
@@ -439,6 +459,26 @@ function Legend({ animated, interactive }: { animated: boolean; interactive: boo
         </div>
       </div>
     </foreignObject>
+  );
+}
+
+/** One cell: a gradient outline around the control, sandbox and runtime planes and the per-cell data, labelled on its bottom edge. */
+function CellOutline() {
+  return (
+    <g aria-hidden>
+      <rect x={CELL.x} y={CELL.y} width={CELL.w} height={CELL.h} rx={24} fill="rgb(255 255 255 / 0.012)" stroke="url(#cell-stroke)" strokeOpacity={0.6} strokeWidth={1.4} strokeDasharray="14 7" />
+      <foreignObject x={CELL.x + 20} y={CELL.y + CELL.h - 12} width={760} height={24}>
+        <div className="flex h-full items-center">
+          <span
+            className="inline-flex h-[22px] items-center gap-2 whitespace-nowrap rounded-full border px-2.5 font-mono text-[10.5px] tracking-[0.04em] text-[#9baaa2]"
+            style={{ borderColor: "color-mix(in srgb, #8dff9e 38%, #22302c)", background: "#060a09" }}
+          >
+            <span className="font-semibold uppercase tracking-[0.12em] text-[#edf3ee]">One cell</span>
+            <span>about 1,000 active builders · N cells per region · outside the line: regional or global</span>
+          </span>
+        </div>
+      </foreignObject>
+    </g>
   );
 }
 
@@ -487,7 +527,7 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       aria-describedby={interactive ? `${id}-desc` : undefined}
     >
       <title id={`${id}-title`}>
-        Prod AI production architecture: people, edge, control plane, sandbox plane, runtime plane and data platform, with every service connection, eight numbered flows labelled with their transports, and a legend.
+        Prod AI production architecture: people, edge, control plane, sandbox plane, runtime plane and data platform, with every service connection, eight numbered flows labelled with their transports, an outline marking one cell (the regional and global pieces sit outside it), and a legend.
       </title>
       {interactive && (
         <desc id={`${id}-desc`}>Each numbered badge can be focused. Focusing or hovering a badge highlights the connections of that flow and shows its description in the panel at the top left.</desc>
@@ -505,6 +545,12 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
           <stop offset="0.5" stopColor="#dfff4f" />
           <stop offset="1" stopColor="#8dff9e" />
         </linearGradient>
+        <linearGradient id="cell-stroke" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#dfff4f" />
+          <stop offset="0.35" stopColor="#8dff9e" />
+          <stop offset="0.7" stopColor="#3fe0c5" />
+          <stop offset="1" stopColor="#6fb7ff" />
+        </linearGradient>
         <filter id="edge-soft" x="-10%" y="-10%" width="120%" height="120%">
           <feGaussianBlur stdDeviation="2.4" />
         </filter>
@@ -514,6 +560,8 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       </defs>
       <rect width={W} height={H} fill="#060a09" />
       <rect width={W} height={H} fill="url(#arch-dots)" />
+
+      <CellOutline />
 
       {ZONES.map((z) => (
         <g key={z.label}>

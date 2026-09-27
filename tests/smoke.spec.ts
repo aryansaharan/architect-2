@@ -86,7 +86,7 @@ test("import: public repo → stack report → house rules → mapped project", 
   // The activity rail may be collapsed to its slim strip at this width; the ledger entry must exist either way.
   await expect(page.getByText(/Signed \d+ House Rules/).first()).toBeAttached();
   await page.goto(page.url().split("?")[0].replace(/\/blueprint$/, "/code"));
-  await expect(page.getByText("Your repo · untouched")).toBeVisible();
+  await expect(page.getByText("Your repo · untouched").first()).toBeVisible();
 });
 
 test("handoff: ask a teammate → see what they see → resolve", async ({ page }) => {
