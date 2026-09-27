@@ -72,10 +72,27 @@ export const ScreenNode = forwardRef<HTMLButtonElement, Common & { screen: Scree
   );
 });
 
+/**
+ * Each tool counted once, by what happens when the agent uses it, so the card reads like the
+ * inspector's tool list: anything on "Ask first" (set per tool, or by a supervision preset) is
+ * an ask, whatever it touches. The rest run on their own: reads, undoable changes, and
+ * "ungated" for a tool that can't be undone and doesn't ask.
+ */
+export function toolCounts(agent: Agent) {
+  const n = { read: 0, change: 0, ask: 0, ungated: 0 };
+  for (const t of agent.tools) {
+    if (t.permission === "ask") n.ask++;
+    else if (t.access === "irreversible") n.ungated++;
+    else if (t.access === "write") n.change++;
+    else n.read++;
+  }
+  return n;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }>(function AgentNode({ agent, ...c }, ref) {
-  const counts = { read: 0, write: 0, irreversible: 0 };
-  agent.tools.forEach((t) => counts[t.access]++);
-  const ungated = agent.tools.some((t) => t.access === "irreversible" && t.permission !== "ask");
+  const n = toolCounts(agent);
   return (
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
@@ -91,9 +108,11 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
         </div>
       </div>
       <div className="flex items-center gap-2.5 overflow-hidden border-t border-hairline px-3 py-2">
-        {counts.read > 0 && <Dot cls="bg-read" n={counts.read} label="read" />}
-        {counts.write > 0 && <Dot cls="bg-change" n={counts.write} label="change" />}
-        {counts.irreversible > 0 && <Dot cls="bg-ask" n={counts.irreversible} label={ungated ? "ungated" : "ask"} warn={ungated} />}
+        {n.read > 0 && <Dot cls="bg-read" n={n.read} label="read" title={`${plural(n.read, "tool reads", "tools read")} without asking`} />}
+        {n.change > 0 && <Dot cls="bg-change" n={n.change} label="change" title={`${plural(n.change, "tool changes", "tools change")} things you can undo, without asking`} />}
+        {n.ask > 0 && <Dot cls="bg-ask" n={n.ask} label={<>ask<span className="hidden @[230px]:inline"> first</span></>} title={`${plural(n.ask, "tool asks", "tools ask")} a person first, every time`} />}
+        {n.ungated > 0 && <Dot cls="bg-ask" n={n.ungated} label="ungated" title={`${plural(n.ungated, "tool", "tools")} can't be undone and ${n.ungated === 1 ? "doesn't" : "don't"} ask first`} warn />}
+        {agent.tools.length === 0 && <span className="text-[10.5px] text-faint">No tools yet</span>}
       </div>
     </button>
   );
@@ -101,10 +120,10 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
 
 const SHORT_FW: Record<Agent["framework"], string> = { lyzr: "Lyzr", langgraph: "LangGraph", crewai: "CrewAI", openai_agents: "OpenAI", google_adk: "ADK", mastra: "Mastra" };
 
-function Dot({ cls, n, label, warn }: { cls: string; n: number; label: string; warn?: boolean }) {
+function Dot({ cls, n, label, title, warn }: { cls: string; n: number; label: React.ReactNode; title: string; warn?: boolean }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10.5px]", warn ? "text-ask" : "text-muted-foreground")} title={`${n} ${label}`}>
-      <span className={cn("size-1.5 rounded-full", cls)} />
+    <span className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10.5px]", warn ? "text-ask" : "text-muted-foreground")} title={title}>
+      <span className={cn("size-1.5 rounded-full", cls, warn && "ring-2 ring-ask/25")} />
       {n} {label}
     </span>
   );

@@ -90,6 +90,9 @@ function TeammateView({ h }: { h: HandoffRow }) {
   const summary = resolved?.type === "agent" ? agentSummary(ws.blueprint, resolved.value).sentence : resolved?.type === "connection" ? connectionSummary(ws.blueprint, resolved.value) : resolved?.type === "screen" ? screenSummary(ws.blueprint, resolved.value) : "";
   const mate = h.assignee.split(" · ");
   const file = files[Math.min(fileIdx, files.length - 1)];
+  // A guest has no name worth showing ("Guest"), so the request reads as theirs.
+  const guest = ws.user.isAnonymous;
+  const requester = guest ? "you (guest)" : ws.user.name;
 
   return (
     <div className="mt-5 space-y-4">
@@ -98,7 +101,7 @@ function TeammateView({ h }: { h: HandoffRow }) {
           <Avatar name={mate[0]} hue={hash(mate[0].split(" ")[0].toLowerCase()) % 360} size={32} />
           <div>
             <p className="text-[13px] font-medium">{mate[0]} <span className="font-normal text-muted-foreground">· {mate[1]}</span></p>
-            <p className="text-[11.5px] text-muted-foreground">Request from {ws.user.name} · <TimeAgo iso={h.created_at} /></p>
+            <p className="text-[11.5px] text-muted-foreground">Request from {requester} · <TimeAgo iso={h.created_at} /></p>
           </div>
           <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[11px]", h.status === "resolved" ? "border-read/30 text-read" : "border-change/30 text-change")}>{h.status === "resolved" ? "Resolved" : "Open"}</span>
         </div>
@@ -144,7 +147,7 @@ function TeammateView({ h }: { h: HandoffRow }) {
 
       {h.status !== "resolved" ? (
         <div className="panel rounded-xl p-4">
-          <label htmlFor="resolution" className="micro-label">Reply in plain English (it goes straight to {ws.user.name.split(" ")[0]}&apos;s activity)</label>
+          <label htmlFor="resolution" className="micro-label">Reply in plain English (it goes straight to {guest ? "your" : `${ws.user.name.split(" ")[0]}'s`} activity)</label>
           <Textarea id="resolution" rows={2} className="mt-2 text-[13px]" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave empty to use the suggested summary of the fix." />
           <Button className="mt-3" disabled={pending} onClick={() => start(async () => { const r = await resolveHandoff(ws.project.id, h.id, note); if (!r.ok) return void toast.error(r.error ?? "Couldn't resolve"); toast.success("Resolved", { description: r.changelog }); router.refresh(); })}>
             {pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve as {mate[0].split(" ")[0]} (simulated)

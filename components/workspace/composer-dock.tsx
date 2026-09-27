@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef,
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowUp, Check, CornerDownLeft, Loader2, Target, UsersRound, X } from "lucide-react";
+import { ArrowUp, Check, CornerDownLeft, Loader2, MessageSquarePlus, Target, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Term } from "@/components/arch/term";
@@ -40,10 +40,19 @@ function useDock(): DockState {
 }
 
 /**
- * Tabs where the dock stays a single quiet line until you reach for it: Agents has its own
- * chat with the agent (two big prompts would compete), Ship and Handoffs are about other work.
+ * How much room the dock takes on each tab:
+ * - "full" on Blueprint: the input with its hint and suggestion chips, the place to start.
+ * - "hidden" on Agents: the Playground there is the chat, and two prompts on one screen get mixed up.
+ *   It still opens (and stays open while in use) from "/", ⌘K, the top bar or a "Fix this" button.
+ * - "pill" everywhere else (Preview, Code, Ship, Handoffs): one short line until you focus it or press "/".
  */
-const QUIET_TABS = /\/(agents|ship|handoffs)(\/|$)/;
+export type DockMode = "full" | "pill" | "hidden";
+
+export function dockModeFor(pathname: string): DockMode {
+  if (/\/agents(\/|$)/.test(pathname)) return "hidden";
+  if (/\/blueprint(\/|$)/.test(pathname)) return "full";
+  return "pill";
+}
 
 /**
  * The prompt: a full-width dock under the main view. Asking gets a free quote
@@ -65,11 +74,18 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
   const [clearedFor, setClearedFor] = useState<string | null>(null);
   const effectiveScope = clearedFor === scopeKey ? null : scope;
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
-  // One quiet line while a build runs (the build console has the stage), and on the quiet tabs until focused.
-  const compact = building || (QUIET_TABS.test(pathname) && !focused && !text && !order && !pending);
+  const mode = dockModeFor(pathname);
+  // In use: focused, typed into, or holding a quote. Then it opens fully on every tab.
+  const engaged = focused || Boolean(text) || Boolean(order) || pending;
+  // Folded to nothing, but still in the page: focusing it (from "/" or the top bar) opens it, like a skip link.
+  const folded = mode === "hidden" && !engaged;
+  // One quiet line while a build runs (the build console has the stage), and off Blueprint until it's in use.
+  const compact = building || (mode !== "full" && !engaged);
+  const showChips = mode === "full" && !building && !order && !text;
 
   useEffect(() => {
-    if (ws.composerFocusKey) ref.current?.focus();
+    // No scroll: while folded the input sits in a zero-height box, and a scroll would shift the page under it.
+    if (ws.composerFocusKey) ref.current?.focus({ preventScroll: true });
   }, [ws.composerFocusKey]);
 
   // Grow with the text, up to a few lines, then scroll.
@@ -133,28 +149,38 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
     ? ws.build.mode === "replay"
       ? "Replaying… you can ask for changes when it ends."
       : "Building… you can ask for changes when it's done."
-    : effectiveScope
-      ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…`
-      : ws.project.buildState === "draft"
-        ? "Change the plan before building…"
-        : "Ask for a change or a question…";
+    : compact
+      ? "Ask for a change…"
+      : effectiveScope
+        ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…`
+        : ws.project.buildState === "draft"
+          ? "Change the plan before building…"
+          : mode === "hidden"
+            ? "Ask for a change to the app…"
+            : "Ask for a change or a question…";
 
   return (
     <section
       ref={dockRef}
       aria-label="Ask Prod AI"
-      className="relative shrink-0 border-t border-hairline bg-panel/40 px-3 pb-3 pt-2.5 sm:px-5 sm:pb-3.5"
+      data-dock={folded ? "folded" : compact ? "pill" : "full"}
+      className={cn(
+        "relative shrink-0",
+        folded
+          ? "h-0 overflow-hidden"
+          : cn("border-t border-hairline bg-panel/40 px-3 sm:px-5", compact ? "py-2" : "pb-3 pt-2.5 sm:pb-3.5"),
+      )}
       onFocus={() => setFocused(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
       }}
     >
-      {/* A soft lume under the input, so the prompt reads as the place to start. */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-full bg-[radial-gradient(50%_90%_at_50%_100%,rgb(223_255_79/0.06),rgb(63_224_197/0.025)_45%,transparent_75%)]" />
+      {/* A soft lume under the input, so the prompt reads as the place to start. Only where it is the place to start. */}
+      {!compact && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-full bg-[radial-gradient(50%_90%_at_50%_100%,rgb(223_255_79/0.06),rgb(63_224_197/0.025)_45%,transparent_75%)]" />}
       <p className="sr-only" aria-live="polite">
         {pending ? "Writing a free quote…" : order && p ? `Work Order ready: ${p.summary}` : ""}
       </p>
-      <div className="relative mx-auto w-full max-w-[860px]">
+      <div className={cn("relative mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", compact ? "max-w-[560px]" : "max-w-[860px]")}>
         <AnimatePresence initial={false}>
           {order && p && (
             <motion.div
@@ -222,7 +248,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
           )}
         </AnimatePresence>
 
-        {!order && !text && !compact && (
+        {showChips && (
           <div role="group" aria-label="Suggestions" className="-mx-3 mb-2 flex items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
             <span className="micro-label shrink-0 pr-0.5 max-sm:hidden">Try</span>
             {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
@@ -242,10 +268,12 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
 
         <div
           className={cn(
-            "panel-raised relative rounded-2xl transition-[border-color,box-shadow] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(223_255_79/0.08),0_12px_40px_-16px_rgb(141_255_158/0.45)]",
+            "panel-raised relative transition-[border-color,box-shadow,border-radius] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(223_255_79/0.08),0_12px_40px_-16px_rgb(141_255_158/0.45)]",
+            compact ? "rounded-full hover:border-hairline-hi" : "rounded-2xl",
             building && "opacity-60",
           )}
         >
+          {compact && !building && <MessageSquarePlus className="pointer-events-none absolute left-3.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" aria-hidden />}
           <label htmlFor="composer" className="sr-only">Ask for a change</label>
           <textarea
             id="composer"
@@ -253,6 +281,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
             rows={1}
             value={text}
             disabled={building}
+            aria-keyshortcuts="/"
             aria-describedby={compact ? undefined : "composer-hint"}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -266,7 +295,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
             placeholder={placeholder}
             className={cn(
               "block w-full resize-none bg-transparent text-[14px] leading-relaxed outline-none placeholder:text-faint",
-              compact ? "py-2.5 pl-3.5 pr-12" : "min-h-[52px] px-3.5 pb-1 pt-3",
+              compact ? cn("py-2 pr-12 text-[13px]", building ? "pl-4" : "pl-9") : "min-h-[52px] px-3.5 pb-1 pt-3",
             )}
           />
           {compact ? (

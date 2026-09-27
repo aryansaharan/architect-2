@@ -5,7 +5,7 @@ import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 import {
-  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus,
+  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, MessageSquarePlus, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus,
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { creditsUsd, formatCredits } from "@/lib/format";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
 import { useWorkspace } from "./context";
+import { dockModeFor } from "./composer-dock";
 import { Term } from "@/components/arch/term";
 
 const TABS = [
@@ -46,6 +47,8 @@ export function TopBar() {
   const replaying = building && ws.build.mode === "replay";
   const onHandoffs = pathname.startsWith(`${base}/handoffs`);
   const openHandoffs = ws.handoffs.filter((h) => h.status !== "resolved").length;
+  // Where the composer dock steps aside (Agents, which has its own chat), asking for a change starts here.
+  const dockHidden = dockModeFor(pathname) === "hidden";
 
   return (
     <header className="relative flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel/80 px-2.5 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-panel/70 md:h-12 md:flex-nowrap md:py-0">
@@ -92,7 +95,8 @@ export function TopBar() {
                 />
               )}
               <t.icon className={cn("relative z-[1] size-3.5 transition-colors", active && "text-amber")} aria-hidden />
-              <span className="relative z-[1] max-md:sr-only">{t.label}</span>
+              {/* Icons only below lg (the tooltip names them), so the bar never runs out of room on tablets. */}
+              <span className="relative z-[1] max-lg:sr-only">{t.label}</span>
               <TabPending />
             </Link>
             </TooltipTrigger>
@@ -109,28 +113,61 @@ export function TopBar() {
         <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Brief and activity">
           <PanelLeft className="size-4" />
         </button>
+        {dockHidden && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-muted-foreground hover:text-foreground max-2xl:w-8 max-2xl:px-0"
+                aria-keyshortcuts="/"
+                // Opens the composer under the view, with whatever is selected as its scope.
+                onClick={() => ws.focusComposer(ws.selected)}
+              >
+                <MessageSquarePlus className="size-3.5" />
+                <span className="max-2xl:sr-only">Ask for a change</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-2.5">
+              <span>Ask for a change to the app. The Playground talks to the agent.</span>
+              <Kbd>/</Kbd>
+            </TooltipContent>
+          </Tooltip>
+        )}
         <div className="max-sm:hidden"><SavePoints /></div>
         <SpendMeter />
         {/* Asking a teammate and seeing what you've asked live side by side. */}
         <div className="flex items-center">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-r-none max-lg:px-2" onClick={() => ws.openHandoff(ws.selected)}>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-r-none max-xl:px-2" onClick={() => ws.openHandoff(ws.selected)}>
                 <UsersRound className="size-3.5" />
-                <span className="max-lg:sr-only">Ask a teammate</span>
+                <span className="max-xl:sr-only">Ask a teammate</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Hand this to an engineer with full context</TooltipContent>
           </Tooltip>
+          {/* A labelled control on wide screens ("Handoffs 1"), the inbox and a badge on narrow ones. */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild variant="outline" size="sm" className={cn("relative h-8 w-8 rounded-l-none border-l-0 px-0 text-muted-foreground", onHandoffs && "bg-muted text-foreground")}>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className={cn("relative h-8 gap-1.5 rounded-l-none border-l-0 text-muted-foreground max-xl:w-8 max-xl:px-0 xl:px-2.5", onHandoffs && "bg-muted text-foreground")}
+              >
                 <Link href={`${base}/handoffs`} aria-current={onHandoffs ? "page" : undefined} aria-label={openHandoffs ? `Handoffs, ${openHandoffs} open` : "Handoffs"}>
-                  <Inbox className="size-3.5" />
+                  <Inbox className={cn("size-3.5", onHandoffs && "text-amber")} />
+                  <span aria-hidden className="max-xl:hidden">Handoffs</span>
                   {openHandoffs > 0 && (
-                    <span aria-hidden className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber px-1 font-mono text-[9.5px] font-semibold tabular-nums text-primary-foreground ring-2 ring-panel">
-                      {openHandoffs}
-                    </span>
+                    <>
+                      <span aria-hidden className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-amber px-1 font-mono text-[10px] font-semibold tabular-nums text-primary-foreground max-xl:hidden">
+                        {openHandoffs}
+                      </span>
+                      <span aria-hidden className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber px-1 font-mono text-[9.5px] font-semibold tabular-nums text-primary-foreground ring-2 ring-panel xl:hidden">
+                        {openHandoffs}
+                      </span>
+                    </>
                   )}
                 </Link>
               </Button>

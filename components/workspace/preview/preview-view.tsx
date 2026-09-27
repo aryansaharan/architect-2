@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Check, ExternalLink, Loader2, MessageSquare, Monitor, MousePointer2, Pencil, Smartphone, Tablet, UsersRound, X } from "lucide-react";
@@ -18,6 +18,21 @@ type Mode = "use" | "tweak" | "comment";
 type Device = "desktop" | "tablet" | "phone";
 const WIDTH: Record<Device, string> = { desktop: "100%", tablet: "834px", phone: "390px" };
 
+/**
+ * The device that fits the screen you're on: a phone frame below 640px, a tablet frame up to
+ * 1024px, desktop above. It follows rotation and resizing until you pick a device yourself.
+ */
+const PHONE_MQ = "(width < 40rem)";
+const TABLET_MQ = "(width < 64rem)";
+function subscribeViewport(cb: () => void) {
+  const mqs = [window.matchMedia(PHONE_MQ), window.matchMedia(TABLET_MQ)];
+  mqs.forEach((m) => m.addEventListener("change", cb));
+  return () => mqs.forEach((m) => m.removeEventListener("change", cb));
+}
+function viewportDevice(): Device {
+  return window.matchMedia(PHONE_MQ).matches ? "phone" : window.matchMedia(TABLET_MQ).matches ? "tablet" : "desktop";
+}
+
 export function PreviewView({ comments }: { comments: CommentRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
@@ -25,7 +40,9 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
   const params = useSearchParams();
   const bp = ws.blueprint;
   const [mode, setMode] = useState<Mode>(params.get("tweak") ? "tweak" : "use");
-  const [device, setDevice] = useState<Device>("desktop");
+  const fits = useSyncExternalStore(subscribeViewport, viewportDevice, () => "desktop" as Device);
+  const [picked, setDevice] = useState<Device | null>(null);
+  const device = picked ?? fits;
   const urlScreen = params.get("screen");
   const [localScreen, setScreenId] = useState(bp.screens[0].id);
   const screenId = urlScreen && bp.screens.some((s) => s.id === urlScreen) ? urlScreen : localScreen;
@@ -119,7 +136,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
         </div>
       </div>
       <div className="relative flex min-h-0 flex-1">
-        <div className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(223_255_79/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-5">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-[radial-gradient(ellipse_at_50%_-10%,rgb(223_255_79/0.07),transparent_55%),radial-gradient(circle_at_50%_0%,#161920,#0a0b0e_70%)] p-3 sm:p-5">
           <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-panel px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>
             {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only: this is what will be built</span>}
@@ -128,7 +145,9 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
           </div>
           <div
             className={cn(
-              "relative mx-auto flex flex-col transition-[width,border-radius,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              "relative mx-auto flex min-w-0 flex-col",
+              // Morph only when you switch devices, not when the first paint settles on the one that fits.
+              picked && "transition-[width,border-radius,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
               device === "phone"
                 ? "rounded-[46px] bg-[linear-gradient(160deg,#2a2d35,#0c0d11_40%,#1b1d23)] p-[11px] shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_40px_100px_-20px_rgb(0_0_0/0.9),0_0_80px_-30px_rgb(223_255_79/0.35)]"
                 : "rounded-xl border border-hairline-hi bg-deep shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_0_1px_rgb(255_255_255/0.02),0_0_90px_-40px_rgb(223_255_79/0.3)]",
@@ -147,7 +166,9 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
                 <span className="w-[46px]" />
               </div>
             )}
-            <div className={cn("min-h-0 flex-1 overflow-hidden", device === "phone" ? "rounded-[36px]" : "rounded-b-xl")}>
+            {/* overflow-clip, not hidden: it rounds the screen's corners but is never itself scrolled (by focus or scrollIntoView),
+                so wide tables keep scrolling sideways in their own container, with its fade, instead of being cut off. */}
+            <div className={cn("min-h-0 min-w-0 flex-1 overflow-clip", device === "phone" ? "rounded-[36px]" : "rounded-b-xl")}>
               <SpecApp bp={bp} mode="preview" device={device} screenId={screenId} onScreenChange={changeScreen} projectId={ws.project.id} wrapBlock={mode === "use" ? undefined : wrap} navMarks={navMarks} />
             </div>
           </div>

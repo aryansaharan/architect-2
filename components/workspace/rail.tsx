@@ -89,7 +89,10 @@ export function Rail({ collapsible = false, initialPref = "auto" }: { collapsibl
   );
 }
 
-/** Collapsed: the event count and the latest thing that happened, one click from the full history. */
+/**
+ * Collapsed: a slim strip with the event count and the lane of the latest thing that happened.
+ * Its title lives in the tooltip (no sideways text); the whole strip opens the full history.
+ */
 function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonRef: Ref<HTMLButtonElement>; onOpen: (viaKeyboard: boolean) => void }) {
   const ws = useWorkspace();
   const b = ws.build;
@@ -97,8 +100,11 @@ function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonR
   const step = building && b.current?.kind === "step" ? b.current : null;
   const latest = ws.ledger[0] ?? null;
   const count = ws.ledger.length + (building ? b.completed.length : 0);
-  const title = b.status === "repair" ? "Waiting for you: pick a fix" : (step?.title ?? latest?.title ?? "Nothing yet");
-  const lane: Lane = b.status === "repair" ? "checked" : (step?.lane ?? latest?.lane ?? "thought");
+  const waiting = b.status === "repair";
+  const working = Boolean(step) && b.status === "running";
+  const title = waiting ? "Waiting for you: pick a fix" : (step?.title ?? latest?.title ?? "Nothing yet");
+  const lane: Lane = waiting ? "checked" : (step?.lane ?? latest?.lane ?? "thought");
+  const L = LANE[lane];
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -119,17 +125,24 @@ function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonR
             <span className="mt-1 text-[9px] uppercase tracking-[0.12em] text-faint">{count === 1 ? "event" : "events"}</span>
           </span>
           <span aria-hidden className="h-px w-6 bg-hairline" />
-          {step && b.status === "running" ? (
-            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-amber-soft"><Loader2 className="size-3 animate-spin text-amber" aria-hidden /></span>
-          ) : (
-            <LaneIcon lane={lane} />
-          )}
-          {/* The latest item reads top to bottom, like a book spine. */}
-          <span className={cn("min-h-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-start text-[12px] leading-5 [writing-mode:vertical-rl]", b.status === "repair" ? "text-fix" : "text-foreground/80")}>{title}</span>
+          {/* The latest item's lane, with a live dot while something is happening. Its title is in the tooltip. */}
+          <span className="flex flex-col items-center leading-none">
+            <span className={cn("relative grid size-7 place-items-center rounded-lg transition-transform duration-200 group-hover:scale-105", waiting ? "bg-fix/15 text-fix" : working ? "bg-amber-soft text-amber" : L.cls)}>
+              {working ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <L.icon className="size-3.5" aria-hidden />}
+              {(working || waiting) && (
+                <span aria-hidden className={cn("absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-panel", waiting ? "bg-fix" : "bg-amber")} />
+              )}
+            </span>
+            <span className="mt-1.5 text-[9px] uppercase tracking-[0.12em] text-faint">latest</span>
+          </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-64">
-        <span className="line-clamp-3">Latest: {title}</span>
+      {/* Beside the lane icon, not halfway down a full-height strip. */}
+      <TooltipContent side="right" align="start" alignOffset={96} className="max-w-64">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[10px] uppercase tracking-[0.12em] opacity-60">Latest · {L.label}</span>
+          <span className="line-clamp-3">{title}</span>
+        </span>
       </TooltipContent>
     </Tooltip>
   );
