@@ -31,6 +31,9 @@ const shell = (c: Common) =>
     c.buildState === "active" && "beam border-amber/40 shadow-[0_0_50px_-10px_rgb(223_255_79/0.6)]",
   );
 
+/** Card titles wrap to two lines instead of cutting names like "Dispatch Coordinator" short. */
+const TITLE = "line-clamp-2 min-w-0 break-words text-[13px] font-medium leading-snug";
+
 function Scan({ s }: { s: NodeState | null }) {
   return s === "active" ? <span className="scanline" aria-hidden /> : null;
 }
@@ -55,10 +58,10 @@ export const ScreenNode = forwardRef<HTMLButtonElement, Common & { screen: Scree
     <button ref={ref} className={shell(c)} onClick={c.onSelect} onMouseEnter={() => c.onHover(true)} onMouseLeave={() => c.onHover(false)} onFocus={() => c.onHover(true)} onBlur={() => c.onHover(false)} aria-pressed={c.selected}>
       <BuildMark s={c.buildState} />
       <Scan s={c.buildState} />
-      <div className="flex items-center gap-2 px-3 pt-2.5">
-        <DynamicIcon name={screen.icon} className="size-3.5 text-muted-foreground" />
-        <span className="truncate text-[13px] font-medium">{screen.title}</span>
-        <span className={cn("ml-auto rounded px-1.5 py-px text-[10px]", screen.audience === "customer" ? "bg-change/10 text-change" : "bg-raised text-muted-foreground")}>{screen.audience === "customer" ? "customers" : screen.audience}</span>
+      <div className="flex items-start gap-2 px-3 pt-2.5">
+        <DynamicIcon name={screen.icon} className="mt-[3px] size-3.5 shrink-0 text-muted-foreground" />
+        <span className={cn(TITLE, "flex-1")} title={screen.title}>{screen.title}</span>
+        <span className={cn("mt-px shrink-0 rounded px-1.5 py-px text-[10px]", screen.audience === "customer" ? "bg-change/10 text-change" : "bg-raised text-muted-foreground")}>{screen.audience === "customer" ? "customers" : screen.audience}</span>
       </div>
       <div className="px-3 pb-3 pt-2">
         <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-1.5">
@@ -80,11 +83,11 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
       <div className="flex items-start gap-2.5 p-3">
         <Avatar name={agent.name} hue={agent.avatarHue} size={30} />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2">
-            <span className="truncate text-[13px] font-medium">{agent.name}</span>
-            <span className="ml-auto hidden shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint @[230px]:inline-block" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
+          <p className="flex items-start gap-2">
+            <span className={cn(TITLE, "flex-1")} title={agent.name}>{agent.name}</span>
+            <span className="mt-px hidden shrink-0 rounded bg-deep px-1.5 py-px font-mono text-[10px] text-faint @[230px]:inline-block" title={FRAMEWORK_LABEL[agent.framework]}>{SHORT_FW[agent.framework]}</span>
           </p>
-          <p className="truncate text-[11.5px] text-muted-foreground">{agent.role}</p>
+          <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground" title={agent.role}>{agent.role}</p>
         </div>
       </div>
       <div className="flex items-center gap-2.5 overflow-hidden border-t border-hairline px-3 py-2">
@@ -115,7 +118,7 @@ export const EntityNode = forwardRef<HTMLButtonElement, Common & { entity: Entit
       <div className="flex items-center gap-2.5 p-3">
         <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><Database className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium">{entity.plural}</p>
+          <p className={TITLE} title={entity.plural}>{entity.plural}</p>
           <p className="truncate text-[11.5px] text-muted-foreground">{entity.fields.length} details · {entity.sample.length} sample records</p>
         </div>
       </div>
@@ -138,7 +141,7 @@ export const ConnectionNode = forwardRef<HTMLButtonElement, Common & { connectio
       <div className="flex items-center gap-2.5 p-3">
         <span className="grid size-7 place-items-center rounded-lg border border-hairline bg-raised"><ConnectionIcon kind={connection.kind} className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium">{connection.name}</p>
+          <p className={TITLE} title={connection.name}>{connection.name}</p>
           <p className={cn("flex items-center gap-1 truncate text-[11.5px]", missing ? "text-amber" : "text-muted-foreground")}>
             {missing ? <><KeyRound className="size-3" />Needs a key · test data</> : <><span className="size-1.5 rounded-full bg-read" />Connected</>}
           </p>

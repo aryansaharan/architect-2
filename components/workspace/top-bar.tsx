@@ -1,16 +1,16 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 import {
-  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Loader2, LogOut, Eye, Play, Rocket, Settings, Share2, Undo2, UsersRound, UserRoundPlus,
+  Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus,
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/arch/badges";
@@ -64,7 +64,7 @@ export function TopBar() {
           ) : (
             <StatusBadge state={building ? "building" : ws.project.buildState} live={Boolean(ws.liveSlug)} />
           )}
-          {ws.project.isDemo && <span className="hidden rounded-full border border-hairline px-2 py-0.5 text-[10.5px] text-muted-foreground xl:inline">Demo project</span>}
+          {ws.project.isDemo && <span className="hidden rounded-full border border-hairline px-2 py-0.5 text-[10.5px] text-muted-foreground 2xl:inline">Demo project</span>}
         </div>
       </div>
 
@@ -109,9 +109,6 @@ export function TopBar() {
         <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Brief and activity">
           <PanelLeft className="size-4" />
         </button>
-        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:command-k"))} className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground xl:flex" aria-label="Open command palette">
-          Jump to <KbdGroup><Kbd>⌘</Kbd><Kbd>K</Kbd></KbdGroup>
-        </button>
         <div className="max-sm:hidden"><SavePoints /></div>
         <SpendMeter />
         {/* Asking a teammate and seeing what you've asked live side by side. */}
@@ -144,8 +141,8 @@ export function TopBar() {
             </TooltipContent>
           </Tooltip>
         </div>
-        <div className="max-sm:hidden"><ShareButton /></div>
-        <div className="sm:hidden"><MoreMenu /></div>
+        {/* Share, Jump to and shortcuts live in one menu (plus save points on phones). */}
+        <MoreMenu />
         <UserMenu />
       </div>
       <div aria-hidden className="solstice-line pointer-events-none absolute inset-x-0 -bottom-px" style={{ opacity: 0.4 }} />
@@ -228,19 +225,54 @@ function SavePointItems() {
   );
 }
 
-/** Phones have no room for Save points and Share in the bar, so they live in one overflow menu. */
+/** True on phones, where the bar has no room for the Save points button. Matches Tailwind's `sm`. */
+function usePhone() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia("(width < 40rem)");
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(width < 40rem)").matches,
+    () => false,
+  );
+}
+
+/**
+ * The secondary controls in one place: Share, Jump to (⌘K) and shortcuts.
+ * On phones it also carries the save points, which have no room in the bar.
+ */
 function MoreMenu() {
   const ws = useWorkspace();
+  const phone = usePhone();
   const base = `/p/${ws.project.id}`;
+  // Items that open a dialog keep focus there instead of handing it back to this trigger.
+  const openingDialog = useRef(false);
+  const openDialog = (event: string) => {
+    openingDialog.current = true;
+    requestAnimationFrame(() => window.dispatchEvent(new Event(event)));
+  };
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="size-8" aria-label="More: save points and share">
-          <Ellipsis className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1rem))]">
-        {ws.checkpoints.length > 0 && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="size-8" aria-label={phone ? "More: save points, share, jump to and shortcuts" : "More: share, jump to and shortcuts"}>
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Share, jump to and shortcuts</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        align="end"
+        className="w-[min(20rem,calc(100vw-1rem))]"
+        onCloseAutoFocus={(e) => {
+          if (openingDialog.current) e.preventDefault();
+          openingDialog.current = false;
+        }}
+      >
+        {phone && ws.checkpoints.length > 0 && (
           <>
             <DropdownMenuLabel className="flex items-center justify-between">
               <span><Term k="save-point">Save points</Term></span>
@@ -253,7 +285,10 @@ function MoreMenu() {
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuLabel>Share</DropdownMenuLabel>
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Share</span>
+          <span className="font-normal text-muted-foreground">{ws.liveSlug ? "Anyone with the link" : "Not live yet"}</span>
+        </DropdownMenuLabel>
         {ws.liveSlug ? (
           <>
             <DropdownMenuItem
@@ -270,11 +305,26 @@ function MoreMenu() {
           </>
         ) : (
           <DropdownMenuItem asChild>
-            <Link href={`${base}/ship`}><Rocket /> Not live yet. Go live from Ship</Link>
+            <Link href={`${base}/ship`}><Rocket /> Go live from Ship to get a link</Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem asChild>
-          <Link href="/settings#team"><UserRoundPlus /> Manage people and roles</Link>
+          <Link href="/settings#team" className="items-start">
+            <UserRoundPlus className="mt-0.5" />
+            <span className="min-w-0">
+              <span className="block">Invite people</span>
+              <span className="block text-[11.5px] text-muted-foreground">Owner · Editor · Viewer. Viewers can comment and approve, not change.</span>
+            </span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => openDialog("architect:command-k")}>
+          <Search /> Jump to a screen, agent or action
+          <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openDialog("architect:shortcuts")}>
+          <Keyboard /> Keyboard shortcuts
+          <DropdownMenuShortcut>?</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -286,16 +336,29 @@ function SpendMeter() {
   const { credits, cap } = ws.usage;
   const pct = Math.min(1, cap ? credits / cap : 0);
   const tone = pct >= 0.9 ? "bg-ask" : pct >= 0.7 ? "bg-amber" : "bg-read";
+  const used = Math.round(credits);
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button type="button" className="group flex h-8 items-center gap-2 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground" aria-label={`Spend: ${formatCredits(credits)} of ${cap} credits`}>
-          <span className="relative h-1.5 w-14 overflow-hidden rounded-full bg-raised max-sm:hidden">
-            <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out", tone)} style={{ width: `${Math.max(3, pct * 100)}%` }} />
-          </span>
-          <span className="font-mono tabular-nums"><AnimatedNumber value={Math.round(credits)} /><span className="opacity-60">/{cap}</span></span>
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="group flex h-8 items-center gap-2 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-raised hover:text-foreground"
+              aria-label={`Credits used this month: ${used} of your ${cap} credit cap. Open spending details`}
+            >
+              <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-raised max-sm:hidden">
+                <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out", tone)} style={{ width: `${Math.max(3, pct * 100)}%` }} />
+              </span>
+              <span className="whitespace-nowrap font-mono tabular-nums">
+                <AnimatedNumber value={used} />
+                <span className="opacity-60"><span className="max-sm:hidden"> </span>/<span className="max-sm:hidden"> </span>{cap} cr</span>
+              </span>
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Credits used this month / your cap</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" className="w-80">
         <p className="micro-label">This project · this month</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">
@@ -312,57 +375,6 @@ function SpendMeter() {
         <Button asChild variant="outline" size="sm" className="mt-4 w-full">
           <Link href="/settings#usage">See the breakdown and change the cap</Link>
         </Button>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function ShareButton() {
-  const ws = useWorkspace();
-  const [copied, setCopied] = useState(false);
-  const url = ws.liveSlug ? `${typeof window === "undefined" ? "" : window.location.origin}/live/${ws.liveSlug}` : null;
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="size-8" aria-label="Share">
-          <Share2 className="size-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
-        <p className="text-sm font-medium">Share</p>
-        {url ? (
-          <>
-            <p className="mt-1 text-[13px] text-muted-foreground">Anyone with the link can use the live version.</p>
-            <div className="mt-3 flex gap-1.5">
-              <code className="min-w-0 flex-1 truncate rounded-md border border-hairline bg-deep px-2 py-1.5 font-mono text-[12px]">{url.replace(/^https?:\/\//, "")}</code>
-              <Button
-                size="icon-sm"
-                variant="outline"
-                className="size-8"
-                aria-label="Copy link"
-                onClick={() => {
-                  void navigator.clipboard.writeText(url);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? <Check className="text-read" /> : <Copy />}
-              </Button>
-              <Button asChild size="icon-sm" variant="outline" className="size-8" aria-label="Open live version">
-                <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer"><ExternalLink /></a>
-              </Button>
-            </div>
-          </>
-        ) : (
-          <p className="mt-1 text-[13px] text-muted-foreground">Not live yet. Go live from the Ship tab to get a link.</p>
-        )}
-        <div className="mt-4 border-t border-hairline pt-3">
-          <p className="flex items-center gap-2 text-[13px] font-medium"><UserRoundPlus className="size-3.5" />Invite to this project</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">Roles: Owner · Editor · Viewer. Viewers can comment and approve, not change.</p>
-          <Button asChild size="sm" variant="outline" className="mt-2.5 w-full">
-            <Link href="/settings#team">Manage people and roles</Link>
-          </Button>
-        </div>
       </PopoverContent>
     </Popover>
   );

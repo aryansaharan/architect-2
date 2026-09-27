@@ -1,21 +1,15 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { motion } from "motion/react";
-import { toast } from "sonner";
-import { ArrowUp, Brain, Check, ChevronDown, CornerDownLeft, Hammer, Loader2, ShieldCheck, Target, UsersRound, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Brain, Check, ChevronDown, Hammer, Loader2, PanelLeftClose, PanelLeftOpen, ShieldCheck, Target } from "lucide-react";
 import { BlameBadge } from "@/components/arch/badges";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
-import { creditsUsd, formatCredits } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
-import type { Lane, LedgerRow, WorkOrderRow } from "@/lib/db/types";
-import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
+import type { Lane, LedgerRow } from "@/lib/db/types";
 import { useWorkspace } from "./context";
-import { Term } from "@/components/arch/term";
-import { undoTo } from "./undo";
-import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
+import { parseRailPref, RAIL_COOKIE, RAIL_STORAGE_KEY, type RailPref } from "./rail-pref";
 
 const LANE: Record<Lane, { icon: typeof Brain; label: string; cls: string }> = {
   thought: { icon: Brain, label: "Thought", cls: "text-muted-foreground bg-raised" },
@@ -25,11 +19,130 @@ const LANE: Record<Lane, { icon: typeof Brain; label: string; cls: string }> = {
 
 type Filter = "all" | "fixes" | "team";
 
-export function Rail() {
+/* ------------------------------------------------ open / collapsed, remembered */
+
+const RAIL_EVENT = "prodai:rail-pref";
+
+function subscribeRail(cb: () => void) {
+  window.addEventListener("storage", cb);
+  window.addEventListener(RAIL_EVENT, cb);
+  return () => {
+    window.removeEventListener("storage", cb);
+    window.removeEventListener(RAIL_EVENT, cb);
+  };
+}
+
+function readRail(): RailPref {
+  try {
+    return parseRailPref(window.localStorage.getItem(RAIL_STORAGE_KEY));
+  } catch {
+    return "auto";
+  }
+}
+
+function writeRail(v: RailPref) {
+  try {
+    window.localStorage.setItem(RAIL_STORAGE_KEY, v);
+  } catch {
+    // Private mode: the cookie below still remembers it.
+  }
+  // Mirrored to a cookie so the server paints the right width on the next load.
+  document.cookie = `${RAIL_COOKIE}=${v}; path=/; max-age=31536000; samesite=lax`;
+  window.dispatchEvent(new Event(RAIL_EVENT));
+}
+
+/**
+ * The activity rail. `collapsible` (desktop) adds the slim strip and the toggle;
+ * the phone sheet shows the full panel only.
+ */
+export function Rail({ collapsible = false, initialPref = "auto" }: { collapsible?: boolean; initialPref?: RailPref }) {
+  const pref = useSyncExternalStore(subscribeRail, readRail, () => initialPref);
+  const collapseBtn = useRef<HTMLButtonElement>(null);
+  const expandBtn = useRef<HTMLButtonElement>(null);
+
+  if (!collapsible) return <RailPanel className="flex w-full bg-panel/40" />;
+
+  const setOpen = (open: boolean, viaKeyboard: boolean) => {
+    writeRail(open ? "open" : "collapsed");
+    // From the keyboard, the button that was pressed is gone now: hand focus to its counterpart.
+    if (viaKeyboard) requestAnimationFrame(() => (open ? collapseBtn : expandBtn).current?.focus({ preventScroll: true }));
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex h-full shrink-0 overflow-hidden border-r border-hairline bg-panel/40 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        pref === "open" ? "w-[312px]" : pref === "collapsed" ? "w-14" : "w-14 min-[1600px]:w-[312px]",
+      )}
+    >
+      <RailPanel
+        className={cn("w-[312px]", pref === "open" ? "flex" : pref === "collapsed" ? "hidden" : "hidden min-[1600px]:flex")}
+        collapseRef={collapseBtn}
+        onCollapse={(viaKeyboard) => setOpen(false, viaKeyboard)}
+      />
+      <SlimRail
+        className={pref === "open" ? "hidden" : pref === "collapsed" ? "flex" : "flex min-[1600px]:hidden"}
+        buttonRef={expandBtn}
+        onOpen={(viaKeyboard) => setOpen(true, viaKeyboard)}
+      />
+    </div>
+  );
+}
+
+/** Collapsed: the event count and the latest thing that happened, one click from the full history. */
+function SlimRail({ className, buttonRef, onOpen }: { className: string; buttonRef: Ref<HTMLButtonElement>; onOpen: (viaKeyboard: boolean) => void }) {
+  const ws = useWorkspace();
+  const b = ws.build;
+  const building = b.status !== "idle" && b.status !== "done";
+  const step = building && b.current?.kind === "step" ? b.current : null;
+  const latest = ws.ledger[0] ?? null;
+  const count = ws.ledger.length + (building ? b.completed.length : 0);
+  const title = b.status === "repair" ? "Waiting for you: pick a fix" : (step?.title ?? latest?.title ?? "Nothing yet");
+  const lane: Lane = b.status === "repair" ? "checked" : (step?.lane ?? latest?.lane ?? "thought");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          ref={buttonRef}
+          type="button"
+          // A keyboard "click" has detail 0.
+          onClick={(e) => onOpen(e.detail === 0)}
+          aria-expanded={false}
+          aria-label={`Open brief and activity. ${count} ${count === 1 ? "event" : "events"}. Latest: ${title}`}
+          className={cn("group h-full w-14 shrink-0 flex-col items-center gap-3 py-3 text-muted-foreground transition-colors hover:bg-raised/40 hover:text-foreground focus-visible:outline-offset-[-3px]", className)}
+        >
+          <span className="grid size-8 place-items-center rounded-lg border border-hairline bg-deep transition-colors group-hover:border-amber/40 group-hover:text-amber">
+            <PanelLeftOpen className="size-4" aria-hidden />
+          </span>
+          <span className="flex flex-col items-center leading-none">
+            <span className="font-mono text-[13px] tabular-nums text-foreground">{count}</span>
+            <span className="mt-1 text-[9px] uppercase tracking-[0.12em] text-faint">{count === 1 ? "event" : "events"}</span>
+          </span>
+          <span aria-hidden className="h-px w-6 bg-hairline" />
+          {step && b.status === "running" ? (
+            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-amber-soft"><Loader2 className="size-3 animate-spin text-amber" aria-hidden /></span>
+          ) : (
+            <LaneIcon lane={lane} />
+          )}
+          {/* The latest item reads top to bottom, like a book spine. */}
+          <span className={cn("min-h-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-start text-[12px] leading-5 [writing-mode:vertical-rl]", b.status === "repair" ? "text-fix" : "text-foreground/80")}>{title}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-64">
+        <span className="line-clamp-3">Latest: {title}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** `className` sets the width and the display (flex or hidden). */
+function RailPanel({ className, collapseRef, onCollapse }: { className: string; collapseRef?: Ref<HTMLButtonElement>; onCollapse?: (viaKeyboard: boolean) => void }) {
   const ws = useWorkspace();
   const [filter, setFilter] = useState<Filter>("all");
   const [briefOpen, setBriefOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  // Fade an edge of the history only when there is more to scroll to on that side.
+  const [fade, setFade] = useState<"none" | "top" | "bottom" | "both">("none");
 
   const entries = useMemo(() => {
     const rows = [...ws.ledger].reverse();
@@ -39,16 +152,74 @@ export function Rail() {
   }, [ws.ledger, filter]);
 
   const live = ws.build.status !== "idle" && ws.build.status !== "done" ? ws.build.completed : [];
+
+  const updateFade = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const top = el.scrollTop > 2;
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 2;
+    setFade(top && bottom ? "both" : top ? "top" : bottom ? "bottom" : "none");
+  }, []);
+
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [entries.length, live.length, ws.build.status]);
 
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // Opening from the slim strip shows the panel for the first time: start at the latest item, like it always does.
+    let hidden = el.clientHeight === 0;
+    const ro = new ResizeObserver(() => {
+      if (hidden && el.clientHeight > 0) el.scrollTop = el.scrollHeight;
+      hidden = el.clientHeight === 0;
+      updateFade();
+    });
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [updateFade]);
+
   const fixes = ws.ledger.filter((r) => r.blame === "system_fix").length;
 
   return (
-    <aside aria-label="Brief and activity" className="flex h-full w-[312px] shrink-0 flex-col border-r border-hairline bg-panel/40">
+    <aside aria-label="Brief and activity" className={cn("h-full shrink-0 flex-col", className)}>
       <div className="flex items-center justify-between gap-2 px-3 pt-3">
         <h2 className="micro-label">Brief &amp; activity</h2>
+        {onCollapse && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                ref={collapseRef}
+                type="button"
+                onClick={(e) => onCollapse(e.detail === 0)}
+                aria-expanded
+                aria-label="Collapse brief and activity"
+                className="-mr-1 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-raised hover:text-foreground"
+              >
+                <PanelLeftClose className="size-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Collapse to a slim strip</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+
+      <div className="px-3 pt-2">
+        <button onClick={() => setBriefOpen((o) => !o)} className="panel w-full rounded-lg p-2.5 text-left" aria-expanded={briefOpen}>
+          <span className="flex items-center justify-between">
+            <span className="text-[12px] font-medium">The brief</span>
+            <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", briefOpen && "rotate-180")} />
+          </span>
+          <span className={cn("mt-1 block text-[12.5px] leading-relaxed text-muted-foreground", !briefOpen && "line-clamp-2")}>{ws.project.brief || ws.blueprint.meta.plain}</span>
+        </button>
+      </div>
+
+      {/* The history gets its own header, so the list scrolls under a clean edge, not under the brief. */}
+      <div className="mt-3 flex items-center justify-between gap-2 border-b border-hairline px-3 pb-2">
+        <h3 className="flex items-baseline gap-1.5 text-[12px] font-medium">
+          History <span className="font-mono text-[11px] font-normal text-faint">{entries.length + live.length}</span>
+        </h3>
         <div className="flex items-center gap-0.5 rounded-md border border-hairline bg-deep p-0.5" role="radiogroup" aria-label="Filter activity">
           {(
             [
@@ -64,17 +235,16 @@ export function Rail() {
         </div>
       </div>
 
-      <div className="px-3 pt-2.5">
-        <button onClick={() => setBriefOpen((o) => !o)} className="panel w-full rounded-lg p-2.5 text-left" aria-expanded={briefOpen}>
-          <span className="flex items-center justify-between">
-            <span className="text-[12px] font-medium">The brief</span>
-            <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", briefOpen && "rotate-180")} />
-          </span>
-          <span className={cn("mt-1 block text-[12.5px] leading-relaxed text-muted-foreground", !briefOpen && "line-clamp-2")}>{ws.project.brief || ws.blueprint.meta.plain}</span>
-        </button>
-      </div>
-
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [mask-image:linear-gradient(to_bottom,transparent,black_18px,black_calc(100%-12px),transparent)]">
+      <div
+        ref={scroller}
+        onScroll={updateFade}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-2",
+          fade === "both" && "[mask-image:linear-gradient(to_bottom,transparent,black_24px,black_calc(100%-20px),transparent)]",
+          fade === "top" && "[mask-image:linear-gradient(to_bottom,transparent,black_24px)]",
+          fade === "bottom" && "[mask-image:linear-gradient(to_bottom,black_calc(100%-20px),transparent)]",
+        )}
+      >
         {entries.length === 0 && live.length === 0 ? (
           <p className="px-1 py-6 text-center text-[12.5px] text-muted-foreground">Nothing here yet. Everything Prod AI thinks, does and checks will show up here, with its price.</p>
         ) : (
@@ -111,8 +281,6 @@ export function Rail() {
           </ol>
         )}
       </div>
-
-      <Composer />
     </aside>
   );
 }
@@ -154,197 +322,4 @@ function LedgerItem({ entry }: { entry: LedgerRow }) {
       </div>
     </motion.li>
   );
-}
-
-function Composer() {
-  const ws = useWorkspace();
-  const router = useRouter();
-  const [text, setText] = useState("");
-  const [pending, start] = useTransition();
-  const [order, setOrder] = useState<{ wo: WorkOrderRow; overBudget: boolean } | null>(null);
-  const [approving, setApproving] = useState(false);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const scope = ws.scope === null && ws.selected ? ws.selected : ws.scope;
-  // The ✕ on the scope chip clears it for the current scope + focus request only.
-  const scopeKey = `${scope ? `${scope.type}:${scope.id}` : "none"}#${ws.composerFocusKey}`;
-  const [clearedFor, setClearedFor] = useState<string | null>(null);
-  const effectiveScope = clearedFor === scopeKey ? null : scope;
-  const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
-
-  useEffect(() => {
-    if (ws.composerFocusKey) ref.current?.focus();
-  }, [ws.composerFocusKey]);
-
-  function submit() {
-    const request = text.trim();
-    if (!request || pending) return;
-    start(async () => {
-      const r = await requestChange(ws.project.id, request, effectiveScope);
-      if (!r.ok) {
-        toast.error(r.error);
-        return;
-      }
-      setOrder({ wo: r.workOrder, overBudget: r.overBudget });
-      setText("");
-      router.refresh();
-    });
-  }
-
-  async function approve() {
-    if (!order) return;
-    setApproving(true);
-    const prev = ws.project.currentCheckpointId;
-    const r = await approveChange(ws.project.id, order.wo.id);
-    setApproving(false);
-    if (!r.ok) {
-      toast.error(r.error ?? "Couldn't apply the change");
-      return;
-    }
-    toast.success(order.wo.proposal?.summary ?? "Change applied", {
-      description: `${r.label}. Going back is always free.`,
-      duration: 9000,
-      action: prev ? { label: "Undo", onClick: () => void undoTo(ws.project.id, prev, () => router.refresh()) } : undefined,
-    });
-    setOrder(null);
-    router.refresh();
-  }
-
-  const p = order?.wo.proposal;
-  const isAnswer = Boolean(p?.answer);
-  const needsPerson = p && p.operations.length === 0 && !isAnswer;
-
-  return (
-    <div className="border-t border-hairline p-3">
-      {order && p && (
-        <div className="panel-raised mb-2.5 rounded-xl p-3" role="region" aria-label="Work Order">
-          <div className="flex items-center justify-between">
-            <span className="micro-label text-amber">{isAnswer ? "Answer · no change made" : needsPerson ? "Needs a person" : <Term k="work-order" />}</span>
-            <button onClick={() => { void rejectChange(ws.project.id, order.wo.id); setOrder(null); }} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
-          </div>
-          {isAnswer ? (
-            <>
-              <p className="mt-1.5 text-[13px] leading-relaxed">{p.rationale}</p>
-              <button
-                type="button"
-                onClick={() => { setText(p.summary); setOrder(null); ref.current?.focus(); }}
-                className="mt-2.5 w-full rounded-lg border border-hairline bg-deep px-2.5 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground"
-              >
-                <span className="micro-label mb-0.5 block">Want to change it?</span>
-                “{p.summary}”
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="mt-1.5 text-[13px] font-medium leading-snug">{p.summary}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>
-            </>
-          )}
-          {!needsPerson && !isAnswer && (
-            <>
-              <dl className="mt-2.5 grid grid-cols-3 gap-1.5 text-center">
-                <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Screens</dt><dd className="font-mono text-[12px]">{p.blastRadius.screens.length}</dd></div>
-                <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Agents</dt><dd className="font-mono text-[12px]">{p.blastRadius.agents.length}</dd></div>
-                <div className="rounded-md bg-deep px-1 py-1.5"><dt className="text-[10px] text-muted-foreground">Files</dt><dd className="font-mono text-[12px]">{p.blastRadius.files}</dd></div>
-              </dl>
-              {order.overBudget && <p className="mt-2 text-[11.5px] text-ask">This would pass your spending cap. Approving raises nothing. You&apos;ll be asked first.</p>}
-              <div className="mt-2.5 flex items-center gap-2">
-                <Button size="sm" className="h-8 flex-1" onClick={approve} disabled={approving || order.overBudget}>
-                  {approving ? <Loader2 className="animate-spin" /> : <Check />} Approve · {formatCredits(p.credits)}
-                </Button>
-                <span className="text-[11px] text-muted-foreground">≈ {creditsUsd(p.credits)} · ~{p.minutes} min</span>
-              </div>
-            </>
-          )}
-          {needsPerson && (
-            <Button size="sm" variant="outline" className="mt-2.5 h-8 w-full" onClick={() => { ws.openHandoff(effectiveScope); setOrder(null); }}>
-              <UsersRound /> Ask a teammate
-            </Button>
-          )}
-          {p.mode === "rules" && !needsPerson && <p className="mt-2 text-[10.5px] text-faint">Offline mode: handled by built-in rules.</p>}
-        </div>
-      )}
-
-      {!order && !text && !building && (
-        <div className="mb-2 flex flex-wrap gap-1.5" aria-label="Suggestions">
-          {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
-            <button
-              key={sg}
-              type="button"
-              onClick={() => { setText(sg); ref.current?.focus(); }}
-              className="max-w-full truncate rounded-full border border-hairline bg-panel px-2.5 py-1 text-[11.5px] text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground"
-            >
-              {sg}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className={cn("panel rounded-xl transition-[border-color,box-shadow] duration-300 focus-within:border-amber/50 focus-within:shadow-[0_0_0_3px_rgb(223_255_79/0.08),0_12px_40px_-16px_rgb(141_255_158/0.45)]", building && "opacity-60")}>
-        {effectiveScope && (
-          <div className="flex items-center gap-1.5 px-2.5 pt-2">
-            <span className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-amber/30 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber">
-              <Target className="size-3 shrink-0" />
-              <span className="truncate">Scoped to {objectLabel(ws.blueprint, effectiveScope)}</span>
-              <button onClick={() => setClearedFor(scopeKey)} aria-label="Remove scope" className="ml-0.5 hover:text-foreground"><X className="size-3" /></button>
-            </span>
-          </div>
-        )}
-        <label htmlFor="composer" className="sr-only">Ask for a change</label>
-        <textarea
-          id="composer"
-          ref={ref}
-          rows={2}
-          value={text}
-          disabled={building}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={building ? (ws.build.mode === "replay" ? "Replaying… you can ask for changes when it ends." : "Building… you can ask for changes when it's done.") : effectiveScope ? `Change ${objectLabel(ws.blueprint, effectiveScope)}…` : ws.project.buildState === "draft" ? "Change the plan before building…" : "Ask for a change…"}
-          className="block w-full resize-none bg-transparent px-3 py-2.5 text-[13px] leading-relaxed outline-none placeholder:text-faint"
-        />
-        <div className="flex items-center justify-between px-2 pb-2">
-          <span className="flex items-center gap-1 text-[10.5px] text-faint">
-            <CornerDownLeft className="size-3" /> for a free quote · nothing changes until you approve
-          </span>
-          <Button size="icon-sm" className="size-7 rounded-lg" onClick={submit} disabled={!text.trim() || pending || building} aria-label="Get a Work Order">
-            {pending ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * A tool name used mid-sentence: only the leading verb is lowercased, so proper
- * names keep their casing ("Post in Slack" → "post in Slack", "HubSpot sync" stays).
- */
-function midSentence(bp: Blueprint, name: string): string {
-  const first = name.split(/\s+/)[0] ?? "";
-  const proper = bp.connections.some((c) => c.name.split(/[^A-Za-z0-9]+/).includes(first)) || bp.agents.some((a) => a.name.split(/\s+/).includes(first));
-  return !proper && /^[A-Z][a-z]/.test(first) ? name[0].toLowerCase() + name.slice(1) : name;
-}
-
-/** Starter requests for whatever is in scope. Each one works offline too (lib/change/rules.ts). */
-function suggestionsFor(bp: Blueprint, scope: ObjectRef | null): string[] {
-  const out: string[] = [];
-  const gateable = (a: Blueprint["agents"][number]) => a.tools.find((t) => t.access !== "read" && t.permission !== "ask");
-  if (scope?.type === "agent") {
-    const a = bp.agents.find((x) => x.id === scope.id);
-    const t = a && gateable(a);
-    if (a && t) out.push(`Make ${a.name} ask before it can ${midSentence(bp, t.name)}`);
-  } else if (scope?.type === "screen" || scope?.type === "block") {
-    const screen = scope.type === "screen" ? bp.screens.find((x) => x.id === scope.id) : bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id));
-    if (screen?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority", "Sort it by amount");
-  } else {
-    if (bp.screens[0]?.regions.main.some((b) => b.type === "table")) out.push("Add a column for priority");
-    const a = bp.agents.find((x) => gateable(x));
-    const t = a && gateable(a);
-    if (a && t) out.push(`Make ${a.name} ask before it can ${midSentence(bp, t.name)}`);
-  }
-  out.push(bp.meta.theme.primary.toLowerCase() === "#0f766e" ? "Make it indigo" : "Make it teal");
-  return out.slice(0, 3);
 }

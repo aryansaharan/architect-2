@@ -19,9 +19,11 @@ export function WorkOrderDock() {
   const over = est.credits > remaining;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-5">
+    // Sits just above the composer dock, the same width, so the quote and the prompt read as one stack.
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-3 pb-3 pt-5 sm:px-5">
       <motion.section
         aria-label="Work Order"
+        data-tour-avoid="hard"
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 240, damping: 24, delay: 0.55 } }}
         exit={{ opacity: 0, y: 30, scale: 0.98, transition: { duration: 0.2 } }}
@@ -58,7 +60,7 @@ export function WorkOrderDock() {
             <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-ask" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
           </dl>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)}>Change the plan</Button>
+            <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">Change the plan</Button>
             <Button
               size="lg"
               className="btn-solstice sheen h-9 px-4"
