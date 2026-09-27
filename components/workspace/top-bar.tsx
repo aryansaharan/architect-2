@@ -48,7 +48,7 @@ function TabPending() {
 /** The hand-drawn underline under the current tab. It moves when the tab changes, and only then. */
 function PencilUnderline() {
   return (
-    <motion.span layoutId="topbar-tab" aria-hidden className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-amber" transition={{ type: "spring", stiffness: 480, damping: 40 }}>
+    <motion.span layoutId="topbar-tab" aria-hidden className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-brand" transition={{ type: "spring", stiffness: 480, damping: 40 }}>
       <svg viewBox="0 0 100 6" preserveAspectRatio="none" className="block h-[5px] w-full">
         <path d="M1.5 3.8C18 2.2 38 4.6 58 3.1S88 2.7 98.5 3.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
@@ -130,7 +130,7 @@ function ProjectStatus() {
   // The Sheet has the resume note (free) and the stop-and-refund choice.
   if (ws.build.interrupted)
     return (
-      <Link href={`/p/${ws.project.id}`} className={cn(chip, "border-amber/40 bg-amber-soft text-amber transition-colors hover:border-amber/70")}>
+      <Link href={`/p/${ws.project.id}`} className={cn(chip, "border-brand/40 bg-brand-soft text-brand transition-colors hover:border-brand/70")}>
         <Pause className="size-2.5" aria-hidden />
         Build paused · resume
       </Link>
@@ -138,7 +138,7 @@ function ProjectStatus() {
   const state = building || ws.project.buildState === "building" ? "making" : ws.project.buildState === "draft" ? "sketch" : ws.liveSlug ? "published" : "real";
   const s = {
     sketch: { label: "Sketch", cls: "border-dashed border-faint font-sketch text-muted-foreground" },
-    making: { label: "Making it real…", cls: "border-amber/40 text-amber" },
+    making: { label: "Making it real…", cls: "border-brand/40 text-brand" },
     real: { label: "Real", cls: "border-foreground/50 text-foreground" },
     published: { label: "Published", cls: "border-read/40 bg-read/10 text-read" },
   }[state];
@@ -163,7 +163,7 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
           type="button"
           aria-label={here ? `Under the hood, on ${here.label}` : "Under the hood"}
           className={cn(
-            "relative inline-flex h-9 items-center gap-1 px-2.5 text-[13.5px] font-medium outline-none transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-amber",
+            "relative inline-flex h-9 items-center gap-1 px-2.5 text-[13.5px] font-medium outline-none transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-brand",
             here ? "text-foreground" : "text-muted-foreground hover:text-foreground data-[state=open]:text-foreground",
           )}
         >
@@ -179,12 +179,12 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
           return (
             <DropdownMenuItem key={h.section} asChild>
               <Link href={hrefFor(base, h.section)} aria-current={current ? "page" : undefined} className="items-start gap-2.5 py-2">
-                <h.icon className={cn("mt-0.5", current && "text-amber")} />
+                <h.icon className={cn("mt-0.5", current && "text-brand")} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[13px]">
                     {h.label}
                     {h.section === "handoffs" && openHandoffs > 0 && (
-                      <span className="rounded-full bg-amber-soft px-1.5 text-[10.5px] font-medium leading-[18px] text-amber">{openHandoffs} open</span>
+                      <span className="rounded-full bg-brand-soft px-1.5 text-[10.5px] font-medium leading-[18px] text-brand">{openHandoffs} open</span>
                     )}
                   </span>
                   <span className="block text-[11.5px] text-muted-foreground">{h.hint}</span>
@@ -282,7 +282,7 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
               });
             }}
           >
-            <span className={cn("mt-0.5 grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10px]", isCurrent ? "bg-amber text-primary-foreground" : "bg-deep text-muted-foreground")}>v{c.seq}</span>
+            <span className={cn("mt-0.5 grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10px]", isCurrent ? "bg-brand text-primary-foreground" : "bg-deep text-muted-foreground")}>v{c.seq}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px]">{c.label}</span>
               {c.summary && <span className="block truncate text-[11.5px] text-muted-foreground">{c.summary}</span>}
@@ -290,7 +290,7 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
             <span className="flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">
               <TimeAgo iso={c.created_at} />
               {isCurrent ? (
-                <span className="text-amber">current</span>
+                <span className="text-brand">current</span>
               ) : (
                 <span className="inline-flex items-center gap-1">
                   <Undo2 className="size-3" aria-hidden />
@@ -335,7 +335,7 @@ function Credits() {
           {used} <span className="text-sm font-normal text-muted-foreground">of {cap} credits · ≈ {creditsUsd(credits)}</span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-deep">
-          <div className="h-full rounded-full bg-amber" style={{ width: `${Math.max(2, pct * 100)}%` }} />
+          <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, pct * 100)}%` }} />
         </div>
         <ul className="mt-4 space-y-2 text-[13px]">
           <li className="flex gap-2">
@@ -463,9 +463,9 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" className="ml-0.5 flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-amber/60" aria-label="Account">
+          <button type="button" className="ml-0.5 flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand/60" aria-label="Account">
             {isAnonymous && !compact && (
-              <span className="hidden h-7 items-center rounded-full border border-amber/30 bg-amber-soft px-2.5 text-[11.5px] font-medium text-amber 2xl:inline-flex">Guest · keep this work</span>
+              <span className="hidden h-7 items-center rounded-full border border-brand/30 bg-brand-soft px-2.5 text-[11.5px] font-medium text-brand 2xl:inline-flex">Guest · keep this work</span>
             )}
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -489,7 +489,7 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
           </DropdownMenuLabel>
           {isAnonymous && (
             <DropdownMenuItem asChild>
-              <Link href="/login?next=/home" className="text-amber">
+              <Link href="/login?next=/home" className="text-brand">
                 <UserRoundPlus /> Sign in to keep this work
               </Link>
             </DropdownMenuItem>
@@ -508,11 +508,11 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
           {workspace && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => openDialog("architect:command-k")}>
+              <DropdownMenuItem onSelect={() => openDialog("prodai:command-k")}>
                 <Search /> Jump to anything
                 <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => openDialog("architect:shortcuts")}>
+              <DropdownMenuItem onSelect={() => openDialog("prodai:shortcuts")}>
                 <Keyboard /> Keyboard shortcuts
                 <DropdownMenuShortcut>?</DropdownMenuShortcut>
               </DropdownMenuItem>
@@ -553,7 +553,7 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
               >
                 <LogOut /> {leaving ? "Signing out…" : "Sign out anyway"}
               </Button>
-              <Button asChild className="btn-solstice">
+              <Button asChild>
                 <Link ref={keepWork} href={`/login?next=${encodeURIComponent(pathname)}`} onClick={() => setConfirmSignOut(false)}>
                   <UserRoundPlus /> Keep my work
                 </Link>

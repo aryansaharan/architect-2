@@ -26,11 +26,11 @@ const shell = (c: Common) =>
   cn(
     "@container group relative block w-full text-left outline-none transition-[opacity,border-color,box-shadow,transform,filter] duration-300 ease-out",
     "sketch border-[rgb(63_61_56/0.42)] bg-panel",
-    "hover:-translate-y-0.5 hover:border-[rgb(63_61_56/0.7)] hover:shadow-[0_8px_18px_-12px_rgb(26_26_23/0.35)] focus-visible:ring-2 focus-visible:ring-amber/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-    c.selected && "border-amber shadow-[0_0_0_2px_rgb(31_77_58/0.16)] hover:border-amber",
+    "hover:-translate-y-0.5 hover:border-[rgb(63_61_56/0.7)] hover:shadow-[0_8px_18px_-12px_rgb(26_26_23/0.35)] focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+    c.selected && "border-brand shadow-[0_0_0_2px_rgb(31_77_58/0.16)] hover:border-brand",
     c.dimmed && "opacity-35",
     c.buildState === "pending" && "pencil-state",
-    c.buildState === "active" && "border-amber",
+    c.buildState === "active" && "border-brand",
     c.buildState === "done" && "ink-in",
   );
 
@@ -49,7 +49,7 @@ function BuildMark({ s }: { s: NodeState | null }) {
       initial={{ opacity: 0, scale: 0.6 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className={cn("absolute -right-1.5 -top-1.5 z-[3] grid size-5 place-items-center rounded-full border bg-panel", s === "done" ? "border-read/50 text-read" : "border-amber/50 text-amber")}
+      className={cn("absolute -right-1.5 -top-1.5 z-[3] grid size-5 place-items-center rounded-full border bg-panel", s === "done" ? "border-read/50 text-read" : "border-brand/50 text-brand")}
     >
       {s === "done" ? <Check className="size-3" strokeWidth={3} /> : <Loader2 className="size-3 animate-spin" />}
     </motion.span>
@@ -113,7 +113,7 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
       <div className="flex items-center gap-2.5 overflow-hidden border-t border-dashed border-hairline-hi px-3 py-2">
         {n.read > 0 && <Dot cls="bg-read" n={n.read} label="read" title={`${plural(n.read, "tool reads", "tools read")} without asking`} />}
         {n.change > 0 && <Dot cls="bg-change" n={n.change} label="change" title={`${plural(n.change, "tool changes", "tools change")} things you can undo, without asking`} />}
-        {n.ask > 0 && <Dot cls="bg-amber" n={n.ask} label={<>ask<span className="hidden @[230px]:inline"> first</span></>} title={`${plural(n.ask, "tool asks", "tools ask")} a person first, every time`} />}
+        {n.ask > 0 && <Dot cls="bg-brand" n={n.ask} label={<>ask<span className="hidden @[230px]:inline"> first</span></>} title={`${plural(n.ask, "tool asks", "tools ask")} a person first, every time`} />}
         {n.ungated > 0 && <Dot cls="bg-ask" n={n.ungated} label="ungated" title={`${plural(n.ungated, "tool", "tools")} can't be undone and ${n.ungated === 1 ? "doesn't" : "don't"} ask first`} warn />}
         {agent.tools.length === 0 && <span className="text-[10.5px] text-faint">No tools yet</span>}
       </div>
@@ -164,7 +164,7 @@ export const ConnectionNode = forwardRef<HTMLButtonElement, Common & { connectio
         <span className="grid size-7 place-items-center rounded-md border border-hairline bg-canvas"><ConnectionIcon kind={connection.kind} className="size-3.5 text-muted-foreground" /></span>
         <div className="min-w-0 flex-1">
           <p className={TITLE} title={connection.name}>{connection.name}</p>
-          <p className={cn("flex items-center gap-1 truncate text-[11.5px]", missing ? "text-amber" : "text-muted-foreground")}>
+          <p className={cn("flex items-center gap-1 truncate text-[11.5px]", missing ? "text-brand" : "text-muted-foreground")}>
             {missing ? <><KeyRound className="size-3" />Not connected · test data</> : <><span className="size-1.5 rounded-full bg-read" />Connected</>}
           </p>
         </div>

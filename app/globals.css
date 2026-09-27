@@ -5,14 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Prod AI: "Paper"
- * Warm paper, ink, and one deep forest-green accent. No glows, no gradients,
- * nothing that blinks. Motion only when something changes.
+ * Prod AI: "Paper & Pencil"
+ * Warm paper, ink, and one deep forest-green accent (--brand). Titles and notes
+ * are set in pencil fonts. No glows, no gradients, nothing that blinks. Motion
+ * only when something changes.
  * Semantic colours carry meaning only:
  *   read (green) · change (blue) · can't undo (rose) · our fix (violet)
- * Contrast on paper: ink 16:1, muted 5.3:1, accent 10:1.
- * (Legacy token and class names such as --amber and .text-solstice are kept so
- * components keep working; they now resolve to the Paper values.)
+ * Contrast on paper: ink 16:1, muted 5.3:1, brand 10:1.
  */
 
 @theme inline {
@@ -59,20 +58,15 @@
   --color-deep: var(--deep);
   --color-hairline: var(--hairline);
   --color-hairline-hi: var(--hairline-hi);
-  --color-amber-hi: var(--amber-hi);
-  --color-ember: var(--ember);
+  --color-brand-hi: var(--brand-hi);
   --color-faint: var(--faint);
-  --color-amber: var(--amber);
-  --color-amber-soft: var(--amber-soft);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
   --color-read: var(--read);
   --color-change: var(--change);
   --color-ask: var(--ask);
   --color-fix: var(--fix);
   --color-ok: var(--ok);
-  --color-sol-gold: var(--sol-gold);
-  --color-sol-ember: var(--sol-ember);
-  --color-sol-flare: var(--sol-flare);
-  --color-sol-dusk: var(--sol-dusk);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -93,22 +87,15 @@
   --deep: #f0ede5;
   --hairline: #e4dfd4;
   --hairline-hi: #d4cdbf;
-  --amber-hi: #2a6650;
-  --ember: #2a6650;
+  --brand-hi: #2a6650;
   --faint: #8d897e;
   /* pencil */
   --graphite: #3f3d38;
   --graphite-soft: #8d897e;
 
-  /* one accent; the old signature tokens resolve to it */
-  --sol-gold: #1f4d3a;
-  --sol-amber: #1f4d3a;
-  --sol-ember: #1f4d3a;
-  --sol-flare: #1f4d3a;
-  --sol-dusk: #1f4d3a;
-  --solstice: #1f4d3a;
-  --amber: #1f4d3a;
-  --amber-soft: rgb(31 77 58 / 0.07);
+  /* the one accent */
+  --brand: #1f4d3a;
+  --brand-soft: rgb(31 77 58 / 0.07);
   --read: #1f7a4d;
   --change: #2c62c9;
   --ask: #b3303b;
@@ -121,7 +108,7 @@
   --card-foreground: #1a1a17;
   --popover: var(--raised);
   --popover-foreground: #1a1a17;
-  --primary: var(--amber);
+  --primary: var(--brand);
   --primary-foreground: #f7f5f0;
   --secondary: #efece4;
   --secondary-foreground: #1a1a17;
@@ -132,8 +119,8 @@
   --destructive: var(--ask);
   --border: var(--hairline);
   --input: #d9d3c6;
-  --ring: var(--amber);
-  --chart-1: var(--amber);
+  --ring: var(--brand);
+  --chart-1: var(--brand);
   --chart-2: var(--change);
   --chart-3: var(--read);
   --chart-4: var(--fix);
@@ -141,16 +128,12 @@
   --radius: 0.5rem;
   --sidebar: var(--panel);
   --sidebar-foreground: #1a1a17;
-  --sidebar-primary: var(--amber);
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: #f7f5f0;
   --sidebar-accent: #efece4;
   --sidebar-accent-foreground: #1a1a17;
   --sidebar-border: var(--hairline);
-  --sidebar-ring: var(--amber);
-
-  /* legacy aliases so older references keep resolving */
-  --font-geist-sans: var(--font-work);
-  --font-geist-mono: var(--font-code);
+  --sidebar-ring: var(--brand);
 }
 
 @layer base {
@@ -172,7 +155,7 @@
     background: rgb(31 77 58 / 0.16);
   }
   :focus-visible {
-    outline: 2px solid var(--amber);
+    outline: 2px solid var(--brand);
     outline-offset: 2px;
   }
   *::-webkit-scrollbar {
@@ -227,7 +210,7 @@
   .font-display em,
   .font-display i {
     font-style: normal;
-    color: var(--amber);
+    color: var(--brand);
   }
   .font-sketch {
     font-family: var(--font-sketch), "Segoe Print", cursive;
@@ -271,9 +254,6 @@
     background: #ffffff;
     color: #55524a;
   }
-  .amber-glow {
-    background: transparent;
-  }
   .code-face {
     background: var(--deep);
     font-family: var(--font-code);
@@ -292,7 +272,7 @@
     z-index: 100;
     padding: 8px 12px;
     border-radius: 8px;
-    background: var(--amber);
+    background: var(--brand);
     color: #f7f5f0;
     font-weight: 600;
     transition: top 120ms ease;
@@ -303,7 +283,7 @@
 }
 
 /* ---------------------------------------------------------------- effects */
-/* Paper keeps these class names for compatibility. They are deliberately quiet. */
+/* Deliberately quiet: each one marks something real happening. */
 
 /* A barely-there paper grain. */
 body::before {
@@ -319,49 +299,6 @@ body::before {
 
 /* The published app is the product, not the studio: no paper grain over it. */
 body:has([data-crisp])::before {
-  display: none;
-}
-
-/* The one thing that matters on screen: a still accent border. */
-.beam,
-.aurora,
-.solstice-ring {
-  position: relative;
-  isolation: isolate;
-}
-.beam::before,
-.aurora::before,
-.solstice-ring::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: 2;
-  border-radius: inherit;
-  pointer-events: none;
-  border: 1px solid rgb(31 77 58 / 0.35);
-}
-
-/* Headline accents: the accent colour, nothing more. */
-.text-amber-grad,
-.text-solstice {
-  color: var(--amber);
-}
-.btn-solstice {
-  color: #f7f5f0 !important;
-  background: var(--amber) !important;
-  box-shadow: none !important;
-}
-.btn-solstice:hover {
-  background: var(--amber-hi) !important;
-}
-.bg-solstice {
-  background: var(--amber);
-}
-.solstice-line {
-  height: 1px;
-  background: var(--hairline);
-}
-.solstice-orb {
   display: none;
 }
 
@@ -484,22 +421,6 @@ body:has([data-crisp])::before {
 .pencil-state {
   filter: grayscale(1) contrast(0.85);
   opacity: 0.7;
-}
-
-/* Retired effects: kept as no-ops so nothing blinks, pulses or floats. */
-.sheen,
-.spotlight,
-.float-y,
-.caret,
-.pulse-read,
-.pulse-rose,
-.pulse-ring {
-  animation: none;
-}
-.sheen::after,
-.spotlight::after,
-.aurora::after {
-  content: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

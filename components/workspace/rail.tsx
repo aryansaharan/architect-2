@@ -15,7 +15,7 @@ import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types
 import type { ChatLedgerKind } from "@/lib/db/writes";
 import { useWorkspace } from "./context";
 import { NoteWriter, creditWords, useChatState, versionWords, workOrderIdOf, type SentMessage } from "./composer-dock";
-import { LEGACY_OPEN_EVENT, OPEN_NOTES_EVENT, marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
+import { OPEN_NOTES_EVENT, marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
 import { undoTo } from "./undo";
 
 /** A history entry, or a note just sent that the history doesn't have yet (same shape, so both render the same). */
@@ -138,15 +138,11 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
     });
   };
 
-  // "Open the notes" from anywhere (a button on a page, the old chat event).
+  // "Open the notes" from anywhere: openNotes() in rail-pref.ts fires this event.
   useEffect(() => {
     const onOpen = () => openMargin(false);
     window.addEventListener(OPEN_NOTES_EVENT, onOpen);
-    window.addEventListener(LEGACY_OPEN_EVENT, onOpen);
-    return () => {
-      window.removeEventListener(OPEN_NOTES_EVENT, onOpen);
-      window.removeEventListener(LEGACY_OPEN_EVENT, onOpen);
-    };
+    return () => window.removeEventListener(OPEN_NOTES_EVENT, onOpen);
   });
 
   return (
@@ -217,9 +213,9 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
           aria-controls="notes"
           aria-expanded={false}
           aria-label={`Notes: ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
-          className="fixed bottom-4 right-4 z-40 inline-flex h-11 items-center gap-2 rounded-full border border-hairline-hi bg-panel pl-3.5 pr-3 shadow-[0_10px_24px_-14px_rgb(26_26_23/0.45)] transition-colors hover:border-amber/50 lg:hidden"
+          className="fixed bottom-4 right-4 z-40 inline-flex h-11 items-center gap-2 rounded-full border border-hairline-hi bg-panel pl-3.5 pr-3 shadow-[0_10px_24px_-14px_rgb(26_26_23/0.45)] transition-colors hover:border-brand/50 lg:hidden"
         >
-          <NotebookPen className="size-4 text-amber" aria-hidden />
+          <NotebookPen className="size-4 text-brand" aria-hidden />
           <span className="font-pencil text-[22px] leading-none">Notes</span>
           <span className="rounded-full bg-deep px-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">{count > 99 ? "99+" : count}</span>
           {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
@@ -244,7 +240,7 @@ function SlimTab({ buttonRef, onOpen, count, waiting, title }: { buttonRef: Ref<
           aria-label={`Open notes. ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
           className="group flex h-full w-11 shrink-0 flex-col items-center gap-2.5 pt-4 text-muted-foreground transition-colors hover:bg-panel/70 hover:text-foreground focus-visible:outline-offset-[-3px] max-lg:hidden"
         >
-          <NotebookPen className="size-4 text-amber" aria-hidden />
+          <NotebookPen className="size-4 text-brand" aria-hidden />
           <span className="font-pencil text-[22px] leading-none text-foreground [writing-mode:vertical-rl]">Notes</span>
           <span className="font-mono text-[10.5px] tabular-nums">{count > 99 ? "99+" : count}</span>
           {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
@@ -369,7 +365,7 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
           ))}
           {current && (
             <li className="flex gap-2 pl-0.5" aria-live="polite">
-              <PencilDash className="mt-[3px] size-3.5 shrink-0 text-amber" />
+              <PencilDash className="mt-[3px] size-3.5 shrink-0 text-brand" />
               <p className="text-[12px] leading-snug text-foreground">Now: {current.title}…</p>
             </li>
           )}
@@ -474,7 +470,7 @@ function AnswerNote({ row, onAsk }: { row: ThreadRow; onAsk: () => void }) {
             chat.fill(suggestion);
             onAsk();
           }}
-          className="mt-2 flex w-full items-start gap-1.5 rounded-[3px] border border-dashed border-hairline-hi px-2 py-1.5 text-left text-[11.5px] leading-snug text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+          className="mt-2 flex w-full items-start gap-1.5 rounded-[3px] border border-dashed border-hairline-hi px-2 py-1.5 text-left text-[11.5px] leading-snug text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
         >
           <span>
             <span className="text-faint">Ask for it: </span>“{suggestion}”
@@ -555,10 +551,10 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
     case "dismissed":
       return <span className="text-[11.5px] text-muted-foreground">Not now · nothing charged</span>;
     case "waiting":
-      return <span className="text-[11.5px] font-medium text-amber">Waiting for you below</span>;
+      return <span className="text-[11.5px] font-medium text-brand">Waiting for you below</span>;
     case "open":
       return (
-        <button type="button" onClick={onReview} className="text-[11.5px] font-medium text-amber underline decoration-dotted underline-offset-[3px] hover:text-amber-hi">
+        <button type="button" onClick={onReview} className="text-[11.5px] font-medium text-brand underline decoration-dotted underline-offset-[3px] hover:text-brand-hi">
           Not decided · review it
         </button>
       );
@@ -608,7 +604,7 @@ function PlanNote({ row }: { row: ThreadRow }) {
               <PencilTick className="size-3.5 shrink-0" /> Approved
             </span>
           ) : (
-            <span className="text-[11.5px] font-medium text-amber">Waiting for you on the Sheet</span>
+            <span className="text-[11.5px] font-medium text-brand">Waiting for you on the Sheet</span>
           )}
         </div>
       )}
@@ -667,7 +663,7 @@ function AboutTag({ objectRef }: { objectRef: ObjectRef }) {
     <button
       type="button"
       onClick={() => ws.select(objectRef)}
-      className="inline-flex h-[18px] min-w-0 max-w-[180px] items-center gap-1 rounded-sm border border-dashed border-hairline-hi px-1.5 font-sketch text-[10.5px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+      className="inline-flex h-[18px] min-w-0 max-w-[180px] items-center gap-1 rounded-sm border border-dashed border-hairline-hi px-1.5 font-sketch text-[10.5px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
     >
       <Crosshair className="size-2.5 shrink-0" aria-hidden />
       <span className="sr-only">About: </span>

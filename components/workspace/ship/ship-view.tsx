@@ -265,12 +265,12 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               className="panel mt-4 overflow-hidden rounded-md"
             >
               <div className="h-1 bg-deep">
-                <motion.div className="h-full bg-amber" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ duration: 0.4, ease: "easeOut" }} />
+                <motion.div className="h-full bg-brand" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ duration: 0.4, ease: "easeOut" }} />
               </div>
               <ol className="p-3 text-[12.5px]" aria-live="polite">
                 {STEPS.map((s, i) => (
                   <li key={s} className={cn("flex items-center gap-2 py-0.5 transition-colors duration-300", i > deploying ? "text-faint" : i === deploying ? "text-foreground" : "text-muted-foreground")}>
-                    {i < deploying ? <Check className="size-3.5 text-read" /> : i === deploying ? <Loader2 className="size-3.5 animate-spin text-amber" /> : <span className="size-3.5" />}
+                    {i < deploying ? <Check className="size-3.5 text-read" /> : i === deploying ? <Loader2 className="size-3.5 animate-spin text-brand" /> : <span className="size-3.5" />}
                     <span>{s}</span>
                   </li>
                 ))}
@@ -342,7 +342,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
 
         {/* Where it runs, a custom domain and what it costs: for the people who want them. */}
         <details className="group mt-10 border-t border-hairline pt-5">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 font-pencil text-[24px] leading-none hover:text-amber [&::-webkit-details-marker]:hidden">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 font-pencil text-[24px] leading-none hover:text-brand [&::-webkit-details-marker]:hidden">
             <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
             More options
           </summary>
@@ -351,13 +351,13 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <h4 id="tg" className="text-[13.5px] font-semibold">Where it runs</h4>
               <div className="mt-2.5 grid gap-2">
                 {TARGETS.map((t) => (
-                  <button key={t.id} onClick={() => setTarget(t.id)} aria-pressed={target === t.id} className={cn("flex w-full gap-3 rounded-md border p-3.5 text-left transition-colors", target === t.id ? "border-amber/60 bg-amber-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
-                    <t.icon className={cn("mt-0.5 size-4 shrink-0", target === t.id ? "text-amber" : "text-muted-foreground")} />
+                  <button key={t.id} onClick={() => setTarget(t.id)} aria-pressed={target === t.id} className={cn("flex w-full gap-3 rounded-md border p-3.5 text-left transition-colors", target === t.id ? "border-brand/60 bg-brand-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
+                    <t.icon className={cn("mt-0.5 size-4 shrink-0", target === t.id ? "text-brand" : "text-muted-foreground")} />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium">{t.name}<span className={cn("rounded px-1.5 py-px text-[10.5px]", t.tag.includes("real") ? "bg-read/10 text-read" : "bg-deep text-muted-foreground")}>{t.tag}</span></span>
                       <span className="mt-0.5 block text-[12px] text-muted-foreground">{t.body}</span>
                     </span>
-                    {target === t.id && <Check className="mt-0.5 size-4 shrink-0 text-amber" aria-hidden />}
+                    {target === t.id && <Check className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />}
                   </button>
                 ))}
               </div>
@@ -388,14 +388,14 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
               <p className="mt-1 text-[12.5px] text-muted-foreground">One conversation with an AI helper costs about <span className="text-foreground">{perConversation.toFixed(1)} credits (≈ {creditsUsd(perConversation)})</span>.</p>
               <label className="mt-3 block max-w-md text-[12.5px]">
                 If <span className="font-mono text-foreground">{users.toLocaleString()}</span> people each use it 4 times a month
-                <input type="range" min={50} max={20000} step={50} value={users} onChange={(e) => setUsers(Number(e.target.value))} className="mt-2 w-full accent-[var(--amber)]" aria-label="People using it" />
+                <input type="range" min={50} max={20000} step={50} value={users} onChange={(e) => setUsers(Number(e.target.value))} className="mt-2 w-full accent-[var(--brand)]" aria-label="People using it" />
               </label>
               <p className="mt-2 font-pencil text-[30px] leading-none tabular-nums">≈ {creditsUsd(monthly)} <span className="font-sans text-[12.5px] text-muted-foreground">a month · {Math.round(monthly).toLocaleString()} credits</span></p>
               <p className="mt-2 text-[12px] text-muted-foreground">Your cap is {ws.project.settings.budgetCapCredits} credits. Past it, AI helpers pause and tell you. They never keep spending quietly.</p>
             </section>
 
             <p className="text-[12.5px] text-muted-foreground">
-              Want to try it first? <Link href={`/p/${ws.project.id}/preview`} className="text-amber underline-offset-4 hover:underline">Open the test version</Link> (save point #{ws.checkpoints[0]?.seq ?? 1}, only you, sample data).
+              Want to try it first? <Link href={`/p/${ws.project.id}/preview`} className="text-brand underline-offset-4 hover:underline">Open the test version</Link> (save point #{ws.checkpoints[0]?.seq ?? 1}, only you, sample data).
             </p>
           </div>
         </details>

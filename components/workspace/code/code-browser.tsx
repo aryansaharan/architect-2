@@ -373,7 +373,7 @@ function HeldBack({ pr }: { pr: ImportPullRequest }) {
     <div className="mt-2.5 rounded-md border border-hairline bg-panel font-sans">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11.5px] text-muted-foreground hover:text-foreground">
         {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
-        <ShieldCheck className="size-3 shrink-0 text-amber" />
+        <ShieldCheck className="size-3 shrink-0 text-brand" />
         <span className="flex-1">Held back by House Rules</span>
         <span className="font-mono text-faint">{pr.heldBack.length}</span>
       </button>
@@ -409,7 +409,7 @@ function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: T
           </li>
         ) : (
           <li key={n.path}>
-            <button onClick={() => onOpen(n.path)} className={cn("flex w-full items-center gap-1.5 truncate rounded px-1 py-0.5 text-left", n.path === active ? "bg-amber-soft text-amber" : "text-foreground/80 hover:bg-raised")} style={{ paddingLeft: depth * 12 + 20 }}>
+            <button onClick={() => onOpen(n.path)} className={cn("flex w-full items-center gap-1.5 truncate rounded px-1 py-0.5 text-left", n.path === active ? "bg-brand-soft text-brand" : "text-foreground/80 hover:bg-raised")} style={{ paddingLeft: depth * 12 + 20 }}>
               <span className="truncate">{n.name}</span>
             </button>
           </li>

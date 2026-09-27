@@ -118,7 +118,7 @@ export function SpecApp({
   const askAgent = useCallback(
     (agentId: string, prompt: string) => {
       const hasChat = (s: Screen) => [...s.regions.main, ...s.regions.side].some((b) => b.type === "chat" && b.agentId === agentId);
-      const fire = () => window.dispatchEvent(new CustomEvent("architect:ask-agent", { detail: { agentId, prompt } }));
+      const fire = () => window.dispatchEvent(new CustomEvent("prodai:ask-agent", { detail: { agentId, prompt } }));
       const name = bp.agents.find((a) => a.id === agentId)?.name ?? "The agent";
       // A folded chat drawer opens, so the answer is seen as it arrives.
       const inDrawer = (s: Screen) => compact && s.regions.side.some((b) => b.type === "chat" && b.agentId === agentId);

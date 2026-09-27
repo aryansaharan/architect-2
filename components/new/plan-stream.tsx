@@ -164,7 +164,7 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
       </div>
 
       <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <p className={cn("font-pencil text-[24px] leading-tight", done ? "text-amber" : "text-foreground")} aria-live="polite">
+        <p className={cn("font-pencil text-[24px] leading-tight", done ? "text-brand" : "text-foreground")} aria-live="polite">
           {phase}
         </p>
         <span className="font-mono text-[12px] tabular-nums text-faint">{elapsed}s</span>

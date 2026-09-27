@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         // Solid forest green, paper-coloured text. No gradient, no glow.
         default:
-          "bg-primary text-primary-foreground shadow-[0_1px_1px_rgb(26_26_23/0.10)] hover:bg-amber-hi aria-expanded:bg-amber-hi",
+          "bg-primary text-primary-foreground shadow-[0_1px_1px_rgb(26_26_23/0.10)] hover:bg-brand-hi aria-expanded:bg-brand-hi",
         outline:
           "border-hairline-hi bg-raised text-foreground hover:border-[#c9c1b1] hover:bg-secondary aria-expanded:bg-secondary",
         secondary:

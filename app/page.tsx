@@ -96,7 +96,7 @@ export default async function Landing() {
               <li key={s.title} className="flex flex-col items-center text-center">
                 <s.Sketch className="h-auto w-full max-w-[300px]" />
                 <h3 className="mt-5 font-display text-[34px] leading-none">
-                  <span className="text-amber">{i + 1}.</span> {s.title}
+                  <span className="text-brand">{i + 1}.</span> {s.title}
                 </h3>
                 <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-muted-foreground">{s.body}</p>
               </li>
@@ -131,7 +131,7 @@ export default async function Landing() {
               <p className="mt-5 max-w-md text-[15.5px] leading-relaxed text-muted-foreground">
                 The sketch is for everyone on the team. The code is yours: readable, in a framework you already know, and never locked in.
               </p>
-              <Link href="/architecture" className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-amber underline-offset-4 hover:underline">
+              <Link href="/architecture" className="mt-6 inline-flex items-center gap-1.5 text-[14px] font-medium text-brand underline-offset-4 hover:underline">
                 See how it&apos;s built <ArrowRight className="size-4" />
               </Link>
             </div>

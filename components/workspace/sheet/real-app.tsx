@@ -43,14 +43,14 @@ function NoteTarget({ block, screen, picked, onPick, children }: { block: Block;
         aria-label={`Write a note about this: ${label}`}
         className={cn(
           "absolute -inset-1.5 z-10 cursor-pointer rounded-[calc(var(--app-radius)+6px)] border-2 border-dashed border-transparent text-left outline-none transition-colors duration-150",
-          "hover:border-amber/70 hover:bg-[rgb(31_77_58/0.03)] focus-visible:border-amber focus-visible:bg-[rgb(31_77_58/0.03)]",
-          picked && "border-solid border-amber bg-[rgb(31_77_58/0.04)]",
+          "hover:border-brand/70 hover:bg-[rgb(31_77_58/0.03)] focus-visible:border-brand focus-visible:bg-[rgb(31_77_58/0.03)]",
+          picked && "border-solid border-brand bg-[rgb(31_77_58/0.04)]",
         )}
       >
         <span
           aria-hidden
           className={cn(
-            "absolute -top-3 left-3 inline-flex items-center gap-1 rounded-[4px] bg-amber px-2 py-0.5 font-sans text-[11.5px] font-medium text-primary-foreground opacity-0 transition-opacity duration-150",
+            "absolute -top-3 left-3 inline-flex items-center gap-1 rounded-[4px] bg-brand px-2 py-0.5 font-sans text-[11.5px] font-medium text-primary-foreground opacity-0 transition-opacity duration-150",
             "group-hover/note:opacity-100 group-focus-within/note:opacity-100",
             picked && "opacity-100",
           )}
@@ -137,7 +137,7 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
               </a>
             </Button>
           )}
-          <Button asChild size="lg" className="btn-solstice h-10 rounded-lg px-4 text-[14px]">
+          <Button asChild size="lg" className="h-10 rounded-lg px-4 text-[14px]">
             <Link href={`/p/${ws.project.id}/ship`}>
               <Rocket aria-hidden /> Publish
             </Link>
@@ -169,10 +169,10 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
             size="sm"
             aria-pressed={pointing}
             onClick={() => setPointing((p) => !p)}
-            className={cn("h-8 rounded-md text-[12.5px]", pointing && "border-amber/50 bg-amber-soft text-amber hover:bg-amber-soft hover:text-amber")}
+            className={cn("h-8 rounded-md text-[12.5px]", pointing && "border-brand/50 bg-brand-soft text-brand hover:bg-brand-soft hover:text-brand")}
           >
             <MousePointerClick aria-hidden /> Point and write a note
-            {pointing && <span aria-hidden className="text-amber/70">· Esc to stop</span>}
+            {pointing && <span aria-hidden className="text-brand/70">· Esc to stop</span>}
           </Button>
           <PencilRadio<Device>
             label="Device"
@@ -190,7 +190,7 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
       <div className="mt-2 min-h-[20px] text-[12.5px] text-muted-foreground" role="status">
         {noted ? (
           <span className="inline-flex flex-wrap items-center gap-x-1.5">
-            <NotebookPen className="size-3.5 text-amber" aria-hidden />
+            <NotebookPen className="size-3.5 text-brand" aria-hidden />
             Your next note is about <span className="font-medium text-foreground">{noted.label}</span>. Write it in the margin.
             <button type="button" onClick={() => setNoted(null)} className="inline-flex items-center rounded-sm p-0.5 hover:text-foreground" aria-label="Forget what I pointed at">
               <X className="size-3.5" aria-hidden />
@@ -201,7 +201,7 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
         ) : (
           <>
             Or{" "}
-            <button type="button" onClick={() => note({ type: "screen", id: screen.id }, screen.title)} className="rounded-sm font-medium text-amber underline decoration-dotted underline-offset-4 hover:text-amber-hi">
+            <button type="button" onClick={() => note({ type: "screen", id: screen.id }, screen.title)} className="rounded-sm font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
               write a note about this whole screen
             </button>
             .

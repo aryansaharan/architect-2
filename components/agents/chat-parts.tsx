@@ -102,12 +102,12 @@ export function ApprovalCard({
       )}
     >
       <p className={cn("flex items-center gap-2 text-[13px] font-semibold", studio ? "text-foreground" : "text-slate-900")}>
-        <Icon className={cn("size-4 shrink-0", irreversible ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-amber" : "text-amber-600")} />
+        <Icon className={cn("size-4 shrink-0", irreversible ? (studio ? "text-ask" : "text-rose-600") : studio ? "text-brand" : "text-amber-600")} />
         <span className="min-w-0">{agent.name} wants to {lowerFirst(tool?.name ?? part.type.slice(5))}</span>
         <span
           className={cn(
             "ml-auto shrink-0 whitespace-nowrap rounded-full border px-2 py-px text-[10.5px] font-medium",
-            irreversible ? (studio ? "border-ask/35 bg-panel text-ask" : "border-rose-200 bg-white text-rose-700") : studio ? "border-amber/30 bg-panel text-amber" : "border-amber-200 bg-white text-amber-700",
+            irreversible ? (studio ? "border-ask/35 bg-panel text-ask" : "border-rose-200 bg-white text-rose-700") : studio ? "border-brand/30 bg-panel text-brand" : "border-amber-200 bg-white text-amber-700",
           )}
         >
           {copy.tag}
@@ -118,7 +118,7 @@ export function ApprovalCard({
         {copy.body} Sandbox: nothing leaves the building in the test version.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => onRespond("once")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-colors active:scale-[0.98]", studio ? "bg-amber text-primary-foreground hover:bg-amber-hi" : "bg-slate-900 text-white")}>
+        <button onClick={() => onRespond("once")} className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-colors active:scale-[0.98]", studio ? "bg-brand text-primary-foreground hover:bg-brand-hi" : "bg-slate-900 text-white")}>
           <Check className="size-3.5" /> Allow once
         </button>
         {!irreversible && (

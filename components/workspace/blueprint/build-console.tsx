@@ -17,7 +17,7 @@ export function SimulatedChip({ className }: { className?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className={cn("inline-flex h-5 shrink-0 cursor-help items-center gap-1 rounded-full border border-hairline bg-canvas px-2 text-[11px] font-medium normal-case tracking-normal text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-amber/50", className)}>
+        <span tabIndex={0} className={cn("inline-flex h-5 shrink-0 cursor-help items-center gap-1 rounded-full border border-hairline bg-canvas px-2 text-[11px] font-medium normal-case tracking-normal text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand/50", className)}>
           <FlaskConical className="size-3" aria-hidden />
           Simulated build
           <span className="sr-only">: {SIMULATED_NOTE}</span>
@@ -49,11 +49,11 @@ export function BuildConsole() {
         className="panel-raised pointer-events-auto w-full max-w-[860px] overflow-hidden rounded-lg"
       >
         <div className="h-1 overflow-hidden bg-deep">
-          <motion.div className="h-full bg-amber" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ duration: 0.5, ease: "easeOut" }} />
+          <motion.div className="h-full bg-brand" animate={{ width: `${Math.round(b.progress * 100)}%` }} transition={{ duration: 0.5, ease: "easeOut" }} />
         </div>
         <div className="flex items-center gap-4 p-4">
           <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas">
-            <Loader2 className="size-4 animate-spin text-amber" aria-hidden />
+            <Loader2 className="size-4 animate-spin text-brand" aria-hidden />
           </span>
           <div className="relative min-w-0 flex-1 overflow-hidden">
             <div className="flex flex-wrap items-center gap-2">
@@ -107,7 +107,7 @@ export function BuildConsole() {
             ))}
             {cur && (
               <div className="mt-1">
-                <span className="text-amber">›</span> {cur.title}
+                <span className="text-brand">›</span> {cur.title}
                 {cur.file && <span className="text-faint"> · {cur.file}</span>}
                 {cur.logs?.map((l, i) => (
                   <div key={i} className="pl-4 text-muted-foreground">{l}</div>

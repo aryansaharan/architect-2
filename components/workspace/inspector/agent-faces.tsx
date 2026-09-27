@@ -62,7 +62,7 @@ export function PermissionRow({ tool, compact }: { tool: AgentTool; compact?: bo
         {!compact && <span className="block truncate text-[11px] text-muted-foreground">{connectionName(ws.blueprint, tool.connectionId)}</span>}
       </span>
       {/* Rose is kept for "can't be undone" (the access chip); a gate is the calm accent, so rose never means just "waits". */}
-      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-amber" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
+      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-brand" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
         {PERMISSION_LABEL[tool.permission]}
       </span>
     </li>
@@ -190,7 +190,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
 
       <Section title="How closely it's watched">
         <div className="flex gap-2.5 rounded-md border border-hairline bg-panel p-2.5">
-          <Gauge className="mt-0.5 size-4 shrink-0 text-amber" />
+          <Gauge className="mt-0.5 size-4 shrink-0 text-brand" />
           <p className="text-[12.5px]">
             <span className="font-medium">{sup.label}.</span> <span className="text-muted-foreground">{sup.plain}</span>
           </p>
@@ -264,7 +264,7 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
                 key={f}
                 onClick={() => f !== agent.framework && run(() => setFramework(ws.project.id, agent.id, f as Framework), `Now runs on ${FRAMEWORK_LABEL[f]}`)}
                 aria-pressed={f === agent.framework}
-                className={cn("rounded-md border px-2 py-1.5 text-[11.5px] transition-colors", f === agent.framework ? "border-amber/50 bg-amber-soft text-amber" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}
+                className={cn("rounded-md border px-2 py-1.5 text-[11.5px] transition-colors", f === agent.framework ? "border-brand/50 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}
               >
                 {FRAMEWORK_LABEL[f]}
               </button>

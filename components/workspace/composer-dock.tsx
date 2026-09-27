@@ -305,7 +305,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
                 setText(sg);
                 ref.current?.focus();
               }}
-              className="max-w-full truncate rounded-full border border-dashed border-hairline-hi bg-panel/70 px-2.5 py-0.5 font-sketch text-[11.5px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+              className="max-w-full truncate rounded-full border border-dashed border-hairline-hi bg-panel/70 px-2.5 py-0.5 font-sketch text-[11.5px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
             >
               {sg}
             </button>
@@ -313,10 +313,10 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
         </div>
       )}
 
-      <div className={cn("rounded-[3px] border border-hairline-hi bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.05)] transition-colors focus-within:border-amber/50", building && "opacity-70")}>
+      <div className={cn("rounded-[3px] border border-hairline-hi bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.05)] transition-colors focus-within:border-brand/50", building && "opacity-70")}>
         {effectiveScope && (
           <div className="flex px-2.5 pt-2">
-            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm border border-amber/25 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm border border-brand/25 bg-brand-soft px-1.5 py-0.5 text-[11px] text-brand">
               <Crosshair className="size-3 shrink-0" aria-hidden />
               <span className="truncate">About: {label}</span>
               <button
@@ -369,7 +369,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
             onClick={submit}
             disabled={!text.trim() || pending || building}
             aria-label="Send note"
-            className="grid size-7 shrink-0 place-items-center rounded-md bg-amber text-primary-foreground transition-[background-color,opacity] hover:bg-amber-hi disabled:pointer-events-none disabled:opacity-30"
+            className="grid size-7 shrink-0 place-items-center rounded-md bg-brand text-primary-foreground transition-[background-color,opacity] hover:bg-brand-hi disabled:pointer-events-none disabled:opacity-30"
           >
             <ArrowUp className="size-3.5" aria-hidden />
           </button>
@@ -413,7 +413,7 @@ function ChangeCard({
             <button
               type="button"
               onClick={onRephrase}
-              className="mt-2 w-full rounded-md border border-dashed border-hairline-hi px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-amber/50 hover:text-foreground"
+              className="mt-2 w-full rounded-md border border-dashed border-hairline-hi px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
             >
               <span className="block text-[11px] text-faint">Want to change it?</span>“{p.summary}”
             </button>
@@ -429,7 +429,7 @@ function ChangeCard({
             {p.rationale && <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>}
             {needsPerson ? (
               <div className="mt-2.5 flex items-center gap-2">
-                <Button size="sm" className="btn-solstice h-8 flex-1" onClick={onTeammate}>
+                <Button size="sm" className="h-8 flex-1" onClick={onTeammate}>
                   <UsersRound /> Ask a teammate
                 </Button>
                 <Button size="sm" variant="ghost" className="h-8" onClick={(e) => onDismiss(e.detail === 0)}>
@@ -452,14 +452,14 @@ function ChangeCard({
                 {order.overBudget && (
                   <p className="mt-2 text-[11.5px] leading-snug text-foreground">
                     This would pass your spending cap, so it can&apos;t be applied yet.{" "}
-                    <Link href="/settings#usage" className="text-amber underline underline-offset-2">
+                    <Link href="/settings#usage" className="text-brand underline underline-offset-2">
                       Change the cap
                     </Link>
                   </p>
                 )}
                 <div className="mt-2.5 flex items-center gap-2">
                   {/* A click from the keyboard has detail 0: only then pull focus back to the writing area. */}
-                  <Button size="sm" className="btn-solstice h-8 flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
+                  <Button size="sm" className="h-8 flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
                     {approving ? (
                       "Applying…"
                     ) : (

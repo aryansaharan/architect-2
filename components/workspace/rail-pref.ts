@@ -52,16 +52,11 @@ export function writeRail(v: RailPref) {
 
 /** Fired to open the notes: the margin on a desktop, the bottom sheet on a phone. */
 export const OPEN_NOTES_EVENT = "prodai:open-notes";
-/** The old name of the same request, still honoured. */
-export const LEGACY_OPEN_EVENT = "architect:open-rail";
 
 /** Show the notes: the margin from 1024px wide, the bottom sheet on smaller screens. */
 export function openNotes() {
   window.dispatchEvent(new Event(OPEN_NOTES_EVENT));
 }
-
-/** The old name for {@link openNotes}. */
-export const openChat = openNotes;
 
 /**
  * The part of a project a path is on: "" for the Sheet (/p/[id]), else the next

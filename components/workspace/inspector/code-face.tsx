@@ -39,7 +39,7 @@ export function CodeFace({ objectRef }: { objectRef: ObjectRef }) {
       <p className="truncate px-4 pt-2 font-mono text-[10.5px] text-faint">{file.path}</p>
       <CodeView code={file.content} lang={file.lang} className="mt-1 max-h-[60vh] border-y border-hairline" />
       <div className="px-4 pt-3">
-        <Link href={`/p/${ws.project.id}/code?file=${encodeURIComponent(file.path)}`} className="text-[12px] text-amber underline-offset-4 hover:underline">
+        <Link href={`/p/${ws.project.id}/code?file=${encodeURIComponent(file.path)}`} className="text-[12px] text-brand underline-offset-4 hover:underline">
           Open in the Code tab →
         </Link>
       </div>

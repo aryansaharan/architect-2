@@ -78,11 +78,11 @@ export function RepairOverlay() {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.15 + i * 0.06 }}
-                  className={cn("flex flex-col rounded-md border p-4", o.recommended ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel")}
+                  className={cn("flex flex-col rounded-md border p-4", o.recommended ? "border-brand/50 bg-brand-soft" : "border-hairline bg-panel")}
                 >
                   <div className="flex items-center gap-2">
                     <span className="grid size-5 place-items-center rounded font-sketch text-[12px] uppercase text-muted-foreground ring-1 ring-hairline-hi">{o.id}</span>
-                    {o.recommended && <span className="text-[11px] font-medium text-amber">Recommended</span>}
+                    {o.recommended && <span className="text-[11px] font-medium text-brand">Recommended</span>}
                     <span className="ml-auto text-[11px] text-fix">Free</span>
                   </div>
                   <p className="mt-2 text-[13.5px] font-medium leading-snug">{o.label}</p>

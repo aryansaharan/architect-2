@@ -21,7 +21,7 @@ export function useAgentChat(projectId: string, agentId: string, opts: { onTurnE
         body: { projectId, agentId, runId },
         fetch: async (input, init) => {
           const res = await fetch(input, init);
-          const m = res.headers.get("x-architect-mode");
+          const m = res.headers.get("x-prodai-mode");
           if (m === "live" || m === "scripted" || m === "budget") setMode(m);
           return res;
         },

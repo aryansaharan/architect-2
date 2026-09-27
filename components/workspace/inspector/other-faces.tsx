@@ -53,7 +53,7 @@ export function ScreenPlain({ screen }: { screen: Screen }) {
           <ul className="space-y-1.5">
             {agents.map((a) => (
               <li key={a.id}>
-                <button onClick={() => ws.select({ type: "agent", id: a.id })} className="flex w-full items-center gap-2.5 rounded-md border border-hairline bg-panel px-2.5 py-2 text-left hover:border-amber/40">
+                <button onClick={() => ws.select({ type: "agent", id: a.id })} className="flex w-full items-center gap-2.5 rounded-md border border-hairline bg-panel px-2.5 py-2 text-left hover:border-brand/40">
                   <Avatar name={a.name} hue={a.avatarHue} size={24} />
                   <span className="text-[12.5px]">{a.name}</span>
                   <span className="ml-auto truncate text-[11px] text-muted-foreground">{a.role}</span>
@@ -98,7 +98,7 @@ export function ScreenSpec({ screen }: { screen: Screen }) {
         <ol className="space-y-1.5">
           {allBlocks(screen).map((b) => (
             <li key={b.id}>
-              <button onClick={() => ws.select({ type: "block", id: b.id })} className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left text-[12px] hover:border-amber/40">
+              <button onClick={() => ws.select({ type: "block", id: b.id })} className="flex w-full items-center gap-2 rounded-md border border-hairline bg-panel px-2.5 py-1.5 text-left text-[12px] hover:border-brand/40">
                 <span className="font-mono text-[10.5px] text-faint">{screen.regions.main.includes(b) ? "main" : "side"}</span>
                 <span className="text-muted-foreground">{BLOCK_LABELS[b.type]}</span>
                 <span className="ml-auto truncate">{blockTitle(b)}</span>
@@ -179,7 +179,7 @@ export function ConnectionPlain({ connection }: { connection: Connection }) {
         <ConnectionIcon kind={connection.kind} className="size-5 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium">{connection.name}</p>
-          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-amber")}>{connection.status === "configured" ? "Connected" : "Not connected · test data"}</p>
+          <p className={cn("text-[12px]", connection.status === "configured" ? "text-read" : "text-brand")}>{connection.status === "configured" ? "Connected" : "Not connected · test data"}</p>
         </div>
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-foreground/90">{connectionSummary(ws.blueprint, connection)}</p>

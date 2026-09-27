@@ -112,7 +112,7 @@ export function SettingsView({
                 {kinds.map(([k, v]) => (
                   <li key={k} className="text-[12.5px]">
                     <div className="flex justify-between"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("font-mono", v < 0 && "text-read")}>{v < 0 ? "−" : ""}{formatCredits(Math.abs(v))}</span></div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-read" : "bg-amber/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-read" : "bg-brand/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
                   </li>
                 ))}
                 {kinds.length === 0 && <li className="text-[12.5px] text-muted-foreground">Nothing spent yet.</li>}
@@ -136,7 +136,7 @@ export function SettingsView({
                   <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 truncate text-[13px] hover:underline">{p.name}</Link>
                     <span className="w-40">
-                      <span className="block h-1.5 overflow-hidden rounded-full bg-deep"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-foreground/70" : "bg-amber/70")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
+                      <span className="block h-1.5 overflow-hidden rounded-full bg-deep"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-foreground/70" : "bg-brand/70")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
                       <span className="mt-1 block text-[11px] text-muted-foreground">{Math.round(p.used)} of {p.cap} credits</span>
                     </span>
                     <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -228,7 +228,7 @@ export function SettingsView({
             ))}
           </div>
           <ul className="panel mt-4 divide-y divide-hairline rounded-md text-[12.5px]">
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">{user.name}{user.email ? ` · ${user.email}` : ""}</span><span className="text-amber">Owner</span></li>
+            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">{user.name}{user.email ? ` · ${user.email}` : ""}</span><span className="text-brand">Owner</span></li>
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Priya Raman · Platform engineer</span><span className="text-muted-foreground">Editor</span></li>
             <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Maya Singh · Claims lead</span><span className="text-muted-foreground">Viewer</span></li>
           </ul>
@@ -266,7 +266,7 @@ export function SettingsView({
           </div>
         </section>
       </main>
-      {pending && <Loader2 className="fixed bottom-6 right-6 size-5 animate-spin text-amber" />}
+      {pending && <Loader2 className="fixed bottom-6 right-6 size-5 animate-spin text-brand" />}
     </div>
   );
 }

@@ -15,7 +15,6 @@ import { AgentNode, ConnectionNode, EntityNode, ScreenNode } from "./node-card";
 import { WorkOrderDock } from "./work-order-dock";
 import { BuildConsole } from "./build-console";
 import { RepairOverlay } from "./repair-overlay";
-import { Tour } from "./tour";
 import { BuildComplete } from "./build-complete";
 import { useChangeOrderOpen } from "../composer-dock";
 
@@ -25,7 +24,7 @@ const key = (type: ObjectType, id: string) => `${type}:${id}`;
 const CANVAS_TYPES: ObjectType[] = ["screen", "agent", "entity", "connection"];
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function BlueprintCanvas({ tour }: { tour: boolean }) {
+export function BlueprintCanvas() {
   const ws = useWorkspace();
   const bp = ws.blueprint;
   const container = useRef<HTMLDivElement>(null);
@@ -158,7 +157,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
 
   const running = ws.build.status !== "idle" && ws.build.status !== "done";
   // One dock at a time, in its own row under the plan so it never covers a card. While a change Work Order
-  // waits in the composer, the dock steps aside: one decision at a time.
+  // waits in the notes margin, the dock steps aside: one decision at a time.
   const interrupted = ws.build.interrupted;
   const quiet = !running && ws.build.status !== "done" && !changeOrderOpen;
   const dock = !quiet ? null : interrupted ? "resume" : ws.project.buildState === "draft" ? (ws.project.source === "import" ? "mapped" : "quote") : null;
@@ -221,13 +220,13 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
                       <motion.path d={p.d} fill="none" stroke="rgb(63 61 56 / 0.3)" strokeWidth={1.25} strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0 : 1 }} transition={{ pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.45 + i * 0.02 }, opacity: { duration: 0.3 } }} />
                     )}
                     {/* The lines around what you point at, inked in the accent. Data only moves along them while a build runs. */}
-                    {hot && <path d={p.d} fill="none" stroke="var(--amber)" strokeOpacity={0.85} strokeWidth={1.6} strokeLinecap="round" strokeDasharray={dashed ? "4 5" : undefined} className={running ? "flow" : undefined} />}
+                    {hot && <path d={p.d} fill="none" stroke="var(--brand)" strokeOpacity={0.85} strokeWidth={1.6} strokeLinecap="round" strokeDasharray={dashed ? "4 5" : undefined} className={running ? "flow" : undefined} />}
                   </g>
                 );
               })}
             </svg>
             {columns.map((c) => (
-              <div key={c.title} data-tour-avoid className="relative z-[1] mb-3 flex min-w-0 items-baseline gap-2">
+              <div key={c.title} className="relative z-[1] mb-3 flex min-w-0 items-baseline gap-2">
                 <c.icon className="size-3.5 shrink-0 translate-y-px text-muted-foreground" aria-hidden />
                 <h3 className="font-pencil text-[24px] leading-none text-foreground">{c.title}</h3>
                 <span className="text-[11.5px] text-muted-foreground">{c.count}</span>
@@ -254,7 +253,7 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
 
       <AnimatePresence>
         {dock === "quote" && (
-          // The Work Order renders as a floating overlay; here it sits in flow, in its own row above the composer.
+          // The Work Order renders as a floating overlay; here it sits in flow, in its own row under the plan.
           <div key="quote" className="relative z-10 shrink-0 [&>div]:static [&>div]:pt-2">
             <WorkOrderDock />
           </div>
@@ -266,7 +265,6 @@ export function BlueprintCanvas({ tour }: { tour: boolean }) {
       <AnimatePresence>{running && <BuildConsole key="console" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "repair" && <RepairOverlay key="repair" />}</AnimatePresence>
       <AnimatePresence>{ws.build.status === "done" && <BuildComplete key="complete" />}</AnimatePresence>
-      {tour && !running && <Tour nodes={nodes} scroller={scroller} />}
     </div>
   );
 }
@@ -291,10 +289,10 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
   const where = build.step ? `at step ${build.step} of ${build.total}` : "before it finished";
   return (
     <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
-      <motion.section aria-label="Interrupted build" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
+      <motion.section aria-label="Interrupted build" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-medium text-amber">Build paused · nothing more to pay</p>
+            <p className="text-[12px] font-medium text-brand">Build paused · nothing more to pay</p>
             <p className="mt-0.5 font-pencil text-[26px] leading-tight">Your build was interrupted {where}.</p>
             <p className="mt-0.5 text-[12.5px] text-muted-foreground">
               {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
@@ -346,11 +344,11 @@ function MappedDock() {
   const ws = useWorkspace();
   return (
     <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
-      <motion.section aria-label="Imported project" data-tour-avoid="hard" {...dockMotion} className={dockPanel}>
+      <motion.section aria-label="Imported project" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas"><FolderGit2 className="size-4 text-amber" /></span>
+          <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas"><FolderGit2 className="size-4 text-brand" /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-medium text-amber">Adopted · nothing was built or charged</p>
+            <p className="text-[12px] font-medium text-brand">Adopted · nothing was built or charged</p>
             <p className="mt-0.5 font-pencil text-[26px] leading-tight">Mapped. Your repo is untouched.</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
           </div>
@@ -383,7 +381,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
         tabIndex={-1}
         onClick={onNudge}
         className={cn(
-          "grid size-7 place-items-center rounded-full border border-hairline bg-raised text-muted-foreground shadow-[0_2px_6px_-2px_rgb(26_26_23/0.2)] transition-colors hover:border-amber/40 hover:text-foreground",
+          "grid size-7 place-items-center rounded-full border border-hairline bg-raised text-muted-foreground shadow-[0_2px_6px_-2px_rgb(26_26_23/0.2)] transition-colors hover:border-brand/40 hover:text-foreground",
           show ? "pointer-events-auto" : "pointer-events-none",
         )}
       >

@@ -50,7 +50,7 @@ export async function requestChange(projectId: string, request: string, scope: O
 }
 
 /**
- * The chat thread: what you asked and what came back, both in the history so they survive a reload.
+ * The notes thread in the margin: what you asked and what came back, both in the history so they survive a reload.
  * Free (0 credits). The applied change and its save point are logged by approveChange, linked by `workOrderId`.
  * Best effort: the quote is already saved, so a failed write here never costs you the answer.
  */

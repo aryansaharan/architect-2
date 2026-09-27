@@ -135,7 +135,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
       )}
 
       <main id="main" className="relative mx-auto max-w-[1320px] px-6 pb-24 pt-12">
-        <p className="micro-label fade-up text-amber">Technical architecture · production design</p>
+        <p className="micro-label fade-up text-brand">Technical architecture · production design</p>
         <h1 className="fade-up mt-3 max-w-4xl font-display text-[48px] leading-[0.98] sm:text-[66px]" style={{ animationDelay: "80ms" }}>
           How Prod AI runs <em className="pencil-underline">in production.</em>
         </h1>
@@ -180,7 +180,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
             {FLOWS.map((f) => (
               <li key={f.n} className="panel rounded-xl p-4">
                 <p className="flex items-center gap-2 text-[13.5px] font-semibold">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-amber text-[12px] font-bold text-primary-foreground">{f.n}</span>
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-[12px] font-bold text-primary-foreground">{f.n}</span>
                   {f.title}
                 </p>
                 <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{f.body}</p>
@@ -191,7 +191,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
 
         <section aria-labelledby="harness" className="mt-14 grid gap-8 lg:grid-cols-[1fr_1.3fr]">
           <div>
-            <p className="micro-label text-amber">The agent harness</p>
+            <p className="micro-label text-brand">The agent harness</p>
             <h2 id="harness" className="mt-2 font-display text-[40px] leading-[1.02]">Plan, act, verify, repair. With a budget and a way out.</h2>
             <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
               The model decides; deterministic code does the rest. The planner writes a Blueprint (structured JSON), code generation turns it into files, and a tool loop edits, runs and
@@ -212,7 +212,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
                     <p className="font-sketch text-[14px] font-semibold">{x.t}</p>
                     <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{x.s}</p>
                   </div>
-                  {i < 3 && <ArrowRight className="absolute -right-2.5 top-1/2 z-[1] size-4 -translate-y-1/2 rounded-full bg-raised text-amber" />}
+                  {i < 3 && <ArrowRight className="absolute -right-2.5 top-1/2 z-[1] size-4 -translate-y-1/2 rounded-full bg-raised text-brand" />}
                 </div>
               ))}
             </div>
@@ -234,7 +234,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
         </section>
 
         <section aria-labelledby="sandbox" className="mt-14">
-          <p className="micro-label text-amber">Sandboxing</p>
+          <p className="micro-label text-brand">Sandboxing</p>
           <h2 id="sandbox" className="mt-2 font-display text-[40px] leading-[1.02]">One microVM per project, because the code is untrusted.</h2>
           <div className="panel mt-5 overflow-x-auto rounded-2xl">
             <table className="w-full min-w-[720px] text-left text-[13px]">
@@ -257,12 +257,12 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
         </section>
 
         <section aria-labelledby="scale" className="mt-14">
-          <p className="micro-label text-amber">Scale</p>
+          <p className="micro-label text-brand">Scale</p>
           <h2 id="scale" className="mt-2 font-display text-[40px] leading-[1.02]">Thousands of people at once, without thousands of idle machines.</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {NUMBERS.map((n) => (
               <div key={n.k} className="panel rounded-xl p-4">
-                <p className="font-display text-[40px] leading-none text-amber">{n.k}</p>
+                <p className="font-display text-[40px] leading-none text-brand">{n.k}</p>
                 <p className="mt-2 text-[12.5px] text-muted-foreground">{n.v}</p>
               </div>
             ))}
@@ -278,7 +278,7 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
         </section>
 
         <section aria-labelledby="today" className="mt-14">
-          <p className="micro-label text-amber">Honest about the seams</p>
+          <p className="micro-label text-brand">Honest about the seams</p>
           <h2 id="today" className="mt-2 font-display text-[40px] leading-[1.02]">What the prototype runs today, and what production adds.</h2>
           <p className="mt-3 max-w-3xl text-[13.5px] leading-relaxed text-muted-foreground">
             <span className={`${CHIP} ${STATUS_STYLE.real}`}>Real</span> runs in the live prototype. <span className={`${CHIP} ${STATUS_STYLE["stand-in"]}`}>Stand-in</span> is simulated or sandboxed, and

@@ -40,7 +40,7 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
           aria-expanded={open}
           aria-controls={`${id}-t`}
           onClick={() => setOpen((o) => !o)}
-          className="ml-4 mt-1 rounded-sm text-[12.5px] font-medium text-amber underline decoration-dotted underline-offset-4 hover:text-amber-hi"
+          className="ml-4 mt-1 rounded-sm text-[12.5px] font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi"
         >
           {open ? "Show less" : "Show all of it"}
         </button>
@@ -50,8 +50,8 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
 }
 
 /**
- * The price note and the one button. Pressing Make it real starts the build exactly as the
- * old "Build it" did (ws.build.start), so the charge, refunds and resume all work the same.
+ * The price note and the one button. Pressing Make it real starts the build with
+ * ws.build.start, the same call as the plan map's "Build it", so the charge, refunds and resume all work the same.
  */
 export function PriceNote() {
   const ws = useSheet();
@@ -81,7 +81,7 @@ export function PriceNote() {
         <Button
           size="lg"
           aria-label="Make it real (Build it)"
-          className="btn-solstice h-11 rounded-lg px-5 text-[15px]"
+          className="h-11 rounded-lg px-5 text-[15px]"
           disabled={starting || over || changeWaiting}
           onClick={async () => {
             setStarting(true);
@@ -133,7 +133,7 @@ export function MappedNote() {
         <p className="font-pencil text-[22px] leading-[32px] text-muted-foreground">Nothing was built or charged. There&apos;s nothing to make real: it already is.</p>
       </div>
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button size="lg" className="btn-solstice h-11 rounded-lg px-5 text-[15px]" onClick={() => ws.focusComposer(null)}>
+        <Button size="lg" className="h-11 rounded-lg px-5 text-[15px]" onClick={() => ws.focusComposer(null)}>
           <NotebookPen aria-hidden /> Write your first change note
         </Button>
         <p className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">

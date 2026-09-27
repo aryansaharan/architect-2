@@ -31,7 +31,7 @@ function HelperNote({ agent, i, state, waiting }: { agent: Agent; i: number; sta
       {waiting ? (
         <p className="mt-auto pt-3 font-sketch text-[12px] text-fix">a fix to pick, above</p>
       ) : state ? (
-        <p className={cn("mt-auto inline-flex items-center gap-1 pt-3 font-sketch text-[12px]", state === "done" ? "text-read" : state === "active" ? "text-amber" : "text-foreground/45")}>
+        <p className={cn("mt-auto inline-flex items-center gap-1 pt-3 font-sketch text-[12px]", state === "done" ? "text-read" : state === "active" ? "text-brand" : "text-foreground/45")}>
           {state === "done" ? <><Check className="size-3" aria-hidden />ready</> : state === "active" ? <><PenLine className="size-3" aria-hidden />learning its job</> : "waiting"}
         </p>
       ) : null}

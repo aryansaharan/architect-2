@@ -85,7 +85,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         <div className="panel mt-7 rounded-2xl p-5 sm:p-7">
           <label htmlFor="repo-url" className="font-pencil text-[26px] leading-none">Which repository?</label>
           <div className="mt-3 flex gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-lg border border-input bg-panel px-3 focus-within:border-amber/60">
+            <div className="flex flex-1 items-center gap-2 rounded-lg border border-input bg-panel px-3 focus-within:border-brand/60">
               <GitHubMark className="text-muted-foreground" />
               <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full min-w-0 bg-transparent font-mono text-[13px] outline-none placeholder:text-faint" disabled={step === "reading"} />
             </div>

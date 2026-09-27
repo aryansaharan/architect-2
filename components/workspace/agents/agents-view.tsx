@@ -87,7 +87,7 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
                   aria-current={current}
                   className={cn(
                     "w-full rounded-sm p-3 text-left transition-[transform,border-color] duration-200",
-                    current ? "sticky-note ring-1 ring-amber/40" : "border border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi",
+                    current ? "sticky-note ring-1 ring-brand/40" : "border border-hairline bg-panel hover:-translate-y-px hover:border-hairline-hi",
                   )}
                 >
                   <span className="flex items-center gap-2.5">
@@ -306,7 +306,7 @@ function Rehearsals({ agent }: { agent: Agent }) {
             return (
               <li key={r.id} className={cn("panel rounded-md p-3.5", last && !last.pass && "border-foreground/30")}>
                 <div className="flex items-start gap-3">
-                  {running === i ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline-hi" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-read" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-foreground/70" />}
+                  {running === i ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-brand" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline-hi" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-read" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-foreground/70" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{r.name}</p>
                     <p className="mt-0.5 text-[12.5px] text-muted-foreground"><span className="text-foreground/80">When:</span> {r.input}</p>
@@ -382,7 +382,7 @@ function Replay({ agent, runs }: { agent: Agent; runs: AgentRunRow[] }) {
                 <ol className="space-y-2 border-t border-hairline px-4 py-3">
                   {r.transcript.map((t, i) => (
                     <li key={`t${i}`} className="flex gap-2 text-[12.5px]">
-                      <span className={cn("w-16 shrink-0 font-mono text-[11px]", t.role === "user" ? "text-muted-foreground" : "text-amber")}>{t.role === "user" ? "person" : "agent"}</span>
+                      <span className={cn("w-16 shrink-0 font-mono text-[11px]", t.role === "user" ? "text-muted-foreground" : "text-brand")}>{t.role === "user" ? "person" : "agent"}</span>
                       <Markdown text={t.text} className="min-w-0 flex-1 text-[12.5px]" />
                     </li>
                   ))}
@@ -432,7 +432,7 @@ function AgentCode({ agent }: { agent: Agent }) {
           <span className="mr-1 text-[11.5px] text-muted-foreground">Framework</span>
           {Object.values(FRAMEWORKS).map((m) => (
             <button key={m.id} onClick={() => setFw(m.id)} aria-pressed={m.id === fw} className={cn("rounded-md border px-2.5 py-1 text-[12px]", m.id === fw ? "border-hairline bg-panel text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              {m.label}{m.id === agent.framework && <span className="ml-1 text-[10.5px] text-amber">in use</span>}
+              {m.label}{m.id === agent.framework && <span className="ml-1 text-[10.5px] text-brand">in use</span>}
             </button>
           ))}
         </div>

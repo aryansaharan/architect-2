@@ -11,7 +11,7 @@ import { useSheet } from "./use-sheet";
 /**
  * The server says this project is mid-build but nothing here is running it (the tab was closed or
  * reloaded). The price was already taken, so resuming is free; stopping refunds it. Same calls as the
- * old resume dock: ws.build.start() resumes without charging again, cancelBuild refunds.
+ * plan map's resume dock: ws.build.start() resumes without charging again, cancelBuild refunds.
  */
 export function ResumeNote({ build }: { build: InterruptedBuild }) {
   const ws = useSheet();
@@ -21,7 +21,7 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
   const paid = ws.ledger.find((r) => r.kind === "work_order")?.credits ?? 0;
   const where = build.step ? ` at step ${build.step} of ${build.total}` : "";
   return (
-    <section aria-labelledby="sheet-resume-title" className="sketch-soft fade-up mt-7 bg-amber-soft p-5 sm:p-6">
+    <section aria-labelledby="sheet-resume-title" className="sketch-soft fade-up mt-7 bg-brand-soft p-5 sm:p-6">
       <h2 id="sheet-resume-title" className="font-display text-[30px] leading-[1.1] text-foreground sm:text-[34px]">
         Your build was interrupted{where}
       </h2>
@@ -33,7 +33,7 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
           size="lg"
-          className="btn-solstice h-10 rounded-lg px-4 text-[14px]"
+          className="h-10 rounded-lg px-4 text-[14px]"
           disabled={busy !== null}
           onClick={async () => {
             setBusy("resume");

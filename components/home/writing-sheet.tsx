@@ -100,7 +100,7 @@ export function WritingSheet({
                 className={cn(
                   "sticky-note rounded-[3px] px-2.5 pb-1 pt-0.5 font-pencil text-[19px] leading-tight text-foreground transition-transform duration-200 hover:rotate-0",
                   TILT[i % TILT.length],
-                  value === ex.prompt && "outline outline-1 outline-amber/50",
+                  value === ex.prompt && "outline outline-1 outline-brand/50",
                 )}
               >
                 {ex.label}

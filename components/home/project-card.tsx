@@ -21,7 +21,7 @@ export type HomeProject = {
 function stage(p: HomeProject): { label: string; tone: string } {
   if (p.buildState === "draft") return { label: "Pencil sketch", tone: "text-muted-foreground" };
   if (p.buildState === "building") return { label: "Being made", tone: "text-foreground" };
-  return p.live ? { label: "Published", tone: "text-amber" } : { label: "Real app", tone: "text-amber" };
+  return p.live ? { label: "Published", tone: "text-brand" } : { label: "Real app", tone: "text-brand" };
 }
 
 /** A project on paper: still in pencil until it's made real, then inked. */

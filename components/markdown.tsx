@@ -10,7 +10,7 @@ import { noEmDash } from "@/lib/text";
 type Theme = "studio" | "app";
 
 const T = {
-  studio: { text: "text-foreground/90", strong: "text-foreground", muted: "text-muted-foreground", code: "bg-deep border border-hairline text-foreground/90", link: "text-amber underline decoration-dotted underline-offset-4", th: "bg-deep text-muted-foreground", border: "border-hairline" },
+  studio: { text: "text-foreground/90", strong: "text-foreground", muted: "text-muted-foreground", code: "bg-deep border border-hairline text-foreground/90", link: "text-brand underline decoration-dotted underline-offset-4", th: "bg-deep text-muted-foreground", border: "border-hairline" },
   app: { text: "text-slate-800", strong: "text-slate-900", muted: "text-slate-500", code: "bg-slate-100 border border-slate-200 text-slate-800", link: "text-[var(--app-primary)] underline underline-offset-4", th: "bg-slate-50 text-slate-500", border: "border-slate-200" },
 };
 

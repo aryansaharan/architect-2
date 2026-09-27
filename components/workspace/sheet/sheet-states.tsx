@@ -12,7 +12,7 @@ export function EmptySheet() {
       <p className="mx-auto mt-3 max-w-[46ch] font-pencil text-[22px] leading-snug text-muted-foreground">
         Write what you want in the margin, in your own words, and Prod AI will sketch it here.
       </p>
-      <Button size="lg" className="btn-solstice mt-6 h-11 rounded-lg px-5 text-[15px]" onClick={() => ws.focusComposer(null)}>
+      <Button size="lg" className="mt-6 h-11 rounded-lg px-5 text-[15px]" onClick={() => ws.focusComposer(null)}>
         <NotebookPen aria-hidden /> Write in the margin
       </Button>
     </div>

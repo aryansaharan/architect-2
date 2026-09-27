@@ -21,14 +21,14 @@ const SYNTAX = {
   key: "text-change",
   string: "text-[#0a3069]",
   constant: "text-[#8a4a0b]",
-  keyword: "text-amber font-medium",
+  keyword: "text-brand font-medium",
 } as const;
 
 function tokenize(code: string, lang: Lang): Tok[] {
   const l = lang === "tsx" ? "ts" : lang;
   if (l === "md") {
     return code.split(/(\n)/).map((line) =>
-      /^#{1,6} /.test(line) ? { t: line, c: "text-amber font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground" } : /^\|/.test(line) ? { t: line, c: "text-change" } : { t: line },
+      /^#{1,6} /.test(line) ? { t: line, c: "text-brand font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground" } : /^\|/.test(line) ? { t: line, c: "text-change" } : { t: line },
     );
   }
   const comment = l === "py" || l === "yaml" || l === "sh" || l === "env" || l === "toml" ? "#[^\\n]*" : l === "sql" ? "--[^\\n]*" : l === "ts" ? "\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/" : "(?!)";
@@ -70,7 +70,7 @@ export function CodeView({ code, lang, className, lineNumbers = true, highlightL
     <pre className={cn("code-face overflow-auto text-[12.5px] leading-[1.65]", className)}>
       <code className="block min-w-max py-3">
         {lines.map((line, i) => (
-          <span key={i} className={cn("flex px-3", highlightLines?.has(i + 1) && "bg-amber-soft")}>
+          <span key={i} className={cn("flex px-3", highlightLines?.has(i + 1) && "bg-brand-soft")}>
             {lineNumbers && <span className="mr-4 inline-block w-7 shrink-0 select-none text-right text-faint">{i + 1}</span>}
             <span className="whitespace-pre text-foreground/90">
               {line.map((t, j) => (

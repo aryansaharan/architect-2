@@ -144,8 +144,8 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
         <div className="dot-grid relative min-h-0 min-w-0 flex-1 overflow-auto p-3 sm:p-5">
           <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
             {/* The browser bar says this on desktop and tablet; the phone frame has no bar, so it's said here. */}
-            {device === "phone" && <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-amber" />Test version · only you can see this</span>}
-            {!built && <span className="rounded-full border border-amber/30 bg-amber-soft px-2.5 py-0.5 text-amber">Plan only: this is what will be built</span>}
+            {device === "phone" && <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-brand" />Test version · only you can see this</span>}
+            {!built && <span className="rounded-full border border-brand/30 bg-brand-soft px-2.5 py-0.5 text-brand">Plan only: this is what will be built</span>}
             {mode === "tweak" && <span>{tweaking ? "Editing the outlined block. The panel stays beside the app, never on top of it." : "Point at anything and click to edit it. Tweaks are free."}</span>}
             {mode === "comment" && <span>Click a spot to pin a note. Teammates see it in their activity.</span>}
           </div>
@@ -169,7 +169,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
               <div className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-panel px-3">
                 <span aria-hidden className="flex shrink-0 gap-1.5"><i className="size-2.5 rounded-full border border-[#c9c1b1]" /><i className="size-2.5 rounded-full border border-[#c9c1b1]" /><i className="size-2.5 rounded-full border border-[#c9c1b1]" /></span>
                 <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-[11.5px] text-muted-foreground">
-                  <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber" />
+                  <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-brand" />
                   <span className="truncate">Test version · only you</span>
                 </span>
                 {liveUrl ? (
@@ -260,9 +260,9 @@ function BlockFrame({
         }
       }}
     >
-      <div className={cn("pointer-events-none absolute -inset-1.5 z-10 rounded-[calc(var(--app-radius)+8px)] border-2 border-transparent transition-colors", mode === "tweak" && "group-hover/frame:border-amber/80", selected && "border-amber")} />
+      <div className={cn("pointer-events-none absolute -inset-1.5 z-10 rounded-[calc(var(--app-radius)+8px)] border-2 border-transparent transition-colors", mode === "tweak" && "group-hover/frame:border-brand/80", selected && "border-brand")} />
       {mode === "tweak" && (
-        <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-md bg-amber px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-foreground shadow-[0_1px_2px_rgb(26_26_23/0.15)] opacity-0 transition-opacity group-hover/frame:opacity-100", selected && "opacity-100")}>
+        <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-md bg-brand px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-foreground shadow-[0_1px_2px_rgb(26_26_23/0.15)] opacity-0 transition-opacity group-hover/frame:opacity-100", selected && "opacity-100")}>
           {label} · {BLOCK_LABELS[block.type]}
         </span>
       )}
@@ -308,10 +308,10 @@ function DraftPin({ x, y, screenId, blockId, onDone }: { x: number; y: number; s
   const [pending, start] = useTransition();
   return (
     <div data-pin-draft className="absolute z-40" style={{ left: `${x}%`, top: `${y}%` }} onClick={(e) => e.stopPropagation()}>
-      <span className="block size-7 -translate-x-1/2 -translate-y-1/2 rounded-full rounded-bl-none border-2 border-raised bg-amber shadow-[0_2px_6px_rgb(26_26_23/0.25)]" />
+      <span className="block size-7 -translate-x-1/2 -translate-y-1/2 rounded-full rounded-bl-none border-2 border-raised bg-brand shadow-[0_2px_6px_rgb(26_26_23/0.25)]" />
       <div className="panel-raised absolute left-4 top-2 w-72 rounded-xl p-3 text-foreground">
         <label htmlFor="pin-text" className="micro-label">Note for your team</label>
-        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onDone()} className="mt-1.5 w-full resize-none rounded-md border border-input bg-raised p-2 text-[13px] outline-none placeholder:text-muted-foreground/75 focus:border-amber focus:ring-3 focus:ring-amber/20" placeholder="What should change here?" />
+        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onDone()} className="mt-1.5 w-full resize-none rounded-md border border-input bg-raised p-2 text-[13px] outline-none placeholder:text-muted-foreground/75 focus:border-brand focus:ring-3 focus:ring-brand/20" placeholder="What should change here?" />
         <div className="mt-2 flex gap-1.5">
           <Button
             type="button"

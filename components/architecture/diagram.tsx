@@ -342,7 +342,7 @@ const LEGEND_TONES: { tone: Tone; name: string; meaning: string }[] = [
   { tone: "outside", name: "Outside", meaning: "identity federation and billing" },
 ];
 
-const LABEL_FONT = { font: "500 10.5px var(--font-geist-mono), monospace", letterSpacing: "0.04em" };
+const LABEL_FONT = { font: "500 10.5px var(--font-code), monospace", letterSpacing: "0.04em" };
 
 /** Hover and focus behaviour for the numbered badges, as scoped CSS. */
 function interactionCss(id: string) {
@@ -534,13 +534,7 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       )}
       {interactive && <style>{interactionCss(id)}</style>}
       <defs>
-        <linearGradient id="sol-stroke" x1="0" y1="0" x2={W} y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#fff2a6" />
-          <stop offset="0.35" stopColor="#dfff4f" />
-          <stop offset="0.65" stopColor="#8dff9e" />
-          <stop offset="1" stopColor="#3fe0c5" />
-        </linearGradient>
-        <linearGradient id="sol-badge" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="badge-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#fff2a6" />
           <stop offset="0.5" stopColor="#dfff4f" />
           <stop offset="1" stopColor="#8dff9e" />
@@ -566,7 +560,7 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
       {ZONES.map((z) => (
         <g key={z.label}>
           <rect x={z.x} y={z.y} width={z.w} height={z.h} rx={18} fill={`color-mix(in srgb, ${TONE[z.tone]} 3%, transparent)`} stroke={`color-mix(in srgb, ${TONE[z.tone]} 30%, #1c2824)`} strokeDasharray="4 5" />
-          <text x={z.x + 16} y={z.y + 22} fill={TONE[z.tone]} style={{ font: "600 11px var(--font-geist-mono), monospace", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          <text x={z.x + 16} y={z.y + 22} fill={TONE[z.tone]} style={{ font: "600 11px var(--font-code), monospace", letterSpacing: "0.12em", textTransform: "uppercase" }}>
             {z.label.toUpperCase()}
             {z.hint && <tspan fill="#6c7c74" style={{ letterSpacing: "0.04em" }}>{`  ·  ${z.hint}`}</tspan>}
           </text>
@@ -609,8 +603,8 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
           >
             {interactive && <circle className="arch-ring" cx={x} cy={y} r={16.5} fill="none" strokeWidth={1.5} />}
             <circle cx={x} cy={y} r={13} fill="#060a09" />
-            <circle cx={x} cy={y} r={11} fill="url(#sol-badge)" />
-            <text x={x} y={y + 4} textAnchor="middle" fill="#0b1402" style={{ font: "700 12px var(--font-geist-sans), sans-serif" }}>{s.n}</text>
+            <circle cx={x} cy={y} r={11} fill="url(#badge-fill)" />
+            <text x={x} y={y + 4} textAnchor="middle" fill="#0b1402" style={{ font: "700 12px var(--font-work), sans-serif" }}>{s.n}</text>
           </g>
         );
       })}

@@ -91,7 +91,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
                 <ol className="space-y-1.5">
                   {STAGES.map((st, i) => (
                     <li key={st.label} className={cn("flex items-center gap-2 text-[12.5px] transition-opacity duration-300", i > stage ? "opacity-35" : "opacity-100")}>
-                      {i < stage ? <Check className="size-3.5 shrink-0 text-read" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 shrink-0 animate-spin text-amber" aria-hidden /> : <span className="grid size-3.5 shrink-0 place-items-center" aria-hidden><span className="size-1 rounded-full bg-faint" /></span>}
+                      {i < stage ? <Check className="size-3.5 shrink-0 text-read" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 shrink-0 animate-spin text-brand" aria-hidden /> : <span className="grid size-3.5 shrink-0 place-items-center" aria-hidden><span className="size-1 rounded-full bg-faint" /></span>}
                       <span className={cn(i === stage ? "text-foreground" : i < stage ? "text-muted-foreground" : "text-faint")}>{st.label}</span>
                     </li>
                   ))}
@@ -114,7 +114,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
               <p className="text-[12.5px] font-medium">Framework</p>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {Frameworks.map((f) => (
-                  <button key={f} onClick={() => setFw(f)} className={cn("rounded-md border px-2 py-1.5 text-[12px]", fw === f ? "border-amber/50 bg-amber-soft text-amber" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
+                  <button key={f} onClick={() => setFw(f)} className={cn("rounded-md border px-2 py-1.5 text-[12px]", fw === f ? "border-brand/50 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
                 ))}
               </div>
             </div>

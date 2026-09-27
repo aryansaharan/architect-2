@@ -35,8 +35,8 @@ export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], chi
 }
 
 /**
- * The old quick tour was opened with ?tour=1 (the demo link still adds it). There is no tour now,
- * so drop the parameter quietly: no server round trip, and a reload or a shared link stays clean.
+ * Older shared links can still carry ?tour=1 from a quick tour that no longer exists. Drop the
+ * parameter quietly: no server round trip, and a reload or a shared link stays clean.
  */
 function useDropTourParam() {
   const params = useSearchParams();

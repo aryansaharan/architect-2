@@ -75,7 +75,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
     <div className="flex h-full min-h-0 flex-col text-foreground" onClick={(e) => e.stopPropagation()}>
       <div className="flex shrink-0 items-center justify-between border-b border-hairline px-3 py-2.5">
         <div>
-          <p className="micro-label text-amber">Tweak · free</p>
+          <p className="micro-label text-brand">Tweak · free</p>
           <p className="text-[13px] font-medium">{BLOCK_LABELS[block.type]}{entity ? ` · ${entity.plural}` : ""}</p>
         </div>
         <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
@@ -101,7 +101,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
                     e.preventDefault();
                     move(i, e.key === "ArrowUp" ? -1 : 1);
                   }}
-                  className="flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[12.5px] outline-none focus-visible:border-amber focus-visible:ring-3 focus-visible:ring-amber/20"
+                  className="flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[12.5px] outline-none focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/20"
                 >
                   <span className="w-4 shrink-0 font-mono text-[10.5px] text-muted-foreground">{i + 1}</span>
                   <span className="flex-1 truncate">{label(c)}</span>

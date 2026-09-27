@@ -38,7 +38,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast: "cn-toast shadow-[0_1px_2px_rgb(26_26_23/0.05),0_12px_32px_-14px_rgb(26_26_23/0.22)]!",
           description: "text-muted-foreground!",
-          actionButton: "bg-primary! text-primary-foreground! hover:bg-amber-hi!",
+          actionButton: "bg-primary! text-primary-foreground! hover:bg-brand-hi!",
           cancelButton: "bg-secondary! text-foreground!",
         },
       }}

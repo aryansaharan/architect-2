@@ -134,7 +134,7 @@ export function PlanSketch({ className }: { className?: string }) {
       <g transform="rotate(9 200 20)">
         <Pencil d={`M170 10 L210 10 L220 20 L210 30 L170 30 Z`} width={1.2} />
         <circle cx="212" cy="20" r="2" fill="none" stroke={GRAPHITE} strokeWidth="1" />
-        <text x="175" y="25" fontSize="14" fill="var(--amber)" style={handwriting}>$0.60</text>
+        <text x="175" y="25" fontSize="14" fill="var(--brand)" style={handwriting}>$0.60</text>
       </g>
     </svg>
   );
@@ -150,22 +150,22 @@ export function RealSketch({ className }: { className?: string }) {
       <rect x="18.7" y="56.5" width="37" height="102.8" fill="var(--deep)" />
       <path d="M56 56 V160" stroke={INK} strokeWidth="1.1" />
       {[70, 82, 94].map((y, i) => (
-        <rect key={y} x="26" y={y} width={22 - i * 4} height="4" rx="2" fill={i === 0 ? "var(--amber)" : "var(--hairline-hi)"} />
+        <rect key={y} x="26" y={y} width={22 - i * 4} height="4" rx="2" fill={i === 0 ? "var(--brand)" : "var(--hairline-hi)"} />
       ))}
       <rect x="66" y="66" width="102" height="48" rx="3" fill="none" stroke="var(--hairline-hi)" strokeWidth="1.1" />
       {[78, 90, 102].map((y) => (
         <g key={y}>
-          <circle cx="74" cy={y} r="2.2" fill="var(--amber)" />
+          <circle cx="74" cy={y} r="2.2" fill="var(--brand)" />
           <rect x="81" y={y - 2} width="50" height="4" rx="2" fill="var(--hairline-hi)" />
           <rect x="140" y={y - 2} width="20" height="4" rx="2" fill="var(--hairline)" />
         </g>
       ))}
-      <rect x="66" y="124" width="38" height="16" rx="3" fill="var(--amber)" />
+      <rect x="66" y="124" width="38" height="16" rx="3" fill="var(--brand)" />
       <rect x="73" y="130.5" width="24" height="3" rx="1.5" fill="#f7f5f0" />
 
-      <text x="104" y="17" fontSize="16" fill="var(--amber)" style={handwriting}>a bigger title, please</text>
-      <path d="M102 14 C 78 12, 58 18, 50 36" fill="none" stroke="var(--amber)" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M45 29 L50 37 L56 30" fill="none" stroke="var(--amber)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="104" y="17" fontSize="16" fill="var(--brand)" style={handwriting}>a bigger title, please</text>
+      <path d="M102 14 C 78 12, 58 18, 50 36" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M45 29 L50 37 L56 30" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -189,7 +189,7 @@ export function PencilBox({ on, round, seed = 1 }: { on: boolean; round?: boolea
       ) : (
         <path d={roughRect(2.5, 2.5, 15, 15, seed, 0.7)} fill="none" stroke={GRAPHITE} strokeWidth="1.3" strokeLinecap="round" />
       )}
-      {on && <path d="M4.5 10.5 L8.6 14.6 L18.5 2.5" fill="none" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="fade-up" />}
+      {on && <path d="M4.5 10.5 L8.6 14.6 L18.5 2.5" fill="none" stroke="var(--brand)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="fade-up" />}
     </svg>
   );
 }
@@ -207,7 +207,7 @@ export function Wireframe({ layout, ink, seed = 1, className }: { layout?: strin
   const line = (x1: number, y1: number, x2: number, y2: number, k: number, c = soft) => <Pencil key={`l${k}`} d={roughLine(x1, y1, x2, y2, s + k, j)} color={c} width={w} />;
   const box = (x: number, y: number, bw: number, bh: number, k: number, c = color) => <Pencil key={`b${k}`} d={roughRect(x, y, bw, bh, s + k, j)} d2={ink ? undefined : roughRect(x, y, bw, bh, s + k + 50, j * 1.5)} color={c} width={w} />;
   const button = (x: number, y: number) =>
-    ink ? <rect key="btn" x={x} y={y} width="26" height="9" rx="2" fill="var(--amber)" /> : box(x, y, 26, 9, 90);
+    ink ? <rect key="btn" x={x} y={y} width="26" height="9" rx="2" fill="var(--brand)" /> : box(x, y, 26, 9, 90);
   let body: React.ReactNode;
   switch (layout) {
     case "dashboard":

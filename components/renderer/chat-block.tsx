@@ -62,8 +62,8 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
       const d = (e as CustomEvent<{ agentId: string; prompt: string }>).detail;
       if (d.agentId === agent.id) void chat.sendMessage({ text: d.prompt });
     };
-    window.addEventListener("architect:ask-agent", handler);
-    return () => window.removeEventListener("architect:ask-agent", handler);
+    window.addEventListener("prodai:ask-agent", handler);
+    return () => window.removeEventListener("prodai:ask-agent", handler);
   }, [agent.id, chat]);
   const send = (t: string) => {
     if (!t.trim() || busy) return;
@@ -151,8 +151,8 @@ function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined
       const d = (e as CustomEvent<{ agentId: string; prompt: string }>).detail;
       if (d.agentId === block.agentId) onAsk(d.prompt);
     };
-    window.addEventListener("architect:ask-agent", handler);
-    return () => window.removeEventListener("architect:ask-agent", handler);
+    window.addEventListener("prodai:ask-agent", handler);
+    return () => window.removeEventListener("prodai:ask-agent", handler);
   }, [block.agentId]);
 
   return (

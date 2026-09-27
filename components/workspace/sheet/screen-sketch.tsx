@@ -57,13 +57,13 @@ export function ScreenSketch({ bp, screen, n, state, building }: { bp: Blueprint
   const inked = state === "inked";
   return (
     <li
-      className={cn("sketch flex min-w-0 flex-col bg-panel p-3.5 transition-colors duration-500", state === "inking" && "border-amber")}
+      className={cn("sketch flex min-w-0 flex-col bg-panel p-3.5 transition-colors duration-500", state === "inking" && "border-brand")}
     >
       <div className="flex min-w-0 items-baseline gap-2">
         <span aria-hidden className="font-sketch text-[12px] text-faint">{n}</span>
         <h3 className="min-w-0 flex-1 truncate font-sketch text-[15px] text-foreground">{screen.title}</h3>
         {building && (
-          <span className={cn("inline-flex shrink-0 items-center gap-1 font-sketch text-[12px]", state === "inked" ? "text-read" : state === "inking" ? "text-amber" : "text-faint")}>
+          <span className={cn("inline-flex shrink-0 items-center gap-1 font-sketch text-[12px]", state === "inked" ? "text-read" : state === "inking" ? "text-brand" : "text-faint")}>
             {state === "inked" ? <Check className="size-3" aria-hidden /> : state === "inking" ? <PenLine className="size-3" aria-hidden /> : null}
             <span className="sr-only">, </span>
             {STATE_LABEL[state]}

@@ -52,9 +52,9 @@ export function RepairNote() {
         {options.map((o, i) => {
           const chosen = choice === o.id;
           return (
-            <div key={o.id} className={cn("flex flex-col p-4", o.recommended ? "sketch border-amber/70 bg-amber-soft" : "sketch-soft bg-panel")}>
+            <div key={o.id} className={cn("flex flex-col p-4", o.recommended ? "sketch border-brand/70 bg-brand-soft" : "sketch-soft bg-panel")}>
               <div className="flex items-center gap-2 font-sketch text-[12px]">
-                {o.recommended ? <span className="text-amber">what we&apos;d pick</span> : <span className="text-muted-foreground">or</span>}
+                {o.recommended ? <span className="text-brand">what we&apos;d pick</span> : <span className="text-muted-foreground">or</span>}
                 <span className="ml-auto text-fix">{o.credits > 0 ? plural(o.credits, "credit") : "free"}</span>
               </div>
               <p className="mt-1.5 text-[14.5px] font-medium leading-snug text-foreground">{plainWords(o.label)}</p>
@@ -66,7 +66,7 @@ export function RepairNote() {
                 ref={i === 0 ? first : undefined}
                 size="sm"
                 variant={o.recommended ? "default" : "outline"}
-                className={cn("mt-3 h-9 text-[13px]", o.recommended && "btn-solstice")}
+                className="mt-3 h-9 text-[13px]"
                 disabled={Boolean(choice) || stopping}
                 onClick={() => ws.build.choose(o.id)}
               >

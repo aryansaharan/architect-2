@@ -48,7 +48,7 @@ export function HandoffsView({ initial }: { initial?: string }) {
         <li className="flex items-end justify-between px-1 pb-1 pt-1"><span className="font-pencil text-[28px] leading-none">Handoffs</span><span className="pb-0.5 text-[12px] text-muted-foreground">{list.filter((x) => x.status !== "resolved").length} open</span></li>
         {list.map((x) => (
           <li key={x.id}>
-            <button onClick={() => { setId(x.id); router.replace(`${pathname}?h=${x.id}`, { scroll: false }); }} aria-current={x.id === id} className={cn("w-full rounded-md border p-3 text-left transition-colors", x.id === id ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
+            <button onClick={() => { setId(x.id); router.replace(`${pathname}?h=${x.id}`, { scroll: false }); }} aria-current={x.id === id} className={cn("w-full rounded-md border p-3 text-left transition-colors", x.id === id ? "border-brand/50 bg-brand-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
               <p className="flex items-center gap-2 text-[12px]">
                 <span className={cn("size-1.5 rounded-full", x.status === "resolved" ? "bg-read" : "bg-change")} />
                 <span className="min-w-0 truncate"><span className="text-muted-foreground">You → </span><span className="font-medium">{x.assignee.split(" · ")[0]}</span></span>
@@ -204,7 +204,7 @@ function FromTo({ h }: { h: HandoffRow }) {
 function Quote({ h }: { h: HandoffRow }) {
   return (
     <div className="mt-3 flex gap-3">
-      <span aria-hidden className="mt-1 w-0.5 shrink-0 self-stretch rounded-full bg-amber/50" />
+      <span aria-hidden className="mt-1 w-0.5 shrink-0 self-stretch rounded-full bg-brand/50" />
       <p className="font-pencil text-[23px] leading-snug">“{h.prompt}”</p>
     </div>
   );

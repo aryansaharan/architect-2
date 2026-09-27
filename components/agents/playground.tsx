@@ -82,7 +82,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
                 <p className="mb-1.5 text-center text-[11.5px] text-muted-foreground">Or start with one of these</p>
                 <div className="flex flex-col gap-2">
                   {agent.rehearsals.slice(0, 3).map((r) => (
-                    <button key={r.id} onClick={() => send(r.input)} className="sketch-soft bg-panel px-3 py-2 text-left text-[12.5px] text-foreground/80 transition-colors hover:border-amber hover:text-foreground">
+                    <button key={r.id} onClick={() => send(r.input)} className="sketch-soft bg-panel px-3 py-2 text-left text-[12.5px] text-foreground/80 transition-colors hover:border-brand hover:text-foreground">
                       <span className="mr-2 font-sketch text-[11.5px] text-muted-foreground">{r.name}</span>
                       {r.input}
                     </button>
@@ -121,7 +121,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
         {chat.error && <p className="rounded-md border border-hairline-hi bg-panel px-3 py-2 text-[12.5px] text-foreground/85">Something went wrong reaching {agent.name}. Try again. Nothing was charged.</p>}
       </div>
       <div className="px-4 pb-3 pt-2 sm:px-5">
-        <div className="flex items-end gap-2 rounded-lg border border-hairline-hi bg-panel p-2 transition-colors focus-within:border-amber/60">
+        <div className="flex items-end gap-2 rounded-lg border border-hairline-hi bg-panel p-2 transition-colors focus-within:border-brand/60">
           <label htmlFor="pg-input" className="sr-only">Message {agent.name}</label>
           <textarea
             id="pg-input"

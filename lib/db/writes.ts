@@ -92,7 +92,7 @@ export async function addCheckpoint(
 }
 
 /**
- * The chat thread's own entries, written by the composer (lib/actions/change.ts):
+ * The notes thread's own entries, written when you send a note from the margin (lib/actions/change.ts):
  * what you asked ("question", "request") and what Prod AI said back ("answer", "quote": a change Work Order).
  */
 export type ChatLedgerKind = "question" | "answer" | "request" | "quote";

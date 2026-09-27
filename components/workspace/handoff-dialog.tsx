@@ -63,7 +63,7 @@ function HandoffForm() {
         <legend className="mb-2 text-[12.5px] font-medium">Who</legend>
         <div className="grid grid-cols-3 gap-2">
           {MATES.map((m) => (
-            <button key={m.id} type="button" onClick={() => setMate(m.id)} aria-pressed={mate === m.id} className={cn("flex flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors", mate === m.id ? "border-amber/50 bg-amber-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
+            <button key={m.id} type="button" onClick={() => setMate(m.id)} aria-pressed={mate === m.id} className={cn("flex flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors", mate === m.id ? "border-brand/50 bg-brand-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
               <Avatar name={m.name} hue={hash(m.id) % 360} size={30} />
               <span className="text-[12px] font-medium leading-tight">{m.name}</span>
               <span className="text-[10.5px] leading-tight text-muted-foreground">{m.role}</span>

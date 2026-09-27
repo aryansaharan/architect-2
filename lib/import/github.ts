@@ -29,7 +29,7 @@ export class GitHubError extends Error {
 }
 
 function headers(): HeadersInit {
-  const h: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "architect-2-prototype" };
+  const h: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "prod-ai-prototype" };
   if (process.env.GITHUB_TOKEN) h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   return h;
 }

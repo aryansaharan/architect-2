@@ -56,7 +56,7 @@ export function PencilRadio<T extends string>({
             }}
             className={cn(
               "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 text-[12.5px] font-medium transition-colors duration-150",
-              active ? "bg-amber-soft text-amber ring-1 ring-amber/30" : "text-muted-foreground hover:bg-deep hover:text-foreground",
+              active ? "bg-brand-soft text-brand ring-1 ring-brand/30" : "text-muted-foreground hover:bg-deep hover:text-foreground",
             )}
           >
             {o.label}

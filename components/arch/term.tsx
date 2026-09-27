@@ -27,7 +27,7 @@ export function Term({ k, children, className }: { k: TermKey; children?: React.
   return (
     <HoverCard openDelay={250} closeDelay={80}>
       <HoverCardTrigger asChild>
-        <span tabIndex={0} className={cn("cursor-help underline decoration-current/35 decoration-dotted underline-offset-[3px] outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-amber/50", className)}>
+        <span tabIndex={0} className={cn("cursor-help underline decoration-current/35 decoration-dotted underline-offset-[3px] outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-brand/50", className)}>
           {children ?? g.term}
         </span>
       </HoverCardTrigger>
@@ -35,7 +35,7 @@ export function Term({ k, children, className }: { k: TermKey; children?: React.
         <p className="text-[13px] font-semibold text-foreground">{g.term}</p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{g.plain}</p>
         <p className="mt-2.5 border-t border-hairline pt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
-          <span className="font-medium text-amber">Developers:</span> {g.dev}
+          <span className="font-medium text-brand">Developers:</span> {g.dev}
         </p>
       </HoverCardContent>
     </HoverCard>

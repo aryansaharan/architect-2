@@ -160,7 +160,7 @@ export async function POST(req: Request) {
         writer.write({ type: "text-end", id: "cap" });
       },
     });
-    return createUIMessageStreamResponse({ stream, headers: { "x-architect-mode": "budget" } });
+    return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "budget" } });
   }
 
   const m = (await modelBudgetOk(supa, user)) ? getModel() : null;
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
           await persist(messages, { input, output, costUsd: costOf(m.id, input, output).costUsd, mode: "live" });
         },
       });
-      return createUIMessageStreamResponse({ stream, headers: { "x-architect-mode": "live", "x-architect-run": runId } });
+      return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "live", "x-prodai-run": runId } });
     } catch (e) {
       console.error("[chat] model failed, scripted fallback:", e instanceof Error ? e.message : e);
     }
@@ -208,5 +208,5 @@ export async function POST(req: Request) {
     },
     onEnd: async ({ messages }) => persist(messages, { input: 0, output: 0, costUsd: 0, mode: "scripted" }),
   });
-  return createUIMessageStreamResponse({ stream, headers: { "x-architect-mode": "scripted", "x-architect-run": runId } });
+  return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "scripted", "x-prodai-run": runId } });
 }

@@ -68,12 +68,12 @@ export function CommandK() {
     const onOpen = () => setOpen(true);
     const onSheet = () => setSheet(true);
     window.addEventListener("keydown", onKey);
-    window.addEventListener("architect:command-k", onOpen);
-    window.addEventListener("architect:shortcuts", onSheet);
+    window.addEventListener("prodai:command-k", onOpen);
+    window.addEventListener("prodai:shortcuts", onSheet);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("architect:command-k", onOpen);
-      window.removeEventListener("architect:shortcuts", onSheet);
+      window.removeEventListener("prodai:command-k", onOpen);
+      window.removeEventListener("prodai:shortcuts", onSheet);
     };
   }, []);
 

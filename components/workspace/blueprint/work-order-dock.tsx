@@ -23,11 +23,10 @@ export function WorkOrderDock() {
   const time = useMemo(() => buildTimeLabel(est.minutes, totalDuration(buildTimeline(bp))), [bp, est.minutes]);
 
   return (
-    // Sits just above the composer dock, the same width, so the quote and the prompt read as one stack.
+    // Floats at the bottom of its container; the plan map places it in flow, in its own row under the plan.
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-3 pb-3 pt-5 sm:px-5">
       <motion.section
         aria-label="Work Order"
-        data-tour-avoid="hard"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: 0.4 } }}
         exit={{ opacity: 0, y: 8, transition: { duration: 0.15 } }}
@@ -35,7 +34,7 @@ export function WorkOrderDock() {
       >
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <p className="text-[12px] font-medium text-amber"><Term k="work-order" /> · nothing has run yet</p>
+            <p className="text-[12px] font-medium text-brand"><Term k="work-order" /> · nothing has run yet</p>
             <p className="mt-0.5 font-pencil text-[28px] leading-tight">Build {bp.meta.name}</p>
           </div>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px]">
@@ -61,7 +60,7 @@ export function WorkOrderDock() {
               </dd>
             </div>
             <div className="flex items-center gap-1.5"><FileCode2 className="size-3.5 text-muted-foreground" /><dt className="sr-only">Files</dt><dd>{est.files} files</dd></div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-amber" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-brand" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
           </dl>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-9" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">Change the plan</Button>
@@ -82,7 +81,7 @@ export function WorkOrderDock() {
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-dashed border-hairline-hi pt-3 text-[12px] text-muted-foreground">
           <span>Your cap: {ws.usage.cap} credits · {Math.round(remaining)} left this month</span>
           {missing.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-amber"><KeyRound className="size-3" />{missing.map((c) => c.name).join(", ")} will use test data until you add a key</span>
+            <span className="inline-flex items-center gap-1 text-brand"><KeyRound className="size-3" />{missing.map((c) => c.name).join(", ")} will use test data until you add a key</span>
           )}
           <span>Confidence: {est.confidence}</span>
           {over && <span className="font-medium text-foreground">This would pass your cap. Raise it in Settings first.</span>}
