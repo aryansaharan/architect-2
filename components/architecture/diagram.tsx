@@ -50,7 +50,7 @@ const ZONES: Zone[] = [
   { x: 576, y: 156, w: 560, h: 720, label: "Control plane", hint: "stateless · Kubernetes", tone: "control" },
   { x: 1176, y: 156, w: 292, h: 720, label: "Sandbox plane", hint: "untrusted code", tone: "sandbox" },
   { x: 1508, y: 156, w: 292, h: 720, label: "Runtime plane", hint: "live apps", tone: "runtime" },
-  { x: 24, y: 916, w: 1776, h: 206, label: "Data + platform", hint: "one set per cell, except where a card says regional", tone: "data" },
+  { x: 24, y: 916, w: 1776, h: 206, label: "Data + platform", hint: "per cell unless marked regional", tone: "data" },
   { x: 24, y: LEGEND_Y, w: 1776, h: LEGEND_H, label: "Legend", hint: "how to read this diagram", tone: "outside" },
 ];
 
