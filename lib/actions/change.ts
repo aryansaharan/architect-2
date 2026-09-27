@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, type Supa } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
 import { applyOps } from "@/lib/blueprint/apply";
@@ -44,7 +44,36 @@ export async function requestChange(projectId: string, request: string, scope: O
     console.error("[change] could not save the quote:", error.message);
     return { ok: false, error: "Couldn't save the quote. Nothing was charged. Try again." };
   }
-  return { ok: true, workOrder: data as WorkOrderRow, overBudget: spent.credits + proposal.credits > cap };
+  const workOrder = data as WorkOrderRow;
+  await logChat(supa, projectId, text, scope, workOrder.id, proposal);
+  return { ok: true, workOrder, overBudget: spent.credits + proposal.credits > cap };
+}
+
+/**
+ * The chat thread: what you asked and what came back, both in the history so they survive a reload.
+ * Free (0 credits). The applied change and its save point are logged by approveChange, linked by `workOrderId`.
+ * Best effort: the quote is already saved, so a failed write here never costs you the answer.
+ */
+async function logChat(supa: Supa, projectId: string, text: string, scope: ObjectRef | null, workOrderId: string, p: ChangeProposal) {
+  const needsPerson = !p.answer && p.operations.length === 0;
+  try {
+    await addLedger(supa, projectId, [
+      { lane: "thought", kind: p.answer ? "question" : "request", blame: "user", title: text, credits: 0, objectRef: scope, meta: { workOrderId } },
+      p.answer
+        ? { lane: "thought", kind: "answer", title: "Answered your question · no change made", body: p.rationale, credits: 0, objectRef: scope, meta: { workOrderId, suggestion: p.summary, mode: p.mode } }
+        : {
+            lane: "thought",
+            kind: "quote",
+            title: p.summary,
+            body: p.rationale,
+            credits: 0,
+            objectRef: scope,
+            meta: { workOrderId, estimate: { credits: p.credits, minutes: p.minutes }, needsPerson, mode: p.mode },
+          },
+    ]);
+  } catch (e) {
+    console.error("[change] could not add the chat to the history:", e instanceof Error ? e.message : e);
+  }
 }
 
 export async function approveChange(projectId: string, workOrderId: string): Promise<{ ok: boolean; error?: string; label?: string }> {

@@ -91,9 +91,15 @@ export async function addCheckpoint(
   throw new Error("Could not create save point");
 }
 
+/**
+ * The chat thread's own entries, written by the composer (lib/actions/change.ts):
+ * what you asked ("question", "request") and what Prod AI said back ("answer", "quote": a change Work Order).
+ */
+export type ChatLedgerKind = "question" | "answer" | "request" | "quote";
+
 export type LedgerInput = {
   lane: Lane;
-  kind: LedgerKind;
+  kind: LedgerKind | ChatLedgerKind;
   title: string;
   body?: string | null;
   blame?: Blame;

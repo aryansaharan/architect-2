@@ -11,15 +11,16 @@ import { CommandK } from "./command-k";
 import { RecordedRepairContext } from "./use-build-runner";
 import { ComposerDock, ComposerDockProvider } from "./composer-dock";
 import type { RailPref } from "./rail-pref";
+import type { WorkOrderRow } from "@/lib/db/types";
 
-export function WorkspaceShell({ data, railPref = "auto", children }: { data: WorkspaceData; railPref?: RailPref; children: React.ReactNode }) {
+export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], children }: { data: WorkspaceData; railPref?: RailPref; changeOrders?: WorkOrderRow[]; children: React.ReactNode }) {
   // The build's recorded fix (newest first), so "Replay how it was built" matches the history.
   const recordedFix = data.ledger.find((r) => r.kind === "repair" && r.blame === "system_fix") ?? null;
   return (
     <Suspense>
       <RecordedRepairContext.Provider value={recordedFix}>
         <WorkspaceProvider data={data}>
-          <ComposerDockProvider>
+          <ComposerDockProvider changeOrders={changeOrders}>
             <ShellLayout railPref={railPref}>{children}</ShellLayout>
           </ComposerDockProvider>
         </WorkspaceProvider>
@@ -31,6 +32,8 @@ export function WorkspaceShell({ data, railPref = "auto", children }: { data: Wo
 function ShellLayout({ railPref, children }: { railPref: RailPref; children: React.ReactNode }) {
   const ws = useWorkspace();
   const [railOpen, setRailOpen] = useState(false);
+  // "Ask Prod AI" from the phone sheet: close it, then hand focus to the composer instead of the button that opened it.
+  const askAfterClose = useRef(false);
   const row = useRef<HTMLDivElement>(null);
   const dock = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -52,7 +55,7 @@ function ShellLayout({ railPref, children }: { railPref: RailPref; children: Rea
       <TopBar />
       <div ref={row} className="relative flex min-h-0 flex-1">
         <div className="max-lg:hidden">
-          <Rail collapsible initialPref={railPref} />
+          <Rail collapsible initialPref={railPref} onAsk={() => ws.focusComposer()} />
         </div>
         <main id="main" className="flex min-w-0 flex-1 flex-col">
           <div className="relative min-h-0 flex-1">{children}</div>
@@ -74,9 +77,23 @@ function ShellLayout({ railPref, children }: { railPref: RailPref; children: Rea
         </AnimatePresence>
       </div>
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
-        <SheetContent side="left" className="w-[320px] p-0">
-          <SheetTitle className="sr-only">Brief and activity</SheetTitle>
-          <Rail />
+        <SheetContent
+          side="left"
+          className="w-[320px] p-0"
+          onCloseAutoFocus={(e) => {
+            if (!askAfterClose.current) return;
+            askAfterClose.current = false;
+            e.preventDefault();
+            ws.focusComposer();
+          }}
+        >
+          <SheetTitle className="sr-only">Chat and history</SheetTitle>
+          <Rail
+            onAsk={() => {
+              askAfterClose.current = true;
+              setRailOpen(false);
+            }}
+          />
         </SheetContent>
       </Sheet>
       <HandoffDialog />

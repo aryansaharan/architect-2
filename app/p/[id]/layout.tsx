@@ -33,6 +33,8 @@ export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
     <WorkspaceShell
       // The rail's open/collapsed choice, so the first paint already has the right width.
       railPref={parseRailPref(cookieStore.get(RAIL_COOKIE)?.value)}
+      // Recent change Work Orders, so the chat can show each one's outcome (approved, dismissed, still waiting).
+      changeOrders={workOrders.filter((w) => w.kind === "change")}
       data={{
         project: {
           id: project.id,

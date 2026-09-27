@@ -1,31 +1,95 @@
 "use client";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ReactNode, type Ref } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode, type Ref, type SetStateAction } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowUp, Check, CornerDownLeft, Loader2, MessageSquarePlus, Target, UsersRound, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, CornerDownLeft, Loader2, MessageSquarePlus, MessagesSquare, Target, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Term } from "@/components/arch/term";
 import { cn } from "@/lib/utils";
 import { creditsUsd, formatCredits } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
-import type { WorkOrderRow } from "@/lib/db/types";
+import { changeTimeLabel } from "@/lib/blueprint/estimate";
+import type { LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
 import { undoTo } from "./undo";
+import { openChat } from "./rail-pref";
 
 type Order = { wo: WorkOrderRow; overBudget: boolean };
-type DockState = { order: Order | null; setOrder: (o: Order | null) => void };
+
+/** A message sent from the composer. The chat shows it at once, then swaps in the history's own copy when it arrives. */
+export type SentMessage = { key: string; text: string; at: string; scope: ObjectRef | null; wo: WorkOrderRow | null };
+
+/** What became of a change Work Order in this session, before the server's copy catches up. */
+export type LocalOutcome = { status: "dismissed" } | { status: "applied"; label: string };
+
+type DockState = {
+  order: Order | null;
+  setOrder: (o: Order | null) => void;
+  sent: SentMessage[];
+  setSent: Dispatch<SetStateAction<SentMessage[]>>;
+  outcomes: Record<string, LocalOutcome>;
+  setOutcome: (workOrderId: string, o: LocalOutcome) => void;
+  /** Recent change Work Orders from the server, by id: their status, and the full quote to reopen one. */
+  orders: Map<string, WorkOrderRow>;
+  /** True while the desktop chat rail is on screen: then answers land there instead of in a card over the composer. */
+  threadVisible: boolean;
+  setThreadVisible: (v: boolean) => void;
+  /** Put text in the composer (the composer registers how). */
+  fill: (text: string) => void;
+  registerFill: (fn: ((text: string) => void) | null) => void;
+  /** Open a quote that is still waiting (after a reload, say) back in the composer. */
+  review: (workOrderId: string) => void;
+};
 
 const DockContext = createContext<DockState | null>(null);
 
-/** Holds the change Work Order the composer is showing, so other views can make room for it. */
-export function ComposerDockProvider({ children }: { children: ReactNode }) {
+/** The Work Order a history entry belongs to, if any. */
+export function workOrderIdOf(r: Pick<LedgerRow, "meta">): string | null {
+  const id = r.meta?.workOrderId;
+  return typeof id === "string" ? id : null;
+}
+
+/**
+ * The chat's shared state: the change Work Order the composer is showing (so other views can make room for it),
+ * the messages just sent (shown in the chat before the server answers), and what became of each quote.
+ */
+export function ComposerDockProvider({ changeOrders = [], children }: { changeOrders?: WorkOrderRow[]; children: ReactNode }) {
+  const ws = useWorkspace();
   const [order, setOrder] = useState<Order | null>(null);
-  const value = useMemo(() => ({ order, setOrder }), [order]);
+  const [sent, setSent] = useState<SentMessage[]>([]);
+  const [outcomes, setOutcomes] = useState<Record<string, LocalOutcome>>({});
+  const [threadVisible, setThreadVisible] = useState(false);
+  const fillRef = useRef<((text: string) => void) | null>(null);
+  const orders = useMemo(() => new Map(changeOrders.map((w) => [w.id, w])), [changeOrders]);
+  const { credits: spent, cap } = ws.usage;
+
+  const setOutcome = useCallback((id: string, o: LocalOutcome) => setOutcomes((m) => ({ ...m, [id]: o })), []);
+  const registerFill = useCallback((fn: ((text: string) => void) | null) => {
+    fillRef.current = fn;
+  }, []);
+  const fill = useCallback((text: string) => fillRef.current?.(text), []);
+  const review = useCallback(
+    (id: string) => {
+      const wo = orders.get(id);
+      if (wo?.status === "proposed" && wo.proposal) setOrder({ wo, overBudget: spent + wo.proposal.credits > cap });
+    },
+    [orders, spent, cap],
+  );
+
+  const value = useMemo(
+    () => ({ order, setOrder, sent, setSent, outcomes, setOutcome, orders, threadVisible, setThreadVisible, fill, registerFill, review }),
+    [order, sent, outcomes, setOutcome, orders, threadVisible, fill, registerFill, review],
+  );
   return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
+}
+
+/** The chat's shared state, for the thread in the rail. */
+export function useChatState(): DockState {
+  return useDock();
 }
 
 /** True while a change Work Order is waiting to be approved or dismissed. */
@@ -62,8 +126,11 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
   const ws = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
-  const { order, setOrder } = useDock();
+  const { order, setOrder, setSent, setOutcome, threadVisible, registerFill } = useDock();
   const [text, setText] = useState("");
+  // A short line in the hint row after an answer lands in the chat beside the composer.
+  const [notice, setNotice] = useState<{ key: string; answer: string } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pending, start] = useTransition();
   const [approving, setApproving] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -76,7 +143,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
   const mode = dockModeFor(pathname);
   // In use: focused, typed into, or holding a quote. Then it opens fully on every tab.
-  const engaged = focused || Boolean(text) || Boolean(order) || pending;
+  const engaged = focused || Boolean(text) || Boolean(order) || pending || Boolean(notice);
   // Folded to nothing, but still in the page: focusing it (from "/" or the top bar) opens it, like a skip link.
   const folded = mode === "hidden" && !engaged;
   // One quiet line while a build runs (the build console has the stage), and off Blueprint until it's in use.
@@ -87,6 +154,16 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
     // No scroll: while folded the input sits in a zero-height box, and a scroll would shift the page under it.
     if (ws.composerFocusKey) ref.current?.focus({ preventScroll: true });
   }, [ws.composerFocusKey]);
+
+  // The chat's "Ask for it" (under an answer) puts its suggestion here.
+  useEffect(() => {
+    registerFill(setText);
+    return () => registerFill(null);
+  }, [registerFill]);
+
+  useEffect(() => () => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+  }, []);
 
   // Grow with the text, up to a few lines, then scroll.
   useLayoutEffect(() => {
@@ -99,14 +176,31 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
   function submit() {
     const request = text.trim();
     if (!request || pending) return;
+    const scopeAtSend = effectiveScope;
+    const key = `sent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    // Your message shows in the chat right away, like any chat. Messages the history already has are dropped.
+    const logged = new Set(ws.ledger.map(workOrderIdOf));
+    setSent((s) => [...s.filter((m) => !m.wo || !logged.has(m.wo.id)), { key, text: request, at: new Date().toISOString(), scope: scopeAtSend, wo: null }]);
+    setText("");
+    setNotice(null);
     start(async () => {
-      const r = await requestChange(ws.project.id, request, effectiveScope);
+      const r = await requestChange(ws.project.id, request, scopeAtSend);
       if (!r.ok) {
+        setSent((s) => s.filter((m) => m.key !== key));
+        setText((t) => t || request);
         toast.error(r.error);
         return;
       }
-      setOrder({ wo: r.workOrder, overBudget: r.overBudget });
-      setText("");
+      setSent((s) => s.map((m) => (m.key === key ? { ...m, wo: r.workOrder } : m)));
+      const p = r.workOrder.proposal;
+      if (p?.answer && threadVisible) {
+        // The answer lands in the chat beside you: the composer just says where, for a moment.
+        setNotice({ key, answer: p.rationale });
+        if (noticeTimer.current) clearTimeout(noticeTimer.current);
+        noticeTimer.current = setTimeout(() => setNotice((n) => (n?.key === key ? null : n)), 7000);
+      } else {
+        setOrder({ wo: r.workOrder, overBudget: r.overBudget });
+      }
       router.refresh();
     });
   }
@@ -122,6 +216,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
       toast.error(r.error ?? "Couldn't apply the change");
       return;
     }
+    setOutcome(order.wo.id, { status: "applied", label: r.label ?? "Applied" });
     toast.success(order.wo.proposal?.summary ?? "Change applied", {
       description: `${r.label}. Going back is always free.`,
       duration: 9000,
@@ -137,6 +232,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
   function dismiss(viaKeyboard: boolean) {
     if (!order) return;
     void rejectChange(ws.project.id, order.wo.id);
+    if (!order.wo.proposal?.answer) setOutcome(order.wo.id, { status: "dismissed" });
     setOrder(null);
     if (viaKeyboard) ref.current?.focus();
     else setFocused(false);
@@ -178,7 +274,7 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
       {/* A soft lume under the input, so the prompt reads as the place to start. Only where it is the place to start. */}
       {!compact && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-full bg-[radial-gradient(50%_90%_at_50%_100%,rgb(223_255_79/0.06),rgb(63_224_197/0.025)_45%,transparent_75%)]" />}
       <p className="sr-only" aria-live="polite">
-        {pending ? "Writing a free quote…" : order && p ? `Work Order ready: ${p.summary}` : ""}
+        {pending ? "Writing a free quote…" : notice ? `Answered in the chat: ${notice.answer}` : order && p ? (isAnswer ? `Answer: ${p.rationale}` : `Work Order ready: ${p.summary}`) : ""}
       </p>
       <div className={cn("relative mx-auto w-full transition-[max-width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", compact ? "max-w-[560px]" : "max-w-[860px]")}>
         <AnimatePresence initial={false}>
@@ -211,6 +307,14 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
                       <span className="micro-label mb-0.5 block">Want to change it?</span>
                       “{p.summary}”
                     </button>
+                    {/* The chat keeps it: this card is only the quick look while the chat is out of sight. */}
+                    <button
+                      type="button"
+                      onClick={() => { openChat(); setOrder(null); }}
+                      className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <MessagesSquare className="size-3.5" aria-hidden /> Saved in the chat · open it
+                    </button>
                   </>
                 ) : (
                   <div className="sm:flex sm:items-start sm:gap-5">
@@ -230,8 +334,12 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
                           <Button size="sm" className="h-8 flex-1" onClick={(e) => void approve(e.detail === 0)} disabled={approving || order.overBudget}>
                             {approving ? <Loader2 className="animate-spin" /> : <Check />} Approve · {formatCredits(p.credits)}
                           </Button>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">≈ {creditsUsd(p.credits)} · ~{p.minutes} min</span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
                         </div>
+                        {/* The production estimate and what happens in this demo, each labelled (lib/blueprint/estimate.ts). */}
+                        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                          {changeTimeLabel(p.minutes).real} <span className="text-faint">· {changeTimeLabel(p.minutes).here}</span>
+                        </p>
                       </div>
                     )}
                   </div>
@@ -304,6 +412,16 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
             </span>
           ) : (
             <div className="flex items-center gap-2 px-2.5 pb-2.5">
+              {/* On a phone the chat lives in a sheet: open it from here, where you type. */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={openChat}
+                title="Open the chat and history"
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-hairline px-2 text-[11.5px] text-muted-foreground transition-colors hover:border-amber/40 hover:text-foreground lg:hidden"
+              >
+                <MessagesSquare className="size-3.5" aria-hidden /> Chat
+              </button>
               {effectiveScope && (
                 <span className="inline-flex min-w-0 max-w-[55%] shrink-0 items-center gap-1 rounded-md border border-amber/30 bg-amber-soft px-1.5 py-0.5 text-[11px] text-amber sm:max-w-[45%]">
                   <Target className="size-3 shrink-0" aria-hidden />
@@ -316,6 +434,11 @@ export function ComposerDock({ ref: dockRef }: { ref?: Ref<HTMLElement> }) {
               <span id="composer-hint" className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-faint">
                 {pending ? (
                   <span className="text-shimmer truncate">Writing a free quote…</span>
+                ) : notice ? (
+                  <span className="flex min-w-0 items-center gap-1 text-read">
+                    <ArrowLeft className="size-3 shrink-0" aria-hidden />
+                    <span className="truncate">Answered in the chat</span>
+                  </span>
                 ) : (
                   <>
                     <CornerDownLeft className="size-3 shrink-0" aria-hidden />

@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
-import { Blocks, Bot, Check, ChevronDown, PanelLeft, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, MessageSquarePlus, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus, Pause } from "lucide-react";
+import { Blocks, Bot, Check, ChevronDown, Code2, Copy, Ellipsis, ExternalLink, History, Home, Inbox, Keyboard, Loader2, LogOut, Eye, MessageSquarePlus, Play, Rocket, Search, Settings, Undo2, UsersRound, UserRoundPlus, Pause, MessagesSquare } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -112,8 +112,8 @@ export function TopBar() {
       </nav>
 
       <div className="flex items-center gap-1.5 max-md:ml-auto">
-        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Brief and activity">
-          <PanelLeft className="size-4" />
+        <button type="button" onClick={() => window.dispatchEvent(new Event("architect:open-rail"))} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-raised hover:text-foreground lg:hidden" aria-label="Chat and history">
+          <MessagesSquare className="size-4" />
         </button>
         {dockHidden && (
           <Tooltip>
