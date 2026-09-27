@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { Logo } from "@/components/brand/logo";
+import { Logo, GitHubMark } from "@/components/brand/logo";
 import { NewProject } from "@/components/new/new-project";
 import { ImportWizard } from "@/components/import/import-wizard";
 import { llmMode } from "@/lib/llm/provider";
@@ -14,22 +14,29 @@ export default async function NewPage(props: PageProps<"/new">) {
   const repo = typeof sp.repo === "string" ? sp.repo : "";
   const isImport = sp.mode === "import";
   return (
-    <div className="relative min-h-screen overflow-x-clip">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[620px] overflow-hidden">
-        <div className="solstice-orb left-1/2 top-[-520px] h-[760px] w-[760px] -translate-x-1/2 opacity-[0.24]" />
-        <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.045)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_50%_0%,black,transparent_70%)]" />
-      </div>
-      <header className="relative z-10 border-b border-hairline bg-canvas/60 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-6">
+    <div className="min-h-screen">
+      <header className="border-b border-hairline">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-5 sm:px-6">
           <Logo href="/home" />
           <nav className="ml-auto flex items-center gap-1 text-[13px]" aria-label="Start from">
-            <Link href="/new" className={`rounded-md px-2.5 py-1.5 ${!isImport ? "bg-raised font-medium" : "text-muted-foreground hover:text-foreground"}`}>Describe it</Link>
-            <Link href="/new?mode=import" className={`rounded-md px-2.5 py-1.5 ${isImport ? "bg-raised font-medium" : "text-muted-foreground hover:text-foreground"}`}>Bring your existing project</Link>
-            <Link href="/home" className="ml-3 rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">Cancel</Link>
+            {isImport ? (
+              <Link href="/new" className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">
+                Describe it instead
+              </Link>
+            ) : (
+              <Link href="/new?mode=import" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">
+                <GitHubMark className="size-3.5" />
+                <span className="hidden sm:inline">Start from a GitHub repo</span>
+                <span className="sm:hidden">From GitHub</span>
+              </Link>
+            )}
+            <Link href="/home" className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:text-foreground">
+              Cancel
+            </Link>
           </nav>
         </div>
       </header>
-      <main id="main" className="relative px-6 py-12">
+      <main id="main" className="px-5 pb-20 pt-10 sm:px-6 sm:pt-14">
         {isImport ? <ImportWizard initialRepo={repo} llm={llmMode()} /> : <NewProject initialPrompt={prompt} llm={llmMode()} />}
       </main>
     </div>

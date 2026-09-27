@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, Pencil, Sparkles } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { questionsFor, renderAnswers, type Question } from "@/lib/blueprint/questions";
 import { matchVertical } from "@/lib/blueprint/match";
-import { EXAMPLES } from "@/components/home/home-composer";
+import { WritingSheet } from "@/components/home/writing-sheet";
+import { PencilBox } from "@/components/landing/sketches";
 import { cn } from "@/lib/utils";
 import { PlanningView, usePlanStream } from "./plan-stream";
 import { connectionsFor, isConnectionsQuestion, isNothingOption, toggleConnection } from "./connections";
@@ -17,8 +18,26 @@ const TAILOR_WAIT_MS = 10_000;
 const isQuestions = (v: unknown): v is Question[] =>
   Array.isArray(v) && v.length === 3 && v.every((q) => q && typeof q.id === "string" && typeof q.label === "string" && Array.isArray(q.options) && q.options.length >= 2 && q.options.every((o: unknown) => typeof o === "string") && Number.isInteger(q.defaultIndex));
 
+const STEPS = ["Write it", "A few questions", "The sketch"];
+
+/** Where you are, in pencil: write it, answer a few questions, watch the sketch form. */
+export function Steps({ at }: { at: number }) {
+  return (
+    <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-sketch text-[12.5px]" aria-label="Steps">
+      {STEPS.map((s, i) => (
+        <li key={s} className={cn("flex items-center gap-2.5", i === at ? "text-foreground" : "text-faint")} aria-current={i === at ? "step" : undefined}>
+          {i > 0 && <span aria-hidden>·</span>}
+          <span className={i === at ? "pencil-underline" : undefined}>
+            {i + 1} {s}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm: "live" | "offline" }) {
-  const [step, setStep] = useState<Step>(initialPrompt ? "questions" : "describe");
+  const [step, setStep] = useState<Step>(initialPrompt.trim().length >= 12 ? "questions" : "describe");
   const [brief, setBrief] = useState(initialPrompt);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const planner = usePlanStream(llm);
@@ -27,7 +46,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   // Instant: the template questions for the closest vertical, with the brief's own systems pre-selected.
   const template: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom", brief), [vertical, brief]);
   // Then the three questions written for this brief (POST /api/questions), swapped in only if they arrive
-  // before the person answers anything. Never blocks: Plan it and Skip work the whole time.
+  // before the person answers anything. Never blocks: Sketch it and Skip work the whole time.
   const [tailored, setTailored] = useState<{ brief: string; questions: Question[] } | null>(null);
   const [settledFor, setSettledFor] = useState<string | null>(null);
   const answeredRef = useRef(false);
@@ -67,7 +86,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   function plan(skip: boolean) {
     setStep("planning");
     const all = conn ? { ...answers, [conn.question.id]: picked.join(", ") } : answers;
-    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}/blueprint`);
+    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}`);
   }
 
   const toDescribe = () => {
@@ -81,86 +100,105 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
     fn();
   };
 
-  if (step === "describe") {
-    return (
-      <div className="fade-up mx-auto max-w-2xl">
-        <p className="micro-label flex items-center gap-2"><span className="flex gap-1" aria-hidden>{[1, 2, 3].map((d) => <span key={d} className={cn("h-1 rounded-full transition-all duration-500", d <= 1 ? "w-4 bg-amber shadow-[0_0_8px_rgb(223_255_79/0.7)]" : "w-1.5 bg-hairline-hi")} />)}</span>New project · step 1 of 3</p>
-        <h1 className="mt-3 font-display text-[44px] leading-tight">Describe the <em className="text-amber-grad">job.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech. That&apos;s our part.</p>
-        <div className="panel mt-6 rounded-2xl transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(223_255_79/0.08),0_24px_70px_-24px_rgb(223_255_79/0.45)]">
-          <label htmlFor="new-brief" className="sr-only">Describe what you want to build</label>
-          <textarea id="new-brief" autoFocus rows={5} value={brief} onChange={(e) => setBrief(e.target.value)} className="block w-full resize-none bg-transparent p-4 text-[15px] leading-relaxed outline-none placeholder:text-faint" placeholder="A desk that reads every refund request, checks the order and warranty, approves the simple ones, and asks me before sending money back." />
-          <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
-            {EXAMPLES.map((ex) => (
-              <button key={ex.label} onClick={() => setBrief(ex.prompt)} className={cn("rounded-full border px-2.5 py-1 text-[12px] transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground", brief === ex.prompt ? "border-amber/50 bg-amber-soft text-foreground" : "border-hairline text-muted-foreground")}>{ex.label}</button>
-            ))}
-            <Button className="sheen ml-auto shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => { setPicked(null); setAnswers({}); answeredRef.current = false; setStep("questions"); }} disabled={brief.trim().length < 12}>Next <ArrowRight /></Button>
+  if (step === "planning") return <PlanningView s={planner} eyebrow={<Steps at={2} />} onRetry={() => plan(false)} />;
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <Steps at={step === "describe" ? 0 : 1} />
+      <h1 className="mt-4 font-display text-[46px] leading-none sm:text-[60px]">What do you want to make?</h1>
+
+      {step === "describe" ? (
+        <>
+          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech. That&apos;s our part.</p>
+          <WritingSheet
+            id="new-brief"
+            className="mt-7"
+            value={brief}
+            onChange={setBrief}
+            label="Describe what you want to make"
+            showLabel={false}
+            submitLabel="Next"
+            minLength={12}
+            rows={5}
+            autoFocus
+            onSubmit={() => {
+              setPicked(null);
+              setAnswers({});
+              answeredRef.current = false;
+              setStep("questions");
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <div className="panel mt-7 rounded-2xl">
+            <div className="flex items-start gap-3 px-5 pt-5 sm:px-8 sm:pt-6">
+              <p className="paper-lines min-w-0 flex-1 whitespace-pre-wrap break-words pt-[7px] font-pencil text-[23px] text-foreground sm:text-[25px]">{brief}</p>
+              <button onClick={toDescribe} className="mt-1.5 inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[12.5px] text-muted-foreground hover:text-foreground" aria-label="Change your note">
+                <Pencil className="size-3.5" />
+                Change
+              </button>
+            </div>
+
+            <div className="mt-5 border-t border-dashed border-hairline-hi px-5 py-6 sm:px-8">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 className="font-pencil text-[30px] leading-none">A few quick questions</h2>
+                <p className="font-sketch text-[12px] text-faint" aria-live="polite">
+                  {tailoredHere ? "Written for your idea." : tailoring ? "Writing questions for your idea…" : null}
+                </p>
+              </div>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">They decide who the AI helpers answer to. Skip them and Prod AI picks careful defaults.</p>
+
+              <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-7", tailoredHere && "fade-up")}>
+                {questions.map((q) => {
+                  const multi = conn?.question.id === q.id;
+                  const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
+                  return (
+                    <fieldset key={q.id}>
+                      <legend className="text-[15px] font-medium">
+                        {q.label}
+                        {multi && <span className="ml-2 font-sketch text-[12px] font-normal text-faint">pick any</span>}
+                      </legend>
+                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                        {q.options.map((o, oi) => {
+                          const on = selected.includes(o);
+                          return (
+                            <button
+                              key={o}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() => answer(() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o }))))}
+                              className={cn("inline-flex items-center gap-2 rounded-md text-left text-[14.5px] transition-colors", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                            >
+                              <PencilBox on={on} round={!multi} seed={oi + 1} />
+                              {o}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {multi && conn.fromBrief.length > 0 && (
+                        <p className="mt-3 text-[12.5px] text-muted-foreground">
+                          Ticked from your note: {conn.fromBrief.join(", ")}.{picked.some(isNothingOption) ? "" : " Change anything that's wrong."}
+                        </p>
+                      )}
+                    </fieldset>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-hairline-hi px-5 py-4 sm:px-8">
+              <Button variant="ghost" className="-ml-2.5 text-muted-foreground" onClick={() => plan(true)}>
+                Skip, use sensible defaults
+              </Button>
+              <Button className="ml-auto h-10 px-4 text-[14px]" onClick={() => plan(false)}>
+                Sketch it <ArrowRight />
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === "questions") {
-    return (
-      <div className="fade-up mx-auto max-w-2xl">
-        <p className="micro-label flex items-center gap-2"><span className="flex gap-1" aria-hidden>{[1, 2, 3].map((d) => <span key={d} className={cn("h-1 rounded-full transition-all duration-500", d <= 2 ? "w-4 bg-amber shadow-[0_0_8px_rgb(223_255_79/0.7)]" : "w-1.5 bg-hairline-hi")} />)}</span>New project · step 2 of 3</p>
-        <h1 className="mt-3 font-display text-[44px] leading-tight">Three quick <em className="text-amber-grad">questions.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">They shape who the agents answer to. Skip them and Prod AI picks sensible, careful defaults.</p>
-        <p className="mt-1.5 flex h-4 items-center gap-1.5 text-[12px] text-muted-foreground" aria-live="polite">
-          {tailoredHere ? <><Sparkles className="size-3 text-amber" />Written for your brief.</> : tailoring ? <><Loader2 className="size-3 animate-spin text-amber" /><span className="text-shimmer">Tailoring these to your brief…</span></> : null}
-        </p>
-        <div className="panel mt-6 flex gap-3 rounded-xl p-4">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-amber" />
-          <p className="flex-1 text-[13.5px] leading-relaxed">{brief}</p>
-          <button onClick={toDescribe} className="self-start text-muted-foreground hover:text-foreground" aria-label="Edit the brief"><Pencil className="size-3.5" /></button>
-        </div>
-        <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-6", tailoredHere && "fade-up")}>
-          {questions.map((q) => {
-            const multi = conn?.question.id === q.id;
-            const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
-            return (
-              <fieldset key={q.id}>
-                <legend className="text-[14px] font-medium">
-                  {q.label}
-                  {multi && <span className="ml-2 text-[12px] font-normal text-muted-foreground">Pick all that apply</span>}
-                </legend>
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  {q.options.map((o) => {
-                    const on = selected.includes(o);
-                    return (
-                      <button
-                        key={o}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => answer(() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o }))))}
-                        className={cn("rounded-full border px-3 py-1.5 text-[13px] transition-all duration-200 active:scale-95", on ? "border-amber/60 bg-amber-soft text-amber shadow-[0_0_20px_-8px_rgb(223_255_79/0.6)]" : "border-hairline text-muted-foreground hover:-translate-y-px hover:border-hairline-hi hover:text-foreground")}
-                      >
-                        {on && <Check className="-ml-0.5 mr-1 inline size-3.5" />}
-                        {o}
-                      </button>
-                    );
-                  })}
-                </div>
-                {multi && conn.fromBrief.length > 0 && (
-                  <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                    <Sparkles className="size-3 text-amber" />
-                    Pre-selected from your brief: {conn.fromBrief.join(", ")}.{picked.some(isNothingOption) ? "" : " Change anything that's wrong."}
-                  </p>
-                )}
-              </fieldset>
-            );
-          })}
-        </div>
-        <div className="mt-8 flex items-center gap-3">
-          <Button variant="ghost" onClick={toDescribe}><ArrowLeft /> Back</Button>
-          <Button variant="ghost" className="ml-auto text-muted-foreground" onClick={() => plan(true)}>Skip, use sensible defaults</Button>
-          <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(239_255_148/0.35),0_10px_30px_-10px_rgb(223_255_79/0.8)]" onClick={() => plan(false)}>Plan it <ArrowRight /></Button>
-        </div>
-        <p className="mt-4 text-right text-[12px] text-faint">Planning is free. Nothing is built until you approve a Work Order.</p>
-      </div>
-    );
-  }
-
-  return <PlanningView s={planner} eyebrow="New project · step 3 of 3" onRetry={() => plan(false)} />;
+          <p className="mt-4 text-right text-[12.5px] text-faint">Sketching is free. Nothing is built until you say so, and you see the price first.</p>
+        </>
+      )}
+    </div>
+  );
 }

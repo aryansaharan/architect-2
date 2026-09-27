@@ -6,53 +6,55 @@ import { getSessionUser } from "@/lib/auth";
 
 export const metadata = { title: "Sign in" };
 
+const safe = (v: unknown): string | null => (typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : null);
+
+/** The note someone wrote on the landing page, if that's where they came from. */
+function noteFrom(next: string): string | null {
+  if (!next.startsWith("/new?")) return null;
+  const prompt = new URLSearchParams(next.slice(next.indexOf("?") + 1)).get("prompt")?.trim();
+  return prompt ? prompt.slice(0, 280) : null;
+}
+
 export default async function LoginPage(props: PageProps<"/login">) {
   const sp = await props.searchParams;
-  const next = typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : "/home";
+  const asked = safe(sp.next);
+  const next = asked ?? "/home";
+  // Guests start with a blank sheet unless they were on their way somewhere.
+  const guestNext = asked ?? "/new";
   const error = typeof sp.error === "string" ? sp.error : undefined;
   const user = await getSessionUser();
   if (user && !user.isAnonymous && !error) redirect(next);
   const isGuest = Boolean(user?.isAnonymous);
+  const note = noteFrom(next);
 
   return (
-    <main id="main" className="relative grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden overflow-hidden border-r border-hairline lg:block">
-        <div className="dot-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]" />
-        <div aria-hidden className="solstice-orb -left-[30%] -top-[30%] h-[720px] w-[720px] opacity-[0.38]" />
-        <div aria-hidden className="solstice-orb -bottom-[30%] -right-[35%] h-[560px] w-[560px] opacity-[0.22] [animation-direction:reverse] [animation-duration:36s]" />
-        <div className="relative flex h-full flex-col justify-between p-10">
-          <Logo />
-          <div className="max-w-md">
-            <p className="font-display text-[48px] leading-[1.05] tracking-tight text-foreground">
-              {"Agents that".split(" ").map((w, i) => <span key={i} className="word-in mr-[0.25em]" style={{ animationDelay: `${i * 80}ms` }}>{w}</span>)}
-              {"ask before they act.".split(" ").map((w, i) => <em key={i} className="word-in text-amber-grad mr-[0.25em] last:mr-0" style={{ animationDelay: `${180 + i * 80}ms` }}>{w}</em>)}
-            </p>
-            <ul className="fade-up mt-8 space-y-3 text-[14px] text-muted-foreground" style={{ animationDelay: "600ms" }}>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />See the plan and the price before anything runs.</li>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />When a build breaks, it shows you what it tried, and you don&apos;t pay for its fixes.</li>
-              <li className="flex gap-3"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber shadow-[0_0_10px_rgb(223_255_79/0.8)]" />Every change is a save point you can return to.</li>
-            </ul>
-          </div>
-          <p className="micro-label">Built for Lyzr · Architect 2.0 prototype</p>
-        </div>
-      </section>
-      <section className="flex flex-col items-center justify-center px-6 py-16">
-        <div className="mb-10 lg:hidden"><Logo /></div>
-        <div className="fade-up w-full max-w-sm">
-          <h1 className="text-2xl font-semibold tracking-tight">{isGuest ? "Keep your work" : "Sign in to Prod AI"}</h1>
-          <p className="mt-2 text-[14px] text-muted-foreground">
-            {isGuest
-              ? "You're exploring as a guest. Connect an account and everything you've built comes with you."
-              : "One account for the people who describe apps and the people who ship them."}
-          </p>
-        </div>
-        <div className="fade-up mt-8 w-full max-w-sm" style={{ animationDelay: "150ms" }}>
-          <AuthPanel next={next} error={error} isGuest={isGuest} />
-        </div>
-        <p className="mt-10 text-center text-xs text-muted-foreground">
-          <Link href="/" className="underline-offset-4 hover:underline">Back to the overview</Link>
+    <main id="main" className="min-h-screen">
+      <header className="mx-auto flex h-14 max-w-6xl items-center px-5 sm:px-6">
+        <Logo />
+      </header>
+      <div className="mx-auto w-full max-w-md px-5 pb-16 pt-8 sm:pt-14">
+        <h1 className="font-display text-[48px] leading-none sm:text-[58px]">{isGuest ? "Keep your work" : "Let's get you started"}</h1>
+        <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+          {isGuest
+            ? "You're trying Prod AI as a guest. Sign in and everything you've made comes with you."
+            : "Sign in to keep what you make. Or look around as a guest first, and keep your work later."}
         </p>
-      </section>
+
+        {note && (
+          <figure className="sticky-note mt-7 -rotate-[0.6deg] rounded-[3px] px-4 pb-3 pt-2.5">
+            <figcaption className="font-sketch text-[11.5px] text-muted-foreground">Your note is safe. You&apos;ll pick up right here:</figcaption>
+            <blockquote className="mt-1 line-clamp-3 font-pencil text-[21px] leading-snug text-foreground">{note}</blockquote>
+          </figure>
+        )}
+
+        <div className="panel mt-7 rounded-2xl p-5 sm:p-6">
+          <AuthPanel next={next} guestNext={guestNext} error={error} isGuest={isGuest} />
+        </div>
+
+        <p className="mt-8 text-center text-[13px] text-muted-foreground">
+          <Link href="/" className="underline-offset-4 hover:text-foreground hover:underline">Back to the start</Link>
+        </p>
+      </div>
     </main>
   );
 }

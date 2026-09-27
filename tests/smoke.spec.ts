@@ -7,16 +7,16 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function openDemo(page: Page) {
   await page.goto("/demo");
-  await page.waitForURL(/\/p\/[0-9a-f-]+\/blueprint/);
-  return page.url().split("?")[0].replace(/\/blueprint$/, "");
+  await page.waitForURL(/\/p\/[0-9a-f-]+/);
+  return page.url().split("?")[0].replace(/\/(blueprint|preview|agents|code|ship|handoffs)$/, "");
 }
 
 test("landing renders real content on first paint", async ({ request }) => {
   const res = await request.get("/");
   expect(res.ok()).toBeTruthy();
   const html = await res.text();
-  expect(html).toContain("in production.");
-  expect(html).toContain("Try the demo");
+  expect(html).toContain("production app");
+  expect(html).toContain("Start building");
 });
 
 test("demo → blueprint → inspector faces", async ({ page }) => {
@@ -66,13 +66,13 @@ test("new project: plan → Work Order → build with a repair → built", async
   await openDemo(page);
   await page.goto("/new?prompt=" + encodeURIComponent("A support inbox for a small SaaS team: read tickets, draft replies from the help centre, and escalate outages to on-call."));
   await page.getByRole("button", { name: /Skip, use sensible defaults/ }).click();
-  await page.waitForURL(/\/p\/[0-9a-f-]+\/blueprint/, { timeout: 150_000 });
+  await page.waitForURL(/\/p\/[0-9a-f-]+/, { timeout: 150_000 });
   await page.getByRole("button", { name: /Build it/ }).click();
   await page.getByRole("radio", { name: /Skip/ }).click();
   const repair = page.getByRole("alertdialog");
   await expect(repair).toBeVisible({ timeout: 60_000 });
   await repair.getByRole("button", { name: /Use this fix/ }).first().click();
-  await expect(page.getByText("Built", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/It.s real/).first()).toBeVisible({ timeout: 60_000 });
 });
 
 test("import: public repo → stack report → house rules → mapped project", async ({ page }) => {
@@ -82,10 +82,10 @@ test("import: public repo → stack report → house rules → mapped project", 
   await expect(page.getByText("LangGraph").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "House Rules" })).toBeVisible();
   await page.getByRole("button", { name: /Sign House Rules and map it/ }).click();
-  await page.waitForURL(/\/p\/[0-9a-f-]+\/blueprint/, { timeout: 150_000 });
+  await page.waitForURL(/\/p\/[0-9a-f-]+/, { timeout: 150_000 });
   // The activity rail may be collapsed to its slim strip at this width; the ledger entry must exist either way.
   await expect(page.getByText(/Signed \d+ House Rules/).first()).toBeAttached();
-  await page.goto(page.url().split("?")[0].replace(/\/blueprint$/, "/code"));
+  await page.goto(page.url().split("?")[0].replace(/\/blueprint$/, "") + "/code");
   await expect(page.getByText("Your repo · untouched").first()).toBeVisible();
 });
 

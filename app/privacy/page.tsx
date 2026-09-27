@@ -19,7 +19,7 @@ export default function Privacy() {
       <h2>Where it&apos;s stored</h2>
       <p>Data is stored in a Supabase Postgres database in the United States, with row-level security so each account can only read its own projects. The app is hosted on Vercel.</p>
       <h2>Deleting your data</h2>
-      <p>Email <a className="text-amber underline-offset-4 hover:underline" href="mailto:aryansaharan30@gmail.com">aryansaharan30@gmail.com</a> and your account and projects will be deleted. Anonymous demo sessions may be removed after 30 days.</p>
+      <p>Email <a href="mailto:aryansaharan30@gmail.com">aryansaharan30@gmail.com</a> and your account and projects will be deleted. Guest sessions may be removed after 30 days.</p>
     </LegalPage>
   );
 }

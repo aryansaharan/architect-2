@@ -242,8 +242,8 @@
     border: 1.25px dashed var(--graphite-soft);
     border-radius: 12px 5px 10px 4px / 5px 10px 4px 12px;
   }
-  /* A sticky note for AI helpers and notes. */
-  .sticky {
+  /* A sticky note for AI helpers and notes. (Not .sticky: that is Tailwind's position utility.) */
+  .sticky-note {
     background: #fdf6d8;
     border: 1px solid #efe3b0;
     box-shadow: 0 1px 1px rgb(26 26 23 / 0.06), 0 8px 18px -12px rgb(26 26 23 / 0.25);

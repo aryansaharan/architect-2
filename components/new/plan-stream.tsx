@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Blocks, Bot, Check, Database, Loader2, Plug } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { Wireframe } from "@/components/landing/sketches";
 import { cn } from "@/lib/utils";
 
 export type PartialDraft = {
@@ -77,77 +76,127 @@ export function usePlanStream(initialMode: "live" | "offline") {
   return { draft, mode, note, error, elapsed, done, running, start };
 }
 
-export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof usePlanStream>; eyebrow: string; onRetry: () => void }) {
+
+/** The screen kinds the planner uses, drawn as the nearest wireframe. Offline plans have no kind, so they vary by position. */
+const LAYOUT: Record<string, string> = { queue: "single", dashboard: "dashboard", report: "dashboard", detail: "split", assistant: "split", form: "form" };
+const layoutOf = (kind: string | undefined, i: number) => (kind && LAYOUT[kind]) || ["dashboard", "split", "single", "form"][i % 4];
+
+const TILT = ["-rotate-[1.2deg]", "rotate-[0.8deg]", "-rotate-[0.4deg]"];
+
+/** The plan as a sketch forming: screens drawn in pencil, AI helpers on sticky notes, a pencil line saying what's happening. */
+export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof usePlanStream>; eyebrow: React.ReactNode; onRetry: () => void }) {
   const { draft, mode, note, error, elapsed, done } = s;
-  const agents = (draft.agents ?? []).filter((a) => a?.name);
-  const cols = [
-    { title: "Screens", icon: Blocks, items: (draft.screens ?? []).map((x) => ({ label: x?.title, risky: 0 })).filter((x) => x.label) },
-    { title: "Agents", icon: Bot, items: agents.map((a) => ({ label: a.name, risky: (a.tools ?? []).filter((t) => t?.access === "irreversible").length })) },
-    { title: "Data", icon: Database, items: (draft.entities ?? []).map((e) => ({ label: e?.plural ?? e?.name, risky: 0 })).filter((x) => x.label) },
-    { title: "Connections", icon: Plug, items: (draft.connections ?? []).map((c) => ({ label: c?.name, risky: 0 })).filter((x) => x.label) },
-  ] as { title: string; icon: typeof Blocks; items: { label: string; risky: number }[] }[];
-  const risky = agents.flatMap((a) => a.tools ?? []).filter((t) => t?.access === "irreversible").length;
-  const phase = !draft.name ? "Reading your brief…" : !draft.entities?.length ? "Deciding what the app needs to remember…" : !draft.agents?.length ? "Choosing outside systems…" : !draft.screens?.length ? "Hiring agents and deciding what each may do…" : done ? "Plan ready." : "Laying out the screens people will use…";
+  const screens = (draft.screens ?? []).filter((x) => x?.title);
+  const helpers = (draft.agents ?? []).filter((a) => a?.name).map((a) => ({ name: a.name!, role: a.role, risky: (a.tools ?? []).filter((t) => t?.access === "irreversible").length }));
+  const remembers = (draft.entities ?? []).map((e) => e?.plural ?? e?.name).filter((x): x is string => Boolean(x));
+  const connects = (draft.connections ?? []).map((c) => c?.name).filter((x): x is string => Boolean(x));
+  const risky = helpers.reduce((n, h) => n + h.risky, 0);
   const working = !done && !error;
+  const phase = error
+    ? "The pencil slipped."
+    : done
+      ? "Sketch ready. Opening your sheet…"
+      : !draft.name
+        ? "Reading your note…"
+        : !draft.entities?.length
+          ? "Working out what it needs to remember…"
+          : !draft.agents?.length
+            ? "Choosing what it connects to…"
+            : !draft.screens?.length
+              ? "Adding AI helpers, and what each may do…"
+              : "Drawing the screens people will use…";
+
   return (
-    <div className="relative mx-auto max-w-5xl">
-      <div aria-hidden className="pointer-events-none absolute -inset-x-40 -top-40 h-[520px] bg-[radial-gradient(ellipse_at_50%_30%,rgb(223_255_79/0.12),transparent_60%)]" />
-      <div className="relative flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="micro-label flex items-center gap-2">
-            {working && <span className="relative flex size-1.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-amber opacity-70" /><span className="relative inline-flex size-1.5 rounded-full bg-amber" /></span>}
-            {eyebrow} · {mode === "live" ? "planning with Claude" : "offline mode · starter plan"}
-          </p>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.h1 key={draft.name ?? "planning"} initial={{ opacity: 0, y: 12, filter: "blur(8px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8, filter: "blur(6px)" }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }} className="mt-2 font-display text-[44px] leading-tight">
-              {draft.name ?? <span className="text-shimmer">Planning…</span>}
-            </motion.h1>
-          </AnimatePresence>
-          <p className={cn("mt-1 text-[14px]", draft.tagline ? "text-muted-foreground" : "text-shimmer")} aria-live="polite">{draft.tagline ?? phase}</p>
-        </div>
-        <div className="text-right">
-          <p className="font-mono text-[12px] tabular-nums text-muted-foreground">{elapsed}s</p>
-          <p className={cn("text-[12px]", working ? "text-shimmer" : "text-faint")}>{done ? "opening the plan…" : phase}</p>
-        </div>
+    <div className="mx-auto max-w-5xl">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {typeof eyebrow === "string" ? <p className="font-sketch text-[12.5px] text-muted-foreground">{eyebrow}</p> : eyebrow}
+        <p className="font-sketch text-[12px] text-faint sm:ml-auto">{mode === "live" ? "Sketching with Claude" : "Offline, so starting from a ready-made sketch"}</p>
       </div>
-      {note && <motion.p initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="relative mt-4 rounded-lg border border-amber/30 bg-amber-soft px-3 py-2 text-[13px]">{note}</motion.p>}
+      <h1 className="mt-4 font-display text-[46px] leading-none sm:text-[60px]">{draft.name ?? <span className="text-faint">Sketching…</span>}</h1>
+      <p className="mt-3 min-h-[1.5em] text-[15px] leading-relaxed text-muted-foreground">{draft.tagline ?? ""}</p>
+
+      {note && <p className="sticky-note mt-5 inline-block rounded-[3px] px-3 py-2 text-[13.5px]">{note}</p>}
       {error && (
-        <div className="relative mt-4 rounded-lg border border-ask/30 bg-ask/10 px-3 py-2 text-[13px] text-ask">
-          {error} <button className="underline" onClick={onRetry}>Try again</button>
-        </div>
+        <p role="alert" className="mt-5 rounded-lg border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13.5px] text-ask">
+          {error}{" "}
+          <button className="font-medium underline underline-offset-2" onClick={onRetry}>
+            Try again
+          </button>
+        </p>
       )}
-      <div className={cn("dot-grid relative mt-6 grid gap-6 rounded-2xl border p-6 transition-[border-color,box-shadow] duration-700 md:grid-cols-4", working ? "aurora border-transparent" : done ? "border-read/40 shadow-[0_0_0_1px_rgb(61_214_140/0.25),0_0_70px_-20px_rgb(61_214_140/0.45)]" : "border-hairline")}>
-        {working && <span className="scanline" aria-hidden />}
-        {cols.map((c, ci) => (
-          <div key={c.title} className="relative">
-            <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-foreground/80"><c.icon className="size-3.5 text-muted-foreground" />{c.title}<span className="font-mono text-faint">{c.items.length || ""}</span></p>
-            <ul className="mt-3 space-y-2.5">
-              <AnimatePresence initial={false}>
-                {c.items.map((it, i) => (
-                  <motion.li
-                    key={`${c.title}-${i}-${it.label}`}
-                    layout
-                    initial={{ opacity: 0, y: 10, scale: 0.95, filter: "blur(6px)" }}
-                    animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)", transition: { type: "spring", stiffness: 380, damping: 28 } }}
-                    className={cn("panel flex items-center gap-2 rounded-lg px-3 py-2.5 text-[13px]", done && "border-read/25")}
-                    style={done ? { transitionDelay: `${(ci * 4 + i) * 40}ms` } : undefined}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{it.label}</span>
-                    {it.risky > 0 && <span className="shrink-0 rounded-full border border-ask/30 bg-ask/10 px-1.5 py-px text-[10px] text-ask">{it.risky} asks first</span>}
-                  </motion.li>
-                ))}
-              </AnimatePresence>
-              {!done && Array.from({ length: Math.max(1, 3 - c.items.length) }).map((_, i) => <li key={`sk-${i}`} className="shimmer h-10 rounded-lg border border-hairline" />)}
+
+      <div className="dot-grid mt-6 grid gap-8 rounded-2xl border border-hairline p-5 sm:p-7 lg:grid-cols-[1fr_250px]">
+        <section aria-label="Screens">
+          <h2 className="font-sketch text-[12.5px] text-muted-foreground">Screens{screens.length ? ` · ${screens.length}` : ""}</h2>
+          <ul className="mt-3 grid grid-cols-2 gap-3 sm:gap-4">
+            {screens.map((x, i) => (
+              <li key={`${i}-${x.title}`} className="sketch fade-up min-w-0 bg-panel/70 px-3 pb-2.5 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
+                <p className="truncate font-sketch text-[13px] text-foreground sm:text-[14px]">{x.title}</p>
+                <Wireframe layout={layoutOf(x.kind, i)} seed={i + 3} className="mt-2 block h-auto w-full" />
+              </li>
+            ))}
+            {working &&
+              Array.from({ length: Math.max(1, 4 - screens.length) }).map((_, i) => (
+                <li key={`empty-${i}`} className="sketch-soft grid min-h-[100px] place-items-center sm:min-h-[150px]" aria-hidden>
+                  {i === 0 && <span className="font-pencil text-[19px] text-faint">{screens.length ? "and…" : "screens go here"}</span>}
+                </li>
+              ))}
+          </ul>
+        </section>
+
+        <aside aria-label="AI helpers and data" className="space-y-7">
+          <section>
+            <h2 className="font-sketch text-[12.5px] text-muted-foreground">AI helpers{helpers.length ? ` · ${helpers.length}` : ""}</h2>
+            <ul className="mt-3 space-y-3">
+              {helpers.map((h, i) => (
+                <li key={`${i}-${h.name}`} className={cn("sticky-note fade-up rounded-[3px] px-3.5 pb-2.5 pt-1.5", TILT[i % TILT.length])}>
+                  <p className="font-pencil text-[22px] leading-tight text-foreground">{h.name}</p>
+                  {h.role && <p className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{h.role}</p>}
+                  {h.risky > 0 && <p className="mt-1 text-[12px] text-ask">Asks first before {h.risky} {h.risky === 1 ? "thing" : "things"} it can&apos;t undo</p>}
+                </li>
+              ))}
+              {working && helpers.length === 0 && <li className="sketch-soft h-16 rounded-[3px]" aria-hidden />}
             </ul>
-          </div>
-        ))}
+          </section>
+          <PencilList title="Remembers" items={remembers} working={working} />
+          <PencilList title="Connects to" items={connects} working={working} />
+        </aside>
       </div>
-      <div className="relative mt-4 flex flex-wrap items-center gap-4 text-[12.5px] text-muted-foreground">
-        {risky > 0 && <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-ask" />{risky} action{risky === 1 ? "" : "s"} can&apos;t be undone, so they&apos;ll ask a person first</span>}
-        {mode === "live" && working && elapsed > 25 && <span>Careful planning takes about a minute. Everything appears here as it&apos;s decided.</span>}
-        {done && <motion.span initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="inline-flex items-center gap-1.5 text-read"><Check className="size-3.5" />Saved as save point #1</motion.span>}
-        {working && <Loader2 className="ml-auto size-4 animate-spin text-amber" />}
+
+      <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-2">
+        <p className={cn("font-pencil text-[24px] leading-tight", done ? "text-amber" : "text-foreground")} aria-live="polite">
+          {phase}
+        </p>
+        <span className="font-mono text-[12px] tabular-nums text-faint">{elapsed}s</span>
+        {done && <span className="text-[13px] text-muted-foreground">Saved as your first save point.</span>}
+      </div>
+      <div className="mt-1.5 space-y-1 text-[13px] text-muted-foreground">
+        {risky > 0 && (
+          <p>
+            {risky} {risky === 1 ? "action" : "actions"} can&apos;t be undone, so {risky === 1 ? "it asks" : "they ask"} a person first.
+          </p>
+        )}
+        {mode === "live" && working && elapsed > 25 && <p>Careful sketching takes about a minute. Everything appears here as it&apos;s decided.</p>}
       </div>
     </div>
+  );
+}
+
+function PencilList({ title, items, working }: { title: string; items: string[]; working: boolean }) {
+  return (
+    <section>
+      <h2 className="font-sketch text-[12.5px] text-muted-foreground">{title}</h2>
+      {items.length ? (
+        <ul className="mt-1.5 space-y-0.5">
+          {items.map((x) => (
+            <li key={x} className="fade-up font-pencil text-[20px] leading-snug text-foreground">
+              {x}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1.5 font-pencil text-[20px] text-faint">{working ? "…" : "Nothing"}</p>
+      )}
+    </section>
   );
 }

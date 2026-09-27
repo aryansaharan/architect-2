@@ -5,7 +5,7 @@ import { hasSupabase } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-/** "Try the demo": guest session (anonymous sign-in) + seeded project, in one click. */
+/** A finished example project for reviewers (linked from the README only): guest session plus a seeded, built project, opened on its Sheet. */
 export async function GET(request: NextRequest) {
   const origin = request.nextUrl.origin;
   if (!hasSupabase()) return NextResponse.redirect(`${origin}/login?error=setup`);
@@ -35,5 +35,5 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/home?error=seed`);
     }
   }
-  return NextResponse.redirect(`${origin}/p/${projectId}/blueprint?tour=1`);
+  return NextResponse.redirect(`${origin}/p/${projectId}`);
 }

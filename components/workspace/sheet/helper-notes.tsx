@@ -13,7 +13,7 @@ const TILT = ["-1.2deg", "0.9deg", "-0.5deg", "1.3deg", "-0.9deg", "0.4deg"];
 function HelperNote({ agent, i, state, waiting }: { agent: Agent; i: number; state: NodeState | null; waiting: boolean }) {
   const asks = agent.tools.filter((t) => t.permission === "ask");
   return (
-    <li className="sticky flex w-full flex-col rounded-[3px] p-4 sm:w-[236px]" style={{ rotate: TILT[i % TILT.length] }}>
+    <li className="sticky-note flex w-full flex-col rounded-[3px] p-4 sm:w-[236px]" style={{ rotate: TILT[i % TILT.length] }}>
       <p className="font-pencil text-[27px] leading-none text-foreground">{agent.name}</p>
       <p className="mt-2 font-sketch text-[13px] leading-snug text-foreground/80">{agent.role}</p>
       {asks.length > 0 && (

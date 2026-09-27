@@ -1,22 +1,29 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowRight, Loader2, Mail, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GoogleMark } from "@/components/brand/logo";
 
 const ERRORS: Record<string, string> = {
-  auth: "That sign-in link didn't work. Try again, or use the demo.",
-  oauth: "The provider sent us back without signing you in. Try again.",
-  identity_exists: "That account already exists. Sign in with it directly. Your guest project stays in the guest session.",
+  auth: "That sign-in link didn't work. Try again, or continue as a guest.",
+  oauth: "Google sent you back without signing you in. Try again.",
+  identity_exists: "That account already exists. Sign in with it directly. Your guest work stays in the guest session.",
   demo: "We couldn't start a guest session just now. Try again in a moment.",
-  setup: "Sign-in isn't configured on this deployment yet.",
-  provider: "That sign-in method isn't switched on for this deployment yet. Try another, or use the demo.",
+  setup: "Sign-in isn't switched on for this copy of Prod AI yet.",
+  provider: "That way of signing in isn't switched on here yet. Try another, or continue as a guest.",
 };
 
-export function AuthPanel({ next, error, isGuest }: { next: string; error?: string; isGuest: boolean }) {
+function Or({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-5 flex items-center gap-3 font-sketch text-[12px] text-faint">
+      <span className="h-px flex-1 bg-hairline" /> {children} <span className="h-px flex-1 bg-hairline" />
+    </div>
+  );
+}
+
+export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; guestNext: string; error?: string; isGuest: boolean }) {
   const [pending, setPending] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -55,53 +62,58 @@ export function AuthPanel({ next, error, isGuest }: { next: string; error?: stri
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="space-y-2.5">
-        <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
-          {pending === "google" ? <Loader2 className="animate-spin" /> : <GoogleMark />}
-          {linking ? "Keep this work with Google" : "Continue with Google"}
-        </Button>
-        {isGuest && (
-          <button type="button" onClick={() => { setLinking((l) => !l); setMessage(null); }} className="w-full text-center text-[12.5px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-            {linking ? "Already have an account? Sign in to it instead" : "Keep this guest work instead"}
-          </button>
-        )}
-      </div>
+    <div className="w-full">
+      <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 bg-panel text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
+        <GoogleMark />
+        {pending === "google" ? "Opening Google…" : linking ? "Keep this work with Google" : "Continue with Google"}
+      </Button>
+      {isGuest && (
+        <button
+          type="button"
+          onClick={() => {
+            setLinking((l) => !l);
+            setMessage(null);
+          }}
+          className="mt-2.5 w-full text-center text-[12.5px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          {linking ? "Already have an account? Sign in to it instead" : "Keep this guest work instead"}
+        </button>
+      )}
 
-      <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-hairline" /> or get a sign-in link <span className="h-px flex-1 bg-hairline" />
-      </div>
+      <Or>or get a sign-in link by email</Or>
 
       {sent ? (
-        <div role="status" className="panel rounded-lg p-4 text-sm">
-          <p className="font-medium">Check your inbox</p>
-          <p className="mt-1 text-muted-foreground">We sent a sign-in link to {email}. It works once and expires in an hour.</p>
+        <div role="status" className="rounded-lg border border-hairline bg-canvas p-4 text-[14px]">
+          <p className="font-pencil text-[22px] leading-none">Check your inbox</p>
+          <p className="mt-2 text-muted-foreground">We sent a sign-in link to {email}. It works once and expires in an hour.</p>
         </div>
       ) : (
         <form onSubmit={magicLink} className="flex gap-2">
-          <label htmlFor="email" className="sr-only">Work email</label>
-          <Input id="email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" autoComplete="email" />
-          <Button type="submit" size="lg" variant="secondary" className="h-11 px-3" disabled={!!pending} aria-label="Email me a sign-in link">
-            {pending === "email" ? <Loader2 className="animate-spin" /> : <Mail />}
+          <label htmlFor="email" className="sr-only">Your email</label>
+          <Input id="email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 bg-panel" autoComplete="email" />
+          <Button type="submit" size="lg" variant="outline" className="h-11 shrink-0 bg-panel px-3.5" disabled={!!pending}>
+            {pending === "email" ? "Sending…" : "Email me a link"}
           </Button>
         </form>
       )}
 
       {message && (
-        <p role="alert" className="mt-4 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[13px] text-ask">
+        <p role="alert" className="mt-4 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">
           {message}
         </p>
       )}
 
-      {!isGuest && (
-        <div className="mt-8 rounded-xl border border-amber/25 bg-amber-soft p-4">
-          <p className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-4 text-amber" /> Just looking?</p>
-          <p className="mt-1 text-[13px] text-muted-foreground">Open a finished project with real data, no account needed. You can keep it later.</p>
-          <Button asChild className="mt-3 w-full" size="lg">
-            <Link href="/demo" prefetch={false}>Try the demo · no account <ArrowRight /></Link>
-          </Button>
-        </div>
-      )}
+      <Or>or</Or>
+
+      {/* A full navigation: /start sets the guest session cookie, then sends you on. */}
+      <Button asChild size="lg" className="h-11 w-full text-[14px]">
+        <a href={`/start?next=${encodeURIComponent(guestNext)}`}>
+          {isGuest ? "Carry on as a guest" : "Continue as a guest"} <ArrowRight />
+        </a>
+      </Button>
+      <p className="mt-2.5 text-center text-[12.5px] text-muted-foreground">
+        {isGuest ? "Everything you've made so far is still there." : "No account needed. Sign in later to keep your work."}
+      </p>
     </div>
   );
 }

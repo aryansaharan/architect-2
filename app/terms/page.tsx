@@ -15,7 +15,7 @@ export default function Terms() {
       <h2>No warranty</h2>
       <p>The service may change, reset or go offline at any time. Generated code is provided without warranty; review it before using it anywhere.</p>
       <h2>Contact</h2>
-      <p><a className="text-amber underline-offset-4 hover:underline" href="mailto:aryansaharan30@gmail.com">aryansaharan30@gmail.com</a></p>
+      <p><a href="mailto:aryansaharan30@gmail.com">aryansaharan30@gmail.com</a></p>
     </LegalPage>
   );
 }

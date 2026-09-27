@@ -1,17 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Bot, Check, CircleHelp, EyeOff, FileSearch, GitBranch, Loader2, Plus, ShieldCheck, Star, X } from "lucide-react";
+import { ArrowRight, Bot, Check, CircleHelp, EyeOff, GitBranch, Plus, Star, X } from "lucide-react";
 import type { ImportReportWithTree } from "@/lib/import/snapshot";
 import { FRAMEWORK_LABEL, describeAgents, pickAgents, type DetectedAgent } from "@/lib/import/agents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GitHubMark } from "@/components/brand/logo";
 import { PlanningView, usePlanStream } from "@/components/new/plan-stream";
+import { PencilBox } from "@/components/landing/sketches";
 import { cn } from "@/lib/utils";
 import { Term } from "@/components/arch/term";
 
 const EXAMPLES = ["openai/openai-cs-agents-demo", "langchain-ai/langgraph-example", "crewAIInc/crewAI-examples", "vercel/chatbot"];
-const READ_STEPS = ["Fetching repository details", "Listing every file", "Reading manifests and README", "Reading agent definitions in the source", "Mapping what I understood"];
+const READ_STEPS = ["Fetching the repository details", "Listing every file", "Reading the manifests and README", "Reading agent definitions in the source", "Writing down what it understood"];
 
 type Step = "input" | "reading" | "report" | "mapping";
 
@@ -62,43 +63,51 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
 
   const map = () => {
     setStep("mapping");
-    void planner.start("/api/import/create", { report, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}/blueprint`);
+    void planner.start("/api/import/create", { report, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}`);
   };
 
-  if (step === "mapping") return <PlanningView s={planner} eyebrow="Bring your existing project · mapping" onRetry={map} />;
+  const addRule = () => {
+    if (!newRule.trim()) return;
+    setRules((rs) => [...rs, { text: newRule.trim(), on: true }]);
+    setNewRule("");
+  };
+
+  if (step === "mapping") return <PlanningView s={planner} eyebrow="From your GitHub repo · sketching what's there" onRetry={map} />;
 
   if (step === "input" || step === "reading") {
     return (
-      <div className="fade-up mx-auto max-w-2xl">
-        <p className="micro-label">Bring your existing project</p>
-        <h1 className="mt-2 font-display text-[44px] leading-tight">Adopt it. <em className="text-amber-grad">Don&apos;t absorb it.</em></h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Prod AI reads your repository first, tells you what it understood and what it didn&apos;t, and signs House Rules before it touches a file. Every change ships as a pull request.</p>
-        <div className="panel mt-6 rounded-2xl p-4 transition-[border-color,box-shadow] duration-500 focus-within:border-amber/50 focus-within:shadow-[0_0_0_4px_rgb(223_255_79/0.08),0_24px_70px_-24px_rgb(223_255_79/0.45)]">
-          <label htmlFor="repo-url" className="text-[13px] font-medium">Public GitHub repository</label>
-          <div className="mt-2 flex gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-lg border border-hairline bg-deep px-3 focus-within:border-amber/50">
+      <div className="mx-auto max-w-2xl">
+        <p className="font-sketch text-[12.5px] text-muted-foreground">Start from a GitHub repo</p>
+        <h1 className="mt-4 font-display text-[46px] leading-none sm:text-[60px]">Bring your code. It stays yours.</h1>
+        <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+          Prod AI reads your repository first, tells you what it understood and what it didn&apos;t, and writes down the rules it will follow before it touches a file. Every change comes as a pull request you review.
+        </p>
+        <div className="panel mt-7 rounded-2xl p-5 sm:p-7">
+          <label htmlFor="repo-url" className="font-pencil text-[26px] leading-none">Which repository?</label>
+          <div className="mt-3 flex gap-2">
+            <div className="flex flex-1 items-center gap-2 rounded-lg border border-input bg-panel px-3 focus-within:border-amber/60">
               <GitHubMark className="text-muted-foreground" />
-              <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full bg-transparent font-mono text-[13px] outline-none placeholder:text-faint" disabled={step === "reading"} />
+              <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full min-w-0 bg-transparent font-mono text-[13px] outline-none placeholder:text-faint" disabled={step === "reading"} />
             </div>
-            <Button className="sheen h-10 shadow-[0_8px_24px_-10px_rgb(223_255_79/0.8)] disabled:shadow-none" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
-              {step === "reading" ? <Loader2 className="animate-spin" /> : <FileSearch />} Read it
+            <Button className="h-10 px-4" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
+              Read it <ArrowRight />
             </Button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 font-sketch text-[12px] text-faint">Or try</span>
             {EXAMPLES.map((r) => (
-              <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-full border border-hairline px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:border-amber/40 hover:text-foreground">{r}</button>
+              <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[11.5px] text-muted-foreground transition-colors hover:border-hairline-hi hover:text-foreground">{r}</button>
             ))}
           </div>
-          {error && <p role="alert" className="mt-3 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">{error}</p>}
-          <p className="mt-4 text-[12px] text-muted-foreground">Private repository? <span className="text-foreground/80">Connect GitHub</span> from any project&apos;s Code tab (sandbox in this prototype). ZIP and Figma imports are next on the roadmap.</p>
+          {error && <p role="alert" className="mt-4 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">{error}</p>}
+          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-[12.5px] leading-relaxed text-muted-foreground">Private repository? Connect GitHub from any project&apos;s Code tab (a sandbox in this prototype). ZIP and Figma imports are next on the list.</p>
         </div>
         {step === "reading" && (
-          <ol className="aurora panel-raised fade-up relative mt-4 space-y-1.5 overflow-hidden rounded-xl p-4 text-[13px]" aria-live="polite">
-            <span className="scanline" aria-hidden />
+          <ol className="panel mt-4 space-y-1.5 rounded-xl px-5 py-4 text-[13.5px]" aria-live="polite" aria-label="Reading the repository">
             {READ_STEPS.map((s, i) => (
-              <li key={s} className={cn("relative flex items-center gap-2 transition-colors duration-300", i > readStep ? "text-faint" : i === readStep ? "text-foreground" : "text-muted-foreground")}>
-                {i < readStep ? <Check className="size-3.5 text-read" /> : i === readStep ? <Loader2 className="size-3.5 animate-spin text-amber" /> : <span className="size-3.5" />}
-                <span className={cn(i === readStep && "text-shimmer")}>{s}</span>
+              <li key={s} className={cn("flex items-center gap-2.5", i > readStep ? "text-faint" : i === readStep ? "text-foreground" : "text-muted-foreground")}>
+                <PencilBox on={i < readStep} seed={i + 2} />
+                <span>{s}{i === readStep ? "…" : ""}</span>
               </li>
             ))}
           </ol>
@@ -111,13 +120,13 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
   const r = report!;
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="flex flex-wrap items-end gap-4">
+      <p className="font-sketch text-[12.5px] text-muted-foreground">What Prod AI found{r.cached ? " · a saved copy (GitHub's rate limit)" : ""}</p>
+      <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <p className="micro-label">Stack report{r.cached ? " · cached (GitHub rate limit)" : ""}</p>
-          <h1 className="mt-2 flex items-center gap-3 text-[30px] font-semibold tracking-tight"><GitHubMark className="size-6" />{r.repo.owner}/{r.repo.name}</h1>
-          <p className="mt-1 max-w-2xl text-[14px] text-muted-foreground">{r.repo.description ?? "No description."}</p>
+          <h1 className="flex items-center gap-3 break-all font-mono text-[24px] font-medium tracking-tight sm:text-[28px]"><GitHubMark className="size-6 shrink-0" />{r.repo.owner}/{r.repo.name}</h1>
+          <p className="mt-1.5 max-w-2xl text-[14.5px] text-muted-foreground">{r.repo.description ?? "No description."}</p>
         </div>
-        <div className="ml-auto flex flex-wrap gap-3 text-[12.5px] text-muted-foreground">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground sm:ml-auto">
           <span className="inline-flex items-center gap-1"><Star className="size-3.5" />{r.repo.stars.toLocaleString()}</span>
           <span className="inline-flex items-center gap-1"><GitBranch className="size-3.5" />{r.repo.defaultBranch}</span>
           <span>{r.fileCount.toLocaleString()} files{r.truncated ? " (partial)" : ""}</span>
@@ -125,9 +134,9 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "80ms" }}>
-          <h2 className="micro-label">Agents found</h2>
+      <div className="mt-7 grid gap-4 lg:grid-cols-3">
+        <section className="panel rounded-xl p-5">
+          <h2 className="text-[14px] font-semibold">Agents found</h2>
           {r.frameworks.length ? (
             <ul className="mt-3 space-y-2.5">
               {r.frameworks.map((f) => (
@@ -138,57 +147,57 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-[13px] text-muted-foreground">No agent framework detected. Prod AI can add agents alongside your code.</p>
+            <p className="mt-3 text-[13px] text-muted-foreground">No agent framework found. Prod AI can add AI helpers alongside your code.</p>
           )}
           <DetectedAgents report={r} />
         </section>
-        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "160ms" }}>
-          <h2 className="micro-label">Stack</h2>
+        <section className="panel rounded-xl p-5">
+          <h2 className="text-[14px] font-semibold">Stack</h2>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {r.stack.length ? r.stack.map((s) => <span key={s.label} className="rounded-md border border-hairline bg-deep px-2 py-1 text-[12px]" title={s.evidence}>{s.label}</span>) : <span className="text-[13px] text-muted-foreground">{r.repo.language ?? "Unknown"}</span>}
+            {r.stack.length ? r.stack.map((s) => <span key={s.label} className="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[11.5px]" title={s.evidence}>{s.label}</span>) : <span className="text-[13px] text-muted-foreground">{r.repo.language ?? "Unknown"}</span>}
           </div>
-          <h2 className="micro-label mt-4">Tests &amp; CI</h2>
-          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found. Prod AI will add rehearsals, not rewrite your tests.</span>}</p>
+          <h2 className="mt-5 text-[14px] font-semibold">Tests and CI</h2>
+          <p className="mt-1.5 text-[12.5px]">{r.tests.length ? r.tests.join(" · ") : <span className="text-muted-foreground">None found. Prod AI will add its own checks and won&apos;t rewrite your tests.</span>}</p>
         </section>
-        <section className="panel fade-up rounded-xl p-4" style={{ animationDelay: "240ms" }}>
-          <h2 className="micro-label">Conventions I&apos;ll follow</h2>
+        <section className="panel rounded-xl p-5">
+          <h2 className="text-[14px] font-semibold">Conventions it will follow</h2>
           <ul className="mt-3 space-y-1.5 text-[12.5px]">
             {r.conventions.length ? r.conventions.map((c) => <li key={c} className="flex gap-2"><Check className="mt-0.5 size-3 shrink-0 text-read" />{c}</li>) : <li className="text-muted-foreground">Nothing unusual.</li>}
           </ul>
         </section>
       </div>
 
-      <section className="fade-up mt-4 grid gap-4 md:grid-cols-3" style={{ animationDelay: "340ms" }} aria-label="Coverage map">
+      <section className="mt-4 grid gap-4 md:grid-cols-3" aria-label="What it understood">
         <Coverage title="Understood" icon={Check} tone="text-read" items={r.coverage.understood} empty="None" />
-        <Coverage title="Not sure yet" icon={CircleHelp} tone="text-amber" items={r.coverage.unsure} empty="Nothing. Every source folder matched something I know." />
-        <Coverage title="Ignored" icon={EyeOff} tone="text-muted-foreground" items={r.coverage.ignored} empty="Nothing ignored." />
+        <Coverage title="Not sure yet" icon={CircleHelp} tone="text-foreground" items={r.coverage.unsure} empty="Nothing. Every source folder matched something it knows." />
+        <Coverage title="Left alone" icon={EyeOff} tone="text-muted-foreground" items={r.coverage.ignored} empty="Nothing left out." />
       </section>
 
-      <section className="panel fade-up mt-4 rounded-xl p-5" style={{ animationDelay: "440ms" }} aria-labelledby="rules">
-        <div className="flex flex-wrap items-center gap-2">
-          <ShieldCheck className="size-4 text-amber" />
-          <h2 id="rules" className="text-[15px] font-semibold"><Term k="house-rules" /></h2>
-          <span className="text-[12.5px] text-muted-foreground">Prod AI signs these before touching anything. Every agent and every Work Order follows them.</span>
-        </div>
+      <section className="panel mt-4 rounded-xl p-5 sm:p-6" aria-labelledby="rules">
+        <h2 id="rules" className="font-pencil text-[30px] leading-none"><Term k="house-rules" /></h2>
+        <p className="mt-2 text-[13.5px] text-muted-foreground">The promises Prod AI signs before it touches anything. Every AI helper and every change follows them. Untick one to leave it out.</p>
         <ul className="mt-4 space-y-2">
           {rules.map((rule, i) => (
-            <li key={i} className="flex items-center gap-3 rounded-lg border border-hairline bg-deep/60 px-3 py-2">
-              <input type="checkbox" checked={rule.on} onChange={(e) => setRules((rs) => rs.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} className="size-4 accent-[var(--amber)]" aria-label={rule.text} />
-              <span className={cn("flex-1 text-[13px]", !rule.on && "text-faint line-through")}>{rule.text}</span>
+            <li key={i} className="flex items-center gap-3 rounded-lg border border-hairline bg-canvas px-3 py-2">
+              <label className="flex flex-1 cursor-pointer items-center gap-3">
+                <input type="checkbox" checked={rule.on} onChange={(e) => setRules((rs) => rs.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} className="sr-only" aria-label={rule.text} />
+                <PencilBox on={rule.on} seed={i + 5} />
+                <span className={cn("flex-1 text-[13.5px]", !rule.on && "text-faint line-through")}>{rule.text}</span>
+              </label>
               <button onClick={() => setRules((rs) => rs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-ask" aria-label="Remove rule"><X className="size-3.5" /></button>
             </li>
           ))}
         </ul>
-        <div className="mt-2 flex gap-2">
-          <Input value={newRule} onChange={(e) => setNewRule(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newRule.trim()) { setRules((rs) => [...rs, { text: newRule.trim(), on: true }]); setNewRule(""); } }} placeholder="Add a rule, e.g. “Never touch /legacy”" className="h-9" />
-          <Button variant="outline" className="h-9" disabled={!newRule.trim()} onClick={() => { setRules((rs) => [...rs, { text: newRule.trim(), on: true }]); setNewRule(""); }}><Plus /> Add</Button>
+        <div className="mt-2.5 flex gap-2">
+          <Input value={newRule} onChange={(e) => setNewRule(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRule()} placeholder="Add a rule, e.g. “Never touch /legacy”" className="h-9 bg-panel" />
+          <Button variant="outline" className="h-9 bg-panel" disabled={!newRule.trim()} onClick={addRule}><Plus /> Add</Button>
         </div>
       </section>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button variant="ghost" onClick={() => setStep("input")}>Read a different repo</Button>
-        <p className="ml-auto text-[12.5px] text-muted-foreground">Next: I map it into a Blueprint so you can see it. Nothing is pushed.</p>
-        <Button size="lg" className="sheen shadow-[0_0_0_1px_rgb(239_255_148/0.35),0_10px_30px_-10px_rgb(223_255_79/0.8)]" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
+        <Button variant="ghost" className="-ml-2.5 text-muted-foreground" onClick={() => setStep("input")}>Read a different repo</Button>
+        <p className="text-[12.5px] text-muted-foreground sm:ml-auto">Next, Prod AI sketches what&apos;s there so you can see it. Nothing is pushed.</p>
+        <Button className="h-10 px-4 text-[14px] max-sm:w-full" onClick={map}>Sign House Rules and map it <ArrowRight /></Button>
       </div>
     </div>
   );
@@ -196,8 +205,8 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
 
 function Coverage({ title, icon: I, tone, items, empty }: { title: string; icon: typeof Check; tone: string; items: string[]; empty: string }) {
   return (
-    <div className="panel rounded-xl p-4">
-      <h2 className={cn("flex items-center gap-2 text-[13px] font-semibold", tone)}><I className="size-3.5" />{title}<span className="font-mono text-[11px] text-faint">{items.length}</span></h2>
+    <div className="panel rounded-xl p-5">
+      <h2 className={cn("flex items-center gap-2 text-[13.5px] font-semibold", tone)}><I className="size-3.5" />{title}<span className="font-mono text-[11px] font-normal text-faint">{items.length}</span></h2>
       <ul className="mt-2.5 space-y-1">
         {items.length ? items.map((i) => <li key={i} className="font-mono text-[11.5px] text-foreground/80">{i}</li>) : <li className="text-[12px] text-muted-foreground">{empty}</li>}
       </ul>
