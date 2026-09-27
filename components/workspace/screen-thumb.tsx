@@ -1,15 +1,16 @@
 import type { Block, Screen } from "@/lib/blueprint/schema";
 import { cn } from "@/lib/utils";
 
+/** A pencil wireframe of a block: graphite marks on paper, the app's own colour for its buttons. */
 function Shape({ b, large }: { b: Block; large?: boolean }) {
-  const bar = "rounded-[2px] bg-white/[0.14]";
-  const faint = "rounded-[2px] bg-white/[0.07]";
+  const bar = "rounded-[2px] bg-foreground/[0.18]";
+  const faint = "rounded-[2px] bg-foreground/[0.08]";
   switch (b.type) {
     case "kpis":
       return (
         <div className="flex gap-1">
           {b.items.slice(0, 4).map((_, i) => (
-            <div key={i} className={cn("flex-1 rounded-[3px] border border-white/10 p-1", large && "p-1.5")}>
+            <div key={i} className={cn("flex-1 rounded-[3px] border border-foreground/[0.14] p-1", large && "p-1.5")}>
               <div className={cn(faint, "h-1 w-2/3")} />
               <div className={cn(bar, "mt-1 h-1.5 w-1/2")} />
             </div>
@@ -18,8 +19,8 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
       );
     case "table":
       return (
-        <div className="rounded-[3px] border border-white/10 p-1">
-          <div className={cn("h-1.5 w-full rounded-[2px] bg-white/[0.1]")} />
+        <div className="rounded-[3px] border border-foreground/[0.14] p-1">
+          <div className={cn("h-1.5 w-full rounded-[2px] bg-foreground/[0.12]")} />
           {Array.from({ length: large ? 5 : 3 }).map((_, i) => (
             <div key={i} className="mt-1 flex gap-1">
               <div className={cn(bar, "h-1 w-1/4")} />
@@ -31,10 +32,10 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
       );
     case "list":
       return (
-        <div className="space-y-1 rounded-[3px] border border-white/10 p-1">
+        <div className="space-y-1 rounded-[3px] border border-foreground/[0.14] p-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-1">
-              <div className="size-1.5 rounded-full bg-white/20" />
+              <div className="size-1.5 rounded-full bg-foreground/25" />
               <div className={cn(bar, "h-1 w-1/3")} />
               <div className={cn(faint, "ml-auto h-1 w-1/6")} />
             </div>
@@ -43,7 +44,7 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
       );
     case "detail":
       return (
-        <div className="grid grid-cols-2 gap-1 rounded-[3px] border border-white/10 p-1">
+        <div className="grid grid-cols-2 gap-1 rounded-[3px] border border-foreground/[0.14] p-1">
           {Array.from({ length: large ? 6 : 4 }).map((_, i) => (
             <div key={i}>
               <div className={cn(faint, "h-0.5 w-1/2")} />
@@ -54,27 +55,27 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
       );
     case "form":
       return (
-        <div className="space-y-1 rounded-[3px] border border-white/10 p-1">
+        <div className="space-y-1 rounded-[3px] border border-foreground/[0.14] p-1">
           {Array.from({ length: large ? 4 : 3 }).map((_, i) => (
-            <div key={i} className="h-1.5 rounded-[2px] border border-white/10" />
+            <div key={i} className="h-1.5 rounded-[2px] border border-foreground/[0.14]" />
           ))}
-          <div className="h-1.5 w-1/3 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)" }} />
+          <div className="h-1.5 w-1/3 rounded-[2px]" style={{ background: "var(--thumb-primary, var(--amber))" }} />
         </div>
       );
     case "chat":
       return (
-        <div className="space-y-1 rounded-[3px] border border-white/10 p-1">
+        <div className="space-y-1 rounded-[3px] border border-foreground/[0.14] p-1">
           <div className={cn(faint, "h-1.5 w-2/3")} />
-          <div className="ml-auto h-1.5 w-1/2 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)", opacity: 0.55 }} />
+          <div className="ml-auto h-1.5 w-1/2 rounded-[2px]" style={{ background: "var(--thumb-primary, var(--amber))", opacity: 0.55 }} />
           <div className={cn(faint, "h-1.5 w-3/5")} />
         </div>
       );
     case "timeline":
       return (
-        <div className="space-y-1 rounded-[3px] border border-white/10 p-1">
+        <div className="space-y-1 rounded-[3px] border border-foreground/[0.14] p-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-1">
-              <div className={cn("size-1.5 rounded-full", i === 0 ? "bg-white/40" : "bg-white/15")} />
+              <div className={cn("size-1.5 rounded-full", i === 0 ? "bg-foreground/45" : "bg-foreground/15")} />
               <div className={cn(faint, "h-1 flex-1")} />
             </div>
           ))}
@@ -91,8 +92,8 @@ function Shape({ b, large }: { b: Block; large?: boolean }) {
     case "actions":
       return (
         <div className="flex gap-1">
-          <div className="h-1.5 w-1/4 rounded-[2px]" style={{ background: "var(--thumb-primary, #dfff4f)" }} />
-          <div className="h-1.5 w-1/4 rounded-[2px] border border-white/15" />
+          <div className="h-1.5 w-1/4 rounded-[2px]" style={{ background: "var(--thumb-primary, var(--amber))" }} />
+          <div className="h-1.5 w-1/4 rounded-[2px] border border-foreground/20" />
         </div>
       );
   }

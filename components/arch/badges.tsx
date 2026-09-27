@@ -63,9 +63,10 @@ export function Avatar({ name, hue, size = 28, className }: { name: string; hue:
         width: size,
         height: size,
         fontSize: size * 0.38,
-        background: `hsl(${hue} 70% 55% / 0.16)`,
-        color: `hsl(${hue} 85% 72%)`,
-        boxShadow: `inset 0 0 0 1px hsl(${hue} 70% 60% / 0.28)`,
+        // A soft tint of the person's hue with ink-dark letters: readable on paper.
+        background: `hsl(${hue} 42% 93%)`,
+        color: `hsl(${hue} 45% 30%)`,
+        boxShadow: `inset 0 0 0 1px hsl(${hue} 30% 62% / 0.35)`,
       }}
     >
       {letters}

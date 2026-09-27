@@ -101,9 +101,9 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
                     e.preventDefault();
                     move(i, e.key === "ArrowUp" ? -1 : 1);
                   }}
-                  className="flex items-center gap-1 rounded-md border border-hairline bg-deep/60 px-2 py-1 text-[12.5px] outline-none focus-visible:border-amber/60"
+                  className="flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[12.5px] outline-none focus-visible:border-amber focus-visible:ring-3 focus-visible:ring-amber/20"
                 >
-                  <span className="w-4 shrink-0 font-mono text-[10.5px] text-faint">{i + 1}</span>
+                  <span className="w-4 shrink-0 font-mono text-[10.5px] text-muted-foreground">{i + 1}</span>
                   <span className="flex-1 truncate">{label(c)}</span>
                   <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} up`} title="Move up (Alt+↑)"><ArrowUp className="size-3" /></button>
                   <button onClick={() => move(i, 1)} disabled={i === cols.length - 1} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} down`} title="Move down (Alt+↓)"><ArrowDown className="size-3" /></button>
@@ -114,7 +114,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
             {entity && entity.fields.some((f) => !cols.includes(f.name)) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {entity.fields.filter((f) => !cols.includes(f.name)).map((f) => (
-                  <button key={f.name} onClick={() => setCols((x) => [...x, f.name].slice(0, 8))} className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
+                  <button key={f.name} onClick={() => setCols((x) => [...x, f.name].slice(0, 8))} className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline-hi px-2 py-0.5 text-[11px] text-muted-foreground hover:border-[#c9c1b1] hover:bg-raised hover:text-foreground">
                     <Plus className="size-3" />{f.label ?? f.name}
                   </button>
                 ))}

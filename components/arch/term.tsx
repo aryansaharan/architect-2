@@ -34,8 +34,8 @@ export function Term({ k, children, className }: { k: TermKey; children?: React.
       <HoverCardContent side="top" className="normal-case tracking-normal">
         <p className="text-[13px] font-semibold text-foreground">{g.term}</p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{g.plain}</p>
-        <p className="mt-2.5 border-t border-hairline pt-2 font-mono text-[11px] leading-relaxed text-faint">
-          <span className="text-sol-flare/80">Developers:</span> {g.dev}
+        <p className="mt-2.5 border-t border-hairline pt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+          <span className="font-medium text-amber">Developers:</span> {g.dev}
         </p>
       </HoverCardContent>
     </HoverCard>

@@ -44,7 +44,7 @@ export function Segmented<T extends string>({
               <motion.span
                 layoutId={`seg-${id}`}
                 aria-hidden
-                className="absolute inset-0 rounded-md bg-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.4)] ring-1 ring-white/[0.04]"
+                className="absolute inset-0 rounded-md bg-raised shadow-[0_1px_2px_rgb(26_26_23/0.08)] ring-1 ring-hairline-hi"
                 transition={{ type: "spring", stiffness: 520, damping: 38 }}
               />
             )}
