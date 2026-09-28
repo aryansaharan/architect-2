@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writes";
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
-import { modelBudgetOk } from "@/lib/llm/guard";
+import { holdModelBudget } from "@/lib/llm/guard";
+import { projectCapMessage } from "@/lib/security/caps";
+import { verify } from "@/lib/security/sign";
 import type { Blueprint, Framework } from "@/lib/blueprint/schema";
 import { estimate } from "@/lib/blueprint/estimate";
 import { cleanTree, type ImportReportWithTree } from "@/lib/import/snapshot";
@@ -24,8 +26,10 @@ const pretty = (s: string) => s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in first" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { report?: ImportReportWithTree; houseRules?: string[] };
+  const body = (await req.json().catch(() => ({}))) as { report?: ImportReportWithTree; sig?: unknown; houseRules?: unknown };
   if (!body.report?.repo?.name) return Response.json({ error: "Analyse a repository first" }, { status: 400 });
+  // Only the analysis the server made goes into the planner and the database, never one edited in the browser.
+  if (!verify(body.report, body.sig)) return Response.json({ error: "That analysis has expired. Read the repository again." }, { status: 400 });
   // The real file tree is stored with the report so the Code tab shows the repo as it is, untouched.
   // The agents read from the repo's source come back from the client too, so they are cleaned the same way.
   const scan = body.report.agentScan;
@@ -36,9 +40,17 @@ export async function POST(req: Request) {
     agentScan: scan ? { filesRead: cleanTree(scan.filesRead)?.slice(0, 12) ?? [], candidates: Number(scan.candidates) || 0, toolCount: Number(scan.toolCount) || 0 } : undefined,
   };
   const filesRead = report.agentScan?.filesRead.length ?? 0;
-  const houseRules = (body.houseRules ?? []).map((r) => r.trim()).filter(Boolean).slice(0, 12);
+  const houseRules = (Array.isArray(body.houseRules) ? body.houseRules : [])
+    .filter((r): r is string => typeof r === "string")
+    .map((r) => r.trim().slice(0, 300))
+    .filter(Boolean)
+    .slice(0, 12);
   const supa = await createClient();
-  const allowModel = await modelBudgetOk(supa, user);
+  // Don't spend a model call on a mapping that couldn't be saved.
+  const full = await projectCapMessage(supa, user);
+  if (full) return Response.json({ error: full }, { status: 403 });
+  const hold = await holdModelBudget(user, "import");
+  if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of imports in a few minutes. Wait a little, then try again." }, { status: 429 });
   const framework = report.frameworks.map((f) => FW[f.id]).find(Boolean) ?? "lyzr";
   // Older clients (and cached reports from before agents were read) send no agents: keep the earlier behaviour.
   const scanned = Array.isArray(report.agents);
@@ -88,21 +100,25 @@ Use the repository's own names for agents and screens where the README or folder
     async start(controller) {
       const enc = new TextEncoder();
       const send = (e: PlanEvent) => controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
-      const { blueprint, mode, usage, vertical } = await streamPlan({
-        prompt,
-        userId: user.id,
-        allowModel,
-        send,
-        fallback: () => {
-          const s = starterFor(`${report.repo.description ?? ""} ${report.readmeExcerpt.slice(0, 1500)}`).blueprint;
-          s.meta.name = pretty(report.repo.name);
-          s.meta.tagline = report.repo.description?.slice(0, 90) ?? s.meta.tagline;
-          return s;
-        },
-        failureNote: "The model didn't answer in time, so I mapped the repo onto the closest starter plan. Everything in your repo is untouched.",
-        adjust,
-      });
+      let projectId: string | null = null;
+      let spent: Awaited<ReturnType<typeof streamPlan>>["spent"] = null;
       try {
+        const { blueprint, mode, usage, spent: cost, vertical } = await streamPlan({
+          prompt,
+          userId: user.id,
+          allowModel: hold.ok,
+          noModelNote: user.isAnonymous ? "Guests get the closest starter plan mapped onto the repo. Sign in and Claude maps it from your code." : undefined,
+          send,
+          fallback: () => {
+            const s = starterFor(`${report.repo.description ?? ""} ${report.readmeExcerpt.slice(0, 1500)}`).blueprint;
+            s.meta.name = pretty(report.repo.name);
+            s.meta.tagline = report.repo.description?.slice(0, 90) ?? s.meta.tagline;
+            return s;
+          },
+          failureNote: "The model didn't answer in time, so I mapped the repo onto the closest starter plan. Everything in your repo is untouched.",
+          adjust,
+        });
+        spent = cost;
         const brief = `Imported from github.com/${report.repo.owner}/${report.repo.name}${report.repo.description ? `: ${report.repo.description}` : ""}`;
         const project = await createProject(supa, {
           ownerId: user.id,
@@ -115,6 +131,7 @@ Use the repository's own names for agents and screens where the README or folder
           buildState: "draft",
           settings: { houseRules, github: { connected: true, repo: `${report.repo.owner}/${report.repo.name}`, account: report.repo.owner } },
         });
+        projectId = project.id;
         const cp = await addCheckpoint(supa, project.id, { label: "Imported from GitHub", kind: "import", blueprint, summary: `${report.repo.owner}/${report.repo.name} · ${report.fileCount} files · ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"}` });
         await supa.from("work_orders").insert({ project_id: project.id, request: brief, kind: "build", estimate: blueprint.estimate, status: "proposed" });
         await addLedger(supa, project.id, [
@@ -129,11 +146,14 @@ Use the repository's own names for agents and screens where the README or folder
             checkpointId: cp.id,
           },
         ]);
-        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "import", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "import", modelCredits: usage.credits } });
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[import] save failed", e);
         send({ t: "error", message: "Couldn't save the project. Try again." });
+      } finally {
+        // Mapping is free to you. Its real cost is metered, saved or not, for the daily model budget.
+        if (spent) await logUsage({ userId: user.id, projectId, kind: "import", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: 0, meta: { op: "import", modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
+        if (hold.ok) await hold.release();
       }
       controller.close();
     },

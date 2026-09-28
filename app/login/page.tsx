@@ -6,7 +6,25 @@ import { getSessionUser } from "@/lib/auth";
 
 export const metadata = { title: "Sign in" };
 
-const safe = (v: unknown): string | null => (typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : null);
+/**
+ * Where to go after signing in: a path on this site, or null. Parsed the way a browser would, so
+ * "//evil.com" and "/\evil.com" (both another site to a browser) are refused. Same rule as app/start.
+ */
+function safe(v: unknown): string | null {
+  if (typeof v !== "string" || !v.startsWith("/") || v.startsWith("//") || v.startsWith("/\\")) return null;
+  try {
+    const url = new URL(v, "http://x");
+    return url.origin === "http://x" ? url.pathname + url.search + url.hash : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Notices from the guest and demo rate limits (app/start, app/demo). Sign-in errors are AuthPanel's. */
+const NOTICES: Record<string, string> = {
+  busy: "Too many new guest sessions from your network. Sign in with Google or email instead.",
+  demo_busy: "Too many example projects were opened from your network in the last hour. Sign in with Google or email, or continue as a guest and start your own.",
+};
 
 /** The note someone wrote on the landing page, if that's where they came from. */
 function noteFrom(next: string): string | null {
@@ -22,6 +40,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
   // Guests start with a blank sheet unless they were on their way somewhere.
   const guestNext = asked ?? "/new";
   const error = typeof sp.error === "string" ? sp.error : undefined;
+  const notice = error ? NOTICES[error] : undefined;
   const user = await getSessionUser();
   if (user && !user.isAnonymous && !error) redirect(next);
   const isGuest = Boolean(user?.isAnonymous);
@@ -47,8 +66,14 @@ export default async function LoginPage(props: PageProps<"/login">) {
           </figure>
         )}
 
+        {notice && (
+          <p role="alert" className="mt-7 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">
+            {notice}
+          </p>
+        )}
+
         <div className="panel mt-7 rounded-2xl p-5 sm:p-6">
-          <AuthPanel next={next} guestNext={guestNext} error={error} isGuest={isGuest} />
+          <AuthPanel next={next} guestNext={guestNext} error={notice ? undefined : error} isGuest={isGuest} />
         </div>
 
         <p className="mt-8 text-center text-[13px] text-muted-foreground">

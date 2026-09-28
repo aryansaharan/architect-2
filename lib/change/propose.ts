@@ -63,6 +63,10 @@ const plainSummary = (text: string) => text.replace(/\s*\(?\/(?:screens|agents|e
 export async function proposeChange(bp: Blueprint, request: string, scope: ObjectRef | null, opts: { allowModel?: boolean } = {}): Promise<ProposeResult> {
   const m = opts.allowModel === false ? null : getModel();
   const scopeLabel = scope ? `${scope.type} "${objectLabel(bp, scope)}" (id ${scope.id})` : "the whole project";
+  // Every attempt is metered, including ones that fail or time out: the provider bills them all.
+  let inputTokens = 0;
+  let outputTokens = 0;
+  const spentAny = () => (m && (inputTokens || outputTokens) ? { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) } : undefined);
   if (m) {
     const resolved = resolveRef(bp, scope);
     const scopeScreenId = scope?.type === "screen" ? scope.id : scope?.type === "block" ? bp.screens.find((x) => [...x.regions.main, ...x.regions.side].some((b) => b.id === scope.id))?.id : undefined;
@@ -70,8 +74,6 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
     const base = `Scope: ${scopeLabel}\n${resolved ? `Scoped object JSON:\n${JSON.stringify(resolved.value)}\n` : ""}Request: ${request}\n\nBlueprint map:\n${blueprintIndex(bp)}`;
     const full = `\n\nFull blueprint JSON (for reference and patches):\n${JSON.stringify({ ...bp, estimate: undefined })}`;
     const quote = (summary: string, rationale: string, draft: { ops: ChangeOperation[]; blueprint: Blueprint }) => quoteFor(bp, summary, rationale, draft);
-    let inputTokens = 0;
-    let outputTokens = 0;
     let feedback = "";
     type Usage = NonNullable<ProposeResult["usage"]>;
     const usageSoFar = (): Usage => ({ model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) });
@@ -110,7 +112,8 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
           output: Output.object({ schema: EditsSchema, name: "blueprint_edits" }),
           maxOutputTokens: 8000,
           timeout: 70_000,
-          maxRetries: 1,
+          // The loop is the retry (with feedback), so a single request never quietly becomes four.
+          maxRetries: 0,
           // The edit schema is too large for strict grammar mode; a JSON tool call plus zod validation is enough.
           providerOptions: { anthropic: { effort: "low", structuredOutputMode: "jsonTool" } },
         });
@@ -132,6 +135,11 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
             if (done) return done;
             continue;
           }
+        }
+        // A timed-out attempt reports no usage but is still billed: meter the most it could have cost.
+        if (!NoObjectGeneratedError.isInstance(e) && /time(d)? ?out|abort/i.test(msg)) {
+          inputTokens += Math.ceil(base.length / 3.5);
+          outputTokens += 8000;
         }
         console.error("[change] model failed:", msg, NoObjectGeneratedError.isInstance(e) ? (e.text ?? "").slice(0, 400) : "");
         if (NoObjectGeneratedError.isInstance(e) && attempt === 0) {
@@ -160,7 +168,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
       // Offline rules write their own text; it's held to the same standard as the model's.
       const gaps = unbackedClaims(`${rule.summary}. ${rule.rationale}`, bp, applied.blueprint);
       const text = gaps.length ? honestText(rule.summary, rule.rationale, bp, applied.blueprint, gaps) : rule;
-      return { proposal: { ...rule, summary: text.summary, rationale: text.rationale, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "rules" } };
+      return { proposal: { ...rule, summary: text.summary, rationale: text.rationale, blastRadius: radius, credits: est.credits, minutes: est.minutes, mode: "rules" }, usage: spentAny() };
     }
   }
   return {
@@ -173,5 +181,6 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
       minutes: 0,
       mode: "rules",
     },
+    usage: spentAny(),
   };
 }

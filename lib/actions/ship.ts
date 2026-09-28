@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { getCheckpoint, getLiveSiteForProject, getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, updateProject } from "@/lib/db/writes";
 import { canGoLive, preflight, type PreflightFix } from "@/lib/sim/preflight";
@@ -67,7 +68,25 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
   return { ok: true };
 }
 
-const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32).replace(/^-+|-+$/g, "");
+
+/** A public link: lowercase letters, digits and dashes, 3 to 80 long, starting with a letter or digit (the live_sites slug check). */
+const slugFor = (name: string, projectId: string) => `${kebab(name) || "app"}-${shortId(projectId)}`;
+
+/**
+ * Published sites are written only by the server's admin connection: people can read their own
+ * live_sites rows but never write them. Every caller first reads the project through the person's
+ * session, so row-level security has already confirmed they own it.
+ */
+const liveSites = () => adminClient().from("live_sites");
+const NO_ADMIN: R = { ok: false, error: "Publishing isn't switched on for this copy of Prod AI yet." };
+/** Taken down after an abuse report. The row stays (unpublishing never deletes it), so the block can't be undone by publishing again. */
+const isBlocked = (site: object | null) => Boolean(site && "blocked_at" in site && site.blocked_at);
+const BLOCKED: R = { ok: false, error: "This app's public link was taken down after a report, so it can't be published again. If you think that's a mistake, the Terms page says how to reach us." };
+const failed = (what: string, detail: unknown): R => {
+  console.error(`[ship] ${what} failed`, detail);
+  return { ok: false, error: "That didn't go through. Nothing changed on the live link. Try again in a moment." };
+};
 
 /** The origin people reach this app on (the one the request came from), so shared links are full URLs. */
 async function requestOrigin(): Promise<string> {
@@ -105,12 +124,16 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
     return { ok: true, message: "sandbox" };
   }
 
+  if (!hasAdmin()) return NO_ADMIN;
   const existing = await getLiveSiteForProject(supa, projectId);
-  const slug = existing?.slug ?? `${kebab(project.name) || "app"}-${shortId(projectId)}`;
+  if (isBlocked(existing)) return BLOCKED;
+  const slug = existing?.slug ?? slugFor(project.name, projectId);
   const link = `${await requestOrigin()}/live/${slug}`;
   const cp = await addCheckpoint(supa, projectId, { label: "Published", kind: "ship", blueprint: project.blueprint, summary: `Live at ${link}` });
-  if (existing) await supa.from("live_sites").update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("slug", slug);
-  else await supa.from("live_sites").insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
+  const { error } = existing
+    ? await liveSites().update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId)
+    : await liveSites().insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
+  if (error) return failed("publish", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
@@ -123,12 +146,16 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
 export async function rollbackTo(projectId: string, deploymentId: string): Promise<R> {
   await requireUser();
   const supa = await createClient();
+  if (!(await getProject(supa, projectId))) return { ok: false, error: "Project not found" };
+  if (!hasAdmin()) return NO_ADMIN;
   const { data: dep } = await supa.from("deployments").select("*").eq("id", deploymentId).eq("project_id", projectId).maybeSingle();
   const live = await getLiveSiteForProject(supa, projectId);
   if (!dep || !dep.checkpoint_id || !live) return { ok: false, error: "Nothing to roll back to" };
+  if (isBlocked(live)) return BLOCKED;
   const cp = await getCheckpoint(supa, dep.checkpoint_id);
-  if (!cp) return { ok: false, error: "That version is gone" };
-  await supa.from("live_sites").update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("slug", live.slug);
+  if (!cp || cp.project_id !== projectId) return { ok: false, error: "That version is gone" };
+  const { error } = await liveSites().update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId);
+  if (error) return failed("rollback", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target: "architect_cloud", checkpoint_id: cp.id, status: "live", preflight: dep.preflight, url: `/live/${live.slug}` });
   await addLedger(supa, projectId, [{ lane: "did", kind: "restore", title: `Rolled the published app back to version ${cp.seq}`, body: "Rollbacks are instant and free. The test version is unchanged.", credits: 0 }]);
@@ -139,7 +166,10 @@ export async function rollbackTo(projectId: string, deploymentId: string): Promi
 export async function takeOffline(projectId: string): Promise<R> {
   await requireUser();
   const supa = await createClient();
-  await supa.from("live_sites").delete().eq("project_id", projectId);
+  if (!(await getProject(supa, projectId))) return { ok: false, error: "Project not found" };
+  if (!hasAdmin()) return NO_ADMIN;
+  const { error } = await liveSites().delete().eq("project_id", projectId).is("blocked_at", null);
+  if (error) return failed("unpublish", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: "Took the live version offline", body: "The link now shows “not found”. Your project and save points are untouched." }]);
   revalidatePath(`/p/${projectId}`, "layout");

@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { listProjects, usageSummary } from "@/lib/db/queries";
+import { listProjects, liveProjectIds, usageSummary } from "@/lib/db/queries";
 import { HomeView } from "@/components/home/home-view";
 import type { HomeProject } from "@/components/home/project-card";
 
@@ -12,12 +12,8 @@ export default async function HomePage() {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
-  const [projects, usage, live] = await Promise.all([
-    listProjects(supa),
-    usageSummary(supa, { sinceIso: monthStart.toISOString() }),
-    supa.from("live_sites").select("project_id"),
-  ]);
-  const liveIds = new Set((live.data ?? []).map((l) => l.project_id as string));
+  const [projects, usage] = await Promise.all([listProjects(supa), usageSummary(supa, { sinceIso: monthStart.toISOString() })]);
+  const liveIds = await liveProjectIds(supa, projects.map((p) => p.id));
   const cap = projects[0]?.settings.budgetCapCredits ?? 200;
   const cards: HomeProject[] = projects.map((p) => ({
     id: p.id,

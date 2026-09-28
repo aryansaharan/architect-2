@@ -23,7 +23,10 @@ export async function addComment(projectId: string, input: { screenId: string; b
     author_id: user.id,
     author_name: user.isAnonymous ? "You (guest)" : user.name,
   });
-  if (error) return { ok: false as const, error: error.message };
+  if (error) {
+    console.error("[comments] insert failed", error.message);
+    return { ok: false as const, error: "Your comment wasn't saved. Try again in a moment." };
+  }
   const found = input.blockId ? findBlock(project.blueprint, input.blockId) : null;
   const screen = project.blueprint.screens.find((s) => s.id === input.screenId);
   await addLedger(supa, projectId, [

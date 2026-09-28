@@ -106,6 +106,14 @@ export async function getLiveSiteForProject(supa: Supa, projectId: string): Prom
   return (data as LiveSiteRow | null) ?? null;
 }
 
+/** Which of these projects (the person's own) are published. Row-level security also limits it to their own. A failed read shows none as live. */
+export async function liveProjectIds(supa: Supa, projectIds: string[]): Promise<Set<string>> {
+  if (!projectIds.length) return new Set();
+  const { data, error } = await supa.from("live_sites").select("project_id").in("project_id", projectIds);
+  if (error) console.error("[queries] live sites read failed", error.message);
+  return new Set((data ?? []).map((l) => l.project_id as string));
+}
+
 export async function listAgentRuns(supa: Supa, projectId: string, agentId?: string): Promise<AgentRunRow[]> {
   let q = supa.from("agent_runs").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).limit(25);
   if (agentId) q = q.eq("agent_id", agentId);

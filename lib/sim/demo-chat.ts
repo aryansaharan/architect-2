@@ -211,6 +211,9 @@ function paymentsGated(bp: Blueprint): boolean {
   return pay.length > 0 && pay.every((t) => t.permission === "ask");
 }
 
+/** The agent rules the public chat can quote: why records are flagged, and when payouts wait for a person. */
+export const QUOTED_RULES = { flag: /flag/i, payout: /(payout|payment)s?\b.*(above|over|team lead)/i } as const;
+
 /** One of the project's own agent rules that explains the answer, quoted with whose rule it is. */
 function ruleAbout(bp: Blueprint, re: RegExp): string {
   for (const a of bp.agents) {
@@ -406,7 +409,7 @@ export function demoReply(bp: Blueprint, agent: Agent | undefined, question: str
       const text = ent.fields.find((f) => f.type === "text");
       return text && r[text.name] ? `${show(E.title, r[E.title.name])}: ${String(r[text.name])}` : "";
     }).filter(Boolean);
-    const rule = ruleAbout(bp, /flag/i);
+    const rule = ruleAbout(bp, QUOTED_RULES.flag);
     return [`${plural(rows.length, `${lower(ent.name)} is`, `${lower(ent.plural)} are`)} ${tag && !/flag/i.test(`${tag} ${q}`) ? `marked ${tag}` : "flagged"}:`, bullets(ent, rows, why), notes.length ? notes.join("\n") : "", rule].filter(Boolean).join("\n\n");
   }
 
@@ -437,7 +440,7 @@ export function demoReply(bp: Blueprint, agent: Agent | undefined, question: str
       held.length ? `Held for a closer look:\n\n${bullets(ent, held)}` : "",
       done.length ? `Already sent: ${done.length}.` : "",
       gated ? "Money only moves after a person approves it." : "",
-      held.length ? ruleAbout(bp, /(payout|payment)s?\b.*(above|over|team lead)/i) : "",
+      held.length ? ruleAbout(bp, QUOTED_RULES.payout) : "",
     ].filter(Boolean).join("\n\n");
   }
 

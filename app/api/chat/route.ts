@@ -7,7 +7,7 @@ import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { agentInstructions, approvalFor, buildTools, stubResult } from "@/lib/agents/tools";
 import { scriptedRun } from "@/lib/agents/scripted";
-import { modelBudgetOk } from "@/lib/llm/guard";
+import { holdModelBudget } from "@/lib/llm/guard";
 import { shortId } from "@/lib/sim/hash";
 import type { Agent, Blueprint } from "@/lib/blueprint/schema";
 import type { ToolCallRecord } from "@/lib/db/types";
@@ -15,7 +15,51 @@ import type { ToolCallRecord } from "@/lib/db/types";
 export const maxDuration = 90;
 export const dynamic = "force-dynamic";
 
+/** Output tokens per model step (a turn is at most 4 steps). */
+const MAX_STEP_OUTPUT = 1200;
+
+const approvalSecret = () => process.env.SIGNING_SECRET || process.env.SUPABASE_SECRET_KEY || undefined;
+
 type Body = { messages: UIMessage[]; projectId: string; agentId: string; runId?: string };
+
+/** What one chat request may carry: a conversation short enough to be cheap, in the shape the SDK sends. */
+const LIMITS = { messages: 40, parts: 40, textChars: 4000, totalChars: 24000, bytes: 200_000 };
+
+function readBody(raw: unknown): Body | null {
+  if (!raw || typeof raw !== "object") return null;
+  const b = raw as Record<string, unknown>;
+  if (typeof b.projectId !== "string" || typeof b.agentId !== "string" || b.agentId.length > 80) return null;
+  if (!Array.isArray(b.messages) || b.messages.length === 0 || b.messages.length > LIMITS.messages) return null;
+  if (JSON.stringify(b.messages).length > LIMITS.bytes) return null;
+  let total = 0;
+  for (const m of b.messages as { role?: unknown; parts?: unknown }[]) {
+    // Only the two sides of the conversation: nobody sends their own system prompt.
+    if (m.role !== "user" && m.role !== "assistant") return null;
+    if (!Array.isArray(m.parts) || m.parts.length > LIMITS.parts) return null;
+    for (const p of m.parts as { type?: unknown; text?: unknown }[]) {
+      if (typeof p?.type !== "string") return null;
+      if (typeof p.text === "string") {
+        if (p.text.length > LIMITS.textChars) return null;
+        total += p.text.length;
+      }
+    }
+  }
+  if (total > LIMITS.totalChars) return null;
+  return { messages: b.messages as UIMessage[], projectId: b.projectId, agentId: b.agentId, runId: typeof b.runId === "string" ? b.runId : undefined };
+}
+
+/** A short assistant reply written straight into the stream (the budget fence, asking too fast). */
+function notice(messages: UIMessage[], id: string, text: string, mode: string) {
+  const stream = createUIMessageStream({
+    originalMessages: messages,
+    execute: ({ writer }) => {
+      writer.write({ type: "text-start", id });
+      writer.write({ type: "text-delta", id, delta: text });
+      writer.write({ type: "text-end", id });
+    },
+  });
+  return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": mode } });
+}
 
 type AnyPart = { type: string; text?: string; toolCallId?: string; state?: string; input?: unknown; output?: unknown; approval?: { approved?: boolean; isAutomatic?: boolean } };
 
@@ -121,7 +165,8 @@ function summarize(messages: UIMessage[], access: Record<string, ToolCallRecord[
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return new Response("Sign in first", { status: 401 });
-  const body = (await req.json()) as Body;
+  const body = readBody(await req.json().catch(() => null));
+  if (!body) return new Response("That conversation is too long or malformed. Start a new one.", { status: 400 });
   const supa = await createClient();
   const project = await getProject(supa, body.projectId);
   const agent = project?.blueprint.agents.find((a) => a.id === body.agentId);
@@ -152,19 +197,25 @@ export async function POST(req: Request) {
   // Budget fence: stop before passing the cap, and say so (HTTP 200, not an error).
   const spent = await usageSummary(supa, { projectId: project.id });
   if (spent.credits >= project.settings.budgetCapCredits) {
-    const stream = createUIMessageStream({
-      originalMessages: body.messages,
-      execute: ({ writer }) => {
-        writer.write({ type: "text-start", id: "cap" });
-        writer.write({ type: "text-delta", id: "cap", delta: `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on. Nothing was charged for this message.` });
-        writer.write({ type: "text-end", id: "cap" });
-      },
-    });
-    return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "budget" } });
+    return notice(body.messages, "cap", `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on. Nothing was charged for this message.`, "budget");
   }
 
-  const m = (await modelBudgetOk(supa, user)) ? getModel() : null;
-  if (m) {
+  const hold = await holdModelBudget(user, "chat");
+  if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give me a moment, then try again. Nothing was charged.", "rate");
+  const m = hold.ok ? getModel() : null;
+  if (m && hold.ok) {
+    // Metered exactly once, however the run ends: finished, failed or abandoned. The provider bills every step.
+    const done = { input: 0, output: 0 };
+    let metered = false;
+    const inFlight = { input: Math.ceil((agentInstructions(bp, agent).length + JSON.stringify(body.messages).length) / 3.5), output: MAX_STEP_OUTPUT };
+    const meter = async (input: number, output: number, failed: boolean) => {
+      if (metered) return;
+      metered = true;
+      const { costUsd, credits } = costOf(m.id, input, output);
+      // A failed run is not charged to you (0 credits); its real cost still counts toward the daily model budget.
+      await logUsage({ userId: user.id, projectId: project.id, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits: failed ? 0 : credits, meta: { agentId: agent.id, runId, ...(failed ? { failed: true } : {}) } });
+      await hold.release();
+    };
     try {
       const result = streamText({
         model: m.model,
@@ -174,16 +225,24 @@ export async function POST(req: Request) {
         // One rule for every tool, shared with codegen: "ask" or irreversible waits for a person.
         // Supervision presets write these permissions, so "Approve everything" gates every tool here.
         toolApproval: Object.fromEntries(agent.tools.map((t) => [t.id, approvalFor(t)])),
-        stopWhen: isStepCount(6),
+        // Bounded per turn: a few steps, each with a short answer, so one message can't cost dollars.
+        stopWhen: isStepCount(4),
+        maxOutputTokens: MAX_STEP_OUTPUT,
         timeout: 80_000,
-        maxRetries: 1,
+        maxRetries: 0,
+        // Approval requests are signed here and checked when they come back, so a browser can't forge an "Allow".
+        experimental_toolApprovalSecret: approvalSecret(),
         providerOptions: { anthropic: { effort: "low", metadata: { userId: user.id } } },
-        onFinish: async ({ totalUsage }) => {
-          const input = totalUsage.inputTokens ?? 0;
-          const output = totalUsage.outputTokens ?? 0;
-          const { costUsd, credits } = costOf(m.id, input, output);
-          await logUsage(supa, { userId: user.id, projectId: project.id, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits, meta: { agentId: agent.id, runId } });
+        onStepEnd: ({ usage }) => {
+          done.input += usage.inputTokens ?? 0;
+          done.output += usage.outputTokens ?? 0;
         },
+        onFinish: async ({ totalUsage }) => meter(totalUsage.inputTokens ?? 0, totalUsage.outputTokens ?? 0, false),
+        onError: async ({ error }) => {
+          console.error("[chat] model run failed:", error instanceof Error ? error.message : error);
+          await meter(done.input + inFlight.input, done.output + inFlight.output, true);
+        },
+        onAbort: async () => meter(done.input + inFlight.input, done.output + inFlight.output, true),
       });
       const stream = toUIMessageStream({
         stream: result.stream,
@@ -198,8 +257,9 @@ export async function POST(req: Request) {
       return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "live", "x-prodai-run": runId } });
     } catch (e) {
       console.error("[chat] model failed, scripted fallback:", e instanceof Error ? e.message : e);
+      await hold.release();
     }
-  }
+  } else if (hold.ok) await hold.release();
 
   const stream = createUIMessageStream({
     originalMessages: body.messages,

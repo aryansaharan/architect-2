@@ -42,6 +42,13 @@ async function load(projectId: string) {
   return { user, supa, project };
 }
 
+/** The person gets a plain message; the detail (often a database error) goes to the server log. */
+function failure(e: unknown, plain: string): { ok: false; error: string } {
+  if (e instanceof Error && e.message === "Project not found") return { ok: false, error: e.message };
+  console.error(`[build] ${plain}:`, e);
+  return { ok: false, error: plain };
+}
+
 /**
  * Move the project from one build state to another only if it is still in the expected one.
  * Returns false when something else (a second tab, a double click, a retry) got there first.
@@ -116,7 +123,7 @@ export async function startBuild(projectId: string): Promise<StartBuildResult> {
               credits: 0,
             },
       ]);
-      if (credits) await logUsage(supa, { userId: user.id, projectId, kind: "build", credits, meta: { note: "Work Order estimate", scripted: true } });
+      if (credits) await logUsage({ userId: user.id, projectId, kind: "build", credits, meta: { note: "Work Order estimate", scripted: true } });
       revalidatePath(`/p/${projectId}`, "layout");
       return { ok: true, state: "building", credits, charged: credits || already, resumed: false, repair: null };
     }
@@ -129,7 +136,7 @@ export async function startBuild(projectId: string): Promise<StartBuildResult> {
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true, state: "building", credits: 0, charged, resumed: true, repair };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not start the build" };
+    return failure(e, "Could not start the build");
   }
 }
 
@@ -143,7 +150,7 @@ export async function resolveRepair(projectId: string, planId: string, optionId:
     if (plan.id !== planId) return { ok: true }; // already applied on an earlier attempt
     const option = plan.options.find((o) => o.id === optionId)!;
     const applied = applyOps(project.blueprint, option.ops);
-    if (!applied.ok) return { ok: false, error: applied.error };
+    if (!applied.ok) return failure(applied.error, "Could not apply the fix");
     await updateProject(supa, projectId, { blueprint: applied.blueprint });
     await addLedger(supa, projectId, [
       {
@@ -160,7 +167,7 @@ export async function resolveRepair(projectId: string, planId: string, optionId:
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not apply the fix" };
+    return failure(e, "Could not apply the fix");
   }
 }
 
@@ -205,7 +212,7 @@ export async function completeBuild(projectId: string): Promise<Result> {
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not finish the build" };
+    return failure(e, "Could not finish the build");
   }
 }
 
@@ -220,7 +227,7 @@ export async function cancelBuild(projectId: string): Promise<Result & { refunde
     if (!(await claimState(supa, projectId, "building", { build_state: "draft" }))) return { ok: true, refunded: 0 }; // stopped or finished elsewhere
     const [refund, fix] = await Promise.all([outstandingCharge(supa, projectId), decidedRepair(supa, projectId)]);
     await supa.from("work_orders").update({ status: "proposed" }).eq("project_id", projectId).eq("kind", "build").eq("status", "running");
-    if (refund > 0) await logUsage(supa, { userId: user.id, projectId, kind: "refund", credits: -refund, meta: { note: "Build stopped, refunded" } });
+    if (refund > 0) await logUsage({ userId: user.id, projectId, kind: "refund", credits: -refund, meta: { note: "Build stopped, refunded" } });
     const plan = fix ? "The plan keeps the free fix Prod AI made during the build. Everything else is exactly as you left it." : "The plan is exactly as you left it.";
     // Stopping is the person's choice, not a fix Prod AI made: log it as theirs (no "Our fix" badge, not counted as a fix).
     await addLedger(supa, projectId, [
@@ -236,6 +243,6 @@ export async function cancelBuild(projectId: string): Promise<Result & { refunde
     revalidatePath(`/p/${projectId}`, "layout");
     return { ok: true, refunded: refund };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not stop the build" };
+    return failure(e, "Could not stop the build");
   }
 }

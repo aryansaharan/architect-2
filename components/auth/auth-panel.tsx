@@ -15,6 +15,15 @@ const ERRORS: Record<string, string> = {
   provider: "That way of signing in isn't switched on here yet. Try another, or continue as a guest.",
 };
 
+/** Supabase's own error text, said plainly: the common cases by name, anything else without internals. */
+function authError(raw: string): string {
+  if (/rate limit|too many|security purposes/i.test(raw)) return "Too many sign-in emails just now. Wait a minute, then try again.";
+  if (/invalid.*email|email.*invalid|unable to validate email/i.test(raw)) return "That email address doesn't look right. Check it and try again.";
+  if (/signups? not allowed|disabled/i.test(raw)) return "New sign-ups are paused for a moment. Continue as a guest, or try again later.";
+  console.error("sign-in failed:", raw);
+  return "Sign-in didn't go through. Try again, or continue as a guest.";
+}
+
 function Or({ children }: { children: React.ReactNode }) {
   return (
     <div className="my-5 flex items-center gap-3 font-sketch text-[12px] text-faint">
@@ -43,7 +52,7 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
       : await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectTo() } });
     if (error) {
       setPending(null);
-      setMessage(/not enabled|unsupported/i.test(error.message) ? ERRORS.provider : error.message);
+      setMessage(/not enabled|unsupported/i.test(error.message) ? ERRORS.provider : authError(error.message));
     }
   }
 
@@ -57,7 +66,7 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
       ? await supabase.auth.updateUser({ email }, { emailRedirectTo: redirectTo() })
       : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
     setPending(null);
-    if (error) setMessage(error.message);
+    if (error) setMessage(authError(error.message));
     else setSent(true);
   }
 

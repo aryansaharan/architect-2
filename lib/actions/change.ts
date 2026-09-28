@@ -9,7 +9,7 @@ import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { ChangeProposal, WorkOrderRow } from "@/lib/db/types";
 import { proposeChange } from "@/lib/change/propose";
 import { usageSummary } from "@/lib/db/queries";
-import { modelBudgetOk } from "@/lib/llm/guard";
+import { holdModelBudget } from "@/lib/llm/guard";
 
 export type RequestChangeResult =
   | { ok: true; workOrder: WorkOrderRow; overBudget: boolean }
@@ -30,11 +30,21 @@ export async function requestChange(projectId: string, request: string, scope: O
     return { ok: false, error: `Paused: this project has used ${Math.round(spent.credits)} of its ${cap}-credit cap. Raise the cap in Settings to ask for more changes. Nothing was charged.` };
   }
 
-  const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: await modelBudgetOk(supa, user) });
-  if (usage) {
-    // Free to you: 0 credits on your meter. Tokens and real cost are still recorded for our own metrics and the daily model budget.
-    await logUsage(supa, { userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "change-quote", free: true, modelCredits: usage.credits } });
+  const hold = await holdModelBudget(user, "change");
+  if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of changes in a few minutes. Wait a little, then try again. Nothing was charged." };
+  try {
+    const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: hold.ok });
+    if (usage) {
+      // Free to you: 0 credits on your meter. Tokens and real cost are still metered, failed attempts included, for the daily model budget.
+      await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "change-quote", free: true, modelCredits: usage.credits } });
+    }
+    return await saveQuote(supa, projectId, text, scope, proposal, spent.credits, cap);
+  } finally {
+    if (hold.ok) await hold.release();
   }
+}
+
+async function saveQuote(supa: Supa, projectId: string, text: string, scope: ObjectRef | null, proposal: Awaited<ReturnType<typeof proposeChange>>["proposal"], spentCredits: number, cap: number): Promise<RequestChangeResult> {
   const { data, error } = await supa
     .from("work_orders")
     .insert({ project_id: projectId, request: text, kind: "change", estimate: { credits: proposal.credits, minutes: proposal.minutes }, proposal: { ...proposal, scope } as ChangeProposal, status: "proposed" })
@@ -46,7 +56,7 @@ export async function requestChange(projectId: string, request: string, scope: O
   }
   const workOrder = data as WorkOrderRow;
   await logChat(supa, projectId, text, scope, workOrder.id, proposal);
-  return { ok: true, workOrder, overBudget: spent.credits + proposal.credits > cap };
+  return { ok: true, workOrder, overBudget: spentCredits + proposal.credits > cap };
 }
 
 /**
@@ -116,7 +126,7 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
       meta: { workOrderId, mode: order.proposal.mode },
     },
   ]);
-  await logUsage(supa, { userId: user.id, projectId, kind: "change", credits: order.proposal.credits, meta: { workOrderId, scripted: true } });
+  await logUsage({ userId: user.id, projectId, kind: "change", credits: order.proposal.credits, meta: { workOrderId, scripted: true } });
   await supa.from("work_orders").update({ status: "done", resolved_at: new Date().toISOString() }).eq("id", workOrderId);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, label: `version ${cp.seq}` };

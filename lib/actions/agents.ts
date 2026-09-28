@@ -11,10 +11,10 @@ import { BlueprintSchema, type Agent, type Blueprint, type Framework } from "@/l
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { getModel } from "@/lib/llm/provider";
-import { costOf } from "@/lib/llm/pricing";
+import { costOf, failedSpend } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
-import { modelBudgetOk } from "@/lib/llm/guard";
+import { holdModelBudget } from "@/lib/llm/guard";
 import { applySupervision, estimateRunCredits, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
 import { agentLocationError, agentNameFromLocation } from "@/lib/import/detect";
@@ -169,7 +169,9 @@ export async function addAgentFromDescription(projectId: string, description: st
   const db = bp.connections.find((c) => c.kind === "database") ?? bp.connections[0];
   let agent: Agent | null = null;
   let credits = 0;
-  const m = (await modelBudgetOk(supa, user)) ? getModel() : null;
+  const hold = await holdModelBudget(user, "agent");
+  if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of new AI helpers in a few minutes. Wait a little, then try again." };
+  const m = hold.ok ? getModel() : null;
   if (m) {
     try {
       const r = await generateText({
@@ -179,7 +181,7 @@ export async function addAgentFromDescription(projectId: string, description: st
         output: Output.object({ schema: NewAgentSchema, name: "new_agent" }),
         maxOutputTokens: 3000,
         timeout: 60_000,
-        maxRetries: 1,
+        maxRetries: 0,
         providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },
       });
       const o = cleanDeep(r.output);
@@ -212,11 +214,15 @@ export async function addAgentFromDescription(projectId: string, description: st
       };
       const u = r.usage;
       credits = costOf(m.id, u.inputTokens ?? 0, u.outputTokens ?? 0).credits;
-      await logUsage(supa, { userId: user.id, projectId, kind: "llm", provider: "anthropic", model: m.id, inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0, costUsd: costOf(m.id, u.inputTokens ?? 0, u.outputTokens ?? 0).costUsd, credits, meta: { op: "new-agent" } });
+      await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: m.id, inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0, costUsd: costOf(m.id, u.inputTokens ?? 0, u.outputTokens ?? 0).costUsd, credits, meta: { op: "new-agent" } });
     } catch (e) {
       console.error("[agents] model failed, template:", e instanceof Error ? e.message : e);
+      // Not charged to you, but a failed call is billed by the provider, so it counts toward the daily model budget.
+      const f = await failedSpend(m.id, undefined, { inputTokens: 2000, outputTokens: 3000 });
+      await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: m.id, inputTokens: f.inputTokens, outputTokens: f.outputTokens, costUsd: f.costUsd, credits: 0, meta: { op: "new-agent", failed: true } });
     }
   }
+  if (hold.ok) await hold.release();
   if (!agent) {
     const name = text.split(/[.,;:]| that | who | to /i)[0].split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ") || "Helper";
     const id = uniqueId(bp, kebab(name));

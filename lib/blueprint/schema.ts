@@ -269,7 +269,8 @@ export const BlueprintSchema = z.object({
     vertical: VerticalSchema,
     plain: z.string(),
     theme: z.object({
-      primary: z.string(),
+      /** Written into a style attribute (components/renderer/spec-app.tsx), so only a 6-digit hex colour. */
+      primary: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a 6-digit hex colour like #0F766E"),
       radius: z.enum(["sm", "md", "lg"]),
       density: z.enum(["compact", "comfortable"]),
       mode: z.enum(["light", "dark"]).default("light"),

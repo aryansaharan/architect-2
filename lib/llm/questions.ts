@@ -4,7 +4,7 @@ import { z } from "zod";
 import { STYLE_RULE, cleanDeep } from "@/lib/text";
 import { questionsFromModel, type Question } from "@/lib/blueprint/questions";
 import { getFastModel, supportsEffort } from "./provider";
-import { costOf } from "./pricing";
+import { costOf, failedSpend } from "./pricing";
 
 /**
  * The three quick questions, written for the brief by one small, fast
@@ -83,6 +83,7 @@ export async function questionsWithModel(brief: string, opts: { userId?: string;
   } catch (e) {
     const reason = e instanceof Error ? e.message.slice(0, 200) : "unknown";
     console.error("[questions] using the template questions:", reason);
-    return { mode: "offline", reason };
+    // A timed-out call is still billed: meter the most its output cap allows.
+    return { mode: "offline", reason, usage: await failedSpend(m.id, undefined, { inputTokens: 1500, outputTokens: 1500 }) };
   }
 }

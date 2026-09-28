@@ -2,13 +2,17 @@ import "server-only";
 
 export type RepoRef = { owner: string; name: string; branch?: string; path?: string };
 
+/** GitHub owner and repo names: letters, digits, "-", "_" and ".", and never a path segment like "..". */
+const validName = (s: string) => /^[\w.-]{1,100}$/.test(s) && !/^\.+$/.test(s);
+
 export function parseRepo(input: string): RepoRef | null {
-  const s = input.trim().replace(/\.git$/, "").replace(/\/+$/, "");
+  const s = input.trim().slice(0, 300).replace(/\.git$/, "").replace(/\/+$/, "");
   const url = s.match(/github\.com[/:]([\w.-]+)\/([\w.-]+)(?:\/tree\/([\w./-]+?))?(?:\/(.*))?$/i);
-  if (url) return { owner: url[1], name: url[2], branch: url[3]?.split("/")[0] };
-  const short = s.match(/^([\w.-]+)\/([\w.-]+)$/);
-  if (short) return { owner: short[1], name: short[2] };
-  return null;
+  const short = url ? null : s.match(/^([\w.-]+)\/([\w.-]+)$/);
+  const m = url ?? short;
+  if (!m || !validName(m[1]) || !validName(m[2])) return null;
+  const branch = url?.[3]?.split("/")[0];
+  return { owner: m[1], name: m[2], branch: branch && validName(branch) ? branch : undefined };
 }
 
 export type RepoMeta = {

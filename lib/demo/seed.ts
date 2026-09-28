@@ -1,5 +1,6 @@
 import "server-only";
 import type { Supa } from "@/lib/supabase/server";
+import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { starterBlueprint, STARTERS } from "@/lib/blueprint/fixtures";
 import { applyOps, markBuilt } from "@/lib/blueprint/apply";
 import { planRepair, repairLedgerTitle } from "@/lib/sim/repair";
@@ -42,7 +43,8 @@ function withBuildRehearsals(planned: Blueprint, built: Blueprint, firstRun: str
 /**
  * Seeds the hero demo: a Claims Triage Desk that has been planned, built
  * (with one repair), rehearsed, commented on, handed off and put live.
- * Everything is written through the guest's own session, so RLS is exercised.
+ * Everything is written through the guest's own session, so RLS is exercised, except the published site,
+ * which only the server may write (like every publish).
  */
 export async function seedDemoProject(supa: Supa, userId: string): Promise<string> {
   const t0 = Date.now() - 1000 * 60 * 95;
@@ -79,7 +81,11 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   const lastDiff = diffToText(diffFiles(generateFiles(planned), generateFiles(built)).filter((f) => f.path === gatedSpec));
 
   const slug = `claims-desk-${shortId(project.id)}`;
-  await supa.from("live_sites").insert({ slug, project_id: project.id, checkpoint_id: cp2.id, blueprint: built });
+  // Published sites are written only by the server. The project was just created through the guest's session, so they own it.
+  if (hasAdmin()) {
+    const { error } = await adminClient().from("live_sites").insert({ slug, project_id: project.id, checkpoint_id: cp2.id, blueprint: built });
+    if (error) console.error("[seed] publishing the demo failed", error.message);
+  }
   await supa.from("deployments").insert({
     project_id: project.id,
     env: "live",
@@ -152,8 +158,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     created_at: at(90),
   });
 
-  await logUsage(supa, { userId, projectId: project.id, kind: "build", credits: buildCredits, meta: { note: "Work Order estimate", scripted: true } });
-  await logUsage(supa, { userId, projectId: project.id, kind: "agent_run", provider: "anthropic", model: "claude-opus-5", inputTokens: 2140, outputTokens: 610, costUsd: 0.02595, credits: 0.7, meta: { agentId: "intake-triage", scripted: true } });
+  await logUsage({ userId, projectId: project.id, kind: "build", credits: buildCredits, meta: { note: "Work Order estimate", scripted: true } });
+  await logUsage({ userId, projectId: project.id, kind: "agent_run", provider: "anthropic", model: "claude-opus-5", inputTokens: 2140, outputTokens: 610, costUsd: 0.02595, credits: 0.7, meta: { agentId: "intake-triage", scripted: true } });
 
   await updateProject(supa, project.id, { current_checkpoint_id: cp2.id });
   return project.id;

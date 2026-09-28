@@ -22,6 +22,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
   const [readStep, setReadStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ImportReportWithTree | null>(null);
+  const [sig, setSig] = useState<string | null>(null);
   const [rules, setRules] = useState<{ text: string; on: boolean }[]>([]);
   const [newRule, setNewRule] = useState("");
   const planner = usePlanStream(llm);
@@ -44,6 +45,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         return;
       }
       setReport(j.report);
+      setSig(j.sig ?? null);
       setRules((j.houseRules as string[]).map((text) => ({ text, on: true })));
       setStep("report");
     } catch {
@@ -63,7 +65,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
 
   const map = () => {
     setStep("mapping");
-    void planner.start("/api/import/create", { report, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}`);
+    void planner.start("/api/import/create", { report, sig, houseRules: rules.filter((r) => r.on).map((r) => r.text) }, (id) => `/p/${id}`);
   };
 
   const addRule = () => {

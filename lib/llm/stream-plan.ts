@@ -4,7 +4,7 @@ import type { Blueprint } from "@/lib/blueprint/schema";
 import { DraftSchema, PLANNER_INSTRUCTIONS, type Draft } from "./draft";
 import { expandDraft } from "./expand";
 import { getModel } from "./provider";
-import { costOf } from "./pricing";
+import { costOf, failedSpend, type ModelSpend } from "./pricing";
 import { STYLE_RULE, cleanDeep } from "@/lib/text";
 
 export type PlanEvent =
@@ -14,7 +14,7 @@ export type PlanEvent =
   | { t: "done"; projectId: string; mode: "live" | "offline"; name: string }
   | { t: "error"; message: string };
 
-export type PlanUsage = { model: string; inputTokens: number; outputTokens: number; costUsd: number; credits: number };
+export type PlanUsage = ModelSpend;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,12 +31,18 @@ export async function streamPlan(opts: {
   failureNote: string;
   adjust?: (bp: Blueprint, draft: Draft | null) => Blueprint;
   allowModel?: boolean;
-}): Promise<{ blueprint: Blueprint; mode: "live" | "offline"; usage: PlanUsage | null; vertical: string }> {
+  /** Said when the model isn't used (no budget): defaults to the daily budget being spent. */
+  noModelNote?: string;
+}): Promise<{ blueprint: Blueprint; mode: "live" | "offline"; usage: PlanUsage | null; spent: ModelSpend | null; vertical: string }> {
   const { send } = opts;
   const m = opts.allowModel === false ? null : getModel();
-  if (opts.allowModel === false && getModel()) send({ t: "note", text: "Today's model budget for this account is used up, so this plan comes from the closest starter. It resets in 24 hours." });
+  if (opts.allowModel === false && getModel())
+    send({ t: "note", text: opts.noModelNote ?? "Today's model budget for this account is used up, so this plan comes from the closest starter. It resets in 24 hours." });
+  // What the model call cost, success or not, so the caller can meter it (a failure is billed too).
+  let spent: ModelSpend | null = null;
   if (m) {
     send({ t: "status", mode: "live", model: m.id });
+    let usage: PromiseLike<{ inputTokens?: number; outputTokens?: number }> | undefined;
     try {
       const result = streamText({
         model: m.model,
@@ -48,6 +54,7 @@ export async function streamPlan(opts: {
         maxRetries: 0,
         providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat", metadata: { userId: opts.userId } } },
       });
+      usage = result.usage;
       let last = 0;
       for await (const partial of result.partialOutputStream) {
         const now = Date.now();
@@ -63,9 +70,11 @@ export async function streamPlan(opts: {
       const u = await result.usage;
       const inputTokens = u.inputTokens ?? 0;
       const outputTokens = u.outputTokens ?? 0;
-      return { blueprint, mode: "live", usage: { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) }, vertical: draft.vertical };
+      const done: ModelSpend = { model: m.id, inputTokens, outputTokens, ...costOf(m.id, inputTokens, outputTokens) };
+      return { blueprint, mode: "live", usage: done, spent: done, vertical: draft.vertical };
     } catch (e) {
       console.error("[plan] model failed, using starter:", e instanceof Error ? e.message : e);
+      spent = await failedSpend(m.id, usage, { inputTokens: 8000, outputTokens: 12000 });
       send({ t: "note", text: opts.failureNote });
     }
   } else {
@@ -88,5 +97,5 @@ export async function streamPlan(opts: {
     send({ t: "partial", draft: acc });
     await sleep(550);
   }
-  return { blueprint, mode: "offline", usage: null, vertical: bp.meta.vertical };
+  return { blueprint, mode: "offline", usage: null, spent, vertical: bp.meta.vertical };
 }

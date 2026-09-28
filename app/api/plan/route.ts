@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writes";
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
-import { modelBudgetOk } from "@/lib/llm/guard";
+import { holdModelBudget } from "@/lib/llm/guard";
+import { projectCapMessage } from "@/lib/security/caps";
 import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, saysNothingConnected, startNotConnected } from "@/lib/llm/draft";
 import { buildTimeLabel, estimate } from "@/lib/blueprint/estimate";
 import type { Blueprint } from "@/lib/blueprint/schema";
@@ -40,23 +41,32 @@ export async function POST(req: Request) {
     return next;
   };
   const supa = await createClient();
-  const allowModel = await modelBudgetOk(supa, user);
+  // Don't spend a model call on a plan that couldn't be saved.
+  const full = await projectCapMessage(supa, user);
+  if (full) return Response.json({ error: full }, { status: 403 });
+  const hold = await holdModelBudget(user, "plan");
+  if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of plans in a few minutes. Wait a little, then try again." }, { status: 429 });
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const enc = new TextEncoder();
       const send = (e: PlanEvent) => controller.enqueue(enc.encode(JSON.stringify(e) + "\n"));
-      const { blueprint, mode, usage, vertical } = await streamPlan({
-        prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : wanted.length ? `\n\n${connectionsNote(wanted)}` : ""}`,
-        userId: user.id,
-        allowModel,
-        send,
-        fallback: () => starterFor(brief).blueprint,
-        adjust,
-        failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
-      });
+      let projectId: string | null = null;
+      let spent: Awaited<ReturnType<typeof streamPlan>>["spent"] = null;
       try {
+        const { blueprint, mode, usage, spent: cost, vertical } = await streamPlan({
+          prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : wanted.length ? `\n\n${connectionsNote(wanted)}` : ""}`,
+          userId: user.id,
+          allowModel: hold.ok,
+          noModelNote: user.isAnonymous ? "Guests start from the closest starter plan. Sign in and Claude plans it from your own words." : undefined,
+          send,
+          fallback: () => starterFor(brief).blueprint,
+          adjust,
+          failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
+        });
+        spent = cost;
         const project = await createProject(supa, { ownerId: user.id, name: blueprint.meta.name, vertical, brief, blueprint, buildState: "draft" });
+        projectId = project.id;
         const cp = await addCheckpoint(supa, project.id, {
           label: "Plan v1",
           kind: "blueprint",
@@ -80,12 +90,15 @@ export async function POST(req: Request) {
             checkpointId: cp.id,
           },
         ]);
-        // Planning is free to you: 0 credits on your meter. Tokens and real cost are still recorded for our own metrics and the daily model budget.
-        if (usage) await logUsage(supa, { userId: user.id, projectId: project.id, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "plan", free: true, modelCredits: usage.credits } });
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[plan] save failed", e);
-        send({ t: "error", message: e instanceof Error && /guest project cap|row-level/i.test(e.message) ? "Guests can keep up to 8 projects. Sign in to make more." : "Couldn't save the project. Try again." });
+        send({ t: "error", message: e instanceof Error && /project cap|row-level/i.test(e.message) ? (await projectCapMessage(supa, user)) ?? "Couldn't save the project. Try again." : "Couldn't save the project. Try again." });
+      } finally {
+        // Planning is free to you: 0 credits on your meter. The real cost is still metered, saved or not,
+        // for the daily model budget; a failed call is billed by the provider too.
+        if (spent) await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: 0, meta: { op: "plan", free: true, modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
+        if (hold.ok) await hold.release();
       }
       controller.close();
     },

@@ -1,5 +1,6 @@
 import "server-only";
 import type { Supa } from "@/lib/supabase/server";
+import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import type {
   Blame,
@@ -131,22 +132,27 @@ export async function addLedger(supa: Supa, projectId: string, events: LedgerInp
   if (error) throw error;
 }
 
-export async function logUsage(
-  supa: Supa,
-  u: {
-    userId: string;
-    projectId?: string | null;
-    kind: string;
-    provider?: string | null;
-    model?: string | null;
-    inputTokens?: number;
-    outputTokens?: number;
-    costUsd?: number;
-    credits: number;
-    meta?: Record<string, unknown>;
-  },
-) {
-  const { error } = await supa.from("usage_events").insert({
+/**
+ * The spend meter. Written through the server's admin connection, never the person's session,
+ * so nobody can edit or delete what they spent (the table is read-only to people).
+ */
+export async function logUsage(u: {
+  userId: string;
+  projectId?: string | null;
+  kind: string;
+  provider?: string | null;
+  model?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  credits: number;
+  meta?: Record<string, unknown>;
+}) {
+  if (!hasAdmin()) {
+    console.error("usage not metered: SUPABASE_SECRET_KEY is not set");
+    return;
+  }
+  const { error } = await adminClient().from("usage_events").insert({
     user_id: u.userId,
     project_id: u.projectId ?? null,
     kind: u.kind,
