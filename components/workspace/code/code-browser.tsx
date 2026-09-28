@@ -13,6 +13,8 @@ import type { RepoSnapshot } from "@/lib/import/snapshot";
 import { CodeView } from "@/components/arch/code-view";
 import { Segmented } from "@/components/arch/segmented";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/input";
+import { Pill } from "@/components/ui/pill";
 import { GitHubMark } from "@/components/brand/logo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -54,6 +56,48 @@ function langOf(path: string): GeneratedFile["lang"] {
   const base = path.split("/").pop() ?? "";
   if (/^\.env/.test(base)) return "env";
   return EXT_LANG[base.split(".").pop()?.toLowerCase() ?? ""] ?? "txt";
+}
+
+/** Diff lines: additions in the success green, removals in faint ink. Blue and green keep their access meanings. */
+const DIFF = {
+  add: "border-ok bg-brand-soft text-foreground",
+  del: "border-foreground/30 bg-foreground/[0.04] text-muted-foreground",
+  same: "border-transparent text-foreground/70",
+};
+const DIFF_DOT = { added: "bg-ok", removed: "bg-foreground/30", modified: "bg-muted-foreground" } as const;
+
+/** A version's name as the Versions menu writes it. */
+const versionName = (label: string) => label.replace(/^Went live$/, "Published").replace(/^Restored #(\d+) · /, "Restored version $1 · ");
+
+/**
+ * Which version to compare: a small choice when there are two to four (one tab stop, arrow keys move),
+ * a list drawn like the inputs when there are more.
+ */
+function VersionPicker({ which, value, onChange, compact, className }: { which: "from" | "to"; value: string; onChange: (id: string) => void; compact?: boolean; className?: string }) {
+  const ws = useWorkspace();
+  const list = ws.checkpoints;
+  const title = which === "from" ? "From" : "To";
+  if (list.length >= 2 && list.length <= 4) {
+    const options = [...list].sort((a, b) => a.seq - b.seq).map((c) => ({
+      value: c.id,
+      title: `Version ${c.seq} · ${versionName(c.label)}`,
+      label: compact ? <><span className="sr-only">Version </span>v{c.seq}</> : <span className="min-w-0 truncate">Version {c.seq} · {versionName(c.label)}</span>,
+    }));
+    return (
+      <div className={cn(compact ? "flex items-center gap-2" : "", className)}>
+        <p className={cn("text-meta font-medium text-muted-foreground", !compact && "mb-1")}>{title}</p>
+        <Segmented ariaLabel={`${title} version`} value={value} onChange={onChange} options={options} className={cn(!compact && "flex w-full flex-col items-stretch [&>button]:justify-start [&>button]:overflow-hidden")} />
+      </div>
+    );
+  }
+  return (
+    <label className={cn("block", compact && "flex min-w-0 flex-1 items-center gap-2", className)}>
+      <span className="text-meta font-medium text-muted-foreground">{title}</span>
+      <NativeSelect aria-label={`${title} version`} value={value} onChange={(e) => onChange(e.target.value)} className={cn(!compact && "mt-1")}>
+        {list.map((c) => <option key={c.id} value={c.id}>Version {c.seq} · {versionName(c.label)}</option>)}
+      </NativeSelect>
+    </label>
+  );
 }
 
 type RepoFile = { status: "ok"; content: string } | { status: "binary" | "error" };
@@ -171,13 +215,13 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
           <Segmented ariaLabel="Code view" value={mode} onChange={setMode} className="w-full [&>button]:flex-1 [&>button]:justify-center" options={[{ value: "files", label: filesLabel }, { value: "changes", label: "Changes" }]} />
         </div>
         {mode === "files" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 font-mono text-[12px]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 font-mono text-code">
             {pr ? (
               <>
                 <section aria-label="Your repo, untouched">
                   <div className="px-1 pb-1.5 pt-1 font-sans">
-                    <p className="flex items-center gap-1.5 text-[12px] font-semibold"><GitHubMark className="size-3.5" />Your repo · untouched</p>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    <p className="flex items-center gap-1.5 text-meta font-semibold"><GitHubMark className="size-3.5" />Your repo · untouched</p>
+                    <p className="mt-0.5 truncate text-badge text-muted-foreground">
                       {snap ? <>{snap.owner}/{snap.name} · {snap.branch} · {snap.fileCount.toLocaleString()} files{snap.truncated ? " (partial)" : ""}</> : snapshot === "error" ? "Couldn't load the file tree." : "Loading the file tree…"}
                     </p>
                   </div>
@@ -186,18 +230,18 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
                   ) : snap ? (
                     <ul className="px-1 text-muted-foreground">
                       {snap.folders.map((d) => <li key={d} className="flex items-center gap-1 py-0.5"><Folder className="size-3 shrink-0" />{d}</li>)}
-                      {repoUrl && <li className="pt-1 font-sans text-[11.5px]"><a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-foreground/80 underline-offset-2 hover:underline">Browse every file on GitHub <ExternalLink className="size-3" /></a></li>}
+                      {repoUrl && <li className="pt-1 font-sans text-meta"><a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-foreground/80 underline decoration-dotted underline-offset-4 hover:text-foreground">Browse every file on GitHub <ExternalLink className="size-3" /></a></li>}
                     </ul>
                   ) : snapshot === null ? (
-                    <div className="space-y-1.5 px-1 py-1" aria-hidden>{[70, 55, 62, 48].map((w) => <div key={w} className="h-3.5 rounded bg-deep" style={{ width: `${w}%` }} />)}</div>
+                    <div className="space-y-1.5 px-1 py-1" aria-hidden>{[70, 55, 62, 48].map((w) => <div key={w} className="skeleton h-3.5 rounded-sm" style={{ width: `${w}%` }} />)}</div>
                   ) : repoUrl ? (
-                    <a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 font-sans text-[11.5px] text-foreground/80 underline-offset-2 hover:underline">Open it on GitHub <ExternalLink className="size-3" /></a>
+                    <a href={repoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-1 font-sans text-meta text-foreground/80 underline decoration-dotted underline-offset-4 hover:text-foreground">Open it on GitHub <ExternalLink className="size-3" /></a>
                   ) : null}
                 </section>
                 <section aria-label={`Proposed in pull request ${pr.number}, not merged`} className="mt-3 border-t border-hairline pt-2.5">
                   <div className="px-1 pb-1.5 font-sans">
-                    <p className="flex items-center gap-1.5 text-[12px] font-semibold"><GitPullRequest className="size-3.5 text-read" />Proposed in PR #{pr.number} (not merged)</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{pr.files.length} new files in {pr.root}/ · 0 existing files changed</p>
+                    <p className="flex items-center gap-1.5 text-meta font-semibold"><GitPullRequest className="size-3.5 text-muted-foreground" />Proposed in PR #{pr.number} (not merged)</p>
+                    <p className="mt-0.5 text-badge text-muted-foreground">{pr.files.length} new files in {pr.root}/ · 0 existing files changed</p>
                   </div>
                   <TreeView nodes={tree} depth={0} active={active} onOpen={setActive} openDirs={openDirs} toggle={toggleIn(setOpenDirs)} />
                   <HeldBack pr={pr} />
@@ -209,38 +253,32 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-            {pr && <p className="mb-3 text-[11.5px] leading-relaxed text-muted-foreground">Changes to PR #{pr.number} between save points. Your repo&apos;s own files never appear here.</p>}
-            <label className="text-[12px] font-medium text-muted-foreground">From</label>
-            <select value={compare.from?.meta.id ?? ""} onChange={(e) => setCompare("from", e.target.value)} className="mt-1 h-8 w-full rounded-md border border-hairline bg-deep px-2 text-[12px]">
-              {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>#{c.seq} {c.label}</option>)}
-            </select>
-            <label className="mt-3 block text-[12px] font-medium text-muted-foreground">To</label>
-            <select value={compare.to?.meta.id ?? ""} onChange={(e) => setCompare("to", e.target.value)} className="mt-1 h-8 w-full rounded-md border border-hairline bg-deep px-2 text-[12px]">
-              {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>#{c.seq} {c.label}</option>)}
-            </select>
-            <ul className="mt-4 space-y-1">
+            {pr && <p className="mb-3 text-meta text-muted-foreground">Changes to PR #{pr.number} between versions. Your repo&apos;s own files never appear here.</p>}
+            <VersionPicker which="from" value={compare.from?.meta.id ?? ""} onChange={(id) => setCompare("from", id)} />
+            <VersionPicker which="to" value={compare.to?.meta.id ?? ""} onChange={(id) => setCompare("to", id)} className="mt-3" />
+            <ul className="mt-4 space-y-0.5">
               {diffs.map((d) => (
                 <li key={d.path}>
-                  <a href={`#diff-${d.path}`} className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-[11.5px] hover:bg-raised">
-                    <span className={cn("size-1.5 shrink-0 rounded-full", d.status === "added" ? "bg-read" : d.status === "removed" ? "bg-foreground/40" : "bg-change")} title={d.status} />
-                    <span className="min-w-0 flex-1 truncate">{d.path}</span>
-                    <span className="text-read">+{d.additions}</span>
-                    <span className="text-muted-foreground">−{d.deletions}</span>
+                  <a href={`#diff-${d.path}`} className="flex items-center gap-2 rounded-sm px-2 py-1 text-badge transition-colors duration-150 hover:bg-raised">
+                    <span className={cn("size-1.5 shrink-0 rounded-full", DIFF_DOT[d.status as keyof typeof DIFF_DOT] ?? DIFF_DOT.modified)} title={d.status} />
+                    <span className="min-w-0 flex-1 truncate font-mono">{d.path}</span>
+                    <span className="tabular-nums text-ok">+{d.additions}</span>
+                    <span className="tabular-nums text-muted-foreground">−{d.deletions}</span>
                   </a>
                 </li>
               ))}
-              {diffs.length === 0 && <li className="px-2 py-4 text-center text-[12px] text-muted-foreground">No differences between these save points.</li>}
+              {diffs.length === 0 && <li className="px-2 py-4 text-center text-meta text-muted-foreground">No differences between these versions.</li>}
             </ul>
           </div>
         )}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Phones: the file tree and save point pickers, as native selects. */}
+        {/* Phones: the file tree as a styled list, the versions as small choices. */}
         <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-3 py-2 md:hidden">
           <Segmented ariaLabel="Code view" value={mode} onChange={setMode} options={[{ value: "files", label: filesLabel }, { value: "changes", label: "Changes" }]} />
           {mode === "files" ? (
-            <select aria-label="File" value={active} onChange={(e) => setActive(e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 font-mono text-[12px]">
+            <NativeSelect aria-label="File" value={active} onChange={(e) => setActive(e.target.value)} className="min-w-0 flex-1 basis-40 font-mono text-badge">
               {pr && repoPaths.length > 0 && (
                 <optgroup label="Your repo · untouched">
                   {repoPaths.slice(0, 400).map((p) => <option key={`repo-${p}`} value={p}>{p}</option>)}
@@ -251,15 +289,11 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
                   {list.map((p) => <option key={p} value={p}>{p.split("/").pop()}</option>)}
                 </optgroup>
               ))}
-            </select>
+            </NativeSelect>
           ) : (
-            <div className="flex w-full gap-2">
-              <select aria-label="From save point" value={compare.from?.meta.id ?? ""} onChange={(e) => setCompare("from", e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 text-[12px]">
-                {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>From #{c.seq} {c.label}</option>)}
-              </select>
-              <select aria-label="To save point" value={compare.to?.meta.id ?? ""} onChange={(e) => setCompare("to", e.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-deep px-2 text-[12px]">
-                {ws.checkpoints.map((c) => <option key={c.id} value={c.id}>To #{c.seq} {c.label}</option>)}
-              </select>
+            <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2">
+              <VersionPicker which="from" compact value={compare.from?.meta.id ?? ""} onChange={(id) => setCompare("from", id)} />
+              <VersionPicker which="to" compact value={compare.to?.meta.id ?? ""} onChange={(id) => setCompare("to", id)} />
             </div>
           )}
         </div>
@@ -268,16 +302,16 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
             <>
               <div className="flex items-center gap-2 border-b border-hairline px-4 py-2 max-md:flex-wrap">
                 <FileCode2 className="size-3.5 text-muted-foreground" />
-                <span className="truncate font-mono text-[12px]">{active}</span>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground"><Lock className="size-3" />Your repo · untouched</span>
+                <span className="truncate font-mono text-badge">{active}</span>
+                <Pill><Lock className="size-3" />Your repo · untouched</Pill>
                 <div className="ml-auto flex items-center gap-1.5">
-                  {repoFile?.status === "ok" && <Button size="sm" variant="ghost" className="h-7" onClick={() => { void navigator.clipboard.writeText(repoFile.content); toast.success("Copied"); }}><Copy /> Copy</Button>}
+                  {repoFile?.status === "ok" && <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(repoFile.content); toast.success("Copied"); }}><Copy /> Copy</Button>}
                   {blobUrl(active) && (
-                    <Button asChild size="sm" variant="outline" className="h-7">
+                    <Button asChild size="sm" variant="outline">
                       <a href={blobUrl(active)!} target="_blank" rel="noreferrer">Open on GitHub <ExternalLink /></a>
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" className="h-7 xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
+                  <Button size="sm" variant="outline" className="xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
                     <GitHubMark /> <span className="max-sm:sr-only">GitHub</span>
                   </Button>
                 </div>
@@ -287,9 +321,9 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
               ) : (
                 <div className="grid min-h-0 flex-1 place-items-center p-6 text-center">
                   {!repoFile ? (
-                    <p className="flex items-center gap-2 text-[12.5px] text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />Reading {active.split("/").pop()} from GitHub…</p>
+                    <p className="flex items-center gap-2 text-ui text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />Reading {active.split("/").pop()} from GitHub…</p>
                   ) : (
-                    <p className="max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
+                    <p className="max-w-sm text-ui text-muted-foreground">
                       {repoFile.status === "binary" ? "This is a binary file, so it isn't shown here." : "GitHub didn't answer just now, so this file can't be shown."} It is untouched either way.
                     </p>
                   )}
@@ -300,15 +334,15 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
             <>
               <div className="flex items-center gap-2 border-b border-hairline px-4 py-2 max-md:flex-wrap">
                 <FileCode2 className="size-3.5 text-muted-foreground" />
-                <span className="truncate font-mono text-[12px]">{file.path}</span>
-                {pr && <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-read/30 bg-read/10 px-2 py-0.5 text-[11px] text-read"><GitPullRequest className="size-3" />PR #{pr.number} · new file · not merged</span>}
+                <span className="truncate font-mono text-badge">{file.path}</span>
+                {pr && <Pill><GitPullRequest className="size-3" />PR #{pr.number} · new file · not merged</Pill>}
                 {file.objectRef && (
-                  <button onClick={() => ws.select(file.objectRef!)} className="ml-2 rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">Open in inspector</button>
+                  <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => ws.select(file.objectRef!)}>Open in inspector</Button>
                 )}
                 <div className="ml-auto flex items-center gap-1.5">
-                  <Button size="sm" variant="ghost" className="h-7" onClick={() => { void navigator.clipboard.writeText(file.content); toast.success("Copied"); }}><Copy /> Copy</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(file.content); toast.success("Copied"); }}><Copy /> Copy</Button>
                   <OpenIn pr={pr} snap={snap} />
-                  <Button size="sm" variant="outline" className="h-7 xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
+                  <Button size="sm" variant="outline" className="xl:hidden" onClick={() => setGithubOpen(true)} aria-label="GitHub and download">
                     <GitHubMark /> <span className="max-sm:sr-only">GitHub</span>
                   </Button>
                 </div>
@@ -319,24 +353,24 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {compare.from && compare.to && (
-              <p className="mb-3 text-[12.5px] text-muted-foreground">
-                Save point #{compare.from.meta.seq} “{compare.from.meta.label}” → #{compare.to.meta.seq} “{compare.to.meta.label}” · {diffs.length} file{diffs.length === 1 ? "" : "s"} changed{pr ? ` in PR #${pr.number}` : ""}
+              <p className="mb-3 text-ui text-muted-foreground">
+                Version {compare.from.meta.seq} “{versionName(compare.from.meta.label)}” → version {compare.to.meta.seq} “{versionName(compare.to.meta.label)}” · {diffs.length} file{diffs.length === 1 ? "" : "s"} changed{pr ? ` in PR #${pr.number}` : ""}
               </p>
             )}
             <div className="space-y-4">
               {diffs.map((d) => (
                 <section key={d.path} id={`diff-${d.path}`} className="overflow-hidden rounded-md border border-hairline">
-                  <header className="flex items-center gap-2 border-b border-hairline bg-panel px-3 py-2 font-mono text-[12px]">
-                    <span className="truncate">{d.path}</span>
-                    <span className="ml-auto text-read">+{d.additions}</span>
-                    <span className="text-muted-foreground">−{d.deletions}</span>
+                  <header className="flex items-center gap-2 border-b border-hairline bg-panel px-3 py-2 text-badge">
+                    <span className="truncate font-mono">{d.path}</span>
+                    <span className="ml-auto tabular-nums text-ok">+{d.additions}</span>
+                    <span className="tabular-nums text-muted-foreground">−{d.deletions}</span>
                   </header>
-                  <div className="code-face overflow-x-auto py-1 text-[12px] leading-[1.6]">
+                  <div className="code-face overflow-x-auto py-1 text-code">
                     {d.hunks.map((h, hi) => (
                       <div key={hi}>
-                        <div className="bg-change/[0.06] px-3 py-0.5 text-change">{h.header}</div>
+                        <div className="bg-deep px-3 py-0.5 text-muted-foreground">{h.header}</div>
                         {h.lines.map((l, li) => (
-                          <div key={li} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") ? "border-read bg-read/10 text-foreground" : l.startsWith("-") ? "border-foreground/30 bg-foreground/[0.05] text-muted-foreground" : "border-transparent text-foreground/70")}>{l || " "}</div>
+                          <div key={li} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") ? DIFF.add : l.startsWith("-") ? DIFF.del : DIFF.same)}>{l || " "}</div>
                         ))}
                       </div>
                     ))}
@@ -370,20 +404,20 @@ function HeldBack({ pr }: { pr: ImportPullRequest }) {
   }, [pr]);
   if (!groups.length) return null;
   return (
-    <div className="mt-2.5 rounded-md border border-hairline bg-panel font-sans">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11.5px] text-muted-foreground hover:text-foreground">
+    <div className="panel mt-2.5 rounded-md font-sans">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-meta text-muted-foreground transition-colors duration-150 hover:text-foreground">
         {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
         <ShieldCheck className="size-3 shrink-0 text-brand" />
         <span className="flex-1">Held back by House Rules</span>
-        <span className="font-mono text-faint">{pr.heldBack.length}</span>
+        <span className="tabular-nums text-faint">{pr.heldBack.length}</span>
       </button>
       {open && (
         <ul className="space-y-2.5 border-t border-hairline px-2 py-2">
           {groups.map(([rule, g]) => (
             <li key={rule}>
-              <p className="text-[11.5px] leading-snug text-foreground/90">{rule}</p>
-              <p className="mt-0.5 text-[11px] leading-snug text-faint">{g.note}</p>
-              <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-muted-foreground">
+              <p className="text-meta text-foreground/90">{rule}</p>
+              <p className="mt-0.5 text-meta text-faint">{g.note}</p>
+              <ul className="mt-1 space-y-0.5 font-mono text-badge text-muted-foreground">
                 {g.paths.map((p) => <li key={p} className="truncate line-through decoration-faint/60" title={p}>{p}</li>)}
               </ul>
             </li>
@@ -400,7 +434,7 @@ function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: T
       {nodes.map((n) =>
         n.children ? (
           <li key={n.path}>
-            <button onClick={() => toggle(n.path)} className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-muted-foreground hover:text-foreground" style={{ paddingLeft: depth * 12 + 4 }} aria-expanded={openDirs.has(n.path)}>
+            <button onClick={() => toggle(n.path)} className="flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-muted-foreground transition-colors duration-150 hover:text-foreground" style={{ paddingLeft: depth * 12 + 4 }} aria-expanded={openDirs.has(n.path)}>
               {openDirs.has(n.path) ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
               <Folder className="size-3 shrink-0" />
               <span className="truncate">{n.name}</span>
@@ -409,7 +443,7 @@ function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: T
           </li>
         ) : (
           <li key={n.path}>
-            <button onClick={() => onOpen(n.path)} className={cn("flex w-full items-center gap-1.5 truncate rounded px-1 py-0.5 text-left", n.path === active ? "bg-brand-soft text-brand" : "text-foreground/80 hover:bg-raised")} style={{ paddingLeft: depth * 12 + 20 }}>
+            <button onClick={() => onOpen(n.path)} aria-current={n.path === active ? "true" : undefined} className={cn("flex w-full items-center gap-1.5 truncate rounded-sm px-1 py-0.5 text-left transition-colors duration-150", n.path === active ? "bg-brand-soft text-brand ring-1 ring-brand/30" : "text-foreground/80 hover:bg-raised")} style={{ paddingLeft: depth * 12 + 20 }}>
               <span className="truncate">{n.name}</span>
             </button>
           </li>
@@ -474,7 +508,7 @@ function OpenIn({ pr, snap }: { pr: ImportPullRequest | null; snap: RepoSnapshot
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline" className="h-7">Open in <ChevronDown /></Button>
+        <Button size="sm" variant="outline">Open in <ChevronDown /></Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuItem onSelect={openInCursor}><Download /> {pr ? `Download PR #${pr.number} (.zip), then open it in Cursor` : "Download .zip, then open the folder in Cursor"}</DropdownMenuItem>
@@ -483,7 +517,7 @@ function OpenIn({ pr, snap }: { pr: ImportPullRequest | null; snap: RepoSnapshot
             <GitHubMark className="mt-0.5" />
             <span className="min-w-0">
               <span className="block">Clone from GitHub · sandbox</span>
-              <span className="block truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
+              <span className="block truncate font-mono text-badge text-muted-foreground">{repo}</span>
             </span>
           </DropdownMenuItem>
         )}
@@ -507,48 +541,48 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
 
   return (
     <aside aria-label="GitHub" className={cn("overflow-y-auto p-4", className)}>
-      <p className="flex items-center gap-2 font-pencil text-[24px] leading-none"><GitHubMark className="size-4" /> Your code on GitHub</p>
+      <h2 className="flex items-center gap-2 font-pencil text-note leading-tight"><GitHubMark className="size-4" /> Your code on GitHub</h2>
       {!gh?.connected ? (
         <div className="mt-3">
-          <p className="text-[12.5px] leading-relaxed text-muted-foreground">Keep a copy of every file in your own repository. Each Work Order becomes a branch and a change for review, and edits you push come back into the blueprint.</p>
+          <p className="text-ui text-muted-foreground">Keep a copy of every file in your own repository. Each approved change becomes a branch and a pull request for review, and edits you push come back into the plan.</p>
           <Button className="mt-3 w-full" disabled={pending} onClick={() => start(async () => { const r = await connectGitHub(ws.project.id); if (r.ok) toast.success(`Connected ${r.repo}`, { description: "Sandbox: the flow is real, the push is simulated." }); router.refresh(); })}>
             {pending ? <Loader2 className="animate-spin" /> : <GitHubMark />} Connect GitHub
           </Button>
-          <p className="mt-2 text-[11px] text-faint">Sandbox in this prototype.</p>
+          <p className="mt-2 text-meta text-faint">Sandbox in this prototype.</p>
         </div>
       ) : (
         <div className="mt-3 space-y-4">
-          <div className="rounded-md border border-hairline bg-panel p-2.5">
-            <p className="truncate font-mono text-[12px]">{gh.repo}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><GitBranch className="size-3" />{pr ? `${snap?.branch ?? "main"} · pull requests only · sandbox` : "main · two-way sync on · sandbox"}</p>
+          <div className="panel rounded-md p-2.5">
+            <p className="truncate font-mono text-badge">{gh.repo}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-meta text-muted-foreground"><GitBranch className="size-3" />{pr ? `${snap?.branch ?? "main"} · pull requests only · sandbox` : "main · two-way sync on · sandbox"}</p>
           </div>
           <div>
-            <p className="text-[12px] font-medium text-muted-foreground">Changes for review</p>
+            <p className="text-meta font-medium text-muted-foreground">Changes for review</p>
             <ul className="mt-2 space-y-1.5">
               {pr && (
-                <li className="rounded-md border border-read/25 bg-read/[0.05] p-2">
-                  <p className="flex items-start gap-1.5 text-[12px]">
-                    <GitPullRequest className="mt-0.5 size-3 shrink-0 text-read" />
-                    <span className="min-w-0 flex-1 leading-snug">{pr.title}</span>
+                <li className="panel rounded-md p-2">
+                  <p className="flex items-start gap-1.5 text-meta">
+                    <GitPullRequest className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">{pr.title}</span>
                   </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2 pl-4 text-[11px] text-muted-foreground">
-                    <span className="font-mono">#{pr.number}</span>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 pl-4 text-badge text-muted-foreground">
+                    <span className="tabular-nums">#{pr.number}</span>
                     <span>open · not merged</span>
                     <span>{pr.files.length} new · 0 changed</span>
                   </p>
-                  <p className="mt-0.5 truncate pl-4 font-mono text-[10.5px] text-faint">{pr.branch} → {snap?.branch ?? "main"}</p>
+                  <p className="mt-0.5 truncate pl-4 font-mono text-badge text-faint">{pr.branch} → {snap?.branch ?? "main"}</p>
                 </li>
               )}
-              {!pr && changes.length === 0 && <li className="text-[12px] text-muted-foreground">Your next approved Work Order opens one here.</li>}
+              {!pr && changes.length === 0 && <li className="text-meta text-muted-foreground">Your next approved change opens one here.</li>}
               {changes.map((w, i) => (
-                <li key={w.id} className="rounded-md border border-hairline bg-panel p-2">
-                  <p className="flex items-start gap-1.5 text-[12px]">
-                    <GitPullRequest className={cn("mt-0.5 size-3 shrink-0", w.status === "done" ? "text-fix" : "text-read")} />
-                    <span className="min-w-0 flex-1 leading-snug">{w.proposal?.summary ?? w.request}</span>
+                <li key={w.id} className="panel rounded-md p-2">
+                  <p className="flex items-start gap-1.5 text-meta">
+                    <GitPullRequest className={cn("mt-0.5 size-3 shrink-0", w.status === "done" ? "text-ok" : "text-muted-foreground")} />
+                    <span className="min-w-0 flex-1">{w.proposal?.summary ?? w.request}</span>
                   </p>
-                  <p className="mt-1 flex items-center gap-2 pl-4 text-[11px] text-muted-foreground">
-                    <span className="font-mono">#{firstNumber + changes.length - 1 - i}</span>
-                    {w.status === "done" ? <span className="inline-flex items-center gap-1 text-read"><CircleCheck className="size-3" />rehearsals passed</span> : <span>awaiting approval</span>}
+                  <p className="mt-1 flex items-center gap-2 pl-4 text-badge text-muted-foreground">
+                    <span className="tabular-nums">#{firstNumber + changes.length - 1 - i}</span>
+                    {w.status === "done" ? <span className="inline-flex items-center gap-1 text-ok"><CircleCheck className="size-3" />test runs passed</span> : <span>awaiting approval</span>}
                     <span>{w.status === "done" ? "merged" : "open"}</span>
                   </p>
                 </li>
@@ -556,25 +590,25 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
             </ul>
           </div>
           {seededTeammate && (
-            <div className="rounded-md border border-change/25 bg-change/[0.05] p-2.5">
-              <p className="text-[12px]">Priya pushed 2 commits to <span className="font-mono">main</span></p>
-              <Button size="sm" variant="outline" className="mt-2 h-7 w-full bg-panel" disabled={pending} onClick={() => start(async () => { await pullFromGitHub(ws.project.id); toast.success("Pulled 2 commits", { description: "No conflicts. Rehearsals still pass." }); router.refresh(); })}>
-                {pending ? <Loader2 className="animate-spin" /> : <RefreshCw />} Pull into the blueprint
+            <div className="panel rounded-md p-2.5">
+              <p className="text-meta">Priya pushed 2 commits to <span className="font-mono text-badge">main</span></p>
+              <Button size="sm" variant="outline" className="mt-2 w-full" disabled={pending} onClick={() => start(async () => { await pullFromGitHub(ws.project.id); toast.success("Pulled 2 commits", { description: "No conflicts. Test runs still pass." }); router.refresh(); })}>
+                {pending ? <Loader2 className="animate-spin" /> : <RefreshCw />} Pull into the plan
               </Button>
             </div>
           )}
-          <p className="flex items-start gap-1.5 text-[11.5px] leading-snug text-muted-foreground">
-            <Check className="mt-0.5 size-3 shrink-0 text-read" />
-            {ciUntouched ? "Your CI is untouched. Prod AI runs every rehearsal before it opens a pull request." : "CI type-checks and builds each pull request. Prod AI runs every rehearsal before it opens one."}
+          <p className="flex items-start gap-1.5 text-meta text-muted-foreground">
+            <Check className="mt-0.5 size-3 shrink-0 text-ok" />
+            {ciUntouched ? "Your CI is untouched. Prod AI runs every test run before it opens a pull request." : "CI type-checks and builds each pull request. Prod AI runs every test run before it opens one."}
           </p>
         </div>
       )}
       <div className="mt-6 border-t border-hairline pt-4">
-        <p className="text-[12px] font-medium text-muted-foreground">No lock-in</p>
+        <p className="text-meta font-medium text-muted-foreground">No lock-in</p>
         <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => exportBundle()}><Download /> {pr ? `Download PR #${pr.number} files` : "Download all source"}</Button>
-        <p className="mt-2 text-[11px] text-faint">{pr ? `Only the new ${pr.root}/ folder: plain YAML, Markdown and thin wrappers. Delete it and your repo is exactly as it was.` : "Standard Next.js, Postgres and agent files. Runs without Prod AI."}</p>
+        <p className="mt-2 text-meta text-faint">{pr ? `Only the new ${pr.root}/ folder: plain YAML, Markdown and thin wrappers. Delete it and your repo is exactly as it was.` : "Standard Next.js, Postgres and agent files. Runs without Prod AI."}</p>
       </div>
-      {ws.checkpoints[0] && <p className="mt-6 text-[11px] text-faint">Last save point <TimeAgo iso={ws.checkpoints[0].created_at} /></p>}
+      {ws.checkpoints[0] && <p className="mt-6 text-meta text-faint">Version {ws.checkpoints[0].seq} saved <TimeAgo iso={ws.checkpoints[0].created_at} /></p>}
     </aside>
   );
 }

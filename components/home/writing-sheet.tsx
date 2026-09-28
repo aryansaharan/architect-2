@@ -54,9 +54,9 @@ export function WritingSheet({
   };
 
   return (
-    <div className={cn("panel rounded-2xl", className)}>
+    <div className={cn("panel rounded-md", className)}>
       <div className="px-5 pt-4 sm:px-8 sm:pt-6">
-        <label htmlFor={id} className={showLabel ? "font-pencil text-[30px] leading-none text-foreground sm:text-[34px]" : "sr-only"}>
+        <label htmlFor={id} className={showLabel ? "font-pencil text-section text-foreground" : "sr-only"}>
           {label}
         </label>
         <textarea
@@ -76,10 +76,10 @@ export function WritingSheet({
             }
           }}
           placeholder={placeholder}
-          className={cn("paper-lines block w-full resize-none bg-transparent pt-[7px] font-pencil text-[23px] text-foreground outline-none placeholder:text-faint sm:text-[25px]", showLabel ? "mt-2" : "mt-0")}
+          className={cn("paper-lines block w-full resize-none bg-transparent pt-[7px] font-pencil text-note leading-8 text-foreground outline-none placeholder:text-faint", showLabel ? "mt-2" : "mt-0")}
         />
         {tooShort && (
-          <p role="status" className="pb-1 text-[13px] text-muted-foreground">
+          <p role="status" className="pb-1 text-meta text-muted-foreground">
             A little more, please. One sentence about who it&apos;s for and what it should do is plenty.
           </p>
         )}
@@ -87,7 +87,7 @@ export function WritingSheet({
       <div className="mt-1 flex flex-wrap items-center gap-2.5 border-t border-dashed border-hairline-hi px-5 py-4 sm:px-8">
         {examples && (
           <>
-            <span className="w-full font-sketch text-[12px] text-faint sm:w-auto">Or start from</span>
+            <span className="w-full font-sketch text-sketch text-faint sm:w-auto">Or start from</span>
             {EXAMPLES.map((ex, i) => (
               <button
                 key={ex.label}
@@ -97,10 +97,11 @@ export function WritingSheet({
                   setTooShort(false);
                   box.current?.focus();
                 }}
+                aria-pressed={value === ex.prompt}
                 className={cn(
-                  "sticky-note rounded-[3px] px-2.5 pb-1 pt-0.5 font-pencil text-[19px] leading-tight text-foreground transition-transform duration-200 hover:rotate-0",
+                  "sticky-note min-h-9 px-2.5 py-1 font-pencil text-note leading-tight text-foreground transition-transform duration-150 ease-paper hover:rotate-0",
                   TILT[i % TILT.length],
-                  value === ex.prompt && "outline outline-1 outline-brand/50",
+                  value === ex.prompt && "ring-1 ring-brand/30",
                 )}
               >
                 {ex.label}
@@ -108,7 +109,7 @@ export function WritingSheet({
             ))}
           </>
         )}
-        <Button className="ml-auto h-10 px-4 text-[14px]" onClick={submit}>
+        <Button size="cta" className="ml-auto" onClick={submit}>
           {submitLabel} <ArrowRight />
         </Button>
       </div>

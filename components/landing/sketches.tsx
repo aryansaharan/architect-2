@@ -98,7 +98,7 @@ export function WriteSketch({ className }: { className?: string }) {
       <g transform="rotate(-36 186 118)">
         <path d="M150 112 L150 124 L134 118 Z" fill="var(--panel)" />
         <path d="M139 116.2 L139 119.8 L134 118 Z" fill={GRAPHITE} />
-        <rect x="150" y="112" width="68" height="12" fill="#efe3b0" />
+        <rect x="150" y="112" width="68" height="12" fill="var(--note-line)" />
         <rect x="218" y="112" width="10" height="12" fill="var(--hairline-hi)" />
         <Pencil d={roughRect(150, 112, 78, 12, 31, 0.6) + roughLine(150, 112, 134, 118, 32, 0.4) + roughLine(150, 124, 134, 118, 33, 0.4) + roughLine(218, 112, 218, 124, 34, 0.3)} width={1.2} />
       </g>
@@ -125,7 +125,7 @@ export function PlanSketch({ className }: { className?: string }) {
       <Pencil d={scribble(71, 123, 24, 58, 2)} width={1} />
 
       <g transform="rotate(5 184 104)">
-        <rect x="152" y="76" width="66" height="56" fill="#fdf6d8" stroke="#efe3b0" />
+        <rect x="152" y="76" width="66" height="56" fill="var(--note)" stroke="var(--note-line)" />
         <text x="160" y="96" fontSize="15" fill={GRAPHITE} style={handwriting}>helper</text>
         <Pencil d={scribble(160, 110, 46, 81, 2.2)} width={1} />
         <Pencil d={scribble(160, 122, 34, 82, 2.2)} width={1} />
@@ -144,7 +144,7 @@ export function PlanSketch({ className }: { className?: string }) {
 export function RealSketch({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 240 170" className={className} role="img" aria-label="The finished app with a note in the margin asking for a change">
-      <rect x="18" y="38" width="160" height="122" rx="6" fill="#ffffff" stroke={INK} strokeWidth="1.4" />
+      <rect x="18" y="38" width="160" height="122" rx="6" fill="var(--raised)" stroke={INK} strokeWidth="1.4" />
       <path d="M18 56 H178" stroke={INK} strokeWidth="1.1" />
       <rect x="26" y="44" width="34" height="6" rx="2" fill={INK} />
       <rect x="18.7" y="56.5" width="37" height="102.8" fill="var(--deep)" />
@@ -161,7 +161,7 @@ export function RealSketch({ className }: { className?: string }) {
         </g>
       ))}
       <rect x="66" y="124" width="38" height="16" rx="3" fill="var(--brand)" />
-      <rect x="73" y="130.5" width="24" height="3" rx="1.5" fill="#f7f5f0" />
+      <rect x="73" y="130.5" width="24" height="3" rx="1.5" fill="var(--canvas)" />
 
       <text x="104" y="17" fontSize="16" fill="var(--brand)" style={handwriting}>a bigger title, please</text>
       <path d="M102 14 C 78 12, 58 18, 50 36" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" />
@@ -250,7 +250,7 @@ export function Wireframe({ layout, ink, seed = 1, className }: { layout?: strin
   }
   return (
     <svg viewBox="0 0 160 100" className={className} aria-hidden>
-      {ink && <rect x="4" y="4" width="152" height="92" rx="4" fill="#ffffff" />}
+      {ink && <rect x="4" y="4" width="152" height="92" rx="4" fill="var(--raised)" />}
       {box(4, 4, 152, 92, 1, color)}
       {ink ? <rect x="10" y="9" width="36" height="5" rx="2" fill={INK} /> : <Pencil d={scribble(10, 14, 34, s + 3, 2.2)} width={1} />}
       {body}

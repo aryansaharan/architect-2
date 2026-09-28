@@ -13,10 +13,10 @@ export function HomeComposer({ autoFocus }: { autoFocus?: boolean }) {
   return (
     <div>
       <WritingSheet id="brief" value={text} onChange={setText} autoFocus={autoFocus} onSubmit={(t) => router.push(`/new?prompt=${encodeURIComponent(t)}`)} />
-      <Link href="/new?mode=import" className="group mt-4 inline-flex items-center gap-2 text-[13.5px] text-muted-foreground hover:text-foreground">
+      <Link href="/new?mode=import" className="group mt-2 inline-flex min-h-9 items-center gap-2 text-ui text-muted-foreground transition-colors duration-150 hover:text-foreground">
         <GitHubMark className="size-3.5" />
         Or start from a GitHub repo
-        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        <ArrowRight className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
       </Link>
     </div>
   );

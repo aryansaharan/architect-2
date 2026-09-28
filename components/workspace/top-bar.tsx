@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { Check, ChevronDown, Code2, Coins, Copy, ExternalLink, Eye, History, Home, Inbox, Keyboard, LogOut, Map as MapIcon, Pause, Play, Rocket, Search, Settings, Share2, Undo2, UserRoundPlus, UsersRound } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
+import { Pill, type PillTone } from "@/components/ui/pill";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
+import { SPRING } from "@/lib/motion";
 import { creditsUsd } from "@/lib/format";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
@@ -42,13 +44,13 @@ const hrefFor = (base: string, section: string) => (section ? `${base}/${section
 /** A thin pencil line under a tab while its page is loading. */
 function TabPending() {
   const { pending } = useLinkStatus();
-  return <span aria-hidden className={cn("absolute inset-x-2.5 bottom-1 h-px bg-hairline-hi transition-opacity duration-200", pending ? "opacity-100" : "opacity-0")} />;
+  return <span aria-hidden className={cn("absolute inset-x-2.5 bottom-1 h-px bg-hairline-hi transition-opacity duration-150 ease-paper", pending ? "opacity-100" : "opacity-0")} />;
 }
 
 /** The hand-drawn underline under the current tab. It moves when the tab changes, and only then. */
 function PencilUnderline() {
   return (
-    <motion.span layoutId="topbar-tab" aria-hidden className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-brand" transition={{ type: "spring", stiffness: 480, damping: 40 }}>
+    <motion.span layoutId="topbar-tab" aria-hidden className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-brand" transition={SPRING}>
       <svg viewBox="0 0 100 6" preserveAspectRatio="none" className="block h-[5px] w-full">
         <path d="M1.5 3.8C18 2.2 38 4.6 58 3.1S88 2.7 98.5 3.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
@@ -71,11 +73,11 @@ export function TopBar() {
         <span className="text-hairline-hi" aria-hidden>
           /
         </span>
-        <h1 className="min-w-0 truncate pb-0.5 font-display text-[23px] leading-none text-foreground" title={ws.project.name}>
+        <h1 className="min-w-0 truncate pb-0.5 font-pencil text-note leading-none text-foreground" title={ws.project.name}>
           {ws.project.name}
         </h1>
         <ProjectStatus />
-        {ws.project.isDemo && <span className="hidden shrink-0 text-[11px] text-faint 2xl:inline">Demo project</span>}
+        {ws.project.isDemo && <span className="hidden shrink-0 text-meta text-faint 2xl:inline">Demo project</span>}
       </div>
 
       <nav aria-label="Project" className="flex items-center gap-0.5 max-md:order-last max-md:-mx-1 max-md:w-full max-md:justify-between">
@@ -85,7 +87,7 @@ export function TopBar() {
               <Link
                 href={hrefFor(base, t.section)}
                 aria-current={section === t.section ? "page" : undefined}
-                className={cn("relative inline-flex h-9 items-center px-2.5 text-[13.5px] font-medium transition-colors duration-200", section === t.section ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                className={cn("relative inline-flex h-9 items-center whitespace-nowrap px-2.5 text-ui font-medium transition-colors duration-150 ease-paper", section === t.section ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
               >
                 {t.label}
                 {section === t.section && <PencilUnderline />}
@@ -114,40 +116,45 @@ export function TopBar() {
   );
 }
 
-/** Where the project is, in plain words: Sketch, Making it real…, Real, Published. */
+const STATUS: Record<"sketch" | "making" | "real" | "published", { label: string; tone: PillTone; cls: string }> = {
+  sketch: { label: "Sketch", tone: "neutral", cls: "border-dashed" },
+  making: { label: "Making it real…", tone: "brand", cls: "" },
+  real: { label: "Real", tone: "neutral", cls: "border-line-strong text-foreground" },
+  published: { label: "Published", tone: "ok", cls: "" },
+};
+
+/**
+ * Where the project is, in the Sheet's words: Sketch, Making it real…, Real, Published.
+ * One Pill, toned by the colour rules: Published is live (ok), a build under way is brand.
+ */
 function ProjectStatus() {
   const ws = useWorkspace();
   const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
-  const chip = "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-medium whitespace-nowrap";
   // A replay re-tells the finished build. Nothing is built or charged, so don't say "Making it real".
   if (building && ws.build.mode === "replay")
     return (
-      <span className={cn(chip, "border-hairline-hi text-muted-foreground")}>
+      <Pill size="md">
         <Play className="size-2.5" aria-hidden />
         Replaying
-      </span>
+      </Pill>
     );
   // The Sheet has the resume note (free) and the stop-and-refund choice.
   if (ws.build.interrupted)
     return (
-      <Link href={`/p/${ws.project.id}`} className={cn(chip, "border-brand/40 bg-brand-soft text-brand transition-colors hover:border-brand/70")}>
-        <Pause className="size-2.5" aria-hidden />
-        Build paused · resume
+      <Link href={`/p/${ws.project.id}`} className="shrink-0 rounded-full transition-opacity duration-150 ease-paper hover:opacity-80">
+        <Pill size="md" tone="brand">
+          <Pause className="size-2.5" aria-hidden />
+          Paused · resume
+        </Pill>
       </Link>
     );
   const state = building || ws.project.buildState === "building" ? "making" : ws.project.buildState === "draft" ? "sketch" : ws.liveSlug ? "published" : "real";
-  const s = {
-    sketch: { label: "Sketch", cls: "border-dashed border-faint font-sketch text-muted-foreground" },
-    making: { label: "Making it real…", cls: "border-brand/40 text-brand" },
-    real: { label: "Real", cls: "border-foreground/50 text-foreground" },
-    published: { label: "Published", cls: "border-read/40 bg-read/10 text-read" },
-  }[state];
+  const s = STATUS[state];
   return (
-    <span className={cn(chip, s.cls)}>
+    <Pill size="md" tone={s.tone} dot={state === "published"} className={s.cls}>
       <span className="sr-only">Status: </span>
-      {state === "published" && <span aria-hidden className="size-1.5 rounded-full bg-read" />}
       {s.label}
-    </span>
+    </Pill>
   );
 }
 
@@ -163,7 +170,7 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
           type="button"
           aria-label={here ? `Under the hood, on ${here.label}` : "Under the hood"}
           className={cn(
-            "relative inline-flex h-9 items-center gap-1 px-2.5 text-[13.5px] font-medium outline-none transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-brand",
+            "relative inline-flex h-9 items-center gap-1 whitespace-nowrap px-2.5 text-ui font-medium outline-none transition-colors duration-150 ease-paper focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-brand",
             here ? "text-foreground" : "text-muted-foreground hover:text-foreground data-[state=open]:text-foreground",
           )}
         >
@@ -173,7 +180,7 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" className="w-[min(20rem,calc(100vw-1rem))]">
-        <DropdownMenuLabel className="text-[11.5px] font-normal text-muted-foreground">For a closer look. You never need these to make or publish your app.</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-meta font-normal text-muted-foreground">For a closer look. You never need these to make or publish your app.</DropdownMenuLabel>
         {HOOD.map((h) => {
           const current = h.section === section;
           return (
@@ -181,13 +188,15 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
               <Link href={hrefFor(base, h.section)} aria-current={current ? "page" : undefined} className="items-start gap-2.5 py-2">
                 <h.icon className={cn("mt-0.5", current && "text-brand")} />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2 text-[13px]">
+                  <span className="flex items-center gap-2 text-ui">
                     {h.label}
                     {h.section === "handoffs" && openHandoffs > 0 && (
-                      <span className="rounded-full bg-brand-soft px-1.5 text-[10.5px] font-medium leading-[18px] text-brand">{openHandoffs} open</span>
+                      <Pill tone="brand" className="tabular-nums">
+                        {openHandoffs} open
+                      </Pill>
                     )}
                   </span>
-                  <span className="block text-[11.5px] text-muted-foreground">{h.hint}</span>
+                  <span className="block text-meta text-muted-foreground">{h.hint}</span>
                 </span>
                 <DropdownMenuShortcut className="mt-0.5">G {h.key}</DropdownMenuShortcut>
               </Link>
@@ -218,10 +227,10 @@ function Versions() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" className="gap-1.5 px-2 text-muted-foreground hover:text-foreground">
               <History className="size-3.5" aria-hidden />
               <span className="max-xl:sr-only">Versions</span>
-              <span className="font-mono text-[11px] tabular-nums text-faint max-sm:hidden">v{current.seq}</span>
+              <span className="text-meta tabular-nums text-faint max-sm:hidden">v{current.seq}</span>
               <ChevronDown className="size-3 opacity-60" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
@@ -240,7 +249,7 @@ function Versions() {
           }}
         >
           <Undo2 /> Undo last change
-          {prev && <span className="ml-auto text-[11.5px] text-muted-foreground">back to v{prev.seq}</span>}
+          {prev && <span className="ml-auto text-meta tabular-nums text-muted-foreground">back to version {prev.seq}</span>}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <VersionItems current={current} />
@@ -282,12 +291,12 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
               });
             }}
           >
-            <span className={cn("mt-0.5 grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10px]", isCurrent ? "bg-brand text-primary-foreground" : "bg-deep text-muted-foreground")}>v{c.seq}</span>
+            <span className={cn("mt-0.5 grid h-5 min-w-6 shrink-0 place-items-center rounded-sm px-1 text-badge font-medium tabular-nums", isCurrent ? "bg-brand-soft text-brand ring-1 ring-brand/30" : "bg-deep text-muted-foreground")}>v{c.seq}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px]">{c.label.replace(/^Went live$/, "Published").replace(/^Restored #(\d+) · /, "Restored version $1 · ")}</span>
-              {c.summary && <span className="block truncate text-[11.5px] text-muted-foreground">{c.summary}</span>}
+              <span className="block truncate text-ui">{c.label.replace(/^Went live$/, "Published").replace(/^Restored #(\d+) · /, "Restored version $1 · ")}</span>
+              {c.summary && <span className="block truncate text-meta text-muted-foreground">{c.summary}</span>}
             </span>
-            <span className="flex flex-col items-end gap-0.5 text-[11px] text-muted-foreground">
+            <span className="flex flex-col items-end gap-0.5 text-meta text-muted-foreground">
               <TimeAgo iso={c.created_at} />
               {isCurrent ? (
                 <span className="text-brand">current</span>
@@ -305,7 +314,7 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
   );
 }
 
-/** Credits, quietly: "97 of 500 credits" as small text on wide screens, a coin with a tooltip on narrow ones. */
+/** Credits, quietly and always the same words: "97 of 500 credits" on wide screens, a coin with the same words on narrow ones. */
 function Credits() {
   const ws = useWorkspace();
   const { credits, cap } = ws.usage;
@@ -320,7 +329,7 @@ function Credits() {
             <button
               type="button"
               aria-label={`${words} used this month. Spending details`}
-              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground transition-colors hover:bg-deep hover:text-foreground max-sm:hidden"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:bg-deep hover:text-foreground max-sm:hidden"
             >
               <Coins className="size-3.5 xl:hidden" aria-hidden />
               <span className="whitespace-nowrap tabular-nums max-xl:hidden">{words}</span>
@@ -330,26 +339,25 @@ function Credits() {
         <TooltipContent>{words} used this month</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-80">
-        <p className="text-[12px] text-muted-foreground">This project · this month</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">
-          {used} <span className="text-sm font-normal text-muted-foreground">of {cap} credits · ≈ {creditsUsd(credits)}</span>
-        </p>
+        <p className="text-meta text-muted-foreground">This project · this month</p>
+        <p className="mt-1 text-lead font-semibold tabular-nums">{words}</p>
+        <p className="text-meta tabular-nums text-muted-foreground">≈ {creditsUsd(credits)} used</p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-deep">
           <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, pct * 100)}%` }} />
         </div>
-        <ul className="mt-4 space-y-2 text-[13px]">
+        <ul className="mt-4 space-y-2 text-ui">
           <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-read" aria-hidden />
+            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
             Every change shows its price before it runs.
           </li>
           <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-read" aria-hidden />
+            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
             <span>
               Fixes for our own mistakes are free. They&apos;re labelled <span className="text-fix">Our fix</span>.
             </span>
           </li>
           <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-read" aria-hidden />
+            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
             AI helpers pause and tell you before passing the cap.
           </li>
         </ul>
@@ -370,7 +378,7 @@ function ShareMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 bg-panel px-2.5 max-lg:w-8 max-lg:px-0">
+        <Button variant="outline" className="gap-1.5 px-2.5 max-lg:w-8 max-lg:px-0">
           <Share2 className="size-3.5" aria-hidden />
           <span className="max-lg:sr-only">Share</span>
         </Button>
@@ -415,7 +423,7 @@ function ShareMenu() {
             <UserRoundPlus className="mt-0.5" />
             <span className="min-w-0">
               <span className="block">Invite people</span>
-              <span className="block text-[11.5px] text-muted-foreground">Owner · Editor · Viewer. Viewers can comment, not change.</span>
+              <span className="block text-meta text-muted-foreground">Owner · Editor · Viewer. Viewers can comment, not change.</span>
             </span>
           </Link>
         </DropdownMenuItem>
@@ -431,7 +439,7 @@ function ShareMenu() {
           <UsersRound className="mt-0.5" />
           <span className="min-w-0">
             <span className="block">Ask a teammate</span>
-            <span className="block text-[11.5px] text-muted-foreground">Hand it to an engineer with everything they need</span>
+            <span className="block text-meta text-muted-foreground">Hand it to an engineer with everything they need</span>
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -465,13 +473,13 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
         <DropdownMenuTrigger asChild>
           <button type="button" className="ml-0.5 flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand/60" aria-label="Account">
             {isAnonymous && !compact && (
-              <span className="hidden h-7 items-center rounded-full border border-brand/30 bg-brand-soft px-2.5 text-[11.5px] font-medium text-brand 2xl:inline-flex">Guest · keep this work</span>
+              <span className="hidden h-7 items-center rounded-full border border-brand/30 bg-brand-soft px-2.5 text-meta font-medium text-brand 2xl:inline-flex">Guest · keep this work</span>
             )}
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- avatars come from any OAuth provider's host; next/image would need each one allow-listed
               <img src={avatarUrl} alt="" className="size-7 rounded-full border border-hairline" />
             ) : (
-              <span className="grid size-7 place-items-center rounded-full border border-hairline bg-raised text-[11px] font-semibold">{name.slice(0, 1).toUpperCase()}</span>
+              <span className="grid size-7 place-items-center rounded-full border border-hairline bg-raised text-badge font-semibold">{name.slice(0, 1).toUpperCase()}</span>
             )}
           </button>
         </DropdownMenuTrigger>
@@ -484,8 +492,8 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
           }}
         >
           <DropdownMenuLabel>
-            <span className="block text-[13px]">{name}</span>
-            <span className="block text-[11.5px] font-normal text-muted-foreground">{isAnonymous ? "Guest session · nothing is lost if you sign in" : "Signed in"}</span>
+            <span className="block text-ui">{name}</span>
+            <span className="block text-meta font-normal text-muted-foreground">{isAnonymous ? "Guest session · nothing is lost if you sign in" : "Signed in"}</span>
           </DropdownMenuLabel>
           {isAnonymous && (
             <DropdownMenuItem asChild>

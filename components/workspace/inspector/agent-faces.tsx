@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Segmented } from "@/components/arch/segmented";
 import { AccessChip, Avatar } from "@/components/arch/badges";
+import { Pill } from "@/components/ui/pill";
 import { Term } from "@/components/arch/term";
 import type { Agent, AgentTool, Framework, ToolPermission } from "@/lib/blueprint/schema";
 import { Frameworks } from "@/lib/blueprint/schema";
@@ -23,7 +24,7 @@ export function Section({ title, children, aside }: { title: React.ReactNode; ch
   return (
     <section className="mt-6 first:mt-1">
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="font-pencil text-[21px] leading-none text-foreground">{title}</h3>
+        <h3 className="font-pencil text-note leading-tight text-foreground">{title}</h3>
         {aside}
       </div>
       {children}
@@ -31,14 +32,14 @@ export function Section({ title, children, aside }: { title: React.ReactNode; ch
   );
 }
 
-/** Every save here is free and becomes a save point. One toast wording for all of them. */
+/** Every save here is free and becomes a new version. One toast wording for all of them. */
 export function useAgentSave() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<{ ok: boolean; error?: string; summary?: string }>, msg: string) =>
     start(async () => {
       const r = await fn();
-      if (r.ok) toast.success(msg, { description: `${r.summary ? `${r.summary} · ` : ""}Free · saved as a save point you can go back to` });
+      if (r.ok) toast.success(msg, { description: `${r.summary ? `${r.summary} · ` : ""}Free · saved as a new version you can go back to` });
       else toast.error(r.error ?? "Couldn't save");
       router.refresh();
     });
@@ -55,14 +56,14 @@ const ACCESS_PLAIN: Record<AgentTool["access"], string> = {
 export function PermissionRow({ tool, compact }: { tool: AgentTool; compact?: boolean }) {
   const ws = useWorkspace();
   return (
-    <li className={cn("flex items-center gap-2.5 rounded-md border border-hairline bg-panel px-2.5", compact ? "py-1.5" : "py-2")}>
+    <li className={cn("panel flex items-center gap-2.5 rounded-md px-2.5", compact ? "py-1.5" : "py-2")}>
       <AccessChip access={tool.access} className="shrink-0" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px]">{tool.name}</span>
-        {!compact && <span className="block truncate text-[11px] text-muted-foreground">{connectionName(ws.blueprint, tool.connectionId)}</span>}
+        <span className="block truncate text-ui">{tool.name}</span>
+        {!compact && <span className="block truncate text-badge text-muted-foreground">{connectionName(ws.blueprint, tool.connectionId)}</span>}
       </span>
       {/* Rose is kept for "can't be undone" (the access chip); a gate is the calm accent, so rose never means just "waits". */}
-      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-[11.5px] font-medium", tool.permission === "ask" ? "text-brand" : tool.permission === "log" ? "text-change" : "text-muted-foreground")}>
+      <span title={PERMISSION_PLAIN[tool.permission]} className={cn("shrink-0 text-meta font-medium", tool.permission === "ask" ? "text-brand" : tool.permission === "log" ? "text-foreground" : "text-muted-foreground")}>
         {PERMISSION_LABEL[tool.permission]}
       </span>
     </li>
@@ -78,16 +79,17 @@ export function ToolPermissionEditor({ agent, tool, onSave, disabled, stacked }:
   const irreversible = tool.access === "irreversible";
   const sup = supervisionView(agent);
   return (
-    <li className="rounded-md border border-hairline bg-panel/80 px-3 py-2.5">
+    <li className="panel rounded-md px-3 py-2.5">
+      {/* The label keeps a readable width: on a narrow screen the choice moves under it instead of squeezing it. */}
       <div className={cn("flex gap-x-3 gap-y-2", stacked ? "flex-col" : "flex-wrap items-center")}>
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] font-medium leading-snug">
+        <span className={cn("min-w-0 flex-1", !stacked && "basis-44")}>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body font-medium">
             {tool.name}
-            {irreversible && <span className="rounded-full border border-ask/30 bg-ask/10 px-1.5 py-px text-[10.5px] font-medium text-ask">Can&apos;t undo</span>}
+            {irreversible && <Pill tone="ask">Can&apos;t undo</Pill>}
           </span>
-          <span className="block text-[11.5px] leading-snug text-muted-foreground">
+          <span className="block text-meta text-muted-foreground">
             {ACCESS_PLAIN[tool.access]} · {connectionName(ws.blueprint, tool.connectionId)}
-            {sup.mode === "custom" && sup.offPreset.some((x) => x.id === tool.id) ? <span className="text-change"> · set by hand</span> : null}
+            {sup.mode === "custom" && sup.offPreset.some((x) => x.id === tool.id) ? <span className="text-foreground/75"> · set by hand</span> : null}
           </span>
         </span>
         <Segmented<ToolPermission>
@@ -100,7 +102,7 @@ export function ToolPermissionEditor({ agent, tool, onSave, disabled, stacked }:
         />
       </div>
       {irreversible && tool.permission !== "ask" && (
-        <p className="mt-2 text-[11.5px] leading-snug text-ask">This can&apos;t be undone and doesn&apos;t ask first. Set it to Ask first before you publish.</p>
+        <p className="mt-2 text-meta text-ask">This can&apos;t be undone and doesn&apos;t ask first. Set it to Ask first before you publish.</p>
       )}
     </li>
   );
@@ -110,7 +112,7 @@ export function ToolPermissionEditor({ agent, tool, onSave, disabled, stacked }:
 export function PermissionEditorList({ agent, stacked }: { agent: Agent; stacked?: boolean }) {
   const ws = useWorkspace();
   const { pending, run } = useAgentSave();
-  if (!agent.tools.length) return <p className="text-[12.5px] text-muted-foreground">No actions yet. It can only talk.</p>;
+  if (!agent.tools.length) return <p className="text-ui text-muted-foreground">No actions yet. It can only talk.</p>;
   return (
     <ul className="space-y-2">
       {agent.tools.map((t) => (
@@ -139,9 +141,9 @@ export function SupervisionPicker({ agent }: { agent: Agent }) {
             { value: "approve_all", label: "Approve everything", title: "Every action: Ask first" },
           ]}
         />
-        {pending ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Saving" /> : sup.mode === "custom" ? <span className="text-[11.5px] text-change">Custom</span> : null}
+        {pending ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Saving" /> : sup.mode === "custom" ? <Pill>Custom</Pill> : null}
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-meta text-muted-foreground">
         {sup.mode === "custom" ? (
           sup.plain
         ) : (
@@ -165,33 +167,33 @@ export function AgentPlain({ agent }: { agent: Agent }) {
   const reh = rehearsalSummary({ ...ws.blueprint, agents: [agent] });
   return (
     <div>
-      <div className="sticky-note mt-1 rounded-sm p-3.5">
+      <div className="sticky-note mt-1 p-3.5">
         <div className="flex items-center gap-3">
           <Avatar name={agent.name} hue={agent.avatarHue} size={36} />
           <div className="min-w-0">
-            <p className="text-[13.5px] font-medium leading-snug">{agent.role}</p>
-            <p className="text-[11.5px] text-muted-foreground">An AI helper · {FRAMEWORK_LABEL[agent.framework]}</p>
+            <p className="text-body font-medium">{agent.role}</p>
+            <p className="text-meta text-muted-foreground">An AI helper · {FRAMEWORK_LABEL[agent.framework]}</p>
           </div>
         </div>
-        <p className="mt-2.5 text-[13px] leading-relaxed text-foreground/90">{agent.plain}</p>
+        <p className="mt-2.5 text-body text-foreground/90">{agent.plain}</p>
       </div>
       {s.ungated.length > 0 && (
-        <p className="mt-3 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-[12.5px] text-ask">
+        <p className="mt-3 rounded-md border border-ask/30 bg-ask/10 px-3 py-2 text-ui text-ask">
           {s.ungated.map((t) => t.name).join(", ")} can&apos;t be undone and {s.ungated.length === 1 ? "doesn't ask first. Publishing stays blocked until it does." : "don't ask first. Publishing stays blocked until they do."}
         </p>
       )}
 
       <Section title="What it's allowed to do">
         <ul className="space-y-1.5">{agent.tools.map((t) => <PermissionRow key={t.id} tool={t} />)}</ul>
-        <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-meta text-muted-foreground">
           <span className="text-read">Read</span> looks things up · <span className="text-change">Change</span> edits records you can undo · <span className="text-ask">Can&apos;t undo</span> sends, pays, creates or deletes.
         </p>
       </Section>
 
       <Section title="How closely it's watched">
-        <div className="flex gap-2.5 rounded-md border border-hairline bg-panel p-2.5">
+        <div className="panel flex gap-2.5 rounded-md p-2.5">
           <Gauge className="mt-0.5 size-4 shrink-0 text-brand" />
-          <p className="text-[12.5px]">
+          <p className="text-ui">
             <span className="font-medium">{sup.label}.</span> <span className="text-muted-foreground">{sup.plain}</span>
           </p>
         </div>
@@ -200,8 +202,8 @@ export function AgentPlain({ agent }: { agent: Agent }) {
       <Section title="Rules it follows">
         <ol className="space-y-1.5">
           {agent.rules.map((r, i) => (
-            <li key={i} className="flex gap-2 text-[12.5px] leading-relaxed">
-              <span className="font-pencil text-[16px] leading-[1.2] text-faint">{i + 1}.</span>
+            <li key={i} className="flex gap-2 text-ui">
+              <span className="w-4 shrink-0 text-right tabular-nums text-faint">{i + 1}.</span>
               {r}
             </li>
           ))}
@@ -222,9 +224,9 @@ export function AgentPlain({ agent }: { agent: Agent }) {
 
 function Stat({ icon: I, label, value }: { icon: typeof Brain; label: React.ReactNode; value: string }) {
   return (
-    <div className="rounded-md border border-hairline bg-panel p-2.5">
-      <dt className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><I className="size-3" />{label}</dt>
-      <dd className="mt-1 text-[12.5px] leading-snug">{value}</dd>
+    <div className="panel rounded-md p-2.5">
+      <dt className="flex items-center gap-1.5 text-meta text-muted-foreground"><I className="size-3" />{label}</dt>
+      <dd className="mt-1 text-ui">{value}</dd>
     </div>
   );
 }
@@ -257,14 +259,14 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
       )}
 
       {show("framework") && (
-        <Section title="Framework" aside={<span className="text-[11px] text-faint">same agent, any runtime</span>}>
+        <Section title="Framework" aside={<span className="text-meta text-faint">same helper, any runtime</span>}>
           <div className="grid grid-cols-3 gap-1.5">
             {Frameworks.map((f) => (
               <button
                 key={f}
                 onClick={() => f !== agent.framework && run(() => setFramework(ws.project.id, agent.id, f as Framework), `Now runs on ${FRAMEWORK_LABEL[f]}`)}
                 aria-pressed={f === agent.framework}
-                className={cn("rounded-md border px-2 py-1.5 text-[11.5px] transition-colors", f === agent.framework ? "border-brand/50 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}
+                className={cn("rounded-md border px-2 py-1.5 text-meta transition-colors duration-150", f === agent.framework ? "border-brand/30 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:border-line-strong hover:text-foreground")}
               >
                 {FRAMEWORK_LABEL[f]}
               </button>
@@ -274,10 +276,10 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
       )}
 
       {show("job") && (
-        <Section title="Job description" aside={<span className="font-mono text-[10.5px] text-faint">system prompt</span>}>
-          <Textarea value={job} onChange={(e) => setJob(e.target.value)} rows={7} className="bg-panel font-mono text-[12px] leading-relaxed" aria-label="Job description (system prompt)" />
+        <Section title="Job description" aside={<span className="text-meta text-faint">the system prompt</span>}>
+          <Textarea value={job} onChange={(e) => setJob(e.target.value)} rows={7} className="text-ui" aria-label="Job description (system prompt)" />
           {job !== agent.jobDescription && (
-            <Button size="sm" className="mt-2 h-7" disabled={pending} onClick={() => run(() => updateAgentText(ws.project.id, agent.id, { jobDescription: job }), "Job description saved")}>
+            <Button size="sm" className="mt-2" disabled={pending} onClick={() => run(() => updateAgentText(ws.project.id, agent.id, { jobDescription: job }), "Job description saved")}>
               Save · free
             </Button>
           )}
@@ -285,10 +287,10 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
       )}
 
       {show("rules") && (
-        <Section title="Rules" aside={<span className="text-[11px] text-faint">one per line</span>}>
-          <Textarea value={rules} onChange={(e) => setRules(e.target.value)} rows={5} className="bg-panel text-[12.5px] leading-relaxed" aria-label="Rules, one per line" />
+        <Section title="Rules" aside={<span className="text-meta text-faint">one per line</span>}>
+          <Textarea value={rules} onChange={(e) => setRules(e.target.value)} rows={5} className="text-ui" aria-label="Rules, one per line" />
           {rules !== agent.rules.join("\n") && (
-            <Button size="sm" className="mt-2 h-7" disabled={pending} onClick={() => run(() => updateAgentText(ws.project.id, agent.id, { rules: rules.split("\n") }), "Rules saved")}>
+            <Button size="sm" className="mt-2" disabled={pending} onClick={() => run(() => updateAgentText(ws.project.id, agent.id, { rules: rules.split("\n") }), "Rules saved")}>
               Save · free
             </Button>
           )}
@@ -297,21 +299,21 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
 
       {show("memory") && (
         <Section title="Memory & triggers">
-          <dl className="grid gap-2 text-[12.5px] sm:grid-cols-2">
-            <div className="rounded-md border border-hairline bg-panel p-2.5">
-              <dt className="text-[11px] text-muted-foreground">Memory</dt>
-              <dd className="mt-0.5">{MEMORY_LABEL[agent.memory.scope]} <span className="font-mono text-[11px] text-faint">({agent.memory.scope} · {agent.memory.retentionDays} days)</span></dd>
+          <dl className="grid gap-2 text-ui sm:grid-cols-2">
+            <div className="panel rounded-md p-2.5">
+              <dt className="text-meta text-muted-foreground">Memory</dt>
+              <dd className="mt-0.5">{MEMORY_LABEL[agent.memory.scope]} <span className="font-mono text-badge text-faint">({agent.memory.scope} · {agent.memory.retentionDays} days)</span></dd>
             </div>
-            <div className="rounded-md border border-hairline bg-panel p-2.5">
-              <dt className="text-[11px] text-muted-foreground">Runs on</dt>
-              <dd className="mt-0.5 font-mono text-[12px]">{agent.triggers.join(", ")}</dd>
+            <div className="panel rounded-md p-2.5">
+              <dt className="text-meta text-muted-foreground">Runs on</dt>
+              <dd className="mt-0.5 font-mono text-badge">{agent.triggers.join(", ")}</dd>
             </div>
-            <div className="rounded-md border border-hairline bg-panel p-2.5">
-              <dt className="text-[11px] text-muted-foreground">Model</dt>
-              <dd className="mt-0.5 font-mono text-[12px]">{agent.cost.model}</dd>
+            <div className="panel rounded-md p-2.5">
+              <dt className="text-meta text-muted-foreground">Model</dt>
+              <dd className="mt-0.5 font-mono text-badge">{agent.cost.model}</dd>
             </div>
-            <div className="rounded-md border border-hairline bg-panel p-2.5">
-              <dt className="text-[11px] text-muted-foreground">Cost per conversation</dt>
+            <div className="panel rounded-md p-2.5">
+              <dt className="text-meta text-muted-foreground">Cost per conversation</dt>
               <dd className="mt-0.5">~{agent.cost.creditsPerRun} credits (≈ {creditsUsd(agent.cost.creditsPerRun)})</dd>
             </div>
           </dl>

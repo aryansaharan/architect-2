@@ -9,6 +9,7 @@ import { relations } from "@/lib/blueprint";
 import { cancelBuild } from "@/lib/actions/build";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DUR, EASE } from "@/lib/motion";
 import { useWorkspace } from "../context";
 import type { InterruptedBuild } from "../use-build-runner";
 import { AgentNode, ConnectionNode, EntityNode, ScreenNode } from "./node-card";
@@ -172,15 +173,15 @@ export function BlueprintCanvas() {
     <div className="relative flex h-full min-h-0 flex-col">
       <div className={cn("flex items-center gap-3 border-b border-hairline px-5 py-2.5", ws.selected && "lg:max-xl:pr-[376px]")}>
         <div className="min-w-0">
-          <p className="truncate pr-1 font-pencil text-[24px] leading-[1.15]">{bp.meta.tagline}</p>
-          <p className="truncate text-[11.5px] text-muted-foreground">
+          <h2 className="truncate pr-1 font-pencil text-note leading-tight">{bp.meta.tagline}</h2>
+          <p className="truncate text-meta text-muted-foreground">
             The plan map: click anything to read it in plain English, change it, or see its code.
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {ws.project.buildState === "built" && !running && (
-            <Button variant="outline" size="sm" className="h-8 bg-panel" onClick={() => ws.build.start({ replay: true })}>
-              <Play /> Replay how it was built
+            <Button variant="outline" onClick={() => ws.build.start({ replay: true })} aria-label="Replay how it was built">
+              <Play /> <span className="max-sm:hidden">Replay how it was built</span><span className="sm:hidden">Replay</span>
             </Button>
           )}
         </div>
@@ -197,17 +198,18 @@ export function BlueprintCanvas() {
             ws.selected && "lg:max-xl:scroll-pr-[376px] lg:max-xl:pr-[376px]",
           )}
         >
-          {/* Columns and gaps tighten with the space available; below 860px the plan scrolls sideways. */}
+          {/* Columns and gaps tighten with the space available; from 640 to 860px the plan scrolls sideways.
+              On a phone the four columns stack, one under the other, and the connecting lines step aside. */}
           <div
             ref={container}
             className={cn(
-              "relative grid min-w-[860px] grid-cols-4 gap-x-8 px-5 pt-6 @min-[1060px]/canvas:gap-x-12 @min-[1060px]/canvas:px-7 @min-[1240px]/canvas:gap-x-14 @min-[1240px]/canvas:px-8",
+              "relative grid grid-cols-1 gap-y-8 px-4 pt-5 @min-[640px]/canvas:min-w-[860px] @min-[640px]/canvas:grid-cols-4 @min-[640px]/canvas:gap-x-8 @min-[640px]/canvas:gap-y-0 @min-[640px]/canvas:px-5 @min-[640px]/canvas:pt-6 @min-[1060px]/canvas:gap-x-12 @min-[1060px]/canvas:px-7 @min-[1240px]/canvas:gap-x-14 @min-[1240px]/canvas:px-8",
               // The build console floats over the bottom of the plan: leave room to scroll every card past it.
               running ? "pb-56" : "pb-16",
             )}
           >
             {/* Sized by the grid, not by a measured width: a stale wider SVG would hold the canvas open and push lines under the inspector. */}
-            <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden>
+            <svg className="pointer-events-none absolute inset-0 hidden size-full overflow-visible @min-[640px]/canvas:block" aria-hidden>
               {paths.map((p, i) => {
                 const hot = Boolean(related && related.has(p.from) && related.has(p.to));
                 const dashed = p.kind === "agent-connection";
@@ -215,9 +217,9 @@ export function BlueprintCanvas() {
                   <g key={`${p.from}-${p.to}`}>
                     {/* Pencil lines: graphite, dashed where an agent reaches outside the app. */}
                     {dashed ? (
-                      <motion.path d={p.d} fill="none" stroke="rgb(63 61 56 / 0.28)" strokeWidth={1.25} strokeDasharray="4 5" strokeLinecap="round" initial={{ opacity: 0 }} animate={{ opacity: hot ? 0 : 1 }} transition={{ duration: 0.6, delay: 0.5 + i * 0.015 }} />
+                      <motion.path d={p.d} fill="none" stroke="var(--graphite)" strokeOpacity={0.28} strokeWidth={1.25} strokeDasharray="4 5" strokeLinecap="round" initial={{ opacity: 0 }} animate={{ opacity: hot ? 0 : 1 }} transition={{ duration: DUR.page, ease: EASE, delay: 0.5 + i * 0.015 }} />
                     ) : (
-                      <motion.path d={p.d} fill="none" stroke="rgb(63 61 56 / 0.3)" strokeWidth={1.25} strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0 : 1 }} transition={{ pathLength: { duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.45 + i * 0.02 }, opacity: { duration: 0.3 } }} />
+                      <motion.path d={p.d} fill="none" stroke="var(--graphite)" strokeOpacity={0.3} strokeWidth={1.25} strokeLinecap="round" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: hot ? 0 : 1 }} transition={{ pathLength: { duration: 1.1, ease: EASE, delay: 0.45 + i * 0.02 }, opacity: { duration: DUR.panel, ease: EASE } }} />
                     )}
                     {/* The lines around what you point at, inked in the accent. Data only moves along them while a build runs. */}
                     {hot && <path d={p.d} fill="none" stroke="var(--brand)" strokeOpacity={0.85} strokeWidth={1.6} strokeLinecap="round" strokeDasharray={dashed ? "4 5" : undefined} className={running ? "flow" : undefined} />}
@@ -225,26 +227,23 @@ export function BlueprintCanvas() {
                 );
               })}
             </svg>
-            {columns.map((c) => (
-              <div key={c.title} className="relative z-[1] mb-3 flex min-w-0 items-baseline gap-2">
-                <c.icon className="size-3.5 shrink-0 translate-y-px text-muted-foreground" aria-hidden />
-                <h3 className="font-pencil text-[24px] leading-none text-foreground">{c.title}</h3>
-                <span className="text-[11.5px] text-muted-foreground">{c.count}</span>
-                <span className="truncate text-[11.5px] text-muted-foreground">· {c.hint}</span>
-              </div>
+            {columns.map((c, col) => (
+              // Each column is its heading and its cards. The staggered offsets only apply side by side.
+              <section key={c.title} aria-label={c.title} className="relative z-[1] min-w-0">
+                <div className="mb-3 flex min-w-0 items-baseline gap-2">
+                  <c.icon className="size-3.5 shrink-0 translate-y-px text-muted-foreground" aria-hidden />
+                  <h3 className="shrink-0 whitespace-nowrap font-pencil text-note leading-tight text-foreground">{c.title}</h3>
+                  <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{c.count}</span>
+                  <span className="min-w-0 truncate text-meta text-muted-foreground">· {c.hint}</span>
+                </div>
+                <div className={cn("space-y-3", OFFSET[col])}>
+                  {col === 0 && bp.screens.map((s, i) => <Land key={s.id} col={0} i={i}><ScreenNode ref={reg(key("screen", s.id))} screen={s} primary={bp.meta.theme.primary} {...common("screen", s.id)} /></Land>)}
+                  {col === 1 && bp.agents.map((a, i) => <Land key={a.id} col={1} i={i}><AgentNode ref={reg(key("agent", a.id))} agent={a} {...common("agent", a.id)} /></Land>)}
+                  {col === 2 && bp.entities.map((e, i) => <Land key={e.id} col={2} i={i}><EntityNode ref={reg(key("entity", e.id))} entity={e} {...common("entity", e.id)} /></Land>)}
+                  {col === 3 && bp.connections.map((cn2, i) => <Land key={cn2.id} col={3} i={i}><ConnectionNode ref={reg(key("connection", cn2.id))} connection={cn2} {...common("connection", cn2.id)} /></Land>)}
+                </div>
+              </section>
             ))}
-            <div className="relative z-[1] space-y-3">
-              {bp.screens.map((s, i) => <Land key={s.id} col={0} i={i}><ScreenNode ref={reg(key("screen", s.id))} screen={s} primary={bp.meta.theme.primary} {...common("screen", s.id)} /></Land>)}
-            </div>
-            <div className="relative z-[1] space-y-3 pt-8">
-              {bp.agents.map((a, i) => <Land key={a.id} col={1} i={i}><AgentNode ref={reg(key("agent", a.id))} agent={a} {...common("agent", a.id)} /></Land>)}
-            </div>
-            <div className="relative z-[1] space-y-3 pt-4">
-              {bp.entities.map((e, i) => <Land key={e.id} col={2} i={i}><EntityNode ref={reg(key("entity", e.id))} entity={e} {...common("entity", e.id)} /></Land>)}
-            </div>
-            <div className="relative z-[1] space-y-3 pt-12">
-              {bp.connections.map((c, i) => <Land key={c.id} col={3} i={i}><ConnectionNode ref={reg(key("connection", c.id))} connection={c} {...common("connection", c.id)} /></Land>)}
-            </div>
           </div>
         </div>
         <EdgeFade side="left" show={more.left} onNudge={() => nudge(-1)} />
@@ -271,10 +270,13 @@ export function BlueprintCanvas() {
 
 const dockMotion = {
   initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const, delay: 0.3 } },
-  exit: { opacity: 0, y: 8, transition: { duration: 0.15 } },
+  animate: { opacity: 1, y: 0, transition: { duration: DUR.panel, ease: EASE, delay: 0.3 } },
+  exit: { opacity: 0, y: 8, transition: { duration: DUR.hover, ease: EASE } },
 };
-const dockPanel = "sketch pointer-events-auto w-full max-w-[860px] bg-raised p-4 shadow-[0_10px_30px_-18px_rgb(26_26_23/0.35)]";
+/** A dock is a proposal on the plan: a pencil sketch on paper, never a shadow. */
+const dockPanel = "sketch pointer-events-auto w-full max-w-[860px] bg-raised p-4";
+/** Side by side, the columns start a little lower each, like notes placed by hand. Stacked, they don't. */
+const OFFSET = ["", "@min-[640px]/canvas:pt-8", "@min-[640px]/canvas:pt-4", "@min-[640px]/canvas:pt-12"];
 
 /**
  * The server says this project is mid-build, but nothing is running here: the tab was closed or
@@ -292,9 +294,9 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
       <motion.section aria-label="Interrupted build" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-medium text-brand">Build paused · nothing more to pay</p>
-            <p className="mt-0.5 font-pencil text-[26px] leading-tight">Your build was interrupted {where}.</p>
-            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+            <p className="font-sketch text-sketch text-muted-foreground">Build paused · nothing more to pay</p>
+            <p className="mt-1 font-pencil text-note leading-tight">Your build was interrupted {where}.</p>
+            <p className="mt-0.5 text-ui text-muted-foreground">
               {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
               {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the credits back.
             </p>
@@ -302,8 +304,8 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="ghost"
-              size="sm"
-              className="h-9 text-muted-foreground"
+              size="lg"
+              className="text-muted-foreground"
               disabled={busy !== null}
               onClick={async () => {
                 setBusy("stop");
@@ -319,7 +321,6 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
             </Button>
             <Button
               size="lg"
-              className="h-9 px-4"
               disabled={busy !== null}
               onClick={async () => {
                 setBusy("resume");
@@ -348,11 +349,11 @@ function MappedDock() {
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas"><FolderGit2 className="size-4 text-brand" /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-medium text-brand">Adopted · nothing was built or charged</p>
-            <p className="mt-0.5 font-pencil text-[26px] leading-tight">Mapped. Your repo is untouched.</p>
-            <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
+            <p className="font-sketch text-sketch text-muted-foreground">Adopted · nothing was built or charged</p>
+            <p className="mt-1 font-pencil text-note leading-tight">Mapped. Your repo is untouched.</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-ui text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
           </div>
-          <Button size="lg" className="ml-auto h-9 px-4" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">
+          <Button size="lg" className="ml-auto" onClick={() => ws.focusComposer(null)} title="Type the change in the box below">
             Describe your first change <ArrowRight />
           </Button>
         </div>
@@ -371,7 +372,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-y-0 z-[4] flex w-16 items-center transition-opacity duration-300",
+        "pointer-events-none absolute inset-y-0 z-[4] flex w-16 items-center transition-opacity duration-250 ease-paper",
         side === "left" ? "left-0 justify-start pl-2" : "right-0 justify-end pr-3",
         show ? "opacity-100" : "opacity-0",
       )}
@@ -381,7 +382,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
         tabIndex={-1}
         onClick={onNudge}
         className={cn(
-          "grid size-7 place-items-center rounded-full border border-hairline bg-raised text-muted-foreground shadow-[0_2px_6px_-2px_rgb(26_26_23/0.2)] transition-colors hover:border-brand/40 hover:text-foreground",
+          "grid size-7 place-items-center rounded-full border border-hairline-hi bg-raised text-muted-foreground shadow-float transition-colors duration-150 hover:border-line-strong hover:text-foreground",
           show ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
@@ -394,7 +395,7 @@ function EdgeFade({ side, show, onNudge }: { side: "left" | "right"; show: boole
 /** Cards settle onto the page column by column on first paint: a short fade, nothing bouncing. */
 function Land({ col, i, children }: { col: number; i: number; children: React.ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: col * 0.06 + i * 0.04 }}>
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE, delay: col * 0.06 + i * 0.04 }}>
       {children}
     </motion.div>
   );

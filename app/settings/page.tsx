@@ -1,19 +1,10 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { listIntegrations, listProjects, usageSummary } from "@/lib/db/queries";
-import { Logo } from "@/components/brand/logo";
-import { UserMenuView } from "@/components/workspace/top-bar";
+import { AppHeader } from "@/components/app-header";
 import { SettingsView } from "@/components/settings/settings-view";
 
 export const metadata = { title: "Settings" };
-
-const MAIN_NAV = [
-  { href: "/home", label: "Projects" },
-  { href: "/settings#connections", label: "Connections" },
-  { href: "/settings#usage", label: "Usage" },
-  { href: "/settings", label: "Settings" },
-];
 
 export default async function SettingsPage() {
   const user = await requireUser("/settings");
@@ -27,21 +18,7 @@ export default async function SettingsPage() {
   const connections = [...new Map(projects.flatMap((p) => p.blueprint.connections.map((c) => [c.name, { ...c, project: p.name }] as const))).values()];
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/95">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-6">
-          <Logo href="/home" />
-          {/* The same items, in the same order, as the Home header (app/home/page.tsx). */}
-          <nav className="ml-4 hidden items-center gap-1 text-[13px] md:flex" aria-label="Main">
-            {MAIN_NAV.map((n) => (
-              <Link key={n.href} href={n.href} aria-current={n.href === "/settings" ? "page" : undefined} className={n.href === "/settings" ? "rounded-md border border-hairline bg-panel px-2.5 py-1.5 font-medium" : "rounded-md border border-transparent px-2.5 py-1.5 text-muted-foreground hover:text-foreground"}>{n.label}</Link>
-            ))}
-          </nav>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden font-mono text-[12px] text-muted-foreground sm:inline">{Math.round(month.credits)} / {cap} cr this month</span>
-            <UserMenuView name={user.name} isAnonymous={user.isAnonymous} avatarUrl={user.avatarUrl} />
-          </div>
-        </div>
-      </header>
+      <AppHeader current="/settings" user={{ name: user.name, isAnonymous: user.isAnonymous, avatarUrl: user.avatarUrl }} credits={month.credits} cap={cap} />
       <SettingsView
         user={{ name: user.name, email: user.email, isAnonymous: user.isAnonymous, provider: user.provider }}
         integrations={integrations}

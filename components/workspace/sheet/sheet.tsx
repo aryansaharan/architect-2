@@ -51,7 +51,7 @@ function SheetBody() {
       <div className={cn("mx-auto w-full px-2.5 py-5 sm:px-6 sm:py-9", phase === "real" ? "max-w-[1240px]" : "max-w-[980px]")}>
         <article
           aria-label={`${ws.project.name}: ${phase === "real" ? "the real app" : phase === "building" ? "being made real" : "the sketch"}`}
-          className={cn("@container/sheet panel relative rounded-[6px] py-7 sm:py-10", phase === "real" ? "px-3 sm:px-8" : "px-4 sm:px-10")}
+          className={cn("@container/sheet panel relative rounded-md py-7 sm:py-10", phase === "real" ? "px-3 sm:px-8" : "px-4 sm:px-10")}
         >
           {empty ? <EmptySheet /> : phase === "real" ? <RealApp key="real" justBuilt={b.status === "done"} /> : <SketchSheet building={phase === "building"} />}
         </article>
@@ -109,22 +109,24 @@ function SketchSheet({ building }: { building: boolean }) {
     return s === "done" ? "inked" : s === "active" ? "inking" : "sketch";
   };
   const showStates = building || Boolean(doneBefore);
-  const inked = bp.screens.filter((s) => ink(s.id) === "inked").length;
 
   return (
     <>
       <header>
-        <p className="font-sketch text-[13px] text-muted-foreground">
+        {/* Counts live in the progress line and on each card, in print: the eyebrow is only words. */}
+        <p className="font-sketch text-sketch text-muted-foreground">
           {building
-            ? `${b.mode === "replay" ? "A replay" : "Being made real"} · ${inked} of ${plural(bp.screens.length, "screen")} inked`
+            ? b.mode === "replay"
+              ? "A replay"
+              : "Being made real"
             : interrupted
-              ? `Paused part-way · ${inked} of ${plural(bp.screens.length, "screen")} inked`
+              ? "Paused part-way"
               : imported
                 ? "Mapped from your repo"
                 : "A sketch · nothing is built yet"}
         </p>
-        <h1 className="mt-1 break-words font-display text-[46px] leading-[0.95] text-foreground sm:text-[60px]">{ws.project.name}</h1>
-        {bp.meta.tagline && <p className="mt-2.5 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">{bp.meta.tagline}</p>}
+        <h1 className="mt-1 break-words font-pencil text-title text-foreground sm:text-hero">{ws.project.name}</h1>
+        {bp.meta.tagline && <p className="mt-2.5 max-w-[62ch] text-lead text-muted-foreground">{bp.meta.tagline}</p>}
       </header>
 
       {building ? (
@@ -140,7 +142,7 @@ function SketchSheet({ building }: { building: boolean }) {
       )}
 
       <section aria-labelledby="sheet-screens" className="mt-10">
-        <h2 id="sheet-screens" className="font-display text-[34px] leading-none text-foreground sm:text-[38px]">
+        <h2 id="sheet-screens" className="font-pencil text-section text-foreground">
           {building ? (
             "Inking each screen"
           ) : (
@@ -149,7 +151,7 @@ function SketchSheet({ building }: { building: boolean }) {
             </>
           )}
         </h2>
-        <p className="mt-2 text-[13.5px] text-muted-foreground">
+        <p className="mt-2 text-body text-muted-foreground">
           {building
             ? "Each screen turns from pencil into the real thing as it's built."
             : imported
@@ -163,15 +165,15 @@ function SketchSheet({ building }: { building: boolean }) {
 
       {bp.agents.length > 0 && (
         <section aria-labelledby="sheet-helpers" className="mt-11">
-          <h2 id="sheet-helpers" className="font-display text-[32px] leading-none text-foreground sm:text-[36px]">AI helpers</h2>
-          <p className="mb-5 mt-2 text-[13.5px] text-muted-foreground">They do the work behind the screens. Anything that can&apos;t be undone waits for a person.</p>
+          <h2 id="sheet-helpers" className="font-pencil text-section text-foreground">AI helpers</h2>
+          <p className="mb-5 mt-2 text-body text-muted-foreground">They do the work behind the screens. Anything that can&apos;t be undone waits for a person.</p>
           <HelperNotes bp={bp} stateOf={(id) => (showStates ? stateOf("agent", id) : null)} waitingOn={b.status === "repair" ? (b.repair?.objectRef.id ?? null) : null} />
         </section>
       )}
 
       {bp.connections.length > 0 && (
         <section aria-labelledby="sheet-connections" className="mt-11">
-          <h2 id="sheet-connections" className="font-pencil text-[26px] leading-none text-foreground">It connects to</h2>
+          <h2 id="sheet-connections" className="font-pencil text-section text-foreground">It connects to</h2>
           <div className="mt-3">
             <ConnectionLabels connections={bp.connections} stateOf={(id) => (showStates ? stateOf("connection", id) : null)} />
           </div>

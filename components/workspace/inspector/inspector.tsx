@@ -11,6 +11,7 @@ import { useWorkspace } from "../context";
 import { AgentPlain, AgentSpec } from "./agent-faces";
 import { BlockPlain, BlockSpec, BriefPlain, BriefSpec, ConnectionPlain, ConnectionSpec, EntityPlain, EntitySpec, ScreenPlain, ScreenSpec } from "./other-faces";
 import { CodeFace } from "./code-face";
+import { DUR, EASE } from "@/lib/motion";
 
 export type Face = "plain" | "spec" | "code";
 
@@ -51,8 +52,8 @@ export function Inspector() {
           <meta.icon className="size-3.5 text-muted-foreground" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11.5px] text-muted-foreground">{meta.label}</p>
-          <h2 className="truncate pr-1 font-pencil text-[28px] leading-[1.15]">{name}</h2>
+          <p className="text-meta text-muted-foreground">{meta.label}</p>
+          <h2 className="truncate pr-1 font-pencil text-section">{name}</h2>
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1" onClick={() => ws.select(null)} aria-label="Close inspector">
           <X />
@@ -69,7 +70,7 @@ export function Inspector() {
             { value: "code", label: <><FileCode2 className="size-3" />Code</>, title: "The generated files" },
           ]}
         />
-        <span className="text-[11px] text-faint">words, settings, code</span>
+        <span className="text-meta text-faint max-2xl:hidden">words, settings, code</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <AnimatePresence mode="wait" initial={false}>
@@ -77,8 +78,8 @@ export function Inspector() {
             key={`${face}-${target.type}-${target.id}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.1 } }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, transition: { duration: DUR.hover, ease: EASE } }}
+            transition={{ duration: DUR.panel, ease: EASE }}
           >
             {face === "plain" && <PlainFace resolved={resolved} />}
             {face === "spec" && <SpecFace resolved={resolved} />}
@@ -87,17 +88,17 @@ export function Inspector() {
         </AnimatePresence>
       </div>
       <div className="flex gap-2 border-t border-hairline p-3">
-        <Button variant="outline" size="sm" className="h-8 flex-1 bg-panel" onClick={() => ws.focusComposer(target)}>
+        <Button variant="outline" className="flex-1" onClick={() => ws.focusComposer(target)}>
           <MessageSquarePlus /> Ask for a change
         </Button>
-        <Button variant="outline" size="sm" className="h-8 flex-1 bg-panel" onClick={() => ws.openHandoff(target)}>
+        <Button variant="outline" className="flex-1" onClick={() => ws.openHandoff(target)}>
           <UsersRound /> Ask a teammate
         </Button>
       </div>
       {resolved.type === "agent" && (
         <div className="border-t border-hairline px-3 pb-3 pt-2">
-          <Button asChild size="sm" variant="ghost" className="h-8 w-full text-muted-foreground">
-            <Link href={`/p/${ws.project.id}/agents?agent=${resolved.value.id}`}>Try it, and see its tests and replays →</Link>
+          <Button asChild variant="ghost" className="w-full text-muted-foreground">
+            <Link href={`/p/${ws.project.id}/agents?agent=${resolved.value.id}`}>Try it, and see its test runs and replays →</Link>
           </Button>
         </div>
       )}

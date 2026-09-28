@@ -18,6 +18,15 @@ import { agentSummary, connectionSummary, screenSummary } from "@/lib/blueprint/
 import { resolveHandoff } from "@/lib/actions/handoff";
 import { hash } from "@/lib/sim/hash";
 import { cn } from "@/lib/utils";
+import { Pill } from "@/components/ui/pill";
+
+/** Diff lines: additions in the success green, removals in faint ink, hunk headers muted. */
+const DIFF = {
+  add: "border-ok bg-brand-soft text-foreground",
+  del: "border-foreground/30 bg-foreground/[0.04] text-muted-foreground",
+  hunk: "border-transparent bg-deep text-muted-foreground",
+  same: "border-transparent text-foreground/70",
+};
 import { useWorkspace } from "../context";
 
 export function HandoffsView({ initial }: { initial?: string }) {
@@ -35,9 +44,9 @@ export function HandoffsView({ initial }: { initial?: string }) {
       <div className="grid h-full place-items-center p-8 text-center">
         <div className="max-w-sm">
           <UsersRound className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 font-pencil text-[28px] leading-none">No handoffs yet</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">Use “Ask a teammate” on any screen, agent or connection. They get the object, your brief, your recent requests and the latest diff, and you get a plain-English answer back.</p>
-          <Button className="mt-4 bg-panel" variant="outline" onClick={() => ws.openHandoff(null)}><UsersRound /> Ask a teammate</Button>
+          <h2 className="mt-3 font-pencil text-section">No handoffs yet</h2>
+          <p className="mt-2 text-ui text-muted-foreground">Use “Ask a teammate” on any screen, AI helper or connection. They get what it is, your brief, your recent requests and the latest change, and you get a plain answer back.</p>
+          <Button className="mt-4" variant="outline" onClick={() => ws.openHandoff(null)}><UsersRound /> Ask a teammate</Button>
         </div>
       </div>
     );
@@ -45,27 +54,33 @@ export function HandoffsView({ initial }: { initial?: string }) {
   return (
     <div className="flex h-full min-h-0">
       <ul className="w-[300px] shrink-0 space-y-2 overflow-y-auto border-r border-hairline p-3 max-md:hidden">
-        <li className="flex items-end justify-between px-1 pb-1 pt-1"><span className="font-pencil text-[28px] leading-none">Handoffs</span><span className="pb-0.5 text-[12px] text-muted-foreground">{list.filter((x) => x.status !== "resolved").length} open</span></li>
+        <li className="flex items-end justify-between px-1 pb-1 pt-1"><h2 className="font-pencil text-section">Handoffs</h2><span className="pb-1 text-meta tabular-nums text-muted-foreground">{list.filter((x) => x.status !== "resolved").length} open</span></li>
         {list.map((x) => (
           <li key={x.id}>
-            <button onClick={() => { setId(x.id); router.replace(`${pathname}?h=${x.id}`, { scroll: false }); }} aria-current={x.id === id} className={cn("w-full rounded-md border p-3 text-left transition-colors", x.id === id ? "border-brand/50 bg-brand-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
-              <p className="flex items-center gap-2 text-[12px]">
-                <span className={cn("size-1.5 rounded-full", x.status === "resolved" ? "bg-read" : "bg-change")} />
+            <button onClick={() => { setId(x.id); router.replace(`${pathname}?h=${x.id}`, { scroll: false }); }} aria-current={x.id === id} className={cn("w-full rounded-md border p-3 text-left transition-colors duration-150 ease-paper", x.id === id ? "border-brand/30 bg-brand-soft" : "border-hairline bg-panel hover:border-line-strong")}>
+              <p className="flex items-center gap-2 text-meta">
+                <span className={cn("size-1.5 shrink-0 rounded-full", x.status === "resolved" ? "bg-ok" : "bg-foreground/45")} aria-label={x.status === "resolved" ? "Resolved" : "Open"} />
                 <span className="min-w-0 truncate"><span className="text-muted-foreground">You → </span><span className="font-medium">{x.assignee.split(" · ")[0]}</span></span>
-                <TimeAgo iso={x.created_at} className="ml-auto text-[11px] text-faint" />
+                <TimeAgo iso={x.created_at} className="ml-auto shrink-0 text-meta text-faint" />
               </p>
-              <p className="mt-1 line-clamp-2 text-[12.5px] text-muted-foreground">{x.prompt}</p>
-              <p className="mt-1.5 truncate text-[11px] text-faint">About {x.context.objectLabel ?? objectLabel(ws.blueprint, x.object_ref)}</p>
+              <p className="mt-1 line-clamp-2 text-ui text-muted-foreground">{x.prompt}</p>
+              <p className="mt-1.5 truncate text-meta text-faint">About {x.context.objectLabel ?? objectLabel(ws.blueprint, x.object_ref)}</p>
             </button>
           </li>
         ))}
       </ul>
       {h && (
         <div className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-4xl px-6 py-6">
+          <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+            {list.length > 1 && (
+              // Phones: the list above is hidden, so pick a handoff here.
+              <select aria-label="Handoff" value={h.id} onChange={(e) => { setId(e.target.value); router.replace(`${pathname}?h=${e.target.value}`, { scroll: false }); }} className="mb-4 h-8 w-full rounded-md border border-input bg-raised px-2 text-ui outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 md:hidden">
+                {list.map((x) => <option key={x.id} value={x.id}>{x.assignee.split(" · ")[0]}{x.status === "resolved" ? " (answered)" : ""} · {x.context.objectLabel ?? objectLabel(ws.blueprint, x.object_ref)}</option>)}
+              </select>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <Segmented ariaLabel="Whose view" value={view} onChange={setView} options={[{ value: "you", label: "What you see" }, { value: "teammate", label: <><Eye className="size-3.5" />What {h.assignee.split(" ")[0]} sees</> }]} />
-              <span className="text-[12.5px] text-muted-foreground">Same handoff, two people. You get the answer; the engineer gets the code.</span>
+              <span className="text-ui text-muted-foreground">Same handoff, two people. You get the answer; the engineer gets the code.</span>
             </div>
             {view === "teammate" ? <TeammateView h={h} /> : <RequesterView h={h} />}
           </div>
@@ -102,16 +117,16 @@ function TeammateView({ h }: { h: HandoffRow }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="panel rounded-md p-4">
-          <p className="text-[12px] font-medium text-muted-foreground">The object</p>
-          <p className="mt-1.5 text-[13.5px] font-medium">{h.context.objectLabel ?? objectLabel(ws.blueprint, h.object_ref)}</p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{summary}</p>
-          <p className="mt-2 font-mono text-[11px] text-faint">{h.object_ref.type}:{h.object_ref.id}</p>
+          <p className="text-meta font-medium text-muted-foreground">The object</p>
+          <p className="mt-1.5 text-body font-medium">{h.context.objectLabel ?? objectLabel(ws.blueprint, h.object_ref)}</p>
+          <p className="mt-1 text-ui text-muted-foreground">{summary}</p>
+          <p className="mt-2 font-mono text-badge text-faint">{h.object_ref.type}:{h.object_ref.id}</p>
         </div>
         <div className="panel rounded-md p-4">
-          <p className="text-[12px] font-medium text-muted-foreground">How we got here</p>
+          <p className="text-meta font-medium text-muted-foreground">How we got here</p>
           <ol className="mt-2 space-y-1.5">
             {(h.context.promptHistory ?? []).map((p, i) => (
-              <li key={i} className="flex gap-2 text-[12.5px]"><MessageSquareText className="mt-0.5 size-3 shrink-0 text-muted-foreground" /><span className="line-clamp-2">{p}</span></li>
+              <li key={i} className="flex gap-2 text-ui"><MessageSquareText className="mt-0.5 size-3 shrink-0 text-muted-foreground" /><span className="line-clamp-2">{p}</span></li>
             ))}
           </ol>
         </div>
@@ -119,10 +134,10 @@ function TeammateView({ h }: { h: HandoffRow }) {
 
       {h.context.lastDiff && (
         <div className="overflow-hidden rounded-md border border-hairline">
-          <p className="border-b border-hairline bg-panel px-3 py-2 text-[12px] font-medium">The latest change</p>
-          <div className="code-face max-h-56 overflow-auto py-1 text-[12px] leading-[1.6]">
+          <p className="border-b border-hairline bg-panel px-3 py-2 text-meta font-medium">The latest change</p>
+          <div className="code-face max-h-56 overflow-auto py-1 text-code">
             {h.context.lastDiff.split("\n").map((l, i) => (
-              <div key={i} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") && !l.startsWith("+++") ? "border-read bg-read/10 text-foreground" : l.startsWith("-") && !l.startsWith("---") ? "border-foreground/30 bg-foreground/[0.05] text-muted-foreground" : l.startsWith("@@") ? "border-transparent bg-change/[0.06] text-change" : "border-transparent text-foreground/70")}>{l || " "}</div>
+              <div key={i} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") && !l.startsWith("+++") ? DIFF.add : l.startsWith("-") && !l.startsWith("---") ? DIFF.del : l.startsWith("@@") ? DIFF.hunk : DIFF.same)}>{l || " "}</div>
             ))}
           </div>
         </div>
@@ -130,8 +145,8 @@ function TeammateView({ h }: { h: HandoffRow }) {
 
       {file && (
         <div className="overflow-hidden rounded-md border border-hairline">
-          <div className="flex gap-1 overflow-x-auto border-b border-hairline bg-panel px-2 py-1.5">
-            {files.map((f, i) => <button key={f.path} onClick={() => setFileIdx(i)} aria-pressed={i === fileIdx} className={cn("shrink-0 rounded px-2 py-0.5 font-mono text-[11px]", i === fileIdx ? "bg-deep text-foreground" : "text-muted-foreground hover:text-foreground")}>{f.path}</button>)}
+          <div className="flex overflow-x-auto border-b border-hairline bg-panel px-2 py-1.5">
+            <Segmented ariaLabel="File" size="xs" value={String(Math.min(fileIdx, files.length - 1))} onChange={(v) => setFileIdx(Number(v))} options={files.map((f, i) => ({ value: String(i), label: <span className="font-mono">{f.path}</span> }))} />
           </div>
           <CodeView code={file.content} lang={file.lang} className="max-h-72" />
         </div>
@@ -139,14 +154,14 @@ function TeammateView({ h }: { h: HandoffRow }) {
 
       {h.status !== "resolved" ? (
         <div className="panel rounded-md p-4">
-          <label htmlFor="resolution" className="text-[12px] font-medium text-muted-foreground">Reply in plain English (it goes straight to {guest ? "your" : `${ws.user.name.split(" ")[0]}'s`} activity)</label>
-          <Textarea id="resolution" rows={2} className="mt-2 text-[13px]" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave empty to use the suggested summary of the fix." />
+          <label htmlFor="resolution" className="text-meta font-medium text-muted-foreground">Reply in plain English (it goes straight to {guest ? "your" : `${ws.user.name.split(" ")[0]}'s`} activity)</label>
+          <Textarea id="resolution" rows={2} className="mt-2 text-ui" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave empty to use the suggested summary of the fix." />
           <Button className="mt-3" disabled={resolve.pending} onClick={() => resolve.run(note)}>
             {resolve.pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve as {mate[0].split(" ")[0]} (simulated)
           </Button>
         </div>
       ) : (
-        <p className="rounded-md border border-read/30 bg-read/[0.06] p-4 text-[13px]">Resolved: {h.resolution}</p>
+        <p className="flex items-start gap-2 rounded-md border border-ok/30 bg-brand-soft p-4 text-ui"><Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />Resolved: {h.resolution}</p>
       )}
     </div>
   );
@@ -176,7 +191,7 @@ function YouAvatar({ size = 24 }: { size?: number }) {
 }
 
 function StatusPill({ h }: { h: HandoffRow }) {
-  return <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px]", h.status === "resolved" ? "border-read/30 text-read" : "border-change/30 text-change")}>{h.status === "resolved" ? "Resolved" : "Open"}</span>;
+  return h.status === "resolved" ? <Pill tone="ok" dot>Resolved</Pill> : <Pill>Open</Pill>;
 }
 
 /** "From you → Priya": the request is yours, so your avatar leads and the teammate is who it went to. */
@@ -185,8 +200,8 @@ function FromTo({ h }: { h: HandoffRow }) {
   const mate = mateOf(h);
   const you = ws.user.isAnonymous ? "You (guest)" : "You";
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
-      <span className="text-[12px] font-medium text-muted-foreground">From</span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-ui">
+      <span className="text-meta font-medium text-muted-foreground">From</span>
       <YouAvatar />
       <span className="font-medium" title={ws.user.isAnonymous ? undefined : ws.user.name}>{you}</span>
       <ArrowRight className="size-3.5 text-faint" aria-label="to" />
@@ -194,7 +209,7 @@ function FromTo({ h }: { h: HandoffRow }) {
       <span className="font-medium">{mate.name}</span>
       <span className="text-muted-foreground max-sm:hidden">· {mate.role}</span>
       <span className="ml-auto flex items-center gap-2">
-        <TimeAgo iso={h.created_at} className="text-[11.5px] text-faint" />
+        <TimeAgo iso={h.created_at} className="text-meta text-faint" />
         <StatusPill h={h} />
       </span>
     </div>
@@ -205,7 +220,7 @@ function Quote({ h }: { h: HandoffRow }) {
   return (
     <div className="mt-3 flex gap-3">
       <span aria-hidden className="mt-1 w-0.5 shrink-0 self-stretch rounded-full bg-brand/50" />
-      <p className="font-pencil text-[23px] leading-snug">“{h.prompt}”</p>
+      <p className="font-pencil text-note leading-tight">“{h.prompt}”</p>
     </div>
   );
 }
@@ -260,21 +275,21 @@ function RequesterView({ h }: { h: HandoffRow }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="panel flex flex-col rounded-md p-4">
-          <p className="text-[12px] font-medium text-muted-foreground">About</p>
-          <p className="mt-1.5 text-[13.5px] font-medium">{label}</p>
-          <p className="mt-1 flex-1 text-[12.5px] leading-relaxed text-muted-foreground">{summary || `The ${h.object_ref.type} this request is about.`}</p>
-          <Link href={`/p/${ws.project.id}/blueprint?sel=${encodeURIComponent(refToString(h.object_ref))}`} className="mt-3 inline-flex w-fit items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground">
+          <p className="text-meta font-medium text-muted-foreground">About</p>
+          <p className="mt-1.5 text-body font-medium">{label}</p>
+          <p className="mt-1 flex-1 text-ui text-muted-foreground">{summary || `The ${h.object_ref.type} this request is about.`}</p>
+          <Link href={`/p/${ws.project.id}/blueprint?sel=${encodeURIComponent(refToString(h.object_ref))}`} className="mt-3 inline-flex w-fit items-center gap-1 text-meta text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors duration-150 hover:text-foreground">
             Open it in the plan <ArrowRight className="size-3" />
           </Link>
         </div>
         <div className="panel rounded-md p-4">
-          <p className="text-[12px] font-medium text-muted-foreground">Where it stands</p>
+          <p className="text-meta font-medium text-muted-foreground">Where it stands</p>
           <ol className="mt-2.5 space-y-2.5">
             {steps.map((s) => (
-              <li key={s.label} className="flex items-center gap-2.5 text-[12.5px]">
-                {s.state === "done" ? <Check className="size-3.5 shrink-0 text-read" /> : s.state === "active" ? <span className="grid size-3.5 shrink-0 place-items-center"><span className="size-2 rounded-full bg-change" /></span> : <CircleDot className="size-3.5 shrink-0 text-faint" />}
-                <span className={cn("min-w-0", s.state === "pending" && "text-muted-foreground", s.state === "active" && "text-change")}>{s.label}</span>
-                {s.at && s.state === "done" && <TimeAgo iso={s.at} className="ml-auto shrink-0 text-[11px] text-faint" />}
+              <li key={s.label} className="flex items-center gap-2.5 text-ui">
+                {s.state === "done" ? <Check className="size-3.5 shrink-0 text-ok" /> : s.state === "active" ? <span className="grid size-3.5 shrink-0 place-items-center"><span className="size-2 rounded-full bg-brand" /></span> : <CircleDot className="size-3.5 shrink-0 text-faint" />}
+                <span className={cn("min-w-0", s.state === "pending" && "text-muted-foreground", s.state === "active" && "font-medium")}>{s.label}</span>
+                {s.at && s.state === "done" && <TimeAgo iso={s.at} className="ml-auto shrink-0 text-meta text-faint" />}
               </li>
             ))}
           </ol>
@@ -282,8 +297,8 @@ function RequesterView({ h }: { h: HandoffRow }) {
       </div>
 
       <div className="panel rounded-md p-4">
-        <p className="text-[12px] font-medium text-muted-foreground">What {mate.first} got with it</p>
-        <div className="mt-2.5 grid gap-4 text-[12.5px] md:grid-cols-3">
+        <p className="text-meta font-medium text-muted-foreground">What {mate.first} got with it</p>
+        <div className="mt-2.5 grid gap-4 text-ui md:grid-cols-3">
           <div>
             <p className="flex items-center gap-1.5 font-medium"><Send className="size-3.5 text-muted-foreground" />Your brief</p>
             <p className="mt-1 line-clamp-3 text-muted-foreground">{brief ?? ws.project.brief}</p>
@@ -302,8 +317,8 @@ function RequesterView({ h }: { h: HandoffRow }) {
               <ul className="mt-1 space-y-1">
                 {changed.slice(0, 3).map((f) => (
                   <li key={f.path} className="flex items-center gap-2 text-muted-foreground">
-                    <span className="min-w-0 truncate font-mono text-[11.5px]" title={f.path}>{f.path}</span>
-                    <span className="ml-auto shrink-0 font-mono text-[11px]"><span className="text-read">+{f.add}</span> <span className="text-muted-foreground">−{f.del}</span></span>
+                    <span className="min-w-0 truncate font-mono text-badge" title={f.path}>{f.path}</span>
+                    <span className="ml-auto shrink-0 text-badge tabular-nums"><span className="text-ok">+{f.add}</span> <span className="text-muted-foreground">−{f.del}</span></span>
                   </li>
                 ))}
               </ul>
@@ -315,21 +330,22 @@ function RequesterView({ h }: { h: HandoffRow }) {
       </div>
 
       {done ? (
-        <div className="sticky-note rounded-sm p-4">
+        <div className="panel rounded-md border-ok/30 p-4">
           <div className="flex items-center gap-2.5">
             <Avatar name={mate.name} hue={mate.hue} size={28} />
-            <p className="text-[13px] font-medium">{mate.name} replied</p>
-            {h.resolved_at && <TimeAgo iso={h.resolved_at} className="ml-auto text-[11.5px] text-faint" />}
+            <p className="text-ui font-medium">{mate.name} replied</p>
+            <Pill tone="ok" dot>Resolved</Pill>
+            {h.resolved_at && <TimeAgo iso={h.resolved_at} className="ml-auto text-meta text-faint" />}
           </div>
-          <p className="mt-2.5 font-pencil text-[24px] leading-snug">{h.resolution}</p>
-          <p className="mt-3 text-[12px] text-muted-foreground">It&apos;s in the test version now, saved as a save point you can always go back to.</p>
+          <p className="mt-2.5 font-pencil text-note leading-tight">{h.resolution}</p>
+          <p className="mt-3 text-meta text-muted-foreground">It&apos;s in the test version now, saved as a new version you can always go back to.</p>
         </div>
       ) : (
         <div className="panel flex flex-wrap items-center gap-3 rounded-md p-4">
-          <p className="min-w-0 flex-1 text-[12.5px] text-muted-foreground">
+          <p className="min-w-0 flex-1 text-ui text-muted-foreground">
             You&apos;ll see {mate.first}&apos;s answer here and in your activity, no need to chase. In this prototype {mate.first} is simulated, so you can play their part.
           </p>
-          <Button variant="outline" size="sm" className="h-8 bg-panel" disabled={resolve.pending} onClick={() => resolve.run()}>
+          <Button variant="outline" disabled={resolve.pending} onClick={() => resolve.run()}>
             {resolve.pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve as {mate.first} (simulated)
           </Button>
         </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CircleAlert } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { getSessionUser } from "@/lib/auth";
@@ -52,32 +53,33 @@ export default async function LoginPage(props: PageProps<"/login">) {
         <Logo />
       </header>
       <div className="mx-auto w-full max-w-md px-5 pb-16 pt-8 sm:pt-14">
-        <h1 className="font-display text-[48px] leading-none sm:text-[58px]">{isGuest ? "Keep your work" : "Let's get you started"}</h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+        <h1 className="font-pencil text-title">{isGuest ? "Keep your work" : "Let's get you started"}</h1>
+        <p className="mt-3 text-lead text-muted-foreground">
           {isGuest
-            ? "You're trying Prod AI as a guest. Sign in and everything you've made comes with you."
-            : "Sign in to keep what you make. Or look around as a guest first, and keep your work later."}
+            ? "You're trying Prod AI as a guest. Sign in and everything you've made comes with you, and Claude plans your next app from your own words."
+            : "Sign in and Claude plans your app from your own words, and everything you make is kept."}
         </p>
 
         {note && (
-          <figure className="sticky-note mt-7 -rotate-[0.6deg] rounded-[3px] px-4 pb-3 pt-2.5">
-            <figcaption className="font-sketch text-[11.5px] text-muted-foreground">Your note is safe. You&apos;ll pick up right here:</figcaption>
-            <blockquote className="mt-1 line-clamp-3 font-pencil text-[21px] leading-snug text-foreground">{note}</blockquote>
+          <figure className="sticky-note mt-6 -rotate-[0.6deg] px-4 pb-3 pt-2.5">
+            <figcaption className="text-meta text-muted-foreground">Your note is safe. You&apos;ll pick up right here:</figcaption>
+            <blockquote className="mt-1 line-clamp-3 font-pencil text-note leading-tight text-foreground">{note}</blockquote>
           </figure>
         )}
 
         {notice && (
-          <p role="alert" className="mt-7 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">
+          <p role="alert" className="mt-6 flex gap-2 rounded-md border border-hairline-hi bg-panel px-3 py-2.5 text-body text-foreground">
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             {notice}
           </p>
         )}
 
-        <div className="panel mt-7 rounded-2xl p-5 sm:p-6">
+        <div className="panel mt-6 rounded-md p-5 sm:p-6">
           <AuthPanel next={next} guestNext={guestNext} error={notice ? undefined : error} isGuest={isGuest} />
         </div>
 
-        <p className="mt-8 text-center text-[13px] text-muted-foreground">
-          <Link href="/" className="underline-offset-4 hover:text-foreground hover:underline">Back to the start</Link>
+        <p className="mt-6 text-center text-ui text-muted-foreground">
+          <Link href="/" className="inline-flex min-h-9 items-center transition-colors duration-150 hover:text-foreground">Back to the start</Link>
         </p>
       </div>
     </main>

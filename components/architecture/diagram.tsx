@@ -3,13 +3,15 @@ import {
   HardDrive, History, IdCard, KeyRound, LayoutDashboard, Laptop, Mail, MessageSquare, Network, Package, Radio, Rocket, Router, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { LogoMark } from "@/components/brand/logo";
+import { Pill, type PillTone } from "@/components/ui/pill";
 
 /**
- * The production architecture of Prod AI, drawn as one SVG so it scales
- * crisply on screen and exports cleanly to PNG and PDF.
- * Coordinates live on a 1824 × 1336 canvas: the planes, the data platform, then a legend band.
+ * The production architecture of Prod AI, drawn in pencil on one sheet of paper as a single SVG,
+ * so it scales crisply on screen and exports cleanly to PNG and PDF.
+ * Coordinates live on a 1824 × 1352 canvas: the planes, the data platform, then a legend band.
  *
- * Scope: the gradient outline is one cell (control, sandbox and runtime planes plus the per-cell
+ * Scope: the long-dash outline is one cell (control, sandbox and runtime planes plus the per-cell
  * data). Everything outside it is shared by a region's cells (edge, identity, warehouse,
  * observability) or global (Cloudflare, outside services). Regional cards inside it say "Regional".
  *
@@ -22,6 +24,10 @@ import type { LucideIcon } from "lucide-react";
  * - Solid lines are request and response, dashed lines are asynchronous, and a line's colour is
  *   the plane it belongs to. The legend at the bottom tells readers the same thing.
  *
+ * Paper & Pencil (docs/DESIGN.md): cards are white boxes with a graphite line, zones are dashed
+ * pencil boxes labelled in handwriting, and colour is a quiet code on lines and zone labels only.
+ * No gradients, no glow, and nothing moves unless a reader is tracing a flow.
+ *
  * Interactive mode (the /architecture page): every numbered badge is focusable. Hovering or
  * focusing one highlights the edges of its flow and shows the step in the readout panel at the
  * top left, which is also the badge's aria-describedby target. It is pure CSS (:has), so this
@@ -30,26 +36,36 @@ import type { LucideIcon } from "lucide-react";
 
 type Tone = "people" | "edge" | "control" | "sandbox" | "runtime" | "data" | "outside";
 type Card = { id: string; x: number; y: number; w: number; h: number; title: string; sub: string; icon: LucideIcon; tone: Tone; tags?: string[]; rows?: string[]; step?: number[] };
-type Zone = { x: number; y: number; w: number; h: number; label: string; hint?: string; tone: Tone };
+/** dy: the label's baseline below the zone's top edge (25 unless the zone is shallow). */
+type Zone = { x: number; y: number; w: number; h: number; label: string; hint?: string; tone: Tone; dy?: number };
 
+/**
+ * A plane's line colour, from the product's tokens: a graphite ramp (ink, muted, faint, pale) for people,
+ * edge, data and outside, and brand, change and fix for the three planes of a cell. Control lines use
+ * the brand's lighter shade so a thin line still reads green next to ink.
+ */
 const TONE: Record<Tone, string> = {
-  outside: "#9baaa2",
-  people: "#fff2a6",
-  edge: "#dfff4f",
-  control: "#8dff9e",
-  sandbox: "#3fe0c5",
-  runtime: "#6fb7ff",
-  data: "#ffb86b",
+  people: "var(--foreground)",
+  edge: "var(--muted-foreground)",
+  control: "var(--brand-hi)",
+  sandbox: "var(--change)",
+  runtime: "var(--fix)",
+  data: "var(--faint)",
+  outside: "var(--line-strong)",
 };
-const BADGE_BG = "linear-gradient(135deg, #fff2a6, #dfff4f 50%, #8dff9e)";
+/** The same colours for words: control's words take the deeper brand, and outside's pale line colour is too light to read as text. */
+const TONE_TEXT: Record<Tone, string> = { ...TONE, control: "var(--brand)", outside: "var(--faint)" };
+
+/** Pencil at note size: SVG text takes an inline style, so the --text-note token is read directly. */
+const NOTE_SIZE = { fontSize: "var(--text-note)", lineHeight: 1.2 } as const;
 
 export const W = 1824;
 const LEGEND_Y = 1158;
-const LEGEND_H = 160;
+const LEGEND_H = 176;
 export const H = LEGEND_Y + LEGEND_H + 18;
 
 const ZONES: Zone[] = [
-  { x: 300, y: 20, w: 1500, h: 108, label: "Outside services", tone: "outside" },
+  { x: 300, y: 20, w: 1500, h: 108, label: "Outside services", tone: "outside", dy: 22 },
   { x: 24, y: 156, w: 236, h: 720, label: "People", tone: "people" },
   { x: 300, y: 156, w: 236, h: 720, label: "Edge", hint: "regional · ingress", tone: "edge" },
   { x: 576, y: 156, w: 560, h: 720, label: "Control plane", hint: "stateless · Kubernetes", tone: "control" },
@@ -236,7 +252,7 @@ const EDGES: Edge[] = [
   // an engineer's editor pushes to the same repo the GitHub App manages
   {
     d: orth([A("editor", "l"), [32, A("editor", "l")[1]], [32, LANE_GIT], [1150, LANE_GIT], [1150, A("github", "l")[1]], A("github", "l")]),
-    tone: "people", label: { x: 44, y: LANE_GIT - 7, text: "git push / pull · same repo" }, flows: [6],
+    tone: "people", label: { x: 44, y: LANE_GIT + 14, text: "git push / pull · same repo" }, flows: [6],
   },
 
   // ── outside → control ──────────────────────────────────────────
@@ -342,61 +358,85 @@ const LEGEND_TONES: { tone: Tone; name: string; meaning: string }[] = [
   { tone: "outside", name: "Outside", meaning: "identity federation and billing" },
 ];
 
-const LABEL_FONT = { font: "500 10.5px var(--font-code), monospace", letterSpacing: "0.04em" };
+/** Transport labels are the one place the diagram uses mono. */
+const LABEL_FONT = { font: "500 11px var(--font-code), monospace" };
+/** One easing for everything that moves (docs/DESIGN.md). */
+const EASE_PAPER = "cubic-bezier(0.22, 1, 0.36, 1)";
 
-/** Hover and focus behaviour for the numbered badges, as scoped CSS. */
+/**
+ * A hand-drawn box: the same irregular corners as the `.sketch` class, as an SVG path, so zones and
+ * the cell outline look drawn rather than ruled. `s` scales the corners for bigger boxes.
+ */
+function sketchBox(x: number, y: number, w: number, h: number, s = 1) {
+  const [tl, tr, br, bl] = ([[14, 6], [6, 12], [12, 5], [5, 14]] as const).map(([rx, ry]) => [rx * s, ry * s]);
+  return [
+    `M ${x + tl[0]} ${y}`,
+    `H ${x + w - tr[0]}`,
+    `A ${tr[0]} ${tr[1]} 0 0 1 ${x + w} ${y + tr[1]}`,
+    `V ${y + h - br[1]}`,
+    `A ${br[0]} ${br[1]} 0 0 1 ${x + w - br[0]} ${y + h}`,
+    `H ${x + bl[0]}`,
+    `A ${bl[0]} ${bl[1]} 0 0 1 ${x} ${y + h - bl[1]}`,
+    `V ${y + tl[1]}`,
+    `A ${tl[0]} ${tl[1]} 0 0 1 ${x + tl[0]} ${y}`,
+    "Z",
+  ].join(" ");
+}
+
+/** Hover and focus behaviour for the numbered badges, as scoped CSS. The marching dashes exist only while a flow is traced. */
 function interactionCss(id: string) {
   const root = `#${id}`;
   const on = (n?: number) => `${root}:has(.arch-badge${n ? `[data-flow="${n}"]` : ""}:is(:hover, :focus))`;
   return [
-    `${root} .arch-edge, ${root} .arch-badge { transition: opacity 160ms ease; }`,
+    `${root} .arch-edge, ${root} .arch-badge { transition: opacity 150ms ${EASE_PAPER}; }`,
+    `${root} .arch-line { transition: stroke-width 150ms ${EASE_PAPER}; }`,
+    `${root} .arch-dot, ${root} .arch-num { transition: fill 150ms ${EASE_PAPER}, stroke 150ms ${EASE_PAPER}; }`,
     `${root} .arch-badge { cursor: help; outline: none; }`,
     `${root} .arch-badge .arch-ring { stroke: transparent; }`,
-    `${root} .arch-badge:is(:hover, :focus-visible) .arch-ring { stroke: #fbffe0; }`,
+    `${root} .arch-badge:is(:hover, :focus-visible) .arch-ring { stroke: var(--brand); }`,
+    `${root} .arch-badge:is(:hover, :focus) .arch-dot { fill: var(--brand); stroke: var(--brand); }`,
+    `${root} .arch-badge:is(:hover, :focus) .arch-num { fill: var(--panel); }`,
+    `${root} .arch-march { display: none; stroke-dasharray: 3 9; }`,
+    `@keyframes arch-march { to { stroke-dashoffset: -24; } }`,
     `${root} .arch-readout { display: none; }`,
-    `${on()} .arch-edge { opacity: 0.14; }`,
-    `${on()} .arch-badge:not(:hover):not(:focus) { opacity: 0.45; }`,
+    `${on()} .arch-edge { opacity: 0.12; }`,
+    `${on()} .arch-badge:not(:hover):not(:focus) { opacity: 0.4; }`,
     `${on()} .arch-readout-hint { display: none; }`,
-    ...FLOWS.map((f) => `${on(f.n)} .arch-edge[data-flows~="${f.n}"] { opacity: 1; }\n${on(f.n)} .arch-readout[data-flow="${f.n}"] { display: block; }`),
-    `@media (prefers-reduced-motion: reduce) { ${root} .arch-edge, ${root} .arch-badge { transition: none; } }`,
+    ...FLOWS.map((f) =>
+      [
+        `${on(f.n)} .arch-edge[data-flows~="${f.n}"] { opacity: 1; }`,
+        `${on(f.n)} .arch-edge[data-flows~="${f.n}"] .arch-line { stroke-width: 2.25; }`,
+        `${on(f.n)} .arch-edge[data-flows~="${f.n}"] .arch-march { display: inline; animation: arch-march 1.2s linear infinite; }`,
+        `${on(f.n)} .arch-readout[data-flow="${f.n}"] { display: block; }`,
+      ].join("\n"),
+    ),
+    `@media (prefers-reduced-motion: reduce) { ${root} .arch-edge, ${root} .arch-badge, ${root} .arch-line, ${root} .arch-dot, ${root} .arch-num { transition: none; } ${root} .arch-march { animation: none !important; } }`,
   ].join("\n");
 }
 
 function CardView({ c }: { c: Card }) {
-  const tone = TONE[c.tone];
   const I = c.icon;
   return (
     <foreignObject x={c.x} y={c.y} width={c.w} height={c.h}>
-      <div
-        className="flex h-full flex-col rounded-[12px] border p-2.5"
-        style={{
-          borderColor: `color-mix(in srgb, ${tone} 28%, #22302c)`,
-          background: `linear-gradient(180deg, color-mix(in srgb, ${tone} 7%, #121b18), #0c1311)`,
-          boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.8)`,
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="grid size-6 shrink-0 place-items-center rounded-md" style={{ background: `color-mix(in srgb, ${tone} 16%, transparent)`, color: tone }}>
-            <I className="size-3.5" />
-          </span>
-          <span className="truncate text-[12.5px] font-semibold leading-tight text-[#edf3ee]">{c.title}</span>
+      <div className="sketch flex h-full flex-col border bg-raised px-2.5 py-2" data-card={c.id}>
+        <div className="flex items-center gap-1.5">
+          <I aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+          <span className="truncate text-ui font-semibold leading-tight text-foreground">{c.title}</span>
         </div>
-        <p className="mt-1.5 text-[11px] leading-[1.4] text-[#9baaa2]">{c.sub}</p>
+        <p className="mt-1 text-meta leading-snug text-muted-foreground">{c.sub}</p>
         {c.rows && (
           <ul className="mt-2 space-y-1.5">
             {c.rows.map((r) => (
-              <li key={r} className="rounded-md border px-2 py-1.5 font-mono text-[10.5px] text-[#d3dfd8]" style={{ borderColor: "#2c3b36", background: "#040706" }}>
+              <li key={r} className="rounded-md border border-hairline-hi bg-panel px-2 py-1 text-meta text-foreground">
                 {r}
               </li>
             ))}
           </ul>
         )}
         {c.tags && (
-          <div className="mt-auto flex flex-wrap gap-1 pt-1.5">
+          <div className="mt-auto flex flex-wrap gap-1 pt-1.5 text-badge">
             {c.tags.map((t) => (
-              <span key={t} className="rounded-full border px-1.5 py-px font-mono text-[10.5px]" style={{ borderColor: `color-mix(in srgb, ${tone} 35%, transparent)`, color: tone }}>
-                {t}
-              </span>
+              <Pill key={t} tone={TAG_TONE[t] ?? "neutral"}>{t}</Pill>
             ))}
           </div>
         )}
@@ -404,53 +444,64 @@ function CardView({ c }: { c: Card }) {
     </foreignObject>
   );
 }
+/** The agent gateway's three permission levels are the product's own read, change and ask colours; other tags are neutral. */
+const TAG_TONE: Record<string, PillTone> = { Read: "read", Change: "change", "Ask first": "ask" };
 
 /** A short line drawn the way edges are drawn, for the legend. */
-function LineSample({ tone = "outside", dashed, pulse }: { tone?: Tone; dashed?: boolean; pulse?: boolean }) {
+function LineSample({ tone = "people", dashed, march }: { tone?: Tone; dashed?: boolean; march?: boolean }) {
   return (
     <svg width="34" height="8" viewBox="0 0 34 8" aria-hidden className="shrink-0 overflow-visible">
-      <line x1="1" y1="4" x2="33" y2="4" stroke={TONE[tone]} strokeOpacity={0.8} strokeWidth={1.5} strokeDasharray={dashed ? "5 5" : undefined} />
-      {pulse && <line x1="1" y1="4" x2="33" y2="4" stroke="#fbffe0" strokeOpacity={0.85} strokeWidth={1.4} strokeLinecap="round" className="flow" />}
+      <line x1="1" y1="4" x2="33" y2="4" stroke={TONE[tone]} strokeWidth={march ? 2.25 : 1.6} strokeLinecap="round" strokeDasharray={dashed ? "6 5" : undefined} />
+      {march && <line x1="1" y1="4" x2="33" y2="4" stroke="var(--panel)" strokeWidth={3} strokeDasharray="3 9" />}
     </svg>
   );
 }
 
-function Legend({ animated, interactive }: { animated: boolean; interactive: boolean }) {
-  const head = "mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#6c7c74]";
-  const row = "flex items-center gap-2";
-  const name = "text-[#edf3ee]";
+/** An ink circle with its number: the badge on the diagram, in the readout and in the legend. */
+function InkBadge({ n, size = 22 }: { n: number; size?: number }) {
   return (
-    <foreignObject x={40} y={LEGEND_Y + 34} width={W - 80} height={LEGEND_H - 42}>
-      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1.25fr)] gap-x-10 text-[11px] leading-[1.3] text-[#9baaa2]">
+    <span className="grid shrink-0 place-items-center rounded-full border-[1.5px] border-foreground bg-raised text-badge font-bold tabular-nums text-foreground" style={{ width: size, height: size }}>
+      {n}
+    </span>
+  );
+}
+
+function Legend({ animated, interactive }: { animated: boolean; interactive: boolean }) {
+  const head = "micro-label mb-2";
+  const row = "flex items-center gap-2.5";
+  const name = "font-semibold text-foreground";
+  return (
+    <foreignObject x={40} y={LEGEND_Y + 44} width={W - 80} height={LEGEND_H - 52}>
+      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1.2fr)] gap-x-10 text-meta leading-snug text-muted-foreground">
         <div>
           <p className={head}>Line style</p>
-          <ul className="space-y-[3px]">
+          <ul className="space-y-1">
             <li className={row}><LineSample /><span><span className={name}>Solid</span>: request and response over HTTPS, gRPC or vsock</span></li>
             <li className={row}><LineSample dashed /><span><span className={name}>Dashed</span>: asynchronous events, webhooks, approval messages</span></li>
-            {animated && <li className={row}><LineSample tone="edge" pulse /><span><span className={name}>Moving light</span>: the hot path of a request</span></li>}
-            <li className={row}><span className="w-[34px] shrink-0 font-mono text-[10.5px] text-[#d3dfd8]">gRPC</span><span><span className={name}>Mono label</span>: the transport, or what a trunk carries</span></li>
+            {animated && <li className={row}><LineSample tone="control" march /><span><span className={name}>Moving dashes</span>, while you trace a flow: the hot path of a request</span></li>}
+            <li className={row}><span className="w-[34px] shrink-0 font-mono text-badge text-foreground">gRPC</span><span><span className={name}>Mono label</span>: the transport, or what a trunk carries</span></li>
           </ul>
         </div>
         <div>
           <p className={head}>Colour: the plane a line belongs to</p>
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-[3px]">
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
             {LEGEND_TONES.map((t) => (
               <li key={t.tone} className={row}><LineSample tone={t.tone} /><span><span className={name}>{t.name}</span>{`: ${t.meaning}`}</span></li>
             ))}
             <li className={row}>
-              <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden className="shrink-0"><rect x="1" y="1" width="32" height="10" rx="4" fill="none" stroke="#6c7c74" strokeDasharray="3 3" /></svg>
+              <svg width="34" height="14" viewBox="0 0 34 14" aria-hidden className="shrink-0 overflow-visible"><path d={sketchBox(1, 1, 32, 12, 0.35)} fill="none" stroke="var(--faint)" strokeDasharray="4 4" /></svg>
               <span><span className={name}>Dashed box</span>: a plane, its own trust and scaling boundary</span>
             </li>
             <li className={row}>
-              <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden className="shrink-0"><rect x="1" y="1" width="32" height="10" rx="4" fill="none" stroke="url(#cell-stroke)" strokeWidth="1.4" strokeDasharray="7 3" /></svg>
-              <span><span className={name}>Gradient outline</span>: one cell, the blast-radius unit</span>
+              <svg width="34" height="14" viewBox="0 0 34 14" aria-hidden className="shrink-0 overflow-visible"><path d={sketchBox(1, 1, 32, 12, 0.35)} fill="none" stroke="var(--graphite)" strokeWidth={1.5} strokeDasharray="9 4" /></svg>
+              <span><span className={name}>Long-dash outline</span>: one cell, the blast-radius unit</span>
             </li>
           </ul>
         </div>
         <div>
           <p className={head}>Numbered badges</p>
           <div className="flex items-start gap-2.5">
-            <span className="grid size-[22px] shrink-0 place-items-center rounded-full text-[12px] font-bold text-[#0b1402]" style={{ background: BADGE_BG }}>1</span>
+            <InkBadge n={1} />
             <p>
               The eight steps of one request, prompt to production (section 3 of ARCHITECTURE.md). The mono label beside each badge names its transport.
               {interactive && " Hover or focus a badge to light up its path; the step appears at the top left."}
@@ -462,55 +513,66 @@ function Legend({ animated, interactive }: { animated: boolean; interactive: boo
   );
 }
 
-/** One cell: a gradient outline around the control, sandbox and runtime planes and the per-cell data, labelled on its bottom edge. */
+/** One cell: a long-dash pencil outline around the control, sandbox and runtime planes and the per-cell data. */
 function CellOutline() {
+  return <path aria-hidden d={sketchBox(CELL.x, CELL.y, CELL.w, CELL.h, 1.6)} fill="none" stroke="var(--graphite)" strokeWidth={1.5} strokeDasharray="14 7" strokeLinecap="round" />;
+}
+
+/** The cell's label, on its bottom edge. Drawn after the zones so their dashed lines never cross it. */
+function CellLabel() {
   return (
-    <g aria-hidden>
-      <rect x={CELL.x} y={CELL.y} width={CELL.w} height={CELL.h} rx={24} fill="rgb(255 255 255 / 0.012)" stroke="url(#cell-stroke)" strokeOpacity={0.6} strokeWidth={1.4} strokeDasharray="14 7" />
-      <foreignObject x={CELL.x + 20} y={CELL.y + CELL.h - 12} width={760} height={24}>
-        <div className="flex h-full items-center">
-          <span
-            className="inline-flex h-[22px] items-center gap-2 whitespace-nowrap rounded-full border px-2.5 font-mono text-[10.5px] tracking-[0.04em] text-[#9baaa2]"
-            style={{ borderColor: "color-mix(in srgb, #8dff9e 38%, #22302c)", background: "#060a09" }}
-          >
-            <span className="font-semibold uppercase tracking-[0.12em] text-[#edf3ee]">One cell</span>
-            <span>about 1,000 active builders · N cells per region · outside the line: regional or global</span>
-          </span>
-        </div>
-      </foreignObject>
-    </g>
+    <foreignObject aria-hidden x={CELL.x + 20} y={CELL.y + CELL.h - 17} width={760} height={34}>
+      <div className="flex h-full items-center">
+        <span className="inline-flex items-baseline gap-2.5 whitespace-nowrap bg-panel px-2.5 leading-none">
+          <span className="font-pencil font-semibold text-foreground" style={{ ...NOTE_SIZE, lineHeight: 1 }}>One cell</span>
+          <span className="text-meta text-muted-foreground">about 1,000 active builders · N cells per region · outside the line: regional or global</span>
+        </span>
+      </div>
+    </foreignObject>
   );
 }
 
 /** Top-left panel that shows the hovered or focused step. Its transport and body lines are the badge's description. */
 function Readout({ id }: { id: string }) {
   return (
-    <foreignObject x={24} y={4} width={264} height={116}>
-      <div
-        className="h-full rounded-[12px] border p-2.5"
-        style={{
-          borderColor: `color-mix(in srgb, ${TONE.outside} 28%, #22302c)`,
-          background: `linear-gradient(180deg, color-mix(in srgb, ${TONE.outside} 7%, #121b18), #0c1311)`,
-          boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.8)`,
-        }}
-      >
+    <foreignObject x={24} y={6} width={268} height={122}>
+      <div className="sketch h-full overflow-hidden border bg-raised px-3 py-2" data-readout>
         <div className="arch-readout-hint">
-          <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#6c7c74]">Trace a flow</p>
-          <p className="mt-1.5 text-[11px] leading-[1.4] text-[#9baaa2]">Hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
+          <p className="font-pencil font-semibold text-foreground" style={NOTE_SIZE}>Trace a flow</p>
+          <p className="mt-0.5 text-meta leading-snug text-muted-foreground">Hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
         </div>
         {STEPS.map((s) => {
           const f = FLOWS[s.n - 1];
           return (
             <div key={s.n} className="arch-readout" data-flow={s.n} aria-hidden="true">
-              <p className="flex items-center gap-1.5 text-[12px] font-semibold leading-tight text-[#edf3ee]">
-                <span className="grid size-[18px] shrink-0 place-items-center rounded-full text-[10.5px] font-bold text-[#0b1402]" style={{ background: BADGE_BG }}>{s.n}</span>
+              <p className="flex items-center gap-1.5 whitespace-nowrap text-ui font-semibold leading-tight text-foreground">
+                <InkBadge n={s.n} size={18} />
                 {f.title}
               </p>
-              <p id={`${id}-flow-${s.n}-via`} className="mt-1 font-mono text-[10.5px] leading-tight" style={{ color: TONE[s.tone] }}>{s.transport}</p>
-              <p id={`${id}-flow-${s.n}-text`} className="mt-1 text-[10.5px] leading-[1.35] text-[#9baaa2]">{f.body}</p>
+              <p id={`${id}-flow-${s.n}-via`} className="mt-0.5 font-mono text-badge font-medium" style={{ color: TONE_TEXT[s.tone] }}>{s.transport}</p>
+              <p id={`${id}-flow-${s.n}-text`} className="mt-1 text-meta leading-snug text-muted-foreground">{f.body}</p>
             </div>
           );
         })}
+      </div>
+    </foreignObject>
+  );
+}
+
+/** The exported image travels on its own (the submission form, a slide), so it carries its title block. On the page, the readout sits here instead. */
+function TitleBlock() {
+  return (
+    <foreignObject x={32} y={8} width={264} height={112}>
+      <div className="flex h-full flex-col justify-center">
+        <p className="flex items-center gap-2">
+          <LogoMark className="size-5" />
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-lead font-semibold tracking-tight text-foreground">Prod</span>
+            <span className="rounded-sm border border-brand/30 bg-brand-soft px-1 font-mono text-badge font-semibold text-brand">AI</span>
+          </span>
+        </p>
+        <p className="mt-1.5 font-pencil text-section font-semibold text-foreground">Production architecture</p>
+        <p className="mt-1 text-meta text-muted-foreground">prod-ai-studio.vercel.app</p>
       </div>
     </foreignObject>
   );
@@ -533,54 +595,27 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
         <desc id={`${id}-desc`}>Each numbered badge can be focused. Focusing or hovering a badge highlights the connections of that flow and shows its description in the panel at the top left.</desc>
       )}
       {interactive && <style>{interactionCss(id)}</style>}
-      <defs>
-        <linearGradient id="badge-fill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fff2a6" />
-          <stop offset="0.5" stopColor="#dfff4f" />
-          <stop offset="1" stopColor="#8dff9e" />
-        </linearGradient>
-        <linearGradient id="cell-stroke" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#dfff4f" />
-          <stop offset="0.35" stopColor="#8dff9e" />
-          <stop offset="0.7" stopColor="#3fe0c5" />
-          <stop offset="1" stopColor="#6fb7ff" />
-        </linearGradient>
-        <filter id="edge-soft" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur stdDeviation="2.4" />
-        </filter>
-        <pattern id="arch-dots" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r="1" fill="rgb(255 255 255 / 0.05)" />
-        </pattern>
-      </defs>
-      <rect width={W} height={H} fill="#060a09" />
-      <rect width={W} height={H} fill="url(#arch-dots)" />
+      <rect width={W} height={H} fill="var(--panel)" />
 
       <CellOutline />
 
-      {/* The exported image travels on its own (the submission form, a slide), so it carries its title; on the page, the readout sits here. */}
-      {!interactive && (
-        <g>
-          <text x={40} y={48} fill="#edf3ee" style={{ font: "600 26px var(--font-work), system-ui, sans-serif", letterSpacing: "-0.01em" }}>Prod AI</text>
-          <text x={40} y={72} fill={TONE.control} style={{ font: "600 11px var(--font-code), monospace", letterSpacing: "0.12em" }}>PRODUCTION ARCHITECTURE</text>
-          <text x={40} y={92} fill="#6c7c74" style={{ font: "500 11px var(--font-code), monospace" }}>prod-ai-studio.vercel.app</text>
-        </g>
-      )}
+      {interactive ? <Readout id={id} /> : <TitleBlock />}
 
       {ZONES.map((z) => (
         <g key={z.label}>
-          <rect x={z.x} y={z.y} width={z.w} height={z.h} rx={18} fill={`color-mix(in srgb, ${TONE[z.tone]} 3%, transparent)`} stroke={`color-mix(in srgb, ${TONE[z.tone]} 30%, #1c2824)`} strokeDasharray="4 5" />
-          <text x={z.x + 16} y={z.y + 22} fill={TONE[z.tone]} style={{ font: "600 11px var(--font-code), monospace", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-            {z.label.toUpperCase()}
-            {z.hint && <tspan fill="#6c7c74" style={{ letterSpacing: "0.04em" }}>{`  ·  ${z.hint}`}</tspan>}
+          <path d={sketchBox(z.x, z.y, z.w, z.h, 1.2)} fill="none" stroke="var(--faint)" strokeOpacity={0.8} strokeDasharray="4 5" />
+          <text x={z.x + 16} y={z.y + (z.dy ?? 25)}>
+            <tspan className="font-pencil" fill={TONE_TEXT[z.tone]} style={{ fontSize: NOTE_SIZE.fontSize, fontWeight: 600 }}>{z.label}</tspan>
+            {z.hint && <tspan className="font-sketch text-sketch" fill="var(--muted-foreground)" dx={10}>{z.hint}</tspan>}
           </text>
         </g>
       ))}
+      <CellLabel />
 
       {EDGES.map((e, i) => (
         <g key={i} className="arch-edge" data-flows={e.flows?.join(" ")}>
-          <path d={e.d} fill="none" stroke={TONE[e.tone]} strokeOpacity={0.25} strokeWidth={5} filter="url(#edge-soft)" />
-          <path d={e.d} fill="none" stroke={TONE[e.tone]} strokeOpacity={0.75} strokeWidth={1.5} strokeDasharray={e.dashed ? "5 5" : undefined} />
-          {animated && e.live && <path d={e.d} fill="none" stroke="#fbffe0" strokeOpacity={0.85} strokeWidth={1.4} strokeLinecap="round" className="flow" />}
+          <path className="arch-line" d={e.d} fill="none" stroke={TONE[e.tone]} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={e.dashed ? "6 5" : undefined} />
+          {animated && e.live && <path className="arch-march" d={e.d} fill="none" stroke="var(--panel)" strokeWidth={3} />}
         </g>
       ))}
 
@@ -590,13 +625,12 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
         ...EDGES.filter((e) => e.label).map((e) => ({ ...e.label!, tone: e.tone })),
         ...STEPS.map((s) => ({ ...s.label, text: s.transport, tone: s.tone })),
       ].map((l) => (
-        <text key={l.text} x={l.x} y={l.y} textAnchor={l.anchor ?? "start"} fill={TONE[l.tone]} stroke="#060a09" strokeWidth={3} strokeLinejoin="round" paintOrder="stroke" style={LABEL_FONT}>
+        <text key={l.text} x={l.x} y={l.y} textAnchor={l.anchor ?? "start"} fill={TONE_TEXT[l.tone]} stroke="var(--panel)" strokeWidth={4} strokeLinejoin="round" paintOrder="stroke" style={LABEL_FONT}>
           {l.text}
         </text>
       ))}
 
       <Legend animated={animated} interactive={interactive} />
-      {interactive && <Readout id={id} />}
 
       {STEPS.map((s) => {
         const [x, y] = s.at;
@@ -611,9 +645,9 @@ export function ArchitectureDiagram({ id = "architecture-diagram", animated = tr
             aria-describedby={interactive ? `${id}-flow-${s.n}-via ${id}-flow-${s.n}-text` : undefined}
           >
             {interactive && <circle className="arch-ring" cx={x} cy={y} r={16.5} fill="none" strokeWidth={1.5} />}
-            <circle cx={x} cy={y} r={13} fill="#060a09" />
-            <circle cx={x} cy={y} r={11} fill="url(#badge-fill)" />
-            <text x={x} y={y + 4} textAnchor="middle" fill="#0b1402" style={{ font: "700 12px var(--font-work), sans-serif" }}>{s.n}</text>
+            <circle cx={x} cy={y} r={13.5} fill="var(--panel)" />
+            <circle className="arch-dot" cx={x} cy={y} r={11} fill="var(--raised)" stroke="var(--foreground)" strokeWidth={1.5} />
+            <text className="arch-num" x={x} y={y + 4} textAnchor="middle" fill="var(--foreground)" style={{ font: "700 12px var(--font-work), sans-serif" }}>{s.n}</text>
           </g>
         );
       })}

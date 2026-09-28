@@ -30,16 +30,16 @@ export default function NotFound() {
       </header>
       <div className="mx-auto max-w-lg px-5 pb-16 pt-14 text-center sm:pt-20">
         <BlankPage />
-        <p className="mt-8 font-sketch text-[13px] text-muted-foreground">404</p>
-        <h1 className="mt-2 font-display text-[48px] leading-none sm:text-[58px]">
+        <p className="mt-8 font-sketch text-sketch text-muted-foreground">Page not found</p>
+        <h1 className="mt-2 font-pencil text-title">
           This page <em>isn&apos;t here.</em>
         </h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">The link may be old, or the project may belong to another account. Your own projects are one click away.</p>
-        <div className="mt-8 flex justify-center gap-2">
-          <Button asChild variant="outline" className="h-10 bg-panel px-4">
+        <p className="mt-3 text-lead text-muted-foreground">The link may be old, or the project may belong to another account. Your own projects are one click away.</p>
+        <div className="mt-8 flex flex-wrap justify-center gap-2">
+          <Button asChild variant="outline" size="cta">
             <Link href="/">Back to the start</Link>
           </Button>
-          <Button asChild className="h-10 px-4">
+          <Button asChild size="cta">
             <Link href="/home">
               Your projects <ArrowRight />
             </Link>

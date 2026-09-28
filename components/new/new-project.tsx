@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { questionsFor, renderAnswers, type Question } from "@/lib/blueprint/questions";
@@ -23,7 +24,7 @@ const STEPS = ["Write it", "A few questions", "The sketch"];
 /** Where you are, in pencil: write it, answer a few questions, watch the sketch form. */
 export function Steps({ at }: { at: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-sketch text-[12.5px]" aria-label="Steps">
+    <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-sketch text-sketch" aria-label="Steps">
       {STEPS.map((s, i) => (
         <li key={s} className={cn("flex items-center gap-2.5", i === at ? "text-foreground" : "text-faint")} aria-current={i === at ? "step" : undefined}>
           {i > 0 && <span aria-hidden>·</span>}
@@ -36,7 +37,21 @@ export function Steps({ at }: { at: number }) {
   );
 }
 
-export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm: "live" | "offline" }) {
+/** Said once, before anything is planned: guests get a starter plan; signing in gets Claude. */
+function GuestNote({ brief }: { brief: string }) {
+  const next = brief.trim() ? `/new?prompt=${encodeURIComponent(brief.trim().slice(0, 2000))}` : "/new";
+  return (
+    <p>
+      As a guest you start from the closest starter plan.{" "}
+      <Link href={`/login?next=${encodeURIComponent(next)}`} className="text-foreground underline decoration-dotted underline-offset-4">
+        Sign in
+      </Link>{" "}
+      and Claude plans it from your own words.
+    </p>
+  );
+}
+
+export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPrompt: string; llm: "live" | "offline"; isGuest?: boolean }) {
   const [step, setStep] = useState<Step>(initialPrompt.trim().length >= 12 ? "questions" : "describe");
   const [brief, setBrief] = useState(initialPrompt);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -105,11 +120,11 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
   return (
     <div className="mx-auto max-w-2xl">
       <Steps at={step === "describe" ? 0 : 1} />
-      <h1 className="mt-4 font-display text-[46px] leading-none sm:text-[60px]">What do you want to make?</h1>
+      <h1 className="mt-4 font-pencil text-title">What do you want to make?</h1>
 
       {step === "describe" ? (
         <>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech. That&apos;s our part.</p>
+          <p className="mt-3 text-lead text-muted-foreground">Who it&apos;s for, what should happen, and what must never happen without a person. Skip the tech. That&apos;s our part.</p>
           <WritingSheet
             id="new-brief"
             className="mt-7"
@@ -128,13 +143,18 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
               setStep("questions");
             }}
           />
+          {isGuest && (
+            <div className="mt-4 text-meta text-muted-foreground">
+              <GuestNote brief={brief} />
+            </div>
+          )}
         </>
       ) : (
         <>
-          <div className="panel mt-7 rounded-2xl">
+          <div className="panel mt-7 rounded-md">
             <div className="flex items-start gap-3 px-5 pt-5 sm:px-8 sm:pt-6">
-              <p className="paper-lines min-w-0 flex-1 whitespace-pre-wrap break-words pt-[7px] font-pencil text-[23px] text-foreground sm:text-[25px]">{brief}</p>
-              <button onClick={toDescribe} className="mt-1.5 inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[12.5px] text-muted-foreground hover:text-foreground" aria-label="Change your note">
+              <p className="paper-lines min-w-0 flex-1 whitespace-pre-wrap break-words pt-[7px] font-pencil text-note leading-8 text-foreground">{brief}</p>
+              <button onClick={toDescribe} className="-mr-2 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-ui text-muted-foreground transition-colors duration-150 hover:text-foreground" aria-label="Change your note">
                 <Pencil className="size-3.5" />
                 Change
               </button>
@@ -142,24 +162,24 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
 
             <div className="mt-5 border-t border-dashed border-hairline-hi px-5 py-6 sm:px-8">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="font-pencil text-[30px] leading-none">A few quick questions</h2>
-                <p className="font-sketch text-[12px] text-faint" aria-live="polite">
+                <h2 className="font-pencil text-section">A few quick questions</h2>
+                <p className="text-meta text-faint" aria-live="polite">
                   {tailoredHere ? "Written for your idea." : tailoring ? "Writing questions for your idea…" : null}
                 </p>
               </div>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">They decide who the AI helpers answer to. Skip them and Prod AI picks careful defaults.</p>
+              <p className="mt-2 text-body text-muted-foreground">They decide who the AI helpers answer to. Skip them and Prod AI picks careful defaults.</p>
 
-              <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-7", tailoredHere && "fade-up")}>
+              <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-6", tailoredHere && "fade-up")}>
                 {questions.map((q) => {
                   const multi = conn?.question.id === q.id;
                   const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
                   return (
                     <fieldset key={q.id}>
-                      <legend className="text-[15px] font-medium">
+                      <legend className="text-body font-medium">
                         {q.label}
-                        {multi && <span className="ml-2 font-sketch text-[12px] font-normal text-faint">pick any</span>}
+                        {multi && <span className="ml-2 font-sketch text-sketch font-normal text-faint">pick any</span>}
                       </legend>
-                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                      <div className="mt-1.5 flex flex-wrap gap-x-6 text-body">
                         {q.options.map((o, oi) => {
                           const on = selected.includes(o);
                           return (
@@ -168,7 +188,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
                               type="button"
                               aria-pressed={on}
                               onClick={() => answer(() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o }))))}
-                              className={cn("inline-flex items-center gap-2 rounded-md text-left text-[14.5px] transition-colors", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                              className={cn("inline-flex min-h-9 items-center gap-2 rounded-md text-left transition-colors duration-150", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
                             >
                               <PencilBox on={on} round={!multi} seed={oi + 1} />
                               {o}
@@ -177,7 +197,7 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
                         })}
                       </div>
                       {multi && conn.fromBrief.length > 0 && (
-                        <p className="mt-3 text-[12.5px] text-muted-foreground">
+                        <p className="mt-1.5 text-meta text-muted-foreground">
                           Ticked from your note: {conn.fromBrief.join(", ")}.{picked.some(isNothingOption) ? "" : " Change anything that's wrong."}
                         </p>
                       )}
@@ -188,15 +208,18 @@ export function NewProject({ initialPrompt, llm }: { initialPrompt: string; llm:
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-hairline-hi px-5 py-4 sm:px-8">
-              <Button variant="ghost" className="-ml-2.5 text-muted-foreground" onClick={() => plan(true)}>
+              <Button variant="ghost" size="lg" className="-ml-4 text-muted-foreground" onClick={() => plan(true)}>
                 Skip, use sensible defaults
               </Button>
-              <Button className="ml-auto h-10 px-4 text-[14px]" onClick={() => plan(false)}>
+              <Button size="cta" className="ml-auto" onClick={() => plan(false)}>
                 Sketch it <ArrowRight />
               </Button>
             </div>
           </div>
-          <p className="mt-4 text-right text-[12.5px] text-faint">Sketching is free. Nothing is built until you say so, and you see the price first.</p>
+          <div className="mt-4 space-y-1.5 text-meta text-muted-foreground sm:text-right">
+            <p>Sketching is free. Nothing is built until you say so, and you see the price first.</p>
+            {isGuest && <GuestNote brief={brief} />}
+          </div>
         </>
       )}
     </div>

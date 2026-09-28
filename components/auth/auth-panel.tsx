@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CircleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ function authError(raw: string): string {
 
 function Or({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-5 flex items-center gap-3 font-sketch text-[12px] text-faint">
+    <div className="my-5 flex items-center gap-3 text-meta text-faint">
       <span className="h-px flex-1 bg-hairline" /> {children} <span className="h-px flex-1 bg-hairline" />
     </div>
   );
@@ -72,8 +72,11 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
 
   return (
     <div className="w-full">
-      <Button variant="outline" size="lg" className="h-11 w-full justify-center gap-2.5 bg-panel text-[14px]" onClick={() => oauth("google")} disabled={!!pending}>
-        <GoogleMark />
+      {/* Signing in is what this page is for, and what lets Claude plan from your own words. */}
+      <Button size="cta" className="w-full" onClick={() => oauth("google")} disabled={!!pending}>
+        <span className="grid size-6 place-items-center rounded-full bg-raised" aria-hidden>
+          <GoogleMark />
+        </span>
         {pending === "google" ? "Opening Google…" : linking ? "Keep this work with Google" : "Continue with Google"}
       </Button>
       {isGuest && (
@@ -83,7 +86,7 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
             setLinking((l) => !l);
             setMessage(null);
           }}
-          className="mt-2.5 w-full text-center text-[12.5px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="mt-1.5 min-h-9 w-full text-center text-meta text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors duration-150 hover:text-foreground"
         >
           {linking ? "Already have an account? Sign in to it instead" : "Keep this guest work instead"}
         </button>
@@ -92,22 +95,23 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
       <Or>or get a sign-in link by email</Or>
 
       {sent ? (
-        <div role="status" className="rounded-lg border border-hairline bg-canvas p-4 text-[14px]">
-          <p className="font-pencil text-[22px] leading-none">Check your inbox</p>
+        <div role="status" className="rounded-md border border-hairline bg-canvas p-4 text-body">
+          <p className="font-pencil text-note leading-tight">Check your inbox</p>
           <p className="mt-2 text-muted-foreground">We sent a sign-in link to {email}. It works once and expires in an hour.</p>
         </div>
       ) : (
         <form onSubmit={magicLink} className="flex gap-2">
           <label htmlFor="email" className="sr-only">Your email</label>
-          <Input id="email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 bg-panel" autoComplete="email" />
-          <Button type="submit" size="lg" variant="outline" className="h-11 shrink-0 bg-panel px-3.5" disabled={!!pending}>
+          <Input id="email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" autoComplete="email" />
+          <Button type="submit" size="lg" variant="outline" className="shrink-0" disabled={!!pending}>
             {pending === "email" ? "Sending…" : "Email me a link"}
           </Button>
         </form>
       )}
 
       {message && (
-        <p role="alert" className="mt-4 rounded-md border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13px] text-ask">
+        <p role="alert" className="mt-4 flex gap-2 rounded-md border border-hairline-hi bg-canvas px-3 py-2.5 text-body text-foreground">
+          <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
           {message}
         </p>
       )}
@@ -115,13 +119,13 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
       <Or>or</Or>
 
       {/* A full navigation: /start sets the guest session cookie, then sends you on. */}
-      <Button asChild size="lg" className="h-11 w-full text-[14px]">
+      <Button asChild size="lg" variant="outline" className="w-full">
         <a href={`/start?next=${encodeURIComponent(guestNext)}`}>
           {isGuest ? "Carry on as a guest" : "Continue as a guest"} <ArrowRight />
         </a>
       </Button>
-      <p className="mt-2.5 text-center text-[12.5px] text-muted-foreground">
-        {isGuest ? "Everything you've made so far is still there." : "No account needed. Sign in later to keep your work."}
+      <p className="mt-2.5 text-center text-meta text-muted-foreground">
+        {isGuest ? "Everything you've made so far is still there. Guests start from the closest starter plan." : "No account needed. Guests start from the closest starter plan instead of their own words. Sign in any time to keep your work."}
       </p>
     </div>
   );

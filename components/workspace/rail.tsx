@@ -2,14 +2,14 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { Crosshair, NotebookPen, PanelRightClose, Undo2, X } from "lucide-react";
+import { ChevronUp, Crosshair, NotebookPen, PanelRightClose, Undo2, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TimeAgo } from "@/components/time-ago";
 import { LogoMark } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
+import { DUR, EASE } from "@/lib/motion";
 import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
-import { changeTimeLabel } from "@/lib/blueprint/estimate";
 import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types";
 import type { ChatLedgerKind } from "@/lib/db/writes";
@@ -20,8 +20,6 @@ import { undoTo } from "./undo";
 
 /** A history entry, or a note just sent that the history doesn't have yet (same shape, so both render the same). */
 type ThreadRow = Omit<LedgerRow, "kind"> & { kind: LedgerKind | ChatLedgerKind; sending?: boolean };
-
-const EASE = [0.22, 1, 0.36, 1] as const;
 
 /** The open margin: narrower on smaller laptops, 340px from 1400px wide. Below 1024px it is a bottom sheet. */
 const MARGIN_W = "lg:w-[288px] xl:w-[304px] min-[1400px]:w-[340px]";
@@ -75,7 +73,8 @@ function useNotesSummary() {
  *   until you open it yourself, so the playground's box is the only one to type in.
  * - Focusing the writing area (the "/" key, "Ask for a change" buttons, a scoped note) opens it,
  *   and it stays open after you send a note until you fold it, so the reply is seen.
- * - Below 1024px the same panel is a bottom sheet, opened by a floating "Notes" button.
+ * - Below 1024px the same panel is a bottom sheet, opened by a slim "Notes" bar along the bottom of the
+ *   screen. The bar sits in the page's flow (the shell stacks it under the page), so it never covers content.
  */
 export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
   const ws = useWorkspace();
@@ -154,10 +153,10 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
         className={cn(
           "relative shrink-0 bg-canvas",
           // Desktop: a column on the right of the page.
-          "lg:flex lg:h-full lg:overflow-clip lg:transition-[width] lg:duration-300 lg:ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "lg:flex lg:h-full lg:overflow-clip lg:transition-[width] lg:duration-250 lg:ease-paper",
           desktopOpen ? MARGIN_W : "lg:w-11",
           // Phone: a bottom sheet.
-          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:flex max-lg:h-[min(86dvh,680px)] max-lg:flex-col max-lg:rounded-t-xl max-lg:border-t max-lg:border-hairline-hi max-lg:shadow-[0_-18px_40px_-24px_rgb(26_26_23/0.35)] max-lg:transition-transform max-lg:duration-300",
+          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:flex max-lg:h-[min(86dvh,680px)] max-lg:flex-col max-lg:rounded-t-lg max-lg:border-t max-lg:border-hairline-hi max-lg:shadow-float max-lg:transition-transform max-lg:duration-250 max-lg:ease-paper",
           phoneShown ? "max-lg:translate-y-0" : "max-lg:pointer-events-none max-lg:translate-y-[calc(100%+24px)]",
         )}
       >
@@ -183,8 +182,8 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
         >
           {shown && <span aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-hairline-hi lg:hidden" />}
           <header className={cn("mx-3 flex shrink-0 items-center gap-2 border-b border-dashed border-hairline-hi pb-2 pl-2 pt-3 max-lg:pl-1", !shown && "hidden")}>
-            <h2 className="font-display text-[26px] leading-none text-foreground">Notes</h2>
-            <span className="mt-1.5 truncate text-[11px] text-faint">in the margin</span>
+            <h2 className="font-pencil text-note text-foreground">Notes</h2>
+            <span className="mt-1 truncate text-meta text-faint">in the margin</span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -193,7 +192,7 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
                   onClick={(e) => fold(e.detail === 0)}
                   aria-expanded
                   aria-label={phone ? "Close notes" : "Fold the notes away"}
-                  className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-deep hover:text-foreground"
+                  className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-150 ease-paper hover:bg-deep hover:text-foreground"
                 >
                   {phone ? <X className="size-4" aria-hidden /> : <PanelRightClose className="size-4" aria-hidden />}
                 </button>
@@ -205,22 +204,23 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
           <NoteWriter suggest={mode === "sheet"} onSent={() => setHeld(true)} className="px-3 pb-3 pt-2 lg:pl-4" />
         </aside>
       </div>
-      {!phoneShown && (
-        <button
-          ref={phoneBtnRef}
-          type="button"
-          onClick={() => openMargin(false)}
-          aria-controls="notes"
-          aria-expanded={false}
-          aria-label={`Notes: ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
-          className="fixed bottom-4 right-4 z-40 inline-flex h-11 items-center gap-2 rounded-full border border-hairline-hi bg-panel pl-3.5 pr-3 shadow-[0_10px_24px_-14px_rgb(26_26_23/0.45)] transition-colors hover:border-brand/50 lg:hidden"
-        >
-          <NotebookPen className="size-4 text-brand" aria-hidden />
-          <span className="font-pencil text-[22px] leading-none">Notes</span>
-          <span className="rounded-full bg-deep px-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">{count > 99 ? "99+" : count}</span>
-          {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
-        </button>
-      )}
+      {/* Below 1024px: a slim bar along the bottom, in the page's flow, with the latest note. The open sheet covers it. */}
+      <button
+        ref={phoneBtnRef}
+        type="button"
+        onClick={() => openMargin(false)}
+        inert={phoneShown}
+        aria-controls="notes"
+        aria-expanded={phoneShown}
+        aria-label={`Notes: ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
+        className="flex h-11 w-full shrink-0 items-center gap-2.5 border-t border-hairline-hi bg-canvas pl-4 pr-3 text-left transition-colors duration-150 ease-paper hover:bg-deep lg:hidden"
+      >
+        <NotebookPen className="size-4 shrink-0 text-brand" aria-hidden />
+        <span className="shrink-0 font-pencil text-note text-foreground">Notes</span>
+        <span className="shrink-0 rounded-full border border-hairline-hi bg-panel px-1.5 text-badge font-medium tabular-nums leading-4 text-muted-foreground">{count > 99 ? "99+" : count}</span>
+        <span className={cn("min-w-0 flex-1 truncate text-meta", waiting ? "text-fix" : "text-muted-foreground")}>{title}</span>
+        <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </button>
     </>
   );
 }
@@ -238,17 +238,17 @@ function SlimTab({ buttonRef, onOpen, count, waiting, title }: { buttonRef: Ref<
           aria-controls="notes"
           aria-expanded={false}
           aria-label={`Open notes. ${count} ${count === 1 ? "note" : "notes"}. Latest: ${title}`}
-          className="group flex h-full w-11 shrink-0 flex-col items-center gap-2.5 pt-4 text-muted-foreground transition-colors hover:bg-panel/70 hover:text-foreground focus-visible:outline-offset-[-3px] max-lg:hidden"
+          className="group flex h-full w-11 shrink-0 flex-col items-center gap-2.5 pt-4 text-muted-foreground transition-colors duration-150 ease-paper hover:bg-panel/70 hover:text-foreground focus-visible:outline-offset-[-3px] max-lg:hidden"
         >
           <NotebookPen className="size-4 text-brand" aria-hidden />
-          <span className="font-pencil text-[22px] leading-none text-foreground [writing-mode:vertical-rl]">Notes</span>
-          <span className="font-mono text-[10.5px] tabular-nums">{count > 99 ? "99+" : count}</span>
+          <span className="font-pencil text-note leading-none text-foreground [writing-mode:vertical-rl]">Notes</span>
+          <span className="text-badge font-medium tabular-nums">{count > 99 ? "99+" : count}</span>
           {waiting && <span aria-hidden className="size-1.5 rounded-full bg-fix" />}
         </button>
       </TooltipTrigger>
       <TooltipContent side="left" className="max-w-64">
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[10px] uppercase tracking-[0.12em] opacity-60">Notes · latest</span>
+          <span className="text-badge font-semibold uppercase tracking-wide opacity-70">Notes · latest</span>
           <span className="line-clamp-3">{title}</span>
         </span>
       </TooltipContent>
@@ -335,8 +335,8 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
     <div ref={scroller} className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3 pl-5 pr-3 pt-3 max-lg:pl-4", !shown && "hidden")}>
       {itemCount === 0 ? (
         <div className="px-1 py-6">
-          <p className="font-pencil text-[24px] leading-tight text-muted-foreground">No notes yet.</p>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+          <p className="font-pencil text-note text-muted-foreground">No notes yet.</p>
+          <p className="mt-1.5 text-meta text-muted-foreground">
             Write in the margin like you would on a printout: “make the header green”, “add a priority column”. Questions get an answer here. Changes come back with a price first.
           </p>
         </div>
@@ -346,33 +346,33 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
             <ThreadItem key={key} row={row} applied={thread.applied} onAsk={onAsk} />
           ))}
           {thinking && (
-            <li className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <li className="flex items-center gap-2 text-meta text-muted-foreground">
               <ProdMark />
               Prod AI is reading your note…
             </li>
           )}
           {live.map((s) => (
-            <motion.li key={`live-${s.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2 pl-0.5">
+            <motion.li key={`live-${s.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2 pl-0.5">
               <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", LANE[s.lane].tone)} />
               <div className="min-w-0 flex-1">
-                <p className="text-[12px] leading-snug text-foreground/85">
+                <p className="text-meta text-foreground/85">
                   <span className="sr-only">Done: </span>
                   {s.title}
                 </p>
-                {s.detail && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.detail}</p>}
+                {s.detail && <p className="line-clamp-2 text-meta text-muted-foreground">{s.detail}</p>}
               </div>
             </motion.li>
           ))}
           {current && (
             <li className="flex gap-2 pl-0.5" aria-live="polite">
               <PencilDash className="mt-[3px] size-3.5 shrink-0 text-brand" />
-              <p className="text-[12px] leading-snug text-foreground">Now: {current.title}…</p>
+              <p className="text-meta text-foreground">Now: {current.title}…</p>
             </li>
           )}
           {waiting && (
             <li className="flex gap-2 pl-0.5 text-fix">
               <PencilDash className="mt-[3px] size-3.5 shrink-0" />
-              <p className="text-[12px] leading-snug">Waiting for you: pick a fix</p>
+              <p className="text-meta">Waiting for you: pick a fix</p>
             </li>
           )}
         </ol>
@@ -412,19 +412,19 @@ function YouNote({ row, text, caption = "You" }: { row: ThreadRow; text: string;
   const [open, setOpen] = useState(false);
   const long = text.length > 220;
   return (
-    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: EASE }} className={cn("pl-0.5", row.sending && "opacity-70")}>
+    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className={cn("pl-0.5", row.sending && "opacity-70")}>
       {row.object_ref && (
         <div className="mb-0.5">
           <AboutTag objectRef={row.object_ref} />
         </div>
       )}
-      <p className={cn("font-pencil whitespace-pre-wrap break-words text-[21px] leading-[1.12] text-foreground", long && !open && "line-clamp-5")}>{text}</p>
+      <p className={cn("font-pencil whitespace-pre-wrap break-words text-note leading-tight text-foreground", long && !open && "line-clamp-5")}>{text}</p>
       {long && (
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-[11px] text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-meta text-muted-foreground hover:text-foreground">
           {open ? "Show less" : "Show more"}
         </button>
       )}
-      <p className="mt-0.5 text-[10.5px] text-faint">
+      <p className="mt-0.5 text-meta text-faint">
         {caption} · {row.sending ? "sending…" : <TimeAgo iso={row.created_at} />}
       </p>
     </motion.li>
@@ -443,10 +443,11 @@ function ProdMark() {
 /** Prod AI's side: a small typed note pinned in the margin, under its name and what kind of reply it is. */
 function AiNote({ row, label, tone = "default", children }: { row: ThreadRow; label: string; tone?: "default" | "fix"; children: ReactNode }) {
   return (
-    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2">
+    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2">
       <ProdMark />
-      <div className={cn("min-w-0 flex-1 rounded-[3px] border bg-panel px-2.5 py-2 text-[12.5px] leading-relaxed shadow-[0_1px_1px_rgb(26_26_23/0.04)]", tone === "fix" ? "border-fix/30" : "border-hairline")}>
-        <p className="mb-0.5 flex items-baseline gap-1.5 text-[10.5px] leading-4">
+      {/* Typed, so in print: the title in body text, the rest in meta. */}
+      <div className={cn("panel min-w-0 flex-1 rounded-sm px-2.5 py-2 text-body", tone === "fix" && "border-fix/30")}>
+        <p className="mb-0.5 flex items-baseline gap-1.5 text-meta">
           <span className="shrink-0 font-medium text-foreground">Prod AI</span>
           <span className={cn("truncate", tone === "fix" ? "text-fix" : "text-faint")}>{label}</span>
           <TimeAgo iso={row.created_at} className="ml-auto shrink-0 text-faint" />
@@ -462,7 +463,7 @@ function AnswerNote({ row, onAsk }: { row: ThreadRow; onAsk: () => void }) {
   const suggestion = typeof row.meta?.suggestion === "string" ? row.meta.suggestion : "";
   return (
     <AiNote row={row} label="answered · nothing changed">
-      <p className="whitespace-pre-wrap break-words">{row.body || row.title}</p>
+      <p className="whitespace-pre-wrap break-words text-meta">{row.body || row.title}</p>
       {suggestion && (
         <button
           type="button"
@@ -470,7 +471,7 @@ function AnswerNote({ row, onAsk }: { row: ThreadRow; onAsk: () => void }) {
             chat.fill(suggestion);
             onAsk();
           }}
-          className="mt-2 flex w-full items-start gap-1.5 rounded-[3px] border border-dashed border-hairline-hi px-2 py-1.5 text-left text-[11.5px] leading-snug text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
+          className="mt-2 flex w-full items-start gap-1.5 rounded-sm border border-dashed border-hairline-hi px-2 py-1.5 text-left text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:border-line-strong hover:text-foreground"
         >
           <span>
             <span className="text-faint">Ask for it: </span>“{suggestion}”
@@ -519,7 +520,7 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
       const undo = outcome.undo;
       return (
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+          <span className="inline-flex items-center gap-1 text-meta font-medium tabular-nums text-ok">
             <PencilTick className="size-3.5 shrink-0" />
             Applied{outcome.version ? ` · ${outcome.version}` : ""}
             {outcome.credits ? <span className="font-normal text-muted-foreground"> · {creditWords(outcome.credits)}</span> : null}
@@ -533,7 +534,7 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
                 await undoTo(ws.project.id, undo, () => router.refresh());
                 setUndoing(false);
               }}
-              className="inline-flex items-center gap-1 rounded-sm text-[11.5px] font-medium text-muted-foreground underline decoration-dotted underline-offset-[3px] transition-colors hover:text-foreground disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-sm text-meta font-medium text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors duration-150 ease-paper hover:text-foreground disabled:opacity-50"
             >
               <Undo2 className="size-3" aria-hidden />
               {undoing ? "Undoing…" : "Undo"}
@@ -544,17 +545,17 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
     }
     case "approved":
       return (
-        <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+        <span className="inline-flex items-center gap-1 text-meta font-medium text-ok">
           <PencilTick className="size-3.5 shrink-0" /> Applied
         </span>
       );
     case "dismissed":
-      return <span className="text-[11.5px] text-muted-foreground">Not now · nothing charged</span>;
+      return <span className="text-meta text-muted-foreground">Not now · nothing charged</span>;
     case "waiting":
-      return <span className="text-[11.5px] font-medium text-brand">Waiting for you below</span>;
+      return <span className="text-meta font-medium text-brand">Waiting for you below</span>;
     case "open":
       return (
-        <button type="button" onClick={onReview} className="text-[11.5px] font-medium text-brand underline decoration-dotted underline-offset-[3px] hover:text-brand-hi">
+        <button type="button" onClick={onReview} className="text-meta font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
           Not decided · review it
         </button>
       );
@@ -566,21 +567,29 @@ function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, Thr
   const chat = useChatState();
   const id = workOrderIdOf(row);
   const needsPerson = row.meta?.needsPerson === true;
-  const est = row.meta?.estimate as { credits?: unknown; minutes?: unknown } | undefined;
+  const est = row.meta?.estimate as { credits?: unknown } | undefined;
   const credits = typeof est?.credits === "number" ? est.credits : null;
-  const minutes = typeof est?.minutes === "number" ? est.minutes : null;
   const outcome = id && !needsPerson ? changeOutcome(id, applied, chat, ws) : null;
   const decided = outcome?.kind === "applied" || outcome?.kind === "dismissed" || outcome?.kind === "approved";
+  // While it waits in the card below, the card is the one place the change is spelled out: here, only a pointer to it.
+  if (outcome?.kind === "waiting")
+    return (
+      <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex items-start gap-2">
+        <ProdMark />
+        <p className="pt-0.5 text-meta text-muted-foreground">
+          <span className="font-medium text-foreground">Prod AI</span> proposed a change. <span className="font-medium text-brand">It&apos;s waiting for you below.</span>
+        </p>
+      </motion.li>
+    );
   return (
     <AiNote row={row} label={needsPerson ? "needs a person" : "proposed a change"}>
-      <p className="font-medium leading-snug">{row.title}</p>
-      {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
+      <p className="font-medium">{row.title}</p>
+      {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
       {(outcome || (credits !== null && !needsPerson)) && (
         <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-hairline pt-1.5">
           {credits !== null && !needsPerson && !decided && (
-            <span className="text-[11px] leading-snug text-muted-foreground">
+            <span className="text-meta tabular-nums text-muted-foreground">
               {creditWords(credits)} ≈ {creditsUsd(credits)}
-              {minutes !== null ? ` · ${changeTimeLabel(minutes).real}` : ""}
             </span>
           )}
           {outcome && <OutcomeLine outcome={outcome} onReview={() => id && chat.review(id)} />}
@@ -595,16 +604,16 @@ function PlanNote({ row }: { row: ThreadRow }) {
   const approved = ws.project.buildState !== "draft";
   return (
     <AiNote row={row} label="drew up the plan">
-      <p className="font-medium leading-snug">{row.title}</p>
-      {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
+      <p className="font-medium">{row.title}</p>
+      {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
       {(approved || ws.pendingWorkOrder) && (
         <div className="mt-2 border-t border-dashed border-hairline pt-1.5">
           {approved ? (
-            <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-read">
+            <span className="inline-flex items-center gap-1 text-meta font-medium text-ok">
               <PencilTick className="size-3.5 shrink-0" /> Approved
             </span>
           ) : (
-            <span className="text-[11.5px] font-medium text-brand">Waiting for you on the Sheet</span>
+            <span className="text-meta font-medium text-brand">Waiting for you on the Sheet</span>
           )}
         </div>
       )}
@@ -615,8 +624,8 @@ function PlanNote({ row }: { row: ThreadRow }) {
 function FixNote({ row }: { row: ThreadRow }) {
   return (
     <AiNote row={row} label="our fix · free" tone="fix">
-      <p className="font-medium leading-snug">{row.title}</p>
-      {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
+      <p className="font-medium">{row.title}</p>
+      {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
       {row.object_ref && (
         <div className="mt-1.5">
           <AboutTag objectRef={row.object_ref} />
@@ -630,8 +639,8 @@ function AppliedNote({ row }: { row: ThreadRow }) {
   const ws = useWorkspace();
   return (
     <AiNote row={row} label="applied a change">
-      <p className="font-medium leading-snug">{row.title}</p>
-      {row.body && <ClampText text={row.body} className="mt-0.5 text-[12px] text-muted-foreground" />}
+      <p className="font-medium">{row.title}</p>
+      {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
       <div className="mt-2 border-t border-dashed border-hairline pt-1.5">
         <OutcomeLine outcome={appliedOutcome(row, ws.checkpoints, ws.project.currentCheckpointId)} />
       </div>
@@ -647,7 +656,7 @@ function ClampText({ text, className }: { text: string; className?: string }) {
     <div className={className}>
       <p className={cn("whitespace-pre-wrap break-words", long && !open && "line-clamp-3")}>{text}</p>
       {long && (
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-[11px] text-faint hover:text-foreground">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-0.5 text-meta text-faint hover:text-foreground">
           {open ? "Show less" : "Show more"}
         </button>
       )}
@@ -663,9 +672,9 @@ function AboutTag({ objectRef }: { objectRef: ObjectRef }) {
     <button
       type="button"
       onClick={() => ws.select(objectRef)}
-      className="inline-flex h-[18px] min-w-0 max-w-[180px] items-center gap-1 rounded-sm border border-dashed border-hairline-hi px-1.5 font-sketch text-[10.5px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
+      className="inline-flex h-5 min-w-0 max-w-[180px] items-center gap-1 rounded-sm border border-dashed border-hairline-hi px-1.5 font-sketch text-sketch text-muted-foreground transition-colors duration-150 ease-paper hover:border-line-strong hover:text-foreground"
     >
-      <Crosshair className="size-2.5 shrink-0" aria-hidden />
+      <Crosshair className="size-3 shrink-0" aria-hidden />
       <span className="sr-only">About: </span>
       <span className="truncate">{label}</span>
     </button>
@@ -675,7 +684,7 @@ function AboutTag({ objectRef }: { objectRef: ObjectRef }) {
 const LANE: Record<Lane, { label: string; tone: string }> = {
   thought: { label: "Thought", tone: "text-faint" },
   did: { label: "Did", tone: "text-foreground/70" },
-  checked: { label: "Checked", tone: "text-read" },
+  checked: { label: "Checked", tone: "text-ok" },
 };
 
 /** A hand-drawn tick. */
@@ -704,38 +713,38 @@ function TickRow({ row }: { row: ThreadRow }) {
     row.blame === "system_fix"
       ? { text: "Our fix · free", cls: "text-fix" }
       : row.blame === "teammate"
-        ? { text: "Teammate", cls: "text-change" }
+        ? { text: "Teammate", cls: "text-muted-foreground" }
         : row.blame === "agent"
           ? { text: `AI helper · ${creditWords(credits)}`, cls: "text-muted-foreground" }
           : credits > 0
             ? { text: creditWords(credits), cls: "text-muted-foreground" }
             : null;
   return (
-    <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: EASE }} className="flex gap-2 pl-0.5">
+    <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2 pl-0.5">
       <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", row.blame === "system_fix" ? "text-fix" : LANE[row.lane].tone)} />
       <div className="min-w-0 flex-1">
         {row.body ? (
           <button type="button" className="block w-full text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-            <span className="block text-[12px] leading-snug text-foreground/85">
+            <span className="block text-meta text-foreground/85">
               <span className="sr-only">{LANE[row.lane].label}: </span>
               {row.title}
             </span>
-            <span className={cn("mt-0.5 block whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground", !open && "line-clamp-1")}>{row.body}</span>
+            <span className={cn("block whitespace-pre-line text-meta text-muted-foreground", !open && "line-clamp-1")}>{row.body}</span>
           </button>
         ) : (
-          <p className="text-[12px] leading-snug text-foreground/85">
+          <p className="text-meta text-foreground/85">
             <span className="sr-only">{LANE[row.lane].label}: </span>
             {row.title}
           </p>
         )}
         {(who || row.object_ref) && (
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-meta tabular-nums">
             {who && <span className={who.cls}>{who.text}</span>}
             {row.object_ref && <AboutTag objectRef={row.object_ref} />}
           </div>
         )}
       </div>
-      <TimeAgo iso={row.created_at} className="shrink-0 pt-px text-[10px] text-faint" />
+      <TimeAgo iso={row.created_at} className="shrink-0 text-meta text-faint" />
     </motion.li>
   );
 }

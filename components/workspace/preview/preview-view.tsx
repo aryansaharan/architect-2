@@ -8,6 +8,7 @@ import type { CommentRow } from "@/lib/db/types";
 import { SpecApp } from "@/components/renderer/spec-app";
 import { Segmented } from "@/components/arch/segmented";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
 import { BLOCK_LABELS, blockTitle } from "@/lib/blueprint";
 import { addComment, resolveComment } from "@/lib/actions/comments";
 import { cn } from "@/lib/utils";
@@ -102,11 +103,11 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-hairline bg-panel px-4 py-2">
         {/* Screens are switched in the app's own navigation, like the people using it will. This only says where you are. */}
-        <p className="flex min-w-0 items-center gap-2 text-[12.5px]" aria-live="polite">
+        <p className="flex min-w-0 items-center gap-2 text-ui" aria-live="polite">
           <span className="text-muted-foreground">Screen</span>
           <span className="truncate font-medium">{screen.title}</span>
-          <span className="shrink-0 font-mono text-[11px] text-faint">{bp.screens.findIndex((s) => s.id === screen.id) + 1}/{bp.screens.length}</span>
-          {navMarks[screen.id] ? <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] text-change"><MessageSquare className="size-3" />{navMarks[screen.id]}</span> : null}
+          <span className="shrink-0 text-meta tabular-nums text-faint">{bp.screens.findIndex((s) => s.id === screen.id) + 1}/{bp.screens.length}</span>
+          {navMarks[screen.id] ? <span className="inline-flex shrink-0 items-center gap-1 text-meta tabular-nums text-muted-foreground" title="Open comments on this screen"><MessageSquare className="size-3" />{navMarks[screen.id]}</span> : null}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Segmented<Mode>
@@ -134,7 +135,7 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             ]}
           />
           {ws.liveSlug && (
-            <Button asChild variant="outline" size="sm" className="h-8">
+            <Button asChild variant="outline">
               <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer" title={liveUrl ? `Opens ${liveUrl}` : undefined}>Live version <ExternalLink /></a>
             </Button>
           )}
@@ -142,10 +143,10 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
       </div>
       <div className="relative flex min-h-0 flex-1">
         <div className="dot-grid relative min-h-0 min-w-0 flex-1 overflow-auto p-3 sm:p-5">
-          <div className="mb-2 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground">
+          <div className="mb-2 flex items-center justify-center gap-2 text-meta text-muted-foreground">
             {/* The browser bar says this on desktop and tablet; the phone frame has no bar, so it's said here. */}
-            {device === "phone" && <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2.5 py-0.5"><span className="size-1.5 rounded-full bg-brand" />Test version · only you can see this</span>}
-            {!built && <span className="rounded-full border border-brand/30 bg-brand-soft px-2.5 py-0.5 text-brand">Plan only: this is what will be built</span>}
+            {device === "phone" && <Pill size="md" dot>Test version · only you can see this</Pill>}
+            {!built && <Pill size="md">Plan only: this is what will be built</Pill>}
             {mode === "tweak" && <span>{tweaking ? "Editing the outlined block. The panel stays beside the app, never on top of it." : "Point at anything and click to edit it. Tweaks are free."}</span>}
             {mode === "comment" && <span>Click a spot to pin a note. Teammates see it in their activity.</span>}
           </div>
@@ -153,27 +154,27 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             className={cn(
               "relative mx-auto flex min-w-0 flex-col",
               // Morph only when you switch devices, not when the first paint settles on the one that fits.
-              picked && "transition-[width,border-radius,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              picked && "transition-[width,border-radius,padding] duration-450 ease-paper",
               device === "phone"
-                ? // A light bezel drawn with one thin ink line.
-                  "rounded-[46px] border-[1.5px] border-[#3f3d38] bg-raised p-[9px] shadow-[0_1px_2px_rgb(26_26_23/0.06),0_30px_70px_-34px_rgb(26_26_23/0.32)]"
-                : "rounded-xl border border-hairline-hi bg-raised shadow-[0_1px_2px_rgb(26_26_23/0.05),0_28px_64px_-32px_rgb(26_26_23/0.28)]",
+                ? // A light bezel drawn with one thin pencil line. The phone's own corners are a drawing of the device, not a UI radius.
+                  "rounded-[46px] border-[1.5px] border-foreground/75 bg-raised p-[9px] shadow-float"
+                : "rounded-lg border border-hairline-hi bg-raised shadow-float",
             )}
             style={{ width: device === "phone" ? 412 : WIDTH[device], maxWidth: "100%", height: device === "phone" ? "min(820px, calc(100% - 28px))" : "calc(100% - 28px)", minHeight: 560 }}
           >
             {device === "phone" ? (
-              <span aria-hidden className="absolute left-1/2 top-[17px] z-20 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-[#1a1a17]" />
+              <span aria-hidden className="absolute left-1/2 top-[17px] z-20 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-foreground" />
             ) : (
               // Honest chrome: the test version has no public address (only you can open it), so the bar says that
               // instead of inventing a domain. The live app's real address is shown beside it once there is one.
-              <div className="flex h-9 shrink-0 items-center gap-3 rounded-t-xl border-b border-hairline bg-panel px-3">
-                <span aria-hidden className="flex shrink-0 gap-1.5"><i className="size-2.5 rounded-full border border-[#c9c1b1]" /><i className="size-2.5 rounded-full border border-[#c9c1b1]" /><i className="size-2.5 rounded-full border border-[#c9c1b1]" /></span>
-                <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-[11.5px] text-muted-foreground">
+              <div className="flex h-9 shrink-0 items-center gap-3 rounded-t-lg border-b border-hairline bg-panel px-3">
+                <span aria-hidden className="flex shrink-0 gap-1.5"><i className="size-2.5 rounded-full border border-line-strong" /><i className="size-2.5 rounded-full border border-line-strong" /><i className="size-2.5 rounded-full border border-line-strong" /></span>
+                <span className="mx-auto flex h-6 min-w-0 max-w-[360px] flex-1 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-meta text-muted-foreground">
                   <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-brand" />
                   <span className="truncate">Test version · only you</span>
                 </span>
                 {liveUrl ? (
-                  <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer" title={`The live version is at ${liveUrl}`} className="hidden min-w-0 max-w-[40%] shrink items-center gap-1 truncate font-mono text-[10.5px] text-muted-foreground transition-colors hover:text-foreground md:inline-flex">
+                  <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer" title={`The live version is at ${liveUrl}`} className="hidden min-w-0 max-w-[40%] shrink items-center gap-1 truncate font-mono text-badge text-muted-foreground transition-colors duration-150 hover:text-foreground md:inline-flex">
                     <span className="shrink-0 font-sans text-muted-foreground">Live:</span>
                     <span className="truncate">{liveUrl.replace(/^https?:\/\//, "")}</span>
                     <ExternalLink className="size-3 shrink-0" aria-hidden />
@@ -185,14 +186,14 @@ export function PreviewView({ comments }: { comments: CommentRow[] }) {
             )}
             {/* overflow-clip, not hidden: it rounds the screen's corners but is never itself scrolled (by focus or scrollIntoView),
                 so wide tables keep scrolling sideways in their own container, with its fade, instead of being cut off. */}
-            <div className={cn("min-h-0 min-w-0 flex-1 overflow-clip", device === "phone" ? "rounded-[36px] ring-1 ring-hairline" : "rounded-b-xl")}>
+            <div className={cn("min-h-0 min-w-0 flex-1 overflow-clip", device === "phone" ? "rounded-[36px] ring-1 ring-hairline" : "rounded-b-lg")}>
               <SpecApp bp={bp} mode="preview" device={device} screenId={screenId} onScreenChange={changeScreen} projectId={ws.project.id} wrapBlock={mode === "use" ? undefined : wrap} navMarks={navMarks} />
             </div>
           </div>
         </div>
         {/* Docked beside the app (below it on phones), so it never covers the block being tweaked. */}
         {mode === "tweak" && tweakBlockSpec && (
-          <aside aria-label="Tweak" className="fade-up flex w-[340px] shrink-0 flex-col border-l border-hairline bg-panel max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:h-[55%] max-md:w-auto max-md:border-l-0 max-md:border-t max-md:shadow-[0_-18px_40px_-24px_rgb(26_26_23/0.30)]">
+          <aside aria-label="Tweak" className="fade-up flex w-[340px] shrink-0 flex-col border-l border-hairline bg-panel max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:h-[55%] max-md:w-auto max-md:border-l-0 max-md:border-t max-md:shadow-float">
             <TweakPanel
               key={tweakBlockSpec.id}
               projectId={ws.project.id}
@@ -260,9 +261,9 @@ function BlockFrame({
         }
       }}
     >
-      <div className={cn("pointer-events-none absolute -inset-1.5 z-10 rounded-[calc(var(--app-radius)+8px)] border-2 border-transparent transition-colors", mode === "tweak" && "group-hover/frame:border-brand/80", selected && "border-brand")} />
+      <div className={cn("pointer-events-none absolute -inset-1.5 z-10 rounded-[calc(var(--app-radius)+8px)] border-2 border-transparent transition-colors duration-150", mode === "tweak" && "group-hover/frame:border-brand/80", selected && "border-brand")} />
       {mode === "tweak" && (
-        <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-md bg-brand px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-foreground shadow-[0_1px_2px_rgb(26_26_23/0.15)] opacity-0 transition-opacity group-hover/frame:opacity-100", selected && "opacity-100")}>
+        <span className={cn("pointer-events-none absolute -top-3.5 left-2 z-20 rounded-sm bg-brand px-1.5 py-0.5 text-badge font-medium text-primary-foreground shadow-hair opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100", selected && "opacity-100")}>
           {label} · {BLOCK_LABELS[block.type]}
         </span>
       )}
@@ -280,18 +281,19 @@ function CommentPin({ comment, n }: { comment: CommentRow; n: number }) {
   const [pending, start] = useTransition();
   return (
     <div data-pin className="absolute z-30" style={{ left: `${comment.x}%`, top: `${comment.y}%` }} onClick={(e) => e.stopPropagation()}>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full rounded-bl-none border-2 border-raised bg-change text-[11px] font-bold text-[#fffefb] shadow-[0_2px_6px_rgb(26_26_23/0.25)]" aria-label={`Comment ${n}: ${comment.body}`}>
+      {/* A pin is ink: blue is kept for "may change", so comments never borrow it. */}
+      <button type="button" onClick={() => setOpen((o) => !o)} className="grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full rounded-bl-none border-2 border-raised bg-foreground text-badge font-bold tabular-nums text-primary-foreground shadow-float" aria-label={`Comment ${n}: ${comment.body}`}>
         {n}
       </button>
       {open && (
-        <div className="panel-raised absolute left-4 top-2 w-64 rounded-xl p-3 text-foreground">
-          <p className="text-[11.5px] text-muted-foreground">{comment.author_name ?? "Teammate"}</p>
-          <p className="mt-1 text-[13px] leading-relaxed">{comment.body}</p>
+        <div className="panel-raised absolute left-4 top-2 w-64 rounded-lg p-3 text-foreground">
+          <p className="text-meta text-muted-foreground">{comment.author_name ?? "Teammate"}</p>
+          <p className="mt-1 text-body">{comment.body}</p>
           <div className="mt-3 flex gap-1.5">
-            <Button size="sm" variant="outline" className="h-7" disabled={pending} onClick={() => start(async () => { await resolveComment(ws.project.id, comment.id); toast.success("Resolved"); router.refresh(); })}>
+            <Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { await resolveComment(ws.project.id, comment.id); toast.success("Resolved"); router.refresh(); })}>
               {pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve
             </Button>
-            <Button size="sm" variant="ghost" className="h-7" onClick={() => { setOpen(false); ws.openHandoff(comment.block_id ? { type: "block", id: comment.block_id } : { type: "screen", id: comment.screen_id }); }}>
+            <Button size="sm" variant="ghost" onClick={() => { setOpen(false); ws.openHandoff(comment.block_id ? { type: "block", id: comment.block_id } : { type: "screen", id: comment.screen_id }); }}>
               <UsersRound /> Hand off
             </Button>
           </div>
@@ -308,15 +310,14 @@ function DraftPin({ x, y, screenId, blockId, onDone }: { x: number; y: number; s
   const [pending, start] = useTransition();
   return (
     <div data-pin-draft className="absolute z-40" style={{ left: `${x}%`, top: `${y}%` }} onClick={(e) => e.stopPropagation()}>
-      <span className="block size-7 -translate-x-1/2 -translate-y-1/2 rounded-full rounded-bl-none border-2 border-raised bg-brand shadow-[0_2px_6px_rgb(26_26_23/0.25)]" />
-      <div className="panel-raised absolute left-4 top-2 w-72 rounded-xl p-3 text-foreground">
+      <span className="block size-7 -translate-x-1/2 -translate-y-1/2 rounded-full rounded-bl-none border-2 border-raised bg-brand shadow-float" />
+      <div className="panel-raised absolute left-4 top-2 w-72 rounded-lg p-3 text-foreground">
         <label htmlFor="pin-text" className="micro-label">Note for your team</label>
-        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onDone()} className="mt-1.5 w-full resize-none rounded-md border border-input bg-raised p-2 text-[13px] outline-none placeholder:text-muted-foreground/75 focus:border-brand focus:ring-3 focus:ring-brand/20" placeholder="What should change here?" />
+        <textarea id="pin-text" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onDone()} className="mt-1.5 w-full resize-none rounded-md border border-input bg-raised p-2 text-body outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/75 hover:border-line-strong focus:border-brand focus:ring-3 focus:ring-brand/20" placeholder="What should change here?" />
         <div className="mt-2 flex gap-1.5">
           <Button
             type="button"
             size="sm"
-            className="h-7"
             disabled={!text.trim() || pending}
             onClick={() =>
               start(async () => {
@@ -330,7 +331,7 @@ function DraftPin({ x, y, screenId, blockId, onDone }: { x: number; y: number; s
           >
             {pending ? <Loader2 className="animate-spin" /> : null} Pin it
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={onDone}><X /> Cancel</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onDone}><X /> Cancel</Button>
         </div>
       </div>
     </div>

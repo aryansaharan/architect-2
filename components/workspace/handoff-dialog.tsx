@@ -33,7 +33,7 @@ export function HandoffDialog() {
     <Dialog open={open} onOpenChange={(o) => !o && ws.closeHandoff()}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="font-pencil text-[30px] font-medium leading-none">Ask a teammate</DialogTitle>
+          <DialogTitle className="font-pencil text-section font-medium">Ask a teammate</DialogTitle>
           <DialogDescription>They get everything they need to help: no screenshots, no “what did you click?”</DialogDescription>
         </DialogHeader>
         {ws.handoffTarget && <HandoffForm key={`${ws.handoffTarget.type}:${ws.handoffTarget.id}`} />}
@@ -55,31 +55,31 @@ function HandoffForm() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 rounded-md border border-hairline bg-panel px-3 py-2 text-[12.5px]">
+      <div className="panel flex items-center gap-2 rounded-md px-3 py-2 text-ui">
         <span className="text-muted-foreground">About</span>
         <span className="truncate font-medium">{label}</span>
       </div>
       <fieldset>
-        <legend className="mb-2 text-[12.5px] font-medium">Who</legend>
+        <legend className="mb-2 text-ui font-medium">Who</legend>
         <div className="grid grid-cols-3 gap-2">
           {MATES.map((m) => (
-            <button key={m.id} type="button" onClick={() => setMate(m.id)} aria-pressed={mate === m.id} className={cn("flex flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors", mate === m.id ? "border-brand/50 bg-brand-soft" : "border-hairline bg-panel hover:border-hairline-hi")}>
+            <button key={m.id} type="button" onClick={() => setMate(m.id)} aria-pressed={mate === m.id} className={cn("flex flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors duration-150", mate === m.id ? "border-brand/30 bg-brand-soft" : "border-hairline bg-panel hover:border-line-strong")}>
               <Avatar name={m.name} hue={hash(m.id) % 360} size={30} />
-              <span className="text-[12px] font-medium leading-tight">{m.name}</span>
-              <span className="text-[10.5px] leading-tight text-muted-foreground">{m.role}</span>
+              <span className="text-meta font-medium">{m.name}</span>
+              <span className="text-badge text-muted-foreground">{m.role}</span>
             </button>
           ))}
         </div>
       </fieldset>
       <div>
-        <label htmlFor="handoff-text" className="mb-2 block text-[12.5px] font-medium">What you need</label>
-        <Textarea id="handoff-text" rows={3} value={text} onChange={(e) => setText(e.target.value)} className="bg-panel text-[13px]" />
+        <label htmlFor="handoff-text" className="mb-2 block text-ui font-medium">What you need</label>
+        <Textarea id="handoff-text" rows={3} value={text} onChange={(e) => setText(e.target.value)} className="text-ui" />
       </div>
       <div>
-        <p className="mb-2 text-[12.5px] font-medium">What they&apos;ll get</p>
-        <ul className="grid grid-cols-2 gap-1.5 text-[12px]">
+        <p className="mb-2 text-ui font-medium">What they&apos;ll get</p>
+        <ul className="grid grid-cols-2 gap-1.5 text-meta">
           {["The object and where it's used", "Your brief and last 3 requests", "The latest change, as a diff", "A link straight to it, in code view"].map((x) => (
-            <li key={x} className="flex items-start gap-1.5 text-muted-foreground"><Check className="mt-0.5 size-3 shrink-0 text-read" />{x}</li>
+            <li key={x} className="flex items-start gap-1.5 text-muted-foreground"><Check className="mt-0.5 size-3 shrink-0 text-muted-foreground" />{x}</li>
           ))}
         </ul>
       </div>

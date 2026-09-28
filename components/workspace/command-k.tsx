@@ -122,7 +122,7 @@ export function CommandK() {
             {ws.blueprint.agents.map((a) => (
               <CommandItem key={a.id} value={`ai helper agent ${a.name} ${a.role}`} onSelect={() => run(() => router.push(`${base}/agents?agent=${a.id}`))}>
                 <Bot /> {a.name}
-                <span className="ml-2 truncate text-xs text-muted-foreground">{a.role}</span>
+                <span className="ml-2 truncate text-meta text-muted-foreground">{a.role}</span>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -161,7 +161,7 @@ function ShortcutSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogTitle className="font-pencil text-section font-medium">Keyboard shortcuts</DialogTitle>
           <DialogDescription>Everything is clickable too. Shortcuts are there when you want speed.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-5 sm:grid-cols-2">
@@ -170,7 +170,7 @@ function ShortcutSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
               <p className="micro-label">{g.group}</p>
               <ul className="mt-2 space-y-1.5">
                 {g.items.map((it) => (
-                  <li key={it.label} className="flex items-center justify-between gap-3 text-[13px]">
+                  <li key={it.label} className="flex items-center justify-between gap-3 text-ui">
                     <span className="text-muted-foreground">{it.label}</span>
                     <KbdGroup>{it.keys.map((k, i) => <Kbd key={i}>{k}</Kbd>)}</KbdGroup>
                   </li>

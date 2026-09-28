@@ -57,32 +57,32 @@ export function ScreenSketch({ bp, screen, n, state, building }: { bp: Blueprint
   const inked = state === "inked";
   return (
     <li
-      className={cn("sketch flex min-w-0 flex-col bg-panel p-3.5 transition-colors duration-500", state === "inking" && "border-brand")}
+      className={cn("sketch flex min-w-0 flex-col bg-panel p-3.5 transition-colors duration-250 ease-paper", state === "inking" && "border-brand")}
     >
       <div className="flex min-w-0 items-baseline gap-2">
-        <span aria-hidden className="font-sketch text-[12px] text-faint">{n}</span>
-        <h3 className="min-w-0 flex-1 truncate font-sketch text-[15px] text-foreground">{screen.title}</h3>
+        <span aria-hidden className="font-sketch text-sketch text-faint">{n}</span>
+        <h3 className="min-w-0 flex-1 truncate font-pencil text-note text-foreground">{screen.title}</h3>
         {building && (
-          <span className={cn("inline-flex shrink-0 items-center gap-1 font-sketch text-[12px]", state === "inked" ? "text-read" : state === "inking" ? "text-brand" : "text-faint")}>
+          <span className={cn("inline-flex shrink-0 items-center gap-1 font-sketch text-sketch", state === "inked" ? "text-ok" : state === "inking" ? "text-brand" : "text-faint")}>
             {state === "inked" ? <Check className="size-3" aria-hidden /> : state === "inking" ? <PenLine className="size-3" aria-hidden /> : null}
             <span className="sr-only">, </span>
             {STATE_LABEL[state]}
           </span>
         )}
-        {!building && screen.audience === "customer" && <span className="shrink-0 font-sketch text-[11.5px] text-muted-foreground">for customers</span>}
+        {!building && screen.audience === "customer" && <span className="shrink-0 font-sketch text-sketch text-muted-foreground">for customers</span>}
       </div>
-      <div className={cn("relative mt-2.5 aspect-[16/10] overflow-hidden rounded-[3px] border", inked ? "border-hairline-hi bg-white" : "border-dashed border-hairline-hi bg-canvas/50")}>
+      <div className={cn("relative mt-2.5 aspect-[16/10] overflow-hidden rounded-sm border", inked ? "border-hairline-hi bg-raised" : "border-dashed border-hairline-hi bg-canvas/50")}>
         {inked ? (
           <InkedScreen bp={bp} screen={screen} />
         ) : (
           <div aria-hidden className="pencil-state absolute inset-0 p-3">
             <div style={{ filter: `url(#${GRAPHITE_FILTER})` }}>
-              <ScreenThumb screen={screen} large primary="#3f3d38" />
+              <ScreenThumb screen={screen} large primary="var(--graphite)" />
             </div>
           </div>
         )}
       </div>
-      <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">{screen.purpose}</p>
+      <p className="mt-2.5 text-body text-muted-foreground">{screen.purpose}</p>
     </li>
   );
 }

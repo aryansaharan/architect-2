@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, FileText, RotateCcw, ShieldAlert, Square } from "lucide-react";
 import { Logo, GitHubMark } from "@/components/brand/logo";
+import { buttonVariants } from "@/components/ui/button";
+import { Pill, type PillTone } from "@/components/ui/pill";
 import { ArchitectureDiagram, FLOWS, W as DIAGRAM_W } from "@/components/architecture/diagram";
+import { cn } from "@/lib/utils";
 
 export const metadata = {
   title: "Architecture",
@@ -19,20 +22,28 @@ const SANDBOXES = [
 
 /** How much of each part runs in the live prototype. "Stand-in" is simulated or sandboxed and labelled in the product; "designed" is specified in ARCHITECTURE.md and not built. */
 type Status = "real" | "stand-in" | "designed";
-const STATUS_STYLE: Record<Status, string> = {
-  real: "border-read/30 bg-read/[0.08] text-read",
-  "stand-in": "border-hairline-hi bg-deep text-foreground/80",
-  designed: "border-dashed border-[#bdb5a5] bg-transparent text-muted-foreground",
+/** Real is live, so it takes ok; a stand-in is plain ink; designed is not built yet, so it is drawn in dashed pencil. */
+const STATUS_PILL: Record<Status, { tone: PillTone; className?: string }> = {
+  real: { tone: "ok" },
+  "stand-in": { tone: "neutral", className: "text-foreground" },
+  designed: { tone: "neutral", className: "border-dashed bg-transparent" },
 };
 
-const VERDICT_STYLE: Record<string, string> = {
-  Chosen: "border-read/30 bg-read/[0.08] text-read",
-  Fallback: "border-hairline-hi bg-deep text-foreground/80",
-  Rejected: "border-hairline text-muted-foreground",
+/** The chosen option is the selection, so it takes brand; the rest are neutral. */
+const VERDICT_PILL: Record<string, { tone: PillTone; className?: string }> = {
+  Chosen: { tone: "brand" },
+  Fallback: { tone: "neutral", className: "text-foreground" },
+  Rejected: { tone: "neutral" },
 };
 
-const CHIP = "inline-block whitespace-nowrap rounded-full border px-2 py-px text-[11px] font-medium";
-const LINK_CHIP = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline-hi bg-raised px-3 text-[12.5px] text-foreground transition-colors hover:border-[#c9c1b1] hover:bg-secondary";
+/* The wrapping span carries the pill's size: cn() currently drops Pill's own text-badge when a text colour follows it. */
+function StatusPill({ kind, children }: { kind: Status; children: React.ReactNode }) {
+  return <span className="inline-flex align-middle text-badge"><Pill tone={STATUS_PILL[kind].tone} className={STATUS_PILL[kind].className}>{children}</Pill></span>;
+}
+
+function VerdictPill({ verdict }: { verdict: string }) {
+  return <span className="inline-flex text-badge"><Pill tone={VERDICT_PILL[verdict].tone} className={VERDICT_PILL[verdict].className}>{verdict}</Pill></span>;
+}
 
 const TODAY: { part: string; status: { label: string; kind: Status }[]; today: string; prod: string }[] = [
   {
@@ -113,191 +124,221 @@ const NUMBERS = [
   { k: "≤ 3", v: "repair attempts before a person is asked" },
 ];
 
+const HARNESS_STEPS = [
+  { t: "Plan", s: "Blueprint + Work Order, priced before anything runs" },
+  { t: "Act", s: "Tools in the sandbox: edit, run, install, test, browse" },
+  { t: "Verify", s: "Types, lint, tests, agent rehearsals, preview smoke" },
+  { t: "Save point", s: "Checkpoint, branch commit, streamed to the studio" },
+];
+
+const SCALE_NOTES = [
+  "The control plane is stateless; long work lives in durable workflows, so a pod restart never loses a build.",
+  "Sandboxes suspend to a snapshot after 10 idle minutes and resume in about 150 ms from a warm pool.",
+  "The model gateway queues by priority per provider and key, fails over between providers, and caches prompts.",
+  "Events fan out over NATS; Postgres uses row-level security, read replicas and partitioned event tables.",
+];
+
+/** A section's eyebrow and pencil heading, the way the Sheet writes them. */
+function SectionHead({ id, eyebrow, children }: { id: string; eyebrow?: string; children: React.ReactNode }) {
+  return (
+    <>
+      {eyebrow && <p className="font-sketch text-sketch text-muted-foreground">{eyebrow}</p>}
+      <h2 id={id} className={`font-pencil text-section text-foreground${eyebrow ? " mt-1" : ""}`}>{children}</h2>
+    </>
+  );
+}
+
+const TH = "px-4 py-2.5 font-semibold";
+
 export default async function ArchitecturePage(props: PageProps<"/architecture">) {
   const sp = await props.searchParams;
   const print = sp.print === "1";
   return (
     <div className="relative min-h-screen overflow-x-clip">
       {!print && (
-        <>
-          <header className="sticky top-0 z-30 border-b border-hairline bg-canvas/95">
-            <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-4 px-6">
-              <Logo />
-              <span className="text-[#c9c1b1]">/</span>
-              <span className="font-sketch text-[14px] text-muted-foreground">Architecture</span>
-              <div className="ml-auto flex items-center gap-2">
-                <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground sm:inline-flex"><FileText className="size-3.5" /> ARCHITECTURE.md</a>
-                <Link href="/" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" /> Product</Link>
-              </div>
-            </div>
-          </header>
-        </>
+        <header className="sticky top-0 z-30 border-b border-hairline bg-canvas/95">
+          <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
+            <Logo />
+            <span aria-hidden className="text-line-strong">/</span>
+            <span className="font-sketch text-sketch text-muted-foreground">Architecture</span>
+            <nav aria-label="Page links" className="ml-auto flex items-center gap-1">
+              <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground max-sm:hidden")}>
+                <FileText aria-hidden /> ARCHITECTURE.md
+              </a>
+              <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground")}>
+                <ArrowLeft aria-hidden /> Product
+              </Link>
+            </nav>
+          </div>
+        </header>
       )}
 
-      <main id="main" className="relative mx-auto max-w-[1320px] px-6 pb-24 pt-12">
-        <p className="micro-label fade-up text-brand">Technical architecture · production design</p>
-        <h1 className="fade-up mt-3 max-w-4xl font-display text-[48px] leading-[0.98] sm:text-[66px]" style={{ animationDelay: "80ms" }}>
-          How Prod AI runs <em className="pencil-underline">in production.</em>
+      <main id="main" className="relative mx-auto max-w-[1320px] px-4 pb-24 pt-10 sm:px-6 sm:pt-12">
+        <p className="fade-up font-sketch text-sketch text-muted-foreground">Technical architecture · production design</p>
+        <h1 className="fade-up mt-1 max-w-4xl font-pencil text-title text-foreground" style={{ animationDelay: "80ms" }}>
+          How Prod AI runs in <em className="pencil-underline">production.</em>
         </h1>
-        <p className="fade-up mt-4 max-w-3xl text-[15px] leading-relaxed text-muted-foreground" style={{ animationDelay: "160ms" }}>
+        <p className="fade-up mt-4 max-w-3xl text-lead text-muted-foreground" style={{ animationDelay: "160ms" }}>
           Five planes with one job each. The control plane decides, sandboxes run untrusted code, the runtime serves live apps, and every model call and every agent action passes a
           gateway that can price it, cap it or ask a person first. The prototype you can click today implements the product surface of this design; the table at the end says exactly which parts are real.
         </p>
 
-        <div className="fade-up mt-4 flex flex-wrap gap-2" style={{ animationDelay: "220ms" }}>
-          <a href="/docs/architecture-diagram.png" download className={LINK_CHIP}><Download className="size-3.5" /> Diagram (PNG)</a>
-          <a href="/docs/architecture.pdf" download className={LINK_CHIP}><Download className="size-3.5" /> Diagram + notes (PDF)</a>
-          <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className={LINK_CHIP}><GitHubMark className="size-3.5" /> Full write-up</a>
+        <div className="fade-up mt-5 flex flex-wrap gap-2" style={{ animationDelay: "220ms" }}>
+          <a href="/docs/architecture-diagram.png" download className={buttonVariants({ variant: "outline" })}><Download aria-hidden /> Diagram (PNG)</a>
+          <a href="/docs/architecture.pdf" download className={buttonVariants({ variant: "outline" })}><Download aria-hidden /> Diagram + notes (PDF)</a>
+          <a href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline" })}><GitHubMark className="size-3.5" /> Full write-up</a>
         </div>
 
-        {/* Shown at its native width so every label stays readable: it breaks out of the page column on wide screens and scrolls sideways on narrower ones. */}
-        <div className="relative left-1/2 mt-8 -translate-x-1/2" style={{ width: `min(100vw - 3rem, ${DIAGRAM_W + 18}px)` }}>
+        {/* Shown at its native width so every label stays readable: it breaks out of the page column on wide screens and scrolls sideways inside its frame on narrower ones. */}
+        <div className="relative left-1/2 mt-8 -translate-x-1/2 [--gutter:2rem] sm:[--gutter:3rem]" style={{ width: `min(100vw - var(--gutter), ${DIAGRAM_W + 2}px)` }}>
           {!print && (
-            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[12.5px] text-muted-foreground">
-              <p>Shown at native size ({DIAGRAM_W.toLocaleString("en-US")} px wide). On a narrower screen, scroll sideways.</p>
-              <a href="/docs/architecture-diagram.png" target="_blank" rel="noreferrer" className={`ml-auto ${LINK_CHIP}`}>
-                <ExternalLink className="size-3.5" /> Open full size
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
+              <p className="text-meta text-muted-foreground">Shown at native size ({DIAGRAM_W.toLocaleString("en-US")} px wide). On a narrower screen, scroll sideways.</p>
+              <a href="/docs/architecture-diagram.png" target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "ml-auto")}>
+                <ExternalLink aria-hidden /> Open full size
               </a>
             </div>
           )}
-          {/* The diagram stays a dark blueprint plate: mounted on white card like a figure in a report, with its caption underneath. */}
-          <figure aria-label="Architecture diagram" className="fade-up rounded-2xl border border-hairline-hi bg-raised p-2.5 shadow-[0_1px_2px_rgb(26_26_23/0.05),0_28px_60px_-34px_rgb(26_26_23/0.30)]" style={{ animationDelay: "280ms" }}>
-            <div className="overflow-x-auto rounded-xl bg-[#060a09] ring-1 ring-[#1a1a17]/15">
+          {/* A figure in a report: the pencil drawing on its own sheet, with its caption underneath. */}
+          <figure aria-label="Architecture diagram" className="fade-up panel overflow-hidden rounded-md" style={{ animationDelay: "280ms" }}>
+            <div className="overflow-x-auto">
               <div style={{ width: DIAGRAM_W }}>
                 <ArchitectureDiagram animated={!print} />
               </div>
             </div>
-            <figcaption className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-2 pb-1 pt-3">
-              <span className="font-pencil text-[24px] leading-none text-foreground">Fig. 1</span>
-              <span className="text-[13px] text-muted-foreground">Five planes, one job each: control, sandboxes, runtime, data and the gateways every model call and agent action passes. Numbers mark the eight flows below.</span>
+            <figcaption className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-hairline px-4 py-3">
+              <span className="font-pencil text-note text-foreground">Fig. 1</span>
+              <span className="text-meta text-muted-foreground">Five planes, one job each: control, sandboxes, runtime, data and the gateways every model call and agent action passes. Numbers mark the eight flows below.</span>
             </figcaption>
           </figure>
         </div>
 
-        <section aria-labelledby="flows" className="mt-10">
-          <h2 id="flows" className="font-display text-[36px] leading-none">The eight flows on the diagram</h2>
+        <section aria-labelledby="flows" className="mt-12">
+          <SectionHead id="flows">The eight flows on the diagram</SectionHead>
           <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {FLOWS.map((f) => (
-              <li key={f.n} className="panel rounded-xl p-4">
-                <p className="flex items-center gap-2 text-[13.5px] font-semibold">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-[12px] font-bold text-primary-foreground">{f.n}</span>
+              <li key={f.n} className="panel rounded-md p-4">
+                <p className="flex items-center gap-2 text-body font-semibold text-foreground">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full border-[1.5px] border-foreground bg-raised text-meta font-bold tabular-nums">{f.n}</span>
                   {f.title}
                 </p>
-                <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{f.body}</p>
+                <p className="mt-2 text-body text-muted-foreground">{f.body}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        <section aria-labelledby="harness" className="mt-14 grid gap-8 lg:grid-cols-[1fr_1.3fr]">
+        <section aria-labelledby="harness" className="mt-14 grid gap-6 lg:grid-cols-[1fr_1.3fr] lg:gap-8">
           <div>
-            <p className="micro-label text-brand">The agent harness</p>
-            <h2 id="harness" className="mt-2 font-display text-[40px] leading-[1.02]">Plan, act, verify, repair. With a budget and a way out.</h2>
-            <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
+            <SectionHead id="harness" eyebrow="The agent harness">Plan, act, verify, repair. With a budget and a way out.</SectionHead>
+            <p className="mt-3 text-body text-muted-foreground">
               The model decides; deterministic code does the rest. The planner writes a Blueprint (structured JSON), code generation turns it into files, and a tool loop edits, runs and
               tests inside the sandbox. A verifier gates every step. When a check fails, the repairer tries a fix, but only within a step and cost budget. The same error twice means a doom
               loop: it stops, rolls back to the last save point and hands the problem to a person with the full context. Our own fixes are never billed.
             </p>
           </div>
-          <div className="panel rounded-2xl p-5">
-            <div className="grid grid-cols-4 gap-2 text-center">
-              {[
-                { t: "Plan", s: "Blueprint + Work Order, priced before anything runs" },
-                { t: "Act", s: "Tools in the sandbox: edit, run, install, test, browse" },
-                { t: "Verify", s: "Types, lint, tests, agent rehearsals, preview smoke" },
-                { t: "Save point", s: "Checkpoint, branch commit, streamed to the studio" },
-              ].map((x, i) => (
-                <div key={x.t} className="relative">
-                  <div className="h-full rounded-xl border border-hairline bg-canvas p-3">
-                    <p className="font-sketch text-[14px] font-semibold">{x.t}</p>
-                    <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{x.s}</p>
+          <div className="panel rounded-md p-4 sm:p-5">
+            <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {HARNESS_STEPS.map((x, i) => (
+                <li key={x.t} className="relative">
+                  <div className="sketch h-full border bg-raised p-3">
+                    <p className="font-sketch text-sketch text-foreground">{x.t}</p>
+                    <p className="mt-1 text-meta text-muted-foreground">{x.s}</p>
                   </div>
-                  {i < 3 && <ArrowRight className="absolute -right-2.5 top-1/2 z-[1] size-4 -translate-y-1/2 rounded-full bg-raised text-brand" />}
-                </div>
+                  {i < HARNESS_STEPS.length - 1 && <ArrowRight aria-hidden className="absolute -right-2.5 top-1/2 z-[1] size-4 -translate-y-1/2 rounded-full bg-panel text-foreground max-sm:hidden" />}
+                </li>
               ))}
-            </div>
+            </ol>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-fix/25 bg-fix/[0.05] p-3">
-                <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-fix"><RotateCcw className="size-3.5" /> Repair</p>
-                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">Verifier fails: propose a fix with its blast radius. Free, labelled “Our fix”.</p>
+              <div className="rounded-md border border-fix/30 bg-panel p-3">
+                <p className="flex items-center gap-1.5 text-ui font-semibold text-fix"><RotateCcw aria-hidden className="size-3.5" /> Repair</p>
+                <p className="mt-1 text-meta text-muted-foreground">Verifier fails: propose a fix with its blast radius. Free, labelled “Our fix”.</p>
               </div>
-              <div className="rounded-xl border border-ask/25 bg-ask/[0.05] p-3">
-                <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-ask"><ShieldAlert className="size-3.5" /> Doom-loop stop</p>
-                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">Same error signature twice, or 3 attempts: stop, roll back, ask a person.</p>
+              <div className="rounded-md border border-hairline-hi bg-panel p-3">
+                <p className="flex items-center gap-1.5 text-ui font-semibold text-foreground"><ShieldAlert aria-hidden className="size-3.5" /> Doom-loop stop</p>
+                <p className="mt-1 text-meta text-muted-foreground">Same error signature twice, or 3 attempts: stop, roll back, ask a person.</p>
               </div>
-              <div className="rounded-xl border border-hairline bg-canvas p-3">
-                <p className="flex items-center gap-1.5 text-[12.5px] font-medium"><Square className="size-3.5" /> Stop any time</p>
-                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">A person can stop a run; unused credits are refunded automatically.</p>
+              <div className="rounded-md border border-hairline-hi bg-panel p-3">
+                <p className="flex items-center gap-1.5 text-ui font-semibold text-foreground"><Square aria-hidden className="size-3.5" /> Stop any time</p>
+                <p className="mt-1 text-meta text-muted-foreground">A person can stop a run; unused credits are refunded automatically.</p>
               </div>
             </div>
           </div>
         </section>
 
         <section aria-labelledby="sandbox" className="mt-14">
-          <p className="micro-label text-brand">Sandboxing</p>
-          <h2 id="sandbox" className="mt-2 font-display text-[40px] leading-[1.02]">One microVM per project, because the code is untrusted.</h2>
-          <div className="panel mt-5 overflow-x-auto rounded-2xl">
-            <table className="w-full min-w-[720px] text-left text-[13px]">
-              <thead className="border-b border-hairline bg-canvas/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr><th className="px-4 py-3 font-medium">Option</th><th className="px-4 py-3 font-medium">Verdict</th><th className="px-4 py-3 font-medium">Isolation</th><th className="px-4 py-3 font-medium">Start</th><th className="px-4 py-3 font-medium">Fit for agentic apps</th></tr>
+          <SectionHead id="sandbox" eyebrow="Sandboxing">One microVM per project, because the code is untrusted.</SectionHead>
+          <div className="panel mt-5 hidden overflow-x-auto rounded-md md:block">
+            <table className="w-full text-left text-body">
+              <thead className="border-b border-hairline bg-deep/50 text-meta text-muted-foreground">
+                <tr><th className={TH}>Option</th><th className={TH}>Verdict</th><th className={TH}>Isolation</th><th className={TH}>Start</th><th className={TH}>Fit for agentic apps</th></tr>
               </thead>
               <tbody className="divide-y divide-hairline">
                 {SANDBOXES.map((s) => (
-                  <tr key={s.name}>
-                    <td className="px-4 py-3 font-medium">{s.name}</td>
-                    <td className="px-4 py-3"><span className={`${CHIP} ${VERDICT_STYLE[s.verdict]}`}>{s.verdict}</span></td>
+                  <tr key={s.name} className="align-top">
+                    <td className="px-4 py-3 font-medium text-foreground">{s.name}</td>
+                    <td className="px-4 py-3"><VerdictPill verdict={s.verdict} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{s.isolation}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{s.boot}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{s.boot}</td>
                     <td className="px-4 py-3 text-muted-foreground">{s.fit}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {/* On a phone the table becomes one short card per option, so nothing needs sideways scrolling. */}
+          <ul className="panel mt-5 divide-y divide-hairline rounded-md md:hidden">
+            {SANDBOXES.map((s) => (
+              <li key={s.name} className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-body font-semibold text-foreground">{s.name}</p>
+                  <VerdictPill verdict={s.verdict} />
+                </div>
+                <dl className="mt-2 grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5">
+                  <dt className="text-meta text-muted-foreground">Isolation</dt><dd className="text-body text-foreground">{s.isolation}</dd>
+                  <dt className="text-meta text-muted-foreground">Start</dt><dd className="text-body text-foreground">{s.boot}</dd>
+                  <dt className="text-meta text-muted-foreground">Fit for agentic apps</dt><dd className="text-body text-foreground">{s.fit}</dd>
+                </dl>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section aria-labelledby="scale" className="mt-14">
-          <p className="micro-label text-brand">Scale</p>
-          <h2 id="scale" className="mt-2 font-display text-[40px] leading-[1.02]">Thousands of people at once, without thousands of idle machines.</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SectionHead id="scale" eyebrow="Scale">Thousands of people at once, without thousands of idle machines.</SectionHead>
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {NUMBERS.map((n) => (
-              <div key={n.k} className="panel rounded-xl p-4">
-                <p className="font-display text-[40px] leading-none text-brand">{n.k}</p>
-                <p className="mt-2 text-[12.5px] text-muted-foreground">{n.v}</p>
+              <div key={n.k} className="panel rounded-md p-4">
+                <p className="text-note font-semibold tabular-nums tracking-tight text-foreground">{n.k}</p>
+                <p className="mt-1 text-meta text-muted-foreground">{n.v}</p>
               </div>
             ))}
           </div>
-          <ul className="mt-5 grid gap-2 text-[13.5px] text-muted-foreground md:grid-cols-2">
-            {[
-              "The control plane is stateless; long work lives in durable workflows, so a pod restart never loses a build.",
-              "Sandboxes suspend to a snapshot after 10 idle minutes and resume in about 150 ms from a warm pool.",
-              "The model gateway queues by priority per provider and key, fails over between providers, and caches prompts.",
-              "Events fan out over NATS; Postgres uses row-level security, read replicas and partitioned event tables.",
-            ].map((t) => <li key={t} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-read" />{t}</li>)}
+          <ul className="mt-5 grid gap-2 text-body text-muted-foreground md:grid-cols-2">
+            {SCALE_NOTES.map((t) => (
+              <li key={t} className="flex gap-2"><Check aria-hidden className="mt-0.5 size-4 shrink-0 text-foreground" />{t}</li>
+            ))}
           </ul>
         </section>
 
         <section aria-labelledby="today" className="mt-14">
-          <p className="micro-label text-brand">Honest about the seams</p>
-          <h2 id="today" className="mt-2 font-display text-[40px] leading-[1.02]">What the prototype runs today, and what production adds.</h2>
-          <p className="mt-3 max-w-3xl text-[13.5px] leading-relaxed text-muted-foreground">
-            <span className={`${CHIP} ${STATUS_STYLE.real}`}>Real</span> runs in the live prototype. <span className={`${CHIP} ${STATUS_STYLE["stand-in"]}`}>Stand-in</span> is simulated or sandboxed, and
-            labelled in the product. <span className={`${CHIP} ${STATUS_STYLE.designed}`}>Designed</span> is specified in ARCHITECTURE.md and not built yet.
+          <SectionHead id="today" eyebrow="Honest about the seams">What the prototype runs today, and what production adds.</SectionHead>
+          <p className="mt-3 max-w-3xl text-body text-muted-foreground">
+            <StatusPill kind="real">Real</StatusPill> runs in the live prototype. <StatusPill kind="stand-in">Stand-in</StatusPill> is simulated or sandboxed, and
+            labelled in the product. <StatusPill kind="designed">Designed</StatusPill> is specified in ARCHITECTURE.md and not built yet.
           </p>
-          <div className="panel mt-5 overflow-x-auto rounded-2xl">
-            <table className="w-full min-w-[900px] text-left text-[13px]">
-              <thead className="border-b border-hairline bg-canvas/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr><th className="w-[272px] px-4 py-3 font-medium">Part</th><th className="px-4 py-3 font-medium">In the live prototype</th><th className="px-4 py-3 font-medium">In production</th></tr>
+          <div className="panel mt-5 hidden overflow-x-auto rounded-md md:block">
+            <table className="w-full min-w-[760px] text-left text-body">
+              <thead className="border-b border-hairline bg-deep/50 text-meta text-muted-foreground">
+                <tr><th className={cn(TH, "w-[272px]")}>Part</th><th className={TH}>In the live prototype</th><th className={TH}>In production</th></tr>
               </thead>
               <tbody className="divide-y divide-hairline">
                 {TODAY.map((r) => (
                   <tr key={r.part} className="align-top">
                     <td className="px-4 py-3">
-                      <p className="font-medium">{r.part}</p>
+                      <p className="font-medium text-foreground">{r.part}</p>
                       <div className="mt-1.5 flex flex-col items-start gap-1">
-                        {r.status.map((st) => (
-                          <span key={st.label} className={`${CHIP} ${STATUS_STYLE[st.kind]}`}>{st.label}</span>
-                        ))}
+                        {r.status.map((st) => <StatusPill key={st.label} kind={st.kind}>{st.label}</StatusPill>)}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{r.today}</td>
@@ -307,9 +348,23 @@ export default async function ArchitecturePage(props: PageProps<"/architecture">
               </tbody>
             </table>
           </div>
+          <ul className="panel mt-5 divide-y divide-hairline rounded-md md:hidden">
+            {TODAY.map((r) => (
+              <li key={r.part} className="p-4">
+                <p className="text-body font-semibold text-foreground">{r.part}</p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {r.status.map((st) => <StatusPill key={st.label} kind={st.kind}>{st.label}</StatusPill>)}
+                </div>
+                <p className="micro-label mt-3">In the live prototype</p>
+                <p className="mt-0.5 text-body text-muted-foreground">{r.today}</p>
+                <p className="micro-label mt-3">In production</p>
+                <p className="mt-0.5 text-body text-muted-foreground">{r.prod}</p>
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <p className="mt-14 text-[13px] text-muted-foreground">
+        <p className="mt-14 text-body text-muted-foreground">
           Service-by-service reasoning, the sequence diagrams and the prototype-to-production map are in{" "}
           <a className="text-foreground underline decoration-dotted underline-offset-4" href={`${REPO_URL}/blob/main/ARCHITECTURE.md`} target="_blank" rel="noreferrer">ARCHITECTURE.md</a>.
         </p>

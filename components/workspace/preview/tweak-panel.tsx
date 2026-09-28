@@ -14,7 +14,7 @@ import { undoTo } from "../undo";
 import { useWorkspace } from "../context";
 
 /**
- * Free, deterministic edits to one block. Bigger asks go to the composer as a Work Order.
+ * Free, deterministic edits to one block. Bigger asks go to the composer as a change with its price.
  * Rendered docked beside the preview (see preview-view.tsx), so it never covers the block it edits.
  */
 export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId: string; block: Block; bp: Blueprint; onClose: () => void; onAsk: () => void }) {
@@ -76,15 +76,15 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
       <div className="flex shrink-0 items-center justify-between border-b border-hairline px-3 py-2.5">
         <div>
           <p className="micro-label text-brand">Tweak · free</p>
-          <p className="text-[13px] font-medium">{BLOCK_LABELS[block.type]}{entity ? ` · ${entity.plural}` : ""}</p>
+          <p className="text-ui font-medium">{BLOCK_LABELS[block.type]}{entity ? ` · ${entity.plural}` : ""}</p>
         </div>
-        <button onClick={onClose} aria-label="Close" title="Close (Esc)" className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" title="Close (Esc)" className="-mr-1 text-muted-foreground"><X /></Button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {"title" in block && (
           <label className="block">
             <span className="micro-label">Title</span>
-            <Input className="mt-1 h-8" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
         )}
         {block.type === "table" && (
@@ -101,20 +101,20 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
                     e.preventDefault();
                     move(i, e.key === "ArrowUp" ? -1 : 1);
                   }}
-                  className="flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[12.5px] outline-none focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/20"
+                  className="panel flex items-center gap-1 rounded-md px-2 py-1 text-ui outline-none focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-brand/20"
                 >
-                  <span className="w-4 shrink-0 font-mono text-[10.5px] text-muted-foreground">{i + 1}</span>
+                  <span className="w-4 shrink-0 text-badge tabular-nums text-muted-foreground">{i + 1}</span>
                   <span className="flex-1 truncate">{label(c)}</span>
-                  <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} up`} title="Move up (Alt+↑)"><ArrowUp className="size-3" /></button>
-                  <button onClick={() => move(i, 1)} disabled={i === cols.length - 1} className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} down`} title="Move down (Alt+↓)"><ArrowDown className="size-3" /></button>
-                  <button onClick={() => setCols((x) => (x.length > 1 ? x.filter((y) => y !== c) : x))} className="rounded p-0.5 text-muted-foreground hover:text-ask" aria-label={`Hide ${label(c)}`}><X className="size-3" /></button>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} up`} title="Move up (Alt+↑)"><ArrowUp className="size-3" /></button>
+                  <button onClick={() => move(i, 1)} disabled={i === cols.length - 1} className="rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:opacity-30" aria-label={`Move ${label(c)} down`} title="Move down (Alt+↓)"><ArrowDown className="size-3" /></button>
+                  <button onClick={() => setCols((x) => (x.length > 1 ? x.filter((y) => y !== c) : x))} className="rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 hover:text-foreground" aria-label={`Hide ${label(c)}`}><X className="size-3" /></button>
                 </li>
               ))}
             </ul>
             {entity && entity.fields.some((f) => !cols.includes(f.name)) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {entity.fields.filter((f) => !cols.includes(f.name)).map((f) => (
-                  <button key={f.name} onClick={() => setCols((x) => [...x, f.name].slice(0, 8))} className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline-hi px-2 py-0.5 text-[11px] text-muted-foreground hover:border-[#c9c1b1] hover:bg-raised hover:text-foreground">
+                  <button key={f.name} onClick={() => setCols((x) => [...x, f.name].slice(0, 8))} className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-hairline-hi px-2 text-badge text-muted-foreground transition-colors duration-150 hover:border-line-strong hover:bg-raised hover:text-foreground">
                     <Plus className="size-3" />{f.label ?? f.name}
                   </button>
                 ))}
@@ -130,37 +130,37 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
                 const k = kpiValue(i, l);
                 return (
                   <div key={i} className="flex items-center gap-2">
-                    <Input className="h-8 min-w-0 flex-1" value={l} onChange={(e) => setLabels((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
-                    {k && <span className="w-[72px] shrink-0 truncate text-right font-mono text-[11.5px] tabular-nums" title={k.derived ? "Counted from the records" : "As written in the plan: the label doesn't say what to count"}><span className={k.derived ? "text-read" : "text-muted-foreground"}>{k.value}</span></span>}
+                    <Input className="min-w-0 flex-1" value={l} onChange={(e) => setLabels((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
+                    {k && <span className="w-[72px] shrink-0 truncate text-right text-meta tabular-nums" title={k.derived ? "Counted from the records" : "As written in the plan: the label doesn't say what to count"}><span className={k.derived ? "font-medium text-ok" : "text-muted-foreground"}>{k.value}</span></span>}
                   </div>
                 );
               })}
             </div>
-            {block.type === "kpis" && <p className="mt-1.5 text-[11px] leading-snug text-faint">Green numbers are counted from the records on this screen and update as you rename.</p>}
+            {block.type === "kpis" && <p className="mt-1.5 text-meta text-faint">Green numbers are counted from the records on this screen and update as you rename.</p>}
           </div>
         )}
         {block.type === "form" && (
           <label className="block">
             <span className="micro-label">Submit button</span>
-            <Input className="mt-1 h-8" value={submit} onChange={(e) => setSubmit(e.target.value)} />
+            <Input className="mt-1" value={submit} onChange={(e) => setSubmit(e.target.value)} />
           </label>
         )}
         {block.type === "text" && (
           <label className="block">
             <span className="micro-label">Text</span>
-            <Textarea className="mt-1 text-[12.5px]" rows={5} value={md} onChange={(e) => setMd(e.target.value)} />
+            <Textarea className="mt-1 text-ui" rows={5} value={md} onChange={(e) => setMd(e.target.value)} />
           </label>
         )}
         {(block.type === "chat" || block.type === "timeline" || block.type === "list" || block.type === "detail") && (
-          <p className="text-[12px] text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll see the change and its price first.</p>
+          <p className="text-meta text-muted-foreground">Want it to behave differently? That&apos;s a bigger change. Ask for it and you&apos;ll see the change and its price first.</p>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-hairline p-3">
-        <Button size="sm" className="h-8" disabled={pending || changes.length === 0} onClick={() => save(changes, "Tweaked")}>
+        <Button disabled={pending || changes.length === 0} onClick={() => save(changes, "Tweaked")}>
           {pending ? <Loader2 className="animate-spin" /> : null} Save · free
         </Button>
-        <Button size="sm" variant="ghost" className="h-8" onClick={onAsk}><MessageSquarePlus /> Ask for more</Button>
-        <Button size="icon-sm" variant="ghost" className="ml-auto size-8 text-muted-foreground hover:text-ask" disabled={pending} onClick={() => save([{ hidden: true }], "Removed from the screen")} aria-label="Remove block from screen">
+        <Button variant="ghost" onClick={onAsk}><MessageSquarePlus /> Ask for more</Button>
+        <Button size="icon" variant="ghost" className="ml-auto text-muted-foreground" disabled={pending} onClick={() => save([{ hidden: true }], "Removed from the screen")} aria-label="Remove block from screen">
           <Trash2 />
         </Button>
       </div>

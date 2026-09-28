@@ -12,15 +12,15 @@ const KW: Record<string, string[]> = {
 type Tok = { t: string; c?: string };
 
 /**
- * A light theme for code on the paper well (like GitHub Light, tuned to the paper palette):
- * ink text, the green accent for keywords, blue keys, navy strings and a warm brown for numbers.
- * Every colour stays above 4.5:1 on the well.
+ * A quiet theme for code on the paper well, in the product's own inks: the green accent for keywords,
+ * the deeper green for strings, ink for keys, and muted pencil for numbers and comments. Blue and the
+ * other semantic colours keep their meanings, so code never borrows them. Every colour stays above 4.5:1 on the well.
  */
 const SYNTAX = {
-  comment: "text-muted-foreground italic",
-  key: "text-change",
-  string: "text-[#0a3069]",
-  constant: "text-[#8a4a0b]",
+  comment: "text-faint italic",
+  key: "text-foreground font-medium",
+  string: "text-brand-hi",
+  constant: "text-muted-foreground",
   keyword: "text-brand font-medium",
 } as const;
 
@@ -28,7 +28,7 @@ function tokenize(code: string, lang: Lang): Tok[] {
   const l = lang === "tsx" ? "ts" : lang;
   if (l === "md") {
     return code.split(/(\n)/).map((line) =>
-      /^#{1,6} /.test(line) ? { t: line, c: "text-brand font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground" } : /^\|/.test(line) ? { t: line, c: "text-change" } : { t: line },
+      /^#{1,6} /.test(line) ? { t: line, c: "text-brand font-semibold" } : /^>/.test(line) ? { t: line, c: "text-muted-foreground italic" } : /^\s*[-*\d]+[.)]? /.test(line) ? { t: line, c: "text-foreground" } : /^\|/.test(line) ? { t: line, c: "text-muted-foreground" } : { t: line },
     );
   }
   const comment = l === "py" || l === "yaml" || l === "sh" || l === "env" || l === "toml" ? "#[^\\n]*" : l === "sql" ? "--[^\\n]*" : l === "ts" ? "\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/" : "(?!)";
@@ -67,7 +67,7 @@ export function CodeView({ code, lang, className, lineNumbers = true, highlightL
   }
   if (lines.length > 1 && lines[lines.length - 1].length === 0) lines.pop();
   return (
-    <pre className={cn("code-face overflow-auto text-[12.5px] leading-[1.65]", className)}>
+    <pre className={cn("code-face overflow-auto text-code leading-relaxed", className)}>
       <code className="block min-w-max py-3">
         {lines.map((line, i) => (
           <span key={i} className={cn("flex px-3", highlightLines?.has(i + 1) && "bg-brand-soft")}>

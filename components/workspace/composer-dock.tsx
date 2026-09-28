@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowUp, Check, Crosshair, UsersRound, X } from "lucide-react";
+import { ArrowUp, Check, CircleAlert, Crosshair, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DUR, EASE } from "@/lib/motion";
 import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
-import { changeTimeLabel } from "@/lib/blueprint/estimate";
 import type { ChangeProposal, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
@@ -269,8 +269,8 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
             key={order.wo.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6, transition: { duration: 0.14 } }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: 6, transition: { duration: DUR.hover } }}
+            transition={{ duration: DUR.panel, ease: EASE }}
             className="pb-2.5"
           >
             <ChangeCard
@@ -294,7 +294,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
 
       {showChips && (
         <div role="group" aria-label="Suggestions" className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="font-sketch text-[11px] text-faint">Try</span>
+          <span className="font-sketch text-sketch text-faint">Try</span>
           {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
             <button
               key={sg}
@@ -305,7 +305,8 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
                 setText(sg);
                 ref.current?.focus();
               }}
-              className="max-w-full truncate rounded-full border border-dashed border-hairline-hi bg-panel/70 px-2.5 py-0.5 font-sketch text-[11.5px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
+              // Starter notes are whole sentences, so they're in print, on a dashed chip.
+              className="max-w-full truncate rounded-full border border-dashed border-hairline-hi bg-panel/70 px-2.5 py-0.5 text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:border-line-strong hover:text-foreground"
             >
               {sg}
             </button>
@@ -313,10 +314,10 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
         </div>
       )}
 
-      <div className={cn("rounded-[3px] border border-hairline-hi bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.05)] transition-colors focus-within:border-brand/50", building && "opacity-70")}>
+      <div className={cn("rounded-sm border border-hairline-hi bg-panel shadow-hair transition-colors duration-150 ease-paper focus-within:border-brand/50", building && "opacity-70")}>
         {effectiveScope && (
           <div className="flex px-2.5 pt-2">
-            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm border border-brand/25 bg-brand-soft px-1.5 py-0.5 text-[11px] text-brand">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm border border-brand/30 bg-brand-soft px-1.5 py-0.5 text-badge text-brand">
               <Crosshair className="size-3 shrink-0" aria-hidden />
               <span className="truncate">About: {label}</span>
               <button
@@ -352,10 +353,10 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
             }
           }}
           placeholder={placeholder}
-          className="paper-lines font-pencil block min-h-16 w-full resize-none bg-transparent px-3 text-[21px] leading-8 text-foreground outline-none placeholder:text-faint disabled:cursor-not-allowed"
+          className="paper-lines font-pencil block min-h-16 w-full resize-none bg-transparent px-3 text-note leading-8 text-foreground outline-none placeholder:text-faint disabled:cursor-not-allowed"
         />
         <div className="flex items-center gap-2 border-t border-dashed border-hairline px-2.5 py-1.5">
-          <span id="composer-hint" className="min-w-0 flex-1 truncate text-[10.5px] text-faint">
+          <span id="composer-hint" className="min-w-0 flex-1 truncate text-badge text-faint">
             {pending ? (
               "Prod AI is reading your note…"
             ) : (
@@ -364,15 +365,9 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
               </>
             )}
           </span>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!text.trim() || pending || building}
-            aria-label="Send note"
-            className="grid size-7 shrink-0 place-items-center rounded-md bg-brand text-primary-foreground transition-[background-color,opacity] hover:bg-brand-hi disabled:pointer-events-none disabled:opacity-30"
-          >
-            <ArrowUp className="size-3.5" aria-hidden />
-          </button>
+          <Button type="button" size="icon-sm" onClick={submit} disabled={!text.trim() || pending || building} aria-label="Send note">
+            <ArrowUp aria-hidden />
+          </Button>
         </div>
       </div>
     </div>
@@ -381,7 +376,8 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
 
 /**
  * The proposed change as a margin card: what will change in plain words, the price, Apply and Not now.
- * An answer (when the notes are out of sight) and "needs a person" use the same card.
+ * An answer (when the notes are out of sight) and "needs a person" use the same card. It is the one place
+ * the change is spelled out: while it waits here, its note in the thread above only points down to it.
  * The region keeps its "Work Order" name for tests and assistive tech that already know it.
  */
 function ChangeCard({
@@ -402,64 +398,61 @@ function ChangeCard({
   const p = order.wo.proposal!;
   const isAnswer = Boolean(p.answer);
   const needsPerson = p.operations.length === 0 && !isAnswer;
-  const time = changeTimeLabel(p.minutes);
   return (
-    <div role="region" aria-label="Work Order" className="sketch bg-panel shadow-[0_1px_2px_rgb(26_26_23/0.06),0_12px_26px_-18px_rgb(26_26_23/0.35)]">
+    // A proposal is not real yet: a sketch on the paper, with no shadow.
+    <div role="region" aria-label="Work Order" className="sketch bg-panel">
       <div className="max-h-[min(24rem,48dvh)] overflow-y-auto overscroll-contain p-3">
-        <p className="font-sketch text-[12px] text-muted-foreground">{isAnswer ? "Answer · nothing changed" : needsPerson ? "Needs a person" : "Proposed change"}</p>
+        <p className="font-sketch text-sketch text-muted-foreground">{isAnswer ? "Answer · nothing changed" : needsPerson ? "Needs a person" : "Proposed change"}</p>
         {isAnswer ? (
           <>
-            <p className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed">{p.rationale}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-body">{p.rationale}</p>
             <button
               type="button"
               onClick={onRephrase}
-              className="mt-2 w-full rounded-md border border-dashed border-hairline-hi px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
+              className="mt-2 w-full rounded-md border border-dashed border-hairline-hi px-2.5 py-1.5 text-left text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:border-line-strong hover:text-foreground"
             >
-              <span className="block text-[11px] text-faint">Want to change it?</span>“{p.summary}”
+              <span className="block text-faint">Want to change it?</span>“{p.summary}”
             </button>
             <div className="mt-2 flex justify-end">
-              <Button size="sm" variant="ghost" className="h-7" onClick={(e) => onDismiss(e.detail === 0)}>
+              <Button size="sm" variant="ghost" onClick={(e) => onDismiss(e.detail === 0)}>
                 Got it
               </Button>
             </div>
           </>
         ) : (
           <>
-            <p className="mt-1 text-[13.5px] font-medium leading-snug">{p.summary}</p>
-            {p.rationale && <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{p.rationale}</p>}
+            <p className="mt-1 text-body font-medium">{p.summary}</p>
+            {p.rationale && <p className="mt-1 text-meta text-muted-foreground">{p.rationale}</p>}
             {needsPerson ? (
               <div className="mt-2.5 flex items-center gap-2">
-                <Button size="sm" className="h-8 flex-1" onClick={onTeammate}>
+                <Button className="flex-1" onClick={onTeammate}>
                   <UsersRound /> Ask a teammate
                 </Button>
-                <Button size="sm" variant="ghost" className="h-8" onClick={(e) => onDismiss(e.detail === 0)}>
+                <Button variant="ghost" onClick={(e) => onDismiss(e.detail === 0)}>
                   Not now
                 </Button>
               </div>
             ) : (
               <>
-                <p className="mt-2 text-[11.5px] text-muted-foreground">{touchWords(p.blastRadius)}</p>
-                <div className="mt-2 border-t border-dashed border-hairline pt-2">
-                  <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] font-medium tabular-nums">
-                    {creditWords(p.credits)}
-                    <span className="text-[11.5px] font-normal text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
-                  </p>
-                  {/* The production estimate and what happens in this demo, each labelled (lib/blueprint/estimate.ts). */}
-                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                    {time.real} <span className="text-faint">· {time.here}</span>
-                  </p>
+                <div className="mt-2 flex flex-wrap items-baseline gap-x-2 border-t border-dashed border-hairline pt-2 tabular-nums">
+                  <span className="text-body font-medium">{creditWords(p.credits)}</span>
+                  <span className="text-meta text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
+                  <span className="text-meta text-muted-foreground">· {touchWords(p.blastRadius)}</span>
                 </div>
                 {order.overBudget && (
-                  <p className="mt-2 text-[11.5px] leading-snug text-foreground">
-                    This would go past your spending cap, so it can&apos;t be applied yet.{" "}
-                    <Link href="/settings#usage" className="text-brand underline underline-offset-2">
-                      Change the cap
-                    </Link>
+                  <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
+                    <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+                    <span>
+                      This would go past your spending cap, so it can&apos;t be applied yet.{" "}
+                      <Link href="/settings#usage" className="text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
+                        Change the cap
+                      </Link>
+                    </span>
                   </p>
                 )}
                 <div className="mt-2.5 flex items-center gap-2">
                   {/* A click from the keyboard has detail 0: only then pull focus back to the writing area. */}
-                  <Button size="sm" className="h-8 flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
+                  <Button className="flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
                     {approving ? (
                       "Applying…"
                     ) : (
@@ -468,14 +461,14 @@ function ChangeCard({
                       </>
                     )}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-8" onClick={(e) => onDismiss(e.detail === 0)} disabled={approving}>
+                  <Button variant="ghost" onClick={(e) => onDismiss(e.detail === 0)} disabled={approving}>
                     Not now
                   </Button>
                 </div>
-                <p className="mt-1.5 text-[10.5px] text-faint">Nothing changes until you apply. Going back is always free.</p>
+                <p className="mt-1.5 text-meta text-faint">Nothing changes until you apply. Going back is always free.</p>
               </>
             )}
-            {p.mode === "rules" && !needsPerson && <p className="mt-1 text-[10.5px] text-faint">Offline mode: handled by built-in rules.</p>}
+            {p.mode === "rules" && !needsPerson && <p className="mt-1 text-meta text-faint">Worked out by built-in rules, not by Claude.</p>}
           </>
         )}
       </div>

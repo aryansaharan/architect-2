@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CodeView } from "@/components/arch/code-view";
 import { filesFor, generateFiles } from "@/lib/codegen/files";
 import type { ObjectRef } from "@/lib/blueprint/schema";
-import { cn } from "@/lib/utils";
+import { Segmented } from "@/components/arch/segmented";
 import { useWorkspace } from "../context";
 
 export function CodeFace({ objectRef }: { objectRef: ObjectRef }) {
@@ -26,20 +26,16 @@ export function CodeFace({ objectRef }: { objectRef: ObjectRef }) {
   }, [ws.blueprint, objectRef]);
   const [active, setActive] = useState(0);
   const file = files[Math.min(active, files.length - 1)];
-  if (!file) return <p className="py-6 text-center text-[12.5px] text-muted-foreground">No generated files for this object.</p>;
+  if (!file) return <p className="py-6 text-center text-ui text-muted-foreground">No generated files for this one.</p>;
   return (
     <div className="-mx-4">
-      <div className="flex gap-1 overflow-x-auto border-b border-hairline px-4 pb-2">
-        {files.map((f, i) => (
-          <button key={f.path} onClick={() => setActive(i)} aria-pressed={i === active} className={cn("shrink-0 rounded-md px-2 py-1 font-mono text-[11px]", i === active ? "border border-hairline bg-panel text-foreground" : "border border-transparent text-muted-foreground hover:text-foreground")}>
-            {f.path.split("/").pop()}
-          </button>
-        ))}
+      <div className="overflow-x-auto border-b border-hairline px-4 pb-2">
+        <Segmented ariaLabel="File" size="xs" value={String(Math.min(active, files.length - 1))} onChange={(v) => setActive(Number(v))} options={files.map((f, i) => ({ value: String(i), title: f.path, label: <span className="font-mono">{f.path.split("/").pop()}</span> }))} />
       </div>
-      <p className="truncate px-4 pt-2 font-mono text-[10.5px] text-faint">{file.path}</p>
+      <p className="truncate px-4 pt-2 font-mono text-badge text-faint">{file.path}</p>
       <CodeView code={file.content} lang={file.lang} className="mt-1 max-h-[60vh] border-y border-hairline" />
       <div className="px-4 pt-3">
-        <Link href={`/p/${ws.project.id}/code?file=${encodeURIComponent(file.path)}`} className="text-[12px] text-brand underline-offset-4 hover:underline">
+        <Link href={`/p/${ws.project.id}/code?file=${encodeURIComponent(file.path)}`} className="text-meta text-brand underline decoration-dotted underline-offset-4">
           Open in Code and GitHub →
         </Link>
       </div>

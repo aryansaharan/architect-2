@@ -112,7 +112,7 @@ export async function startBuild(projectId: string): Promise<StartBuildResult> {
               lane: "thought",
               kind: "work_order",
               title: "You pressed Make it real",
-              body: `Build ${count(project.blueprint.screens.length, "screen")} and ${count(project.blueprint.agents.length, "AI helper")} · about ${project.blueprint.estimate.minutes} min for a real build, about 30 s here (simulated). ${credits} credits is the estimated price, taken from your demo balance and refunded if you stop.`,
+              body: `Making ${count(project.blueprint.screens.length, "screen")} and ${count(project.blueprint.agents.length, "AI helper")} real takes about 30 seconds. ${credits} credits, refunded if you stop.`,
               credits,
             }
           : {

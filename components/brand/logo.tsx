@@ -22,12 +22,12 @@ export function LogoMark({ className }: { className?: string }) {
 
 export function Logo({ href = "/", className, compact }: { href?: string; className?: string; compact?: boolean }) {
   return (
-    <Link href={href} className={cn("group inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand/60", className)} aria-label="Prod AI home">
+    <Link href={href} className={cn("group inline-flex min-h-9 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand/60", className)} aria-label="Prod AI home">
       <LogoMark />
       {!compact && (
         <span className="flex items-baseline gap-1.5">
-          <span className="text-[15px] font-semibold tracking-tight text-foreground">Prod</span>
-          <span className="rounded border border-brand/30 bg-brand-soft px-1 font-mono text-[10px] font-semibold leading-[1.45] text-brand">AI</span>
+          <span className="text-lead font-semibold tracking-tight text-foreground">Prod</span>
+          <span className="rounded-sm border border-brand/30 bg-brand-soft px-1 text-badge font-semibold tracking-wide text-brand">AI</span>
         </span>
       )}
     </Link>

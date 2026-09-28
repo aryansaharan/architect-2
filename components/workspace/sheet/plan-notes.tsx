@@ -1,10 +1,10 @@
 "use client";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, GitPullRequest, NotebookPen } from "lucide-react";
+import { ArrowRight, CircleAlert, GitPullRequest, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { creditsUsd } from "@/lib/format";
-import { buildTimeLabel } from "@/lib/blueprint/estimate";
+import { simulatedDuration } from "@/lib/blueprint/estimate";
 import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { useChangeOrderOpen } from "../composer-dock";
 import { useSheet } from "./use-sheet";
@@ -30,8 +30,8 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
   const long = overflows || open;
   return (
     <section aria-labelledby={`${id}-h`} className="mt-7">
-      <h2 id={`${id}-h`} className="font-pencil text-[21px] text-muted-foreground">{label}</h2>
-      <p ref={para} id={`${id}-t`} className={`mt-1 border-l-2 border-hairline-hi pl-4 font-pencil text-[23px] leading-[1.25] text-foreground/85 ${open ? "" : "line-clamp-3"}`}>
+      <h2 id={`${id}-h`} className="font-sketch text-sketch text-muted-foreground">{label}</h2>
+      <p ref={para} id={`${id}-t`} className={`mt-1.5 border-l-2 border-hairline-hi pl-4 font-pencil text-note leading-snug text-foreground/85 ${open ? "" : "line-clamp-3"}`}>
         {text}
       </p>
       {long && (
@@ -40,7 +40,7 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
           aria-expanded={open}
           aria-controls={`${id}-t`}
           onClick={() => setOpen((o) => !o)}
-          className="ml-4 mt-1 rounded-sm text-[12.5px] font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi"
+          className="ml-4 mt-1 rounded-sm text-meta font-medium text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi"
         >
           {open ? "Show less" : "Show all of it"}
         </button>
@@ -61,26 +61,25 @@ export function PriceNote() {
   const changeWaiting = useChangeOrderOpen();
   const remaining = Math.max(0, ws.usage.cap - ws.usage.credits);
   const over = est.credits > remaining;
-  // The production estimate and this demo's simulated playback, each said for what it is.
-  const time = useMemo(() => buildTimeLabel(est.minutes, totalDuration(buildTimeline(bp))), [bp, est.minutes]);
+  // How long you'll wait here. That the build is a visual is said once, on the build itself.
+  const wait = useMemo(() => simulatedDuration(totalDuration(buildTimeline(bp))), [bp]);
   const priceId = useId();
 
   return (
     <section aria-labelledby={priceId} className="mt-12 border-t border-dashed border-hairline-hi pt-7">
-      <h2 id={priceId} className="sr-only">Price</h2>
-      <div className="paper-lines rounded-[3px] px-1 sm:px-3">
-        {/* Written on the ruled lines: each line of text sits on one 32px rule. */}
-        <p className="font-pencil text-[25px] leading-[32px] text-foreground">
-          Making it real: <span className="whitespace-nowrap">about {est.credits} credits (≈ {creditsUsd(est.credits)}) ·</span>{" "}
-          <span className="whitespace-nowrap">{time.here},</span> <span className="whitespace-nowrap">{time.real}</span>
-        </p>
-        <p className="font-pencil text-[22px] leading-[32px] text-muted-foreground">Nothing is built until you press Make it real.</p>
-      </div>
+      {/* The heading in pencil; the price in print, so the figures read as figures. */}
+      <h2 id={priceId} className="font-pencil text-section text-foreground">
+        Ready when you are
+      </h2>
+      <p className="mt-2 text-lead text-foreground">
+        Making it real costs <span className="font-semibold tabular-nums">about {est.credits} credits</span>{" "}
+        <span className="tabular-nums text-muted-foreground">(≈ {creditsUsd(est.credits)})</span> and takes <span className="tabular-nums">about {wait}</span>.
+      </p>
+      <p className="mt-0.5 text-body text-muted-foreground">Nothing is built until you press Make it real.</p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button
-          size="lg"
-          className="h-11 rounded-lg px-5 text-[15px]"
+          size="cta"
           disabled={starting || over || changeWaiting}
           onClick={async () => {
             setStarting(true);
@@ -91,24 +90,31 @@ export function PriceNote() {
           {starting ? "Getting started…" : "Make it real"}
           {!starting && <ArrowRight aria-hidden />}
         </Button>
-        <Button variant="ghost" className="h-11 px-3 text-[14px] text-muted-foreground" onClick={() => ws.focusComposer(null)}>
+        <Button variant="ghost" size="lg" className="text-muted-foreground" onClick={() => ws.focusComposer(null)}>
           <NotebookPen aria-hidden /> Change something first
         </Button>
       </div>
 
-      <div className="mt-3 space-y-1 text-[12.5px] text-muted-foreground">
+      <div className="mt-3 space-y-1 text-meta tabular-nums text-muted-foreground">
         {changeWaiting && <p className="text-foreground">A change note is waiting for your OK in the margin. Decide on it first, then make it real.</p>}
         {over ? (
-          <p className="text-ask">
-            This would go past your monthly cap ({Math.round(remaining)} of {ws.usage.cap} credits left).{" "}
-            <Link href="/settings" className="underline underline-offset-4">Raise it in Settings</Link> first.
+          // Going past the cap can be undone (raise it), so this is ink with an icon, not rose.
+          <p className="flex items-start gap-1.5 text-foreground">
+            <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            <span>
+              This would go past your monthly cap ({Math.round(remaining)} of {ws.usage.cap} credits left).{" "}
+              <Link href="/settings#usage" className="text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
+                Raise it in Settings
+              </Link>{" "}
+              first.
+            </span>
           </p>
         ) : (
           <p>Stop at any time and the credits come back. If something breaks on our side, fixing it is free. {Math.round(remaining)} of your {ws.usage.cap} credits left this month.</p>
         )}
         <details className="group">
           <summary className="w-fit cursor-pointer rounded-sm underline decoration-dotted underline-offset-4 hover:text-foreground">Where the price comes from</summary>
-          <ul className="mt-2 max-w-[340px] space-y-1 font-sketch text-[12.5px] text-foreground/80">
+          <ul className="mt-2 max-w-[340px] space-y-1 text-meta tabular-nums text-foreground/80">
             {est.breakdown.map((b) => (
               <li key={b.label} className="flex justify-between gap-6 border-b border-dashed border-hairline pb-1">
                 <span>{b.label.replace(/\bagents\b/, "AI helpers").replace(/\bapproval gates\b/, "ask-first steps")}</span>
@@ -127,15 +133,13 @@ export function MappedNote() {
   const ws = useSheet();
   return (
     <section aria-label="Imported project" className="mt-12 border-t border-dashed border-hairline-hi pt-7">
-      <div className="paper-lines rounded-[3px] px-1 sm:px-3">
-        <p className="font-pencil text-[27px] leading-[32px] text-foreground">Mapped from your repo. It&apos;s untouched.</p>
-        <p className="font-pencil text-[22px] leading-[32px] text-muted-foreground">Nothing was built or charged. There&apos;s nothing to make real: it already is.</p>
-      </div>
+      <h2 className="font-pencil text-section text-foreground">Mapped from your repo. It&apos;s untouched.</h2>
+      <p className="mt-2 text-body text-muted-foreground">Nothing was built or charged. There&apos;s nothing to make real: it already is.</p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button size="lg" className="h-11 rounded-lg px-5 text-[15px]" onClick={() => ws.focusComposer(null)}>
+        <Button size="cta" onClick={() => ws.focusComposer(null)}>
           <NotebookPen aria-hidden /> Write your first change note
         </Button>
-        <p className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+        <p className="inline-flex items-center gap-1.5 text-meta text-muted-foreground">
           <GitPullRequest className="size-3.5 shrink-0" aria-hidden />
           Write it in the margin. It opens as a pull request on your repo.
         </p>

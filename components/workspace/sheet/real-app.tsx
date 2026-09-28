@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { blockTitle } from "@/lib/blueprint";
 import { cn } from "@/lib/utils";
 import { PencilRadio } from "./pencil-radio";
+import { Pill } from "@/components/ui/pill";
 import { plural, reducedMotion, useSheet } from "./use-sheet";
 
 type Device = "desktop" | "tablet" | "phone";
@@ -23,6 +24,9 @@ function subscribeViewport(cb: () => void) {
 function viewportDevice(): Device {
   return window.matchMedia(PHONE_MQ).matches ? "phone" : window.matchMedia(TABLET_MQ).matches ? "tablet" : "desktop";
 }
+
+/** The height of the pretend status bar the app draws at the top of a phone (components/renderer/spec-app.tsx). */
+const PHONE_STATUS_BAR = 42;
 
 /** Names for what you point at, in the Sheet's words. */
 const PART: Partial<Record<Block["type"], string>> = { chat: "AI helper chat", kpis: "Key numbers", detail: "Record", actions: "Buttons" };
@@ -42,15 +46,15 @@ function NoteTarget({ block, screen, picked, onPick, children }: { block: Block;
         onClick={() => onPick({ type: "block", id: block.id }, label)}
         aria-label={`Write a note about this: ${label}`}
         className={cn(
-          "absolute -inset-1.5 z-10 cursor-pointer rounded-[calc(var(--app-radius)+6px)] border-2 border-dashed border-transparent text-left outline-none transition-colors duration-150",
-          "hover:border-brand/70 hover:bg-[rgb(31_77_58/0.03)] focus-visible:border-brand focus-visible:bg-[rgb(31_77_58/0.03)]",
-          picked && "border-solid border-brand bg-[rgb(31_77_58/0.04)]",
+          "absolute -inset-1.5 z-10 cursor-pointer rounded-[calc(var(--app-radius)+6px)] border-2 border-dashed border-transparent text-left outline-none transition-colors duration-150 ease-paper",
+          "hover:border-brand/70 hover:bg-brand/3 focus-visible:border-brand focus-visible:bg-brand/3",
+          picked && "border-solid border-brand bg-brand/4",
         )}
       >
         <span
           aria-hidden
           className={cn(
-            "absolute -top-3 left-3 inline-flex items-center gap-1 rounded-[4px] bg-brand px-2 py-0.5 font-sans text-[11.5px] font-medium text-primary-foreground opacity-0 transition-opacity duration-150",
+            "absolute -top-3 left-3 inline-flex items-center gap-1 rounded-sm bg-brand px-2 py-0.5 font-sans text-badge font-medium text-primary-foreground opacity-0 transition-opacity duration-150 ease-paper",
             "group-hover/note:opacity-100 group-focus-within/note:opacity-100",
             picked && "opacity-100",
           )}
@@ -72,7 +76,9 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
   const bp = ws.blueprint;
   const fits = useSyncExternalStore(subscribeViewport, viewportDevice, () => "desktop" as Device);
   const [picked, setDevice] = useState<Device | null>(null);
-  const device = picked ?? fits;
+  // On a phone the app is simply the app, edge to edge: no device frame inside the phone, and no picker.
+  const onPhone = fits === "phone";
+  const device = onPhone ? "phone" : (picked ?? fits);
   const [screenId, setScreenId] = useState(bp.screens[0].id);
   const screen = bp.screens.find((s) => s.id === screenId) ?? bp.screens[0];
   const at = bp.screens.findIndex((s) => s.id === screen.id) + 1;
@@ -116,14 +122,14 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
     <div>
       <header className="flex flex-wrap items-end gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 max-sm:basis-full">
-          <p className="font-sketch text-[13px] text-muted-foreground">
-            {version ? `Version ${version} · ` : ""}
-            {ws.project.name}
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="font-sketch text-sketch text-muted-foreground">{ws.project.name}</span>
+            {version ? <Pill className="tabular-nums">version {version}</Pill> : null}
           </p>
-          <h1 ref={heading} tabIndex={-1} className="mt-1 font-display text-[52px] leading-[0.95] text-foreground outline-none sm:text-[64px]">
+          <h1 ref={heading} tabIndex={-1} className="mt-1 font-pencil text-title text-foreground outline-none sm:text-hero">
             {replay ? "That's how it was made." : "It's real."}
           </h1>
-          <p className="mt-2.5 max-w-[60ch] text-[14.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-2.5 max-w-[60ch] text-lead text-muted-foreground">
             {replay
               ? "Replays are free and change nothing. Below is the app as it is now."
               : `${plural(bp.screens.length, "screen")} and ${plural(bp.agents.length, "AI helper")}, all tried on their test runs first.${asks ? ` ${plural(asks, "action")} ${asks === 1 ? "waits" : "wait"} for your OK before ${asks === 1 ? "it happens" : "they happen"}.` : ""}`}
@@ -131,13 +137,13 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {ws.liveSlug && (
-            <Button asChild variant="outline" size="lg" className="h-10 rounded-lg">
+            <Button asChild variant="outline" size="lg">
               <a href={`/live/${ws.liveSlug}`} target="_blank" rel="noreferrer">
                 Live version <ArrowUpRight aria-hidden />
               </a>
             </Button>
           )}
-          <Button asChild size="lg" className="h-10 rounded-lg px-4 text-[14px]">
+          <Button asChild size="lg">
             <Link href={`/p/${ws.project.id}/ship`}>
               <Rocket aria-hidden /> Publish
             </Link>
@@ -145,35 +151,36 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
         </div>
       </header>
 
-      <ol className="mt-5 flex flex-wrap gap-x-6 gap-y-1.5 font-pencil text-[21px] text-foreground/80">
-        <li><span className="text-faint">1.</span> Try it below</li>
-        <li><span className="text-faint">2.</span> Point at anything you&apos;d change and write a note</li>
-        <li><span className="text-faint">3.</span> Publish. We check a few things first.</li>
+      {/* Three steps in pencil, numbered in print. */}
+      <ol className="mt-5 flex flex-wrap gap-x-6 gap-y-1.5 font-pencil text-note text-foreground/80">
+        <li><span className="font-sans text-body tabular-nums text-faint">1.</span> Try it below</li>
+        <li><span className="font-sans text-body tabular-nums text-faint">2.</span> Point at anything you&apos;d change and write a note</li>
+        <li><span className="font-sans text-body tabular-nums text-faint">3.</span> Publish. We check a few things first.</li>
       </ol>
       {ws.project.buildState === "built" && (
-        <button type="button" onClick={() => void ws.build.start({ replay: true })} className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-[12.5px] text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground">
+        <button type="button" onClick={() => void ws.build.start({ replay: true })} className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-meta text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground">
           <Play className="size-3" aria-hidden /> Watch it being made again · free
         </button>
       )}
 
       <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3">
         <p className="flex min-w-0 items-baseline gap-2" aria-live="polite">
-          <span className="truncate pr-1 font-pencil text-[28px] leading-tight text-foreground">{screen.title}</span>
-          <span className="shrink-0 font-sketch text-[12px] text-faint">
-            screen {at} of {bp.screens.length}
+          <span className="truncate pr-1 font-pencil text-section text-foreground">{screen.title}</span>
+          <span className="shrink-0 text-meta tabular-nums text-faint">
+            Screen {at} of {bp.screens.length}
           </span>
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             aria-pressed={pointing}
             onClick={() => setPointing((p) => !p)}
-            className={cn("h-8 rounded-md text-[12.5px]", pointing && "border-brand/50 bg-brand-soft text-brand hover:bg-brand-soft hover:text-brand")}
+            className={cn(pointing && "border-brand/30 bg-brand-soft text-brand ring-1 ring-brand/30 hover:border-brand/30 hover:bg-brand-soft hover:text-brand")}
           >
             <MousePointerClick aria-hidden /> Point and write a note
             {pointing && <span aria-hidden className="text-brand/70">· Esc to stop</span>}
           </Button>
+          {!onPhone && (
           <PencilRadio<Device>
             label="Device"
             value={device}
@@ -184,10 +191,11 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
               { value: "phone", label: <Smartphone className="size-3.5" aria-hidden />, ariaLabel: "Phone", title: "Phone" },
             ]}
           />
+          )}
         </div>
       </div>
 
-      <div className="mt-2 min-h-[20px] text-[12.5px] text-muted-foreground" role="status">
+      <div className="mt-2 min-h-5 text-meta text-muted-foreground" role="status">
         {noted ? (
           <span className="inline-flex flex-wrap items-center gap-x-1.5">
             <NotebookPen className="size-3.5 text-brand" aria-hidden />
@@ -209,34 +217,45 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
         )}
       </div>
 
+      {/*
+        One frame for every device: a floating sheet with a slim strip saying whose version this is.
+        On a phone the app runs edge to edge across the paper, with no frame inside the phone.
+      */}
       <div
         className={cn(
-          "relative mx-auto mt-2 flex min-w-0 flex-col",
+          "relative mt-2 flex min-w-0 flex-col overflow-clip",
+          onPhone ? "-mx-3 border-y border-hairline" : "panel-raised mx-auto rounded-lg",
           // Change shape only when someone picks a device, not when the first paint settles on the one that fits.
-          picked && "transition-[width] duration-300 ease-out motion-reduce:transition-none",
+          picked && !onPhone && "transition-[width] duration-250 ease-paper motion-reduce:transition-none",
           justBuilt && "ink-in motion-reduce:animate-none!",
-          device === "phone" ? "rounded-[34px] border-[7px] border-foreground/85 bg-foreground/85" : "panel-raised overflow-clip rounded-[10px]",
         )}
-        style={{
-          width: device === "phone" ? 404 : device === "tablet" ? 834 : "100%",
-          maxWidth: "100%",
-          height: device === "phone" ? "min(800px, calc(100dvh - 120px))" : "clamp(520px, calc(100dvh - 240px), 780px)",
-          minHeight: device === "phone" ? 560 : undefined,
-        }}
+        style={
+          onPhone
+            ? { height: "max(26rem, calc(100dvh - 9rem))" }
+            : {
+                width: device === "phone" ? 390 : device === "tablet" ? 834 : "100%",
+                maxWidth: "100%",
+                height: device === "phone" ? "min(800px, calc(100dvh - 120px))" : "clamp(520px, calc(100dvh - 240px), 780px)",
+                minHeight: device === "phone" ? 560 : undefined,
+              }
+        }
       >
-        {device !== "phone" && (
-          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-hairline bg-deep/70 px-3">
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-hairline bg-deep/70 px-3">
+          {device !== "phone" && (
             <span aria-hidden className="flex gap-1.5">
               <i className="size-2 rounded-full border border-hairline-hi" />
               <i className="size-2 rounded-full border border-hairline-hi" />
               <i className="size-2 rounded-full border border-hairline-hi" />
             </span>
-            <span className="mx-auto truncate text-[11.5px] text-muted-foreground">Test version · only you can see this</span>
-            <span aria-hidden className="w-[42px]" />
+          )}
+          <span className="mx-auto truncate text-meta text-muted-foreground">Test version · only you can see this</span>
+          {device !== "phone" && <span aria-hidden className="w-[42px]" />}
+        </div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-clip bg-raised">
+          {/* On a phone the app draws a pretend status bar (9:41) at its top; the strip above already says what this is, so it sits out of view. */}
+          <div className="h-full" style={device === "phone" ? { height: `calc(100% + ${PHONE_STATUS_BAR}px)`, marginTop: -PHONE_STATUS_BAR } : undefined}>
+            <SpecApp bp={bp} mode="preview" device={device} screenId={screen.id} onScreenChange={setScreenId} projectId={ws.project.id} wrapBlock={pointing ? wrap : undefined} />
           </div>
-        )}
-        <div className={cn("min-h-0 min-w-0 flex-1 overflow-clip bg-white", device === "phone" ? "rounded-[27px]" : "rounded-b-[9px]")}>
-          <SpecApp bp={bp} mode="preview" device={device} screenId={screen.id} onScreenChange={setScreenId} projectId={ws.project.id} wrapBlock={pointing ? wrap : undefined} />
         </div>
       </div>
     </div>

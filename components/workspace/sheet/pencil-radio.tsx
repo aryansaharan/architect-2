@@ -13,12 +13,14 @@ export function PencilRadio<T extends string>({
   onChange,
   options,
   label,
+  size = "sm",
   className,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: PencilOption<T>[];
   label: string;
+  size?: "xs" | "sm";
   className?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -55,7 +57,8 @@ export function PencilRadio<T extends string>({
               }
             }}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 text-[12.5px] font-medium transition-colors duration-150",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[5px] font-medium transition-colors duration-150",
+              size === "xs" ? "h-6 px-2 text-badge" : "h-7 px-2.5 text-meta",
               active ? "bg-brand-soft text-brand ring-1 ring-brand/30" : "text-muted-foreground hover:bg-deep hover:text-foreground",
             )}
           >

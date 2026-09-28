@@ -17,7 +17,7 @@ import { useWorkspace } from "../context";
 
 type Lane = "describe" | "code" | "endpoint";
 
-/** What drafting an agent from a description looks like while it happens (about 10 to 15 seconds with Claude). */
+/** What drafting a helper from a description looks like while it happens (about 10 to 15 seconds live). */
 const STAGES = [
   { at: 0, label: "Reading your description…" },
   { at: 2500, label: "Choosing tools and permissions…" },
@@ -68,8 +68,8 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle className="font-pencil text-[30px] font-medium leading-none">Add an AI helper</DialogTitle>
-          <DialogDescription>Describe what it should do, or bring an agent you already have. Every helper gets the same permissions, test runs and replay.</DialogDescription>
+          <DialogTitle className="font-pencil text-section font-medium">Add an AI helper</DialogTitle>
+          <DialogDescription>Describe what it should do, or bring one you already have. Every helper gets the same permissions, test runs and replay.</DialogDescription>
         </DialogHeader>
         <Segmented<Lane>
           ariaLabel="How to add"
@@ -79,57 +79,57 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
           options={[
             { value: "describe", label: <><Sparkles className="size-3.5" />Describe it</> },
             { value: "code", label: <><Code2 className="size-3.5" />From code</> },
-            { value: "endpoint", label: <><Globe className="size-3.5" />Point at an endpoint</> },
+            { value: "endpoint", label: <><Globe className="size-3.5" />Runs elsewhere</> },
           ]}
         />
         {lane === "describe" && (
           <div>
-            <label htmlFor="agent-desc" className="text-[12.5px] font-medium">What should it do?</label>
-            <Textarea id="agent-desc" rows={4} className="paper-lines mt-1.5 bg-panel py-0 text-[13px]" value={text} disabled={drafting} onChange={(e) => setText(e.target.value)} placeholder="Checks every payout above $10,000 against the claim file and flags anything that doesn't add up. Never approves payouts itself." />
+            <label htmlFor="agent-desc" className="text-ui font-medium">What should it do?</label>
+            <Textarea id="agent-desc" rows={4} className="paper-lines mt-1.5 bg-panel py-0 text-ui" value={text} disabled={drafting} onChange={(e) => setText(e.target.value)} placeholder="Checks every payout above $10,000 against the claim file and flags anything that doesn't add up. Never approves payouts itself." />
             {drafting ? (
-              <div className="mt-2.5 rounded-md border border-hairline bg-panel p-3" role="status" aria-live="polite">
+              <div className="panel mt-2.5 rounded-md p-3" role="status" aria-live="polite">
                 <ol className="space-y-1.5">
                   {STAGES.map((st, i) => (
-                    <li key={st.label} className={cn("flex items-center gap-2 text-[12.5px] transition-opacity duration-300", i > stage ? "opacity-35" : "opacity-100")}>
-                      {i < stage ? <Check className="size-3.5 shrink-0 text-read" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 shrink-0 animate-spin text-brand" aria-hidden /> : <span className="grid size-3.5 shrink-0 place-items-center" aria-hidden><span className="size-1 rounded-full bg-faint" /></span>}
+                    <li key={st.label} className={cn("flex items-center gap-2 text-ui transition-opacity duration-250 ease-paper", i > stage ? "opacity-35" : "opacity-100")}>
+                      {i < stage ? <Check className="size-3.5 shrink-0 text-ok" aria-hidden /> : i === stage ? <Loader2 className="size-3.5 shrink-0 animate-spin text-brand" aria-hidden /> : <span className="grid size-3.5 shrink-0 place-items-center" aria-hidden><span className="size-1 rounded-full bg-faint" /></span>}
                       <span className={cn(i === stage ? "text-foreground" : i < stage ? "text-muted-foreground" : "text-faint")}>{st.label}</span>
                     </li>
                   ))}
                 </ol>
-                <p className="mt-2.5 text-[11px] text-muted-foreground">{ws.llm === "live" ? "Claude is drafting it. This usually takes 10 to 15 seconds." : "Offline mode: starting from a careful template."}</p>
+                <p className="mt-2.5 text-badge text-muted-foreground">{ws.llm === "live" ? "Prod AI is drafting it. This usually takes 10 to 15 seconds." : "Offline mode: starting from a careful template."}</p>
               </div>
             ) : (
-              <p className="mt-1.5 text-[11.5px] text-muted-foreground">{ws.llm === "live" ? "Claude drafts its job, rules, actions and test runs. You review before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
+              <p className="mt-1.5 text-meta text-muted-foreground">{ws.llm === "live" ? "Prod AI writes its job, rules, actions and test runs. You check them before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
             )}
           </div>
         )}
         {lane === "code" && (
           <div className="space-y-3">
             <div>
-              <label htmlFor="agent-repo" className="text-[12.5px] font-medium">Where the agent lives</label>
-              <Input id="agent-repo" className="mt-1.5 h-9 font-mono text-[12.5px]" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="github.com/acme/agents/tree/main/fraud_review.py" />
-              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] font-medium text-foreground/85">{locError}</p>}
+              <label htmlFor="agent-repo" className="text-ui font-medium">Where its code lives</label>
+              <Input id="agent-repo" className="mt-1.5 font-mono text-code" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="github.com/acme/agents/tree/main/fraud_review.py" />
+              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-meta font-medium text-foreground/85">{locError}</p>}
             </div>
             <div>
-              <p className="text-[12.5px] font-medium">Framework</p>
+              <p className="text-ui font-medium">Framework</p>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {Frameworks.map((f) => (
-                  <button key={f} onClick={() => setFw(f)} className={cn("rounded-md border px-2 py-1.5 text-[12px]", fw === f ? "border-brand/50 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
+                  <button key={f} type="button" onClick={() => setFw(f)} aria-pressed={fw === f} className={cn("rounded-md border px-2 py-1.5 text-meta transition-colors duration-150", fw === f ? "border-brand/30 bg-brand-soft text-brand" : "border-hairline bg-panel text-muted-foreground hover:border-line-strong hover:text-foreground")}>{FRAMEWORK_LABEL[f]}</button>
                 ))}
               </div>
             </div>
-            <p className="text-[11.5px] text-muted-foreground">Runs unchanged, with no rewrite. Prod AI wraps its tool calls with permissions and adds test runs and replay.</p>
+            <p className="text-meta text-muted-foreground">Runs unchanged, with no rewrite. Prod AI wraps its tool calls with permissions and adds test runs and replay.</p>
           </div>
         )}
         {lane === "endpoint" && (
           <div className="space-y-3">
             <div>
-              <label htmlFor="agent-url" className="text-[12.5px] font-medium">Endpoint</label>
-              <Input id="agent-url" type="url" inputMode="url" className="mt-1.5 h-9 font-mono text-[12.5px]" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="https://agents.acme.com/mcp/fraud-review" />
-              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-[11.5px] font-medium text-foreground/85">{locError}</p>}
+              <label htmlFor="agent-url" className="text-ui font-medium">Its web address</label>
+              <Input id="agent-url" type="url" inputMode="url" className="mt-1.5 font-mono text-code" value={loc} onChange={(e) => setLoc(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={showLocError || undefined} aria-describedby={showLocError ? "agent-loc-error" : undefined} placeholder="https://agents.acme.com/mcp/fraud-review" />
+              {showLocError && <p id="agent-loc-error" className="mt-1.5 text-meta font-medium text-foreground/85">{locError}</p>}
             </div>
-            <Segmented ariaLabel="Protocol" value={protocol} onChange={setProtocol} options={[{ value: "mcp", label: "MCP" }, { value: "http", label: "HTTP" }, { value: "a2a", label: "A2A" }]} />
-            <p className="text-[11.5px] text-muted-foreground">Treated like a colleague on another team: every request goes through your permissions and is logged.</p>
+            <Segmented ariaLabel="How it talks" value={protocol} onChange={setProtocol} options={[{ value: "mcp", label: "MCP" }, { value: "http", label: "HTTP" }, { value: "a2a", label: "A2A" }]} />
+            <p className="text-meta text-muted-foreground">Treated like a colleague on another team: every request goes through your permissions and is logged.</p>
           </div>
         )}
         <div className="flex justify-end gap-2">

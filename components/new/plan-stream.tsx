@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CircleAlert, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Wireframe } from "@/components/landing/sketches";
 import { cn } from "@/lib/utils";
 
@@ -109,36 +111,44 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
   return (
     <div className="mx-auto max-w-5xl">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {typeof eyebrow === "string" ? <p className="font-sketch text-[12.5px] text-muted-foreground">{eyebrow}</p> : eyebrow}
-        <p className="font-sketch text-[12px] text-faint sm:ml-auto">{mode === "live" ? "Sketching with Claude" : "Offline, so starting from a ready-made sketch"}</p>
+        {typeof eyebrow === "string" ? <p className="font-sketch text-sketch text-muted-foreground">{eyebrow}</p> : eyebrow}
+        <p className="text-meta text-faint sm:ml-auto">{mode === "live" ? "Sketching with Claude" : "Starting from a ready-made sketch"}</p>
       </div>
-      <h1 className="mt-4 font-display text-[46px] leading-none sm:text-[60px]">{draft.name ?? <span className="text-faint">Sketching…</span>}</h1>
-      <p className="mt-3 min-h-[1.5em] text-[15px] leading-relaxed text-muted-foreground">{draft.tagline ?? ""}</p>
+      <h1 className="mt-4 font-pencil text-title">{draft.name ?? <span className="text-faint">Sketching…</span>}</h1>
+      <p className="mt-3 min-h-[1.55em] text-lead text-muted-foreground">{draft.tagline ?? ""}</p>
 
-      {note && <p className="sticky-note mt-5 inline-block rounded-[3px] px-3 py-2 text-[13.5px]">{note}</p>}
-      {error && (
-        <p role="alert" className="mt-5 rounded-lg border border-ask/30 bg-ask/[0.06] px-3 py-2 text-[13.5px] text-ask">
-          {error}{" "}
-          <button className="font-medium underline underline-offset-2" onClick={onRetry}>
-            Try again
-          </button>
+      {note && (
+        <p className="mt-4 flex max-w-2xl gap-2 rounded-md border border-hairline bg-panel px-3 py-2.5 text-body text-foreground">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {note}
         </p>
       )}
+      {error && (
+        <div role="alert" className="mt-4 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-hairline-hi bg-panel px-3 py-2 text-body text-foreground">
+          <p className="flex min-w-0 flex-1 gap-2">
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {error}
+          </p>
+          <Button variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      )}
 
-      <div className="dot-grid mt-6 grid gap-8 rounded-2xl border border-hairline p-5 sm:p-7 lg:grid-cols-[1fr_250px]">
+      <div className="dot-grid mt-6 grid gap-8 rounded-md border border-hairline p-5 sm:p-7 lg:grid-cols-[1fr_250px]">
         <section aria-label="Screens">
-          <h2 className="font-sketch text-[12.5px] text-muted-foreground">Screens{screens.length ? ` · ${screens.length}` : ""}</h2>
+          <Label title="Screens" count={screens.length} />
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:gap-4">
             {screens.map((x, i) => (
               <li key={`${i}-${x.title}`} className="sketch fade-up min-w-0 bg-panel/70 px-3 pb-2.5 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
-                <p className="truncate font-sketch text-[13px] text-foreground sm:text-[14px]">{x.title}</p>
+                <p className="truncate font-sketch text-sketch text-foreground">{x.title}</p>
                 <Wireframe layout={layoutOf(x.kind, i)} seed={i + 3} className="mt-2 block h-auto w-full" />
               </li>
             ))}
             {working &&
               Array.from({ length: Math.max(1, 4 - screens.length) }).map((_, i) => (
                 <li key={`empty-${i}`} className="sketch-soft grid min-h-[100px] place-items-center sm:min-h-[150px]" aria-hidden>
-                  {i === 0 && <span className="font-pencil text-[19px] text-faint">{screens.length ? "and…" : "screens go here"}</span>}
+                  {i === 0 && <span className="font-pencil text-note leading-tight text-faint">{screens.length ? "and…" : "screens go here"}</span>}
                 </li>
               ))}
           </ul>
@@ -146,16 +156,16 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
 
         <aside aria-label="AI helpers and data" className="space-y-7">
           <section>
-            <h2 className="font-sketch text-[12.5px] text-muted-foreground">AI helpers{helpers.length ? ` · ${helpers.length}` : ""}</h2>
+            <Label title="AI helpers" count={helpers.length} />
             <ul className="mt-3 space-y-3">
               {helpers.map((h, i) => (
-                <li key={`${i}-${h.name}`} className={cn("sticky-note fade-up rounded-[3px] px-3.5 pb-2.5 pt-1.5", TILT[i % TILT.length])}>
-                  <p className="font-pencil text-[22px] leading-tight text-foreground">{h.name}</p>
-                  {h.role && <p className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{h.role}</p>}
-                  {h.risky > 0 && <p className="mt-1 text-[12px] text-ask">Asks first before {h.risky} {h.risky === 1 ? "thing" : "things"} it can&apos;t undo</p>}
+                <li key={`${i}-${h.name}`} className={cn("sticky-note fade-up px-3.5 pb-2.5 pt-1.5", TILT[i % TILT.length])}>
+                  <p className="font-pencil text-note leading-tight text-foreground">{h.name}</p>
+                  {h.role && <p className="mt-0.5 line-clamp-2 text-meta text-muted-foreground">{h.role}</p>}
+                  {h.risky > 0 && <p className="mt-1 text-meta text-ask">Asks first before {h.risky} {h.risky === 1 ? "thing" : "things"} it can&apos;t undo</p>}
                 </li>
               ))}
-              {working && helpers.length === 0 && <li className="sketch-soft h-16 rounded-[3px]" aria-hidden />}
+              {working && helpers.length === 0 && <li className="sketch-soft h-16" aria-hidden />}
             </ul>
           </section>
           <PencilList title="Remembers" items={remembers} working={working} />
@@ -164,13 +174,13 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
       </div>
 
       <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <p className={cn("font-pencil text-[24px] leading-tight", done ? "text-brand" : "text-foreground")} aria-live="polite">
+        <p className={cn("font-pencil text-note leading-tight", done ? "text-brand" : "text-foreground")} aria-live="polite">
           {phase}
         </p>
-        <span className="font-mono text-[12px] tabular-nums text-faint">{elapsed}s</span>
-        {done && <span className="text-[13px] text-muted-foreground">Saved as your first save point.</span>}
+        <span className="text-meta tabular-nums text-faint">{elapsed}s</span>
+        {done && <span className="text-meta text-muted-foreground">Saved as version 1.</span>}
       </div>
-      <div className="mt-1.5 space-y-1 text-[13px] text-muted-foreground">
+      <div className="mt-1.5 space-y-1 text-body text-muted-foreground">
         {risky > 0 && (
           <p>
             {risky} {risky === 1 ? "action" : "actions"} can&apos;t be undone, so {risky === 1 ? "it asks" : "they ask"} a person first.
@@ -182,20 +192,30 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
   );
 }
 
+/** A sketch label with its count beside it: the label in lettering, the figure in print. */
+function Label({ title, count }: { title: string; count: number }) {
+  return (
+    <h2 className="flex items-baseline gap-1.5 font-sketch text-sketch text-muted-foreground">
+      {title}
+      {count > 0 && <span className="font-sans text-meta tabular-nums text-faint">{count}</span>}
+    </h2>
+  );
+}
+
 function PencilList({ title, items, working }: { title: string; items: string[]; working: boolean }) {
   return (
     <section>
-      <h2 className="font-sketch text-[12.5px] text-muted-foreground">{title}</h2>
+      <Label title={title} count={0} />
       {items.length ? (
         <ul className="mt-1.5 space-y-0.5">
           {items.map((x) => (
-            <li key={x} className="fade-up font-pencil text-[20px] leading-snug text-foreground">
+            <li key={x} className="fade-up font-pencil text-note leading-tight text-foreground">
               {x}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-1.5 font-pencil text-[20px] text-faint">{working ? "…" : "Nothing"}</p>
+        <p className="mt-1.5 font-pencil text-note leading-tight text-faint">{working ? "…" : "Nothing"}</p>
       )}
     </section>
   );

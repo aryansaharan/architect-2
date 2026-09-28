@@ -8,6 +8,9 @@ mkdirSync("public/docs", { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1900, height: 1200 }, deviceScaleFactor: 2 });
 await page.goto(base + "/architecture?print=1", { waitUntil: "networkidle" });
+// A clean sheet: no Next.js dev badge (it floats over the page in development) and no paper grain overlay.
+await page.addStyleTag({ content: "nextjs-portal { display: none !important; } body::before { display: none !important; }" });
+await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(1500);
 await page.locator("#architecture-diagram").screenshot({ path: "public/docs/architecture-diagram.png" });
 await page.emulateMedia({ media: "screen" });

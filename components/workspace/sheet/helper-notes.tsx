@@ -9,16 +9,20 @@ import type { NodeState } from "../use-build-runner";
 /** Sticky notes sit a little askew, the way they land on paper. Fixed per position: nothing moves. */
 const TILT = ["-1.2deg", "0.9deg", "-0.5deg", "1.3deg", "-0.9deg", "0.4deg"];
 
-/** One AI helper as a sticky note: its name, its job in a line, and what it asks you before doing. */
+/**
+ * One AI helper as a sticky note: its name, its job in a line, and what it asks you before doing.
+ * The reference for every sticky note: the heading in pencil (text-note), the body in print (text-body),
+ * and at most a sketch label for its state. No form controls on a note.
+ */
 function HelperNote({ agent, i, state, waiting }: { agent: Agent; i: number; state: NodeState | null; waiting: boolean }) {
   const asks = agent.tools.filter((t) => t.permission === "ask");
   return (
-    <li className="sticky-note flex w-full flex-col rounded-[3px] p-4 sm:w-[236px]" style={{ rotate: TILT[i % TILT.length] }}>
-      <p className="font-pencil text-[27px] leading-none text-foreground">{agent.name}</p>
-      <p className="mt-2 font-sketch text-[13px] leading-snug text-foreground/80">{agent.role}</p>
+    <li className="sticky-note flex w-full flex-col p-4 sm:w-[236px]" style={{ rotate: TILT[i % TILT.length] }}>
+      <p className="font-pencil text-note text-foreground">{agent.name}</p>
+      <p className="mt-1.5 text-body text-foreground/85">{agent.role}</p>
       {asks.length > 0 && (
-        <p className="mt-2.5 font-sketch text-[12.5px] leading-snug text-foreground/70">
-          asks you before:{" "}
+        <p className="mt-2 text-body text-muted-foreground">
+          Asks you before:{" "}
           {asks.map((t, k) => (
             <Fragment key={t.id}>
               {k > 0 && (k === asks.length - 1 ? " and " : ", ")}
@@ -29,9 +33,9 @@ function HelperNote({ agent, i, state, waiting }: { agent: Agent; i: number; sta
         </p>
       )}
       {waiting ? (
-        <p className="mt-auto pt-3 font-sketch text-[12px] text-fix">a fix to pick, above</p>
+        <p className="mt-auto pt-3 font-sketch text-sketch text-fix">a fix to pick, above</p>
       ) : state ? (
-        <p className={cn("mt-auto inline-flex items-center gap-1 pt-3 font-sketch text-[12px]", state === "done" ? "text-read" : state === "active" ? "text-brand" : "text-foreground/45")}>
+        <p className={cn("mt-auto inline-flex items-center gap-1 pt-3 font-sketch text-sketch", state === "done" ? "text-ok" : state === "active" ? "text-brand" : "text-faint")}>
           {state === "done" ? <><Check className="size-3" aria-hidden />ready</> : state === "active" ? <><PenLine className="size-3" aria-hidden />learning its job</> : "waiting"}
         </p>
       ) : null}
@@ -56,8 +60,8 @@ export function ConnectionLabels({ connections, stateOf }: { connections: Connec
       {connections.map((c) => {
         const state = stateOf(c.id);
         return (
-          <li key={c.id} className={cn("sketch-soft max-w-full bg-panel px-2.5 py-1 font-sketch text-[12.5px] leading-snug text-foreground/85 transition-colors duration-500", state === "done" && "border-solid border-read/50")}>
-            {state === "done" && <Check className="mr-1.5 inline size-3 align-[-1px] text-read" aria-hidden />}
+          <li key={c.id} className={cn("sketch-soft max-w-full bg-panel px-2.5 py-1 font-sketch text-sketch text-foreground/85 transition-colors duration-250 ease-paper", state === "done" && "border-solid border-ok/50")}>
+            {state === "done" && <Check className="mr-1.5 inline size-3 align-[-1px] text-ok" aria-hidden />}
             {c.name}
             {c.status === "missing" && <span className="text-muted-foreground"> · not connected yet · test data</span>}
             {state === "done" && <span className="sr-only">, ready</span>}

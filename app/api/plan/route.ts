@@ -6,9 +6,8 @@ import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { holdModelBudget } from "@/lib/llm/guard";
 import { projectCapMessage } from "@/lib/security/caps";
 import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, saysNothingConnected, startNotConnected } from "@/lib/llm/draft";
-import { buildTimeLabel, estimate } from "@/lib/blueprint/estimate";
+import { estimate } from "@/lib/blueprint/estimate";
 import type { Blueprint } from "@/lib/blueprint/schema";
-import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -54,7 +53,7 @@ export async function POST(req: Request) {
       let projectId: string | null = null;
       let spent: Awaited<ReturnType<typeof streamPlan>>["spent"] = null;
       try {
-        const { blueprint, mode, usage, spent: cost, vertical } = await streamPlan({
+        const { blueprint, mode, spent: cost, vertical } = await streamPlan({
           prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : wanted.length ? `\n\n${connectionsNote(wanted)}` : ""}`,
           userId: user.id,
           allowModel: hold.ok,
@@ -82,10 +81,11 @@ export async function POST(req: Request) {
             lane: "thought",
             kind: "work_order",
             title: `Planned ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}`,
+            // Plain facts, no model names: who planned it, what it costs, and that nothing is built yet.
             body:
               mode === "live"
-                ? `Planned with ${usage?.model}. Planning is free. Building it: ${buildTimeLabel(blueprint.estimate.minutes, totalDuration(buildTimeline(blueprint))).label}, ${blueprint.estimate.credits} credits. Nothing is built until you approve.${keysNote}`
-                : `Offline mode: started from the closest starter plan. Planning is free. Building it: ${buildTimeLabel(blueprint.estimate.minutes, totalDuration(buildTimeline(blueprint))).label}, ${blueprint.estimate.credits} credits.${keysNote}`,
+                ? `Planned by Claude from your words. Planning is free. Making it real costs about ${blueprint.estimate.credits} credits. Nothing is built until you press Make it real.${keysNote}`
+                : `Started from the closest starter plan. Planning is free. Making it real costs about ${blueprint.estimate.credits} credits. Nothing is built until you press Make it real.${keysNote}`,
             credits: 0,
             checkpointId: cp.id,
           },

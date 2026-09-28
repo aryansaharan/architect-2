@@ -12,11 +12,13 @@ import { RecordedRepairContext } from "./use-build-runner";
 import { ComposerDockProvider } from "./composer-dock";
 import type { RailPref } from "./rail-pref";
 import type { WorkOrderRow } from "@/lib/db/types";
+import { DUR, SPRING } from "@/lib/motion";
 
 /**
  * A project: the top bar, then the page, then the notes margin on the right.
  * On the Sheet (/p/[id]) the margin is open beside the page; elsewhere it is a slim "Notes" tab;
- * below 1024px it is a bottom sheet behind a "Notes" button. The page fills the space in between.
+ * below 1024px it is a bottom sheet behind a slim "Notes" bar, stacked under the page so it never
+ * covers what's on it. The page fills the space in between.
  */
 export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], children }: { data: WorkspaceData; railPref?: RailPref; changeOrders?: WorkOrderRow[]; children: React.ReactNode }) {
   // The build's recorded fix (newest first), so "Replay how it was built" matches the history.
@@ -56,9 +58,10 @@ function ShellLayout({ railPref, children }: { railPref: RailPref; children: Rea
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas">
       <TopBar />
-      <div className="relative flex min-h-0 flex-1">
+      {/* Below 1024px this stacks: the page, then the notes bar (the margin itself is a bottom sheet over both). */}
+      <div className="relative flex min-h-0 flex-1 max-lg:flex-col">
         {/* The page and the inspector share the space left of the margin; below xl the inspector floats over the page. */}
-        <div className="relative flex min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1">
           <main id="main" className="flex min-w-0 flex-1 flex-col">
             <div className="relative min-h-0 flex-1">{children}</div>
           </main>
@@ -69,8 +72,8 @@ function ShellLayout({ railPref, children }: { railPref: RailPref; children: Rea
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: "auto", opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 360, damping: 38, opacity: { duration: 0.18 } }}
-                className="overflow-hidden max-xl:absolute max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:bg-canvas max-xl:shadow-[-18px_0_40px_-28px_rgb(26_26_23/0.4)]"
+                transition={{ ...SPRING, opacity: { duration: DUR.hover } }}
+                className="overflow-hidden max-xl:absolute max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:bg-canvas max-xl:shadow-float"
               >
                 <Inspector />
               </motion.div>

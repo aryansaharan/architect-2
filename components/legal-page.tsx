@@ -7,15 +7,15 @@ export function LegalPage({ title, updated, children }: { title: string; updated
       <header className="border-b border-hairline">
         <div className="mx-auto flex h-14 max-w-3xl items-center px-5 sm:px-6">
           <Logo />
-          <Link href="/" className="ml-auto text-[13px] text-muted-foreground hover:text-foreground">
+          <Link href="/" className="ml-auto inline-flex min-h-9 items-center text-ui text-muted-foreground transition-colors duration-150 hover:text-foreground">
             Back to the start
           </Link>
         </div>
       </header>
       <main id="main" className="mx-auto max-w-3xl px-5 pb-20 pt-12 sm:px-6 sm:pt-16">
-        <h1 className="font-display text-[48px] leading-none sm:text-[56px]">{title}</h1>
-        <p className="mt-3 font-sketch text-[13px] text-muted-foreground">Last updated {updated}</p>
-        <div className="panel mt-8 space-y-5 rounded-2xl p-6 text-[15px] leading-relaxed text-foreground/85 sm:p-9 [&_a]:text-brand [&_a]:underline-offset-4 [&_a:hover]:underline [&_h2]:mt-9 [&_h2]:font-display [&_h2]:text-[30px] [&_h2]:font-medium [&_h2]:leading-none [&_h2]:text-foreground [&_li]:ml-5 [&_li]:list-disc [&_li]:pl-1 [&_ul]:space-y-2">
+        <h1 className="font-pencil text-title">{title}</h1>
+        <p className="mt-2 text-meta text-muted-foreground">Last updated {updated}</p>
+        <div className="panel mt-8 space-y-4 rounded-md p-6 text-body text-foreground sm:p-9 [&_a]:text-brand [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-4 [&_h2]:mt-8 [&_h2]:font-(family-name:--font-pencil) [&_h2]:font-medium [&_h2]:text-section [&_h2]:text-foreground [&_li]:ml-5 [&_li]:list-disc [&_li]:pl-1 [&_ul]:space-y-2">
           {children}
         </div>
       </main>

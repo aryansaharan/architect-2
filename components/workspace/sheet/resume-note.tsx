@@ -19,13 +19,15 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
   const [busy, setBusy] = useState<"resume" | "stop" | null>(null);
   // What was taken when the build started (the newest build quote in the history).
   const paid = ws.ledger.find((r) => r.kind === "work_order")?.credits ?? 0;
-  const where = build.step ? ` at step ${build.step} of ${build.total}` : "";
+  // The step it reached is a figure: said in print, not in the pencil heading.
+  const where = build.step ? `It stopped at step ${build.step} of ${build.total}. ` : "";
   return (
     <section aria-labelledby="sheet-resume-title" className="sketch-soft fade-up mt-7 bg-brand-soft p-5 sm:p-6">
-      <h2 id="sheet-resume-title" className="font-display text-[30px] leading-[1.1] text-foreground sm:text-[34px]">
-        Your build was interrupted{where}
+      <h2 id="sheet-resume-title" className="font-pencil text-section text-foreground">
+        Your build was interrupted
       </h2>
-      <p className="mt-2 max-w-[62ch] text-[13.5px] leading-relaxed text-muted-foreground">
+      <p className="mt-2 max-w-[62ch] text-body tabular-nums text-muted-foreground">
+        {where}
         {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
         {paid > 0 ? `The ${paid} credits you already paid still cover it. ` : ""}
         Resume picks up where it stopped, or stop now and get the credits back.
@@ -33,7 +35,6 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
           size="lg"
-          className="h-10 rounded-lg px-4 text-[14px]"
           disabled={busy !== null}
           onClick={async () => {
             setBusy("resume");
@@ -46,7 +47,7 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
         <Button
           variant="ghost"
           size="lg"
-          className="h-10 text-muted-foreground"
+          className="text-muted-foreground"
           disabled={busy !== null}
           onClick={async () => {
             setBusy("stop");

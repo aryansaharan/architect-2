@@ -3,9 +3,10 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Cloud, Container, Eye, EyeOff, KeyRound, Loader2, Plug, Server, UserRoundPlus } from "lucide-react";
+import { Check, CircleAlert, Cloud, Container, Eye, EyeOff, KeyRound, Loader2, Plug, Server, UserRoundPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Pill } from "@/components/ui/pill";
 import { ConnectionIcon } from "@/components/icon";
 import { GitHubMark } from "@/components/brand/logo";
 import { setBudgetCap, toggleIntegration } from "@/lib/actions/settings";
@@ -42,6 +43,9 @@ function providerOf(c: { name: string; kind: string }): string | null {
   const n = c.name.toLowerCase();
   return CATALOG.find((x) => x.provider !== "mcp" && n.includes(x.name.toLowerCase()))?.provider ?? null;
 }
+
+/** Credits in running text are written out ("12 credits"); "cr" is only for pills and counters. */
+const credits = (n: number) => formatCredits(n).replace(/ cr$/, " credits");
 
 function capError(v: string): string | null {
   const n = Number(v);
@@ -97,99 +101,114 @@ export function SettingsView({
   const agents = Object.entries(month.byAgent).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-10 px-6 py-10 md:grid-cols-[200px_1fr]">
+    <div className="mx-auto grid max-w-6xl gap-10 px-4 py-8 sm:px-6 sm:py-10 md:grid-cols-[200px_1fr]">
       <nav className="sticky top-24 hidden h-fit space-y-0.5 md:block" aria-label="Settings sections">
-        <p className="px-2.5 pb-2 font-pencil text-[34px] leading-none">Settings</p>
-        {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} className="block rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground hover:bg-panel hover:text-foreground">{s.label}</a>)}
+        <p className="px-2.5 pb-3 font-pencil text-title">Settings</p>
+        {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} className="block rounded-md px-2.5 py-1.5 text-ui text-muted-foreground transition-colors duration-150 hover:bg-panel hover:text-foreground">{s.label}</a>)}
       </nav>
       <main id="main" className="min-w-0 space-y-12">
+        {/* Phones: the title and the sections as one row of links, so the long page has a way around. */}
+        <div className="md:hidden">
+          <h1 className="font-pencil text-title">Settings</h1>
+          <nav aria-label="Settings sections" className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1">
+            {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} className="shrink-0 rounded-full border border-hairline bg-panel px-3 py-1 text-meta text-muted-foreground transition-colors duration-150 hover:border-line-strong hover:text-foreground">{s.label}</a>)}
+          </nav>
+        </div>
+
         <section id="usage" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Usage &amp; budget</h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
-          <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="panel rounded-md p-4">
-              <p className="text-[12.5px] text-muted-foreground">This month</p>
-              <p className="mt-1 font-pencil text-[40px] leading-none tabular-nums">{formatCredits(month.credits)} <span className="font-sans text-[13px] text-muted-foreground">≈ {creditsUsd(month.credits)} · real model spend {creditsUsd(month.costUsd * 100)}</span></p>
-              <ul className="mt-4 space-y-2">
+          <h2 className="font-pencil text-section">Usage &amp; budget</h2>
+          <p className="mt-2 text-ui text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
+          <div className="panel mt-5 grid rounded-md lg:grid-cols-2">
+            <div className="p-4">
+              <p className="micro-label">This month</p>
+              <p className="mt-1.5 text-lead font-semibold tabular-nums">
+                {credits(month.credits)} <span className="text-ui font-normal text-muted-foreground">≈ {creditsUsd(month.credits)} · real model spend {creditsUsd(month.costUsd * 100)}</span>
+              </p>
+              <ul className="mt-4 space-y-2.5">
                 {kinds.map(([k, v]) => (
-                  <li key={k} className="text-[12.5px]">
-                    <div className="flex justify-between"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("font-mono", v < 0 && "text-read")}>{v < 0 ? "−" : ""}{formatCredits(Math.abs(v))}</span></div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-read" : "bg-brand/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
+                  <li key={k} className="text-ui">
+                    <div className="flex justify-between gap-3"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("tabular-nums", v < 0 && "text-ok")}>{v < 0 ? "−" : ""}{credits(Math.abs(v))}</span></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-ok/60" : "bg-brand/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
                   </li>
                 ))}
-                {kinds.length === 0 && <li className="text-[12.5px] text-muted-foreground">Nothing spent yet.</li>}
+                {kinds.length === 0 && <li className="text-ui text-muted-foreground">Nothing spent yet.</li>}
               </ul>
             </div>
-            <div className="panel rounded-md p-4">
-              <p className="text-[12.5px] text-muted-foreground">By AI helper (conversations)</p>
-              <ul className="mt-3 space-y-1.5 text-[12.5px]">
-                {agents.map(([id, v]) => <li key={id} className="flex justify-between"><span>{agentNames[id] ?? id}</span><span className="font-mono">{formatCredits(v)}</span></li>)}
+            <div className="border-hairline p-4 max-lg:border-t lg:border-l">
+              <p className="micro-label">By AI helper · conversations</p>
+              <ul className="mt-3 space-y-1.5 text-ui">
+                {agents.map(([id, v]) => <li key={id} className="flex justify-between gap-3"><span className="truncate">{agentNames[id] ?? id}</span><span className="shrink-0 tabular-nums">{credits(v)}</span></li>)}
                 {agents.length === 0 && <li className="text-muted-foreground">No conversations yet. Try a helper from its Try it panel.</li>}
               </ul>
             </div>
           </div>
-          <div className="panel mt-4 rounded-md">
-            <p className="border-b border-hairline px-4 py-3 text-[13px] font-medium">Spending caps · per project, per month</p>
+          <div className="panel mt-3 rounded-md">
+            <p className="border-b border-hairline px-4 py-3 text-ui font-medium">Spending caps · per project, per month</p>
             <ul className="divide-y divide-hairline">
               {projects.map((p) => {
                 const pct = Math.min(1, p.used / Math.max(1, p.cap));
                 const err = capError(caps[p.id] ?? "");
                 return (
-                  <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 truncate text-[13px] hover:underline">{p.name}</Link>
+                  <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                    <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 basis-40 truncate text-ui underline decoration-hairline-hi decoration-dotted underline-offset-4 transition-colors duration-150 hover:decoration-current">{p.name}</Link>
                     <span className="w-40">
                       <span className="block h-1.5 overflow-hidden rounded-full bg-deep"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-foreground/70" : "bg-brand/70")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">{Math.round(p.used)} of {p.cap} credits</span>
+                      <span className="mt-1 block text-meta tabular-nums text-muted-foreground">{Math.round(p.used)} of {p.cap} credits</span>
                     </span>
-                    <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                      Cap
-                      <Input type="number" min={10} max={100000} className="h-8 w-24" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} aria-invalid={err ? true : undefined} aria-describedby={err ? `cap-err-${p.id}` : undefined} />
-                    </label>
-                    <Button size="sm" variant="outline" className="h-8" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok && r.warning) toast.warning(`Cap set to ${r.value} credits a month`, { description: r.warning }); else if (r.ok) toast.success(`Cap set to ${r.value} credits a month`); else toast.error(r.error); router.refresh(); })}>Save</Button>
-                    {err && <p id={`cap-err-${p.id}`} className="basis-full text-right text-[11.5px] font-medium text-foreground/85">{err}</p>}
+                    <span className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 text-ui text-muted-foreground">
+                        Cap
+                        <Input type="number" min={10} max={100000} className="w-24 tabular-nums" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} aria-invalid={err ? true : undefined} aria-describedby={err ? `cap-err-${p.id}` : undefined} />
+                      </label>
+                      <Button variant="outline" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok && r.warning) toast.warning(`Cap set to ${r.value} credits a month`, { description: r.warning }); else if (r.ok) toast.success(`Cap set to ${r.value} credits a month`); else toast.error(r.error); router.refresh(); })}>Save</Button>
+                    </span>
+                    {err && <p id={`cap-err-${p.id}`} className="flex basis-full items-center justify-end gap-1.5 text-meta font-medium text-foreground"><CircleAlert className="size-3.5" aria-hidden />{err}</p>}
                   </li>
                 );
               })}
-              {projects.length === 0 && <li className="px-4 py-4 text-[12.5px] text-muted-foreground">No projects yet.</li>}
+              {projects.length === 0 && <li className="px-4 py-4 text-ui text-muted-foreground">No projects yet.</li>}
             </ul>
           </div>
         </section>
 
         <section id="connections" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Connections</h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">What your AI helpers may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {CATALOG.map((c) => {
+          <h2 className="font-pencil text-section">Connections</h2>
+          <p className="mt-2 text-ui text-muted-foreground">What your AI helpers may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
+          <ul className="panel mt-5 grid rounded-md lg:grid-cols-2">
+            {CATALOG.map((c, i) => {
               const account = connected.has(c.provider);
               const via = connectedIn(c.provider);
               const on = account || via.length > 0;
-              // Connected only inside a project: it's managed there, so this card shows it but doesn't toggle it.
+              // Connected only inside a project: it's managed there, so this row shows it but doesn't toggle it.
               const projectOnly = on && !account;
               return (
-                <div key={c.provider} className="panel flex flex-col rounded-md p-4">
-                  <p className="flex items-center gap-2 text-[13.5px] font-medium">{c.provider === "github" ? <GitHubMark /> : <Plug className="size-4 text-muted-foreground" />}{c.name}</p>
-                  <p className="mt-1 flex-1 text-[12px] text-muted-foreground">{c.body}</p>
-                  {projectOnly && <p className="mt-2 truncate text-[11px] text-muted-foreground" title={via.join(", ")}>In {via[0]}{via.length > 1 ? ` and ${via.length - 1} more` : ""}</p>}
-                  {/* Secondary on purpose: eight bright buttons in a row would shout. Connected cards read as a quiet status. */}
-                  <Button size="sm" variant={on ? "ghost" : "outline"} className={cn("mt-3 h-8", on ? "border border-read/25 text-read hover:text-read" : "bg-panel")} disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
+                <li key={c.provider} className={cn("flex items-center gap-3 border-hairline px-4 py-3", i > 0 && "max-lg:border-t", i > 1 && "lg:border-t", i % 2 === 1 && "lg:border-l")}>
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md border border-hairline bg-canvas">{c.provider === "github" ? <GitHubMark className="size-3.5" /> : <Plug className="size-3.5 text-muted-foreground" />}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-ui font-medium">{c.name}</span>
+                    <span className="block text-meta text-muted-foreground">{c.body}</span>
+                    {projectOnly && <span className="block truncate text-meta text-faint" title={via.join(", ")}>In {via[0]}{via.length > 1 ? ` and ${via.length - 1} more` : ""}</span>}
+                  </span>
+                  {/* Quiet on purpose: eight bright buttons in a row would shout. Connected reads as a status. */}
+                  <Button size="sm" variant={on ? "ghost" : "outline"} className={cn("shrink-0", on && "text-ok hover:text-ok")} disabled={pending || projectOnly} title={projectOnly ? "Connected inside a project. Manage it from that project's plan." : account ? `Disconnect ${c.name}` : undefined} onClick={() => start(async () => { await toggleIntegration(c.provider, !account); toast.success(account ? `${c.name} disconnected` : `${c.name} connected (sandbox)`); router.refresh(); })}>
                     {on ? <><Check /> Connected</> : "Connect"}
                   </Button>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
           {connections.length > 0 && (
-            <div className="panel mt-4 rounded-md">
-              <p className="border-b border-hairline px-4 py-3 text-[13px] font-medium">Used by your projects</p>
+            <div className="panel mt-3 rounded-md">
+              <p className="border-b border-hairline px-4 py-3 text-ui font-medium">Used by your projects</p>
               <ul className="divide-y divide-hairline">
                 {connections.map((c) => {
                   const ok = isConnected(c);
                   return (
-                    <li key={c.name} className="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
-                      <ConnectionIcon kind={c.kind} className="size-3.5 text-muted-foreground" />
-                      <span className="flex-1">{c.name}</span>
-                      <span className="text-muted-foreground">{c.project}</span>
-                      <span className={ok ? "text-read" : "text-muted-foreground"}>{ok ? "connected" : "needs a key"}</span>
+                    <li key={c.name} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5 text-ui">
+                      <ConnectionIcon kind={c.kind} className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1">{c.name}</span>
+                      <span className="text-meta text-muted-foreground max-sm:hidden">{c.project}</span>
+                      {ok ? <Pill tone="ok" dot>Connected</Pill> : <Pill>Needs a key</Pill>}
                     </li>
                   );
                 })}
@@ -199,76 +218,87 @@ export function SettingsView({
         </section>
 
         <section id="keys" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Keys &amp; passwords</h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">Private keys for other services. Encrypted at rest, never shown in logs, never sent to a model.</p>
+          <h2 className="font-pencil text-section">Keys &amp; passwords</h2>
+          <p className="mt-2 text-ui text-muted-foreground">Private keys for other services. Encrypted at rest, never shown in logs, never sent to a model.</p>
           <ul className="panel mt-5 divide-y divide-hairline rounded-md">
             {keyed.map((c) => (
-              <li key={c.name} className="flex items-center gap-3 px-4 py-3 text-[12.5px]">
-                <KeyRound className="size-3.5 text-muted-foreground" />
-                <span className="w-56 truncate font-mono">{c.name.toUpperCase().replace(/\(.*?\)/g, "").replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")}{c.auth === "oauth" ? "_TOKEN" : "_API_KEY"}</span>
-                <span className="flex-1 font-mono text-muted-foreground">{isConnected(c) ? (reveal === c.name ? "sk_sandbox_4f1a…9c2e" : "••••••••••••••••") : "not set"}</span>
-                {isConnected(c) && <button onClick={() => setReveal(reveal === c.name ? null : c.name)} aria-label="Show or hide" className="text-muted-foreground hover:text-foreground">{reveal === c.name ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}</button>}
+              <li key={c.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-ui">
+                <KeyRound className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-mono text-badge sm:w-60 sm:flex-none">{c.name.toUpperCase().replace(/\(.*?\)/g, "").replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")}{c.auth === "oauth" ? "_TOKEN" : "_API_KEY"}</span>
+                <span className="flex items-center gap-1 sm:flex-1">
+                  {isConnected(c) ? <span className="font-mono text-badge text-muted-foreground">{reveal === c.name ? "sk_sandbox_4f1a…9c2e" : "••••••••••••••••"}</span> : <Pill>Not set</Pill>}
+                  {isConnected(c) && (
+                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => setReveal(reveal === c.name ? null : c.name)} aria-label={reveal === c.name ? "Hide the key" : "Show the key"}>
+                      {reveal === c.name ? <EyeOff /> : <Eye />}
+                    </Button>
+                  )}
+                </span>
               </li>
             ))}
-            {keyed.length === 0 && <li className="px-4 py-4 text-[12.5px] text-muted-foreground">No keys needed yet.</li>}
+            {keyed.length === 0 && <li className="px-4 py-4 text-ui text-muted-foreground">No keys needed yet.</li>}
           </ul>
         </section>
 
         <section id="team" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Team &amp; roles</h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">Not everyone should be able to change everything.</p>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {[
-              { role: "Owner", body: "Everything, including billing, caps and going live." },
-              { role: "Editor", body: "Change plans, approve priced changes, try AI helpers. Can't raise caps." },
-              { role: "Viewer", body: "Use the test version, comment, and approve AI helper actions. Can't change anything." },
-            ].map((r) => (
-              <div key={r.role} className="panel rounded-md p-4">
-                <p className="text-[13.5px] font-medium">{r.role}</p>
-                <p className="mt-1 text-[12px] text-muted-foreground">{r.body}</p>
-              </div>
-            ))}
+          <h2 className="font-pencil text-section">Team &amp; roles</h2>
+          <p className="mt-2 text-ui text-muted-foreground">Not everyone should be able to change everything.</p>
+          <div className="panel mt-5 rounded-md">
+            <ul className="divide-y divide-hairline text-ui">
+              <li className="flex items-center gap-3 px-4 py-2.5"><span className="min-w-0 flex-1 truncate">{user.name}{user.email ? ` · ${user.email}` : ""}</span><span className="font-medium">Owner</span></li>
+              <li className="flex items-center gap-3 px-4 py-2.5"><span className="min-w-0 flex-1 truncate">Priya Raman · Platform engineer</span><span className="text-muted-foreground">Editor</span></li>
+              <li className="flex items-center gap-3 px-4 py-2.5"><span className="min-w-0 flex-1 truncate">Maya Singh · Claims lead</span><span className="text-muted-foreground">Viewer</span></li>
+            </ul>
+            <dl className="grid gap-3 border-t border-hairline bg-canvas/60 px-4 py-3 md:grid-cols-3">
+              {[
+                { role: "Owner", body: "Everything, including billing, caps and going live." },
+                { role: "Editor", body: "Change plans, approve priced changes, try AI helpers. Can't raise caps." },
+                { role: "Viewer", body: "Use the test version, comment, and approve AI helper actions. Can't change anything." },
+              ].map((r) => (
+                <div key={r.role}>
+                  <dt className="text-meta font-medium">{r.role}</dt>
+                  <dd className="text-meta text-muted-foreground">{r.body}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-          <ul className="panel mt-4 divide-y divide-hairline rounded-md text-[12.5px]">
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">{user.name}{user.email ? ` · ${user.email}` : ""}</span><span className="text-brand">Owner</span></li>
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Priya Raman · Platform engineer</span><span className="text-muted-foreground">Editor</span></li>
-            <li className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1">Maya Singh · Claims lead</span><span className="text-muted-foreground">Viewer</span></li>
-          </ul>
-          <Button variant="outline" size="sm" className="mt-3 bg-panel" onClick={() => void copyInvite()}><UserRoundPlus /> Invite someone</Button>
+          <Button variant="outline" className="mt-3" onClick={() => void copyInvite()}><UserRoundPlus /> Invite someone</Button>
           {invite && (
             <div className="mt-2.5 max-w-lg">
-              <label htmlFor="invite-link" className="text-[11.5px] text-muted-foreground">{invite.copied ? "Copied to your clipboard. Sandbox: it opens sign-in." : "Copy this link and send it. Sandbox: it opens sign-in."}</label>
-              <Input id="invite-link" readOnly value={invite.link} onFocus={(e) => e.currentTarget.select()} className="mt-1 h-8 font-mono text-[12px]" />
+              <label htmlFor="invite-link" className="text-meta text-muted-foreground">{invite.copied ? "Copied to your clipboard. Sandbox: it opens sign-in." : "Copy this link and send it. Sandbox: it opens sign-in."}</label>
+              <Input id="invite-link" readOnly value={invite.link} onFocus={(e) => e.currentTarget.select()} className="mt-1 font-mono text-code" />
             </div>
           )}
         </section>
 
         <section id="deploy" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Deploy targets</h2>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <h2 className="font-pencil text-section">Deploy targets</h2>
+          <ul className="panel mt-5 divide-y divide-hairline rounded-md">
             {[
               { icon: Cloud, name: "Prod Cloud", body: "Managed, instant, regional. Real in this prototype.", on: true },
               { icon: Server, name: "Vercel", body: "Your team, your deploy previews.", on: connected.has("vercel") },
               { icon: Container, name: "Your VPC / on-prem", body: "Docker bundle and runtime images for your AI helpers.", on: false },
             ].map((t) => (
-              <div key={t.name} className="panel rounded-md p-4">
-                <p className="flex items-center gap-2 text-[13.5px] font-medium"><t.icon className="size-4 text-muted-foreground" />{t.name}</p>
-                <p className="mt-1 text-[12px] text-muted-foreground">{t.body}</p>
-                <p className={cn("mt-2 text-[11.5px]", t.on ? "text-read" : "text-muted-foreground")}>{t.on ? "Ready" : "Set up from a project's Publish page"}</p>
-              </div>
+              <li key={t.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                <t.icon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 basis-52">
+                  <span className="block text-ui font-medium">{t.name}</span>
+                  <span className="block text-meta text-muted-foreground">{t.body}</span>
+                </span>
+                {t.on ? <Pill tone="ok" dot>Ready</Pill> : <span className="text-meta text-muted-foreground">Set up from a project&apos;s Publish page</span>}
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
 
         <section id="account" className="scroll-mt-24">
-          <h2 className="font-pencil text-[32px] leading-none">Account</h2>
-          <div className="panel mt-5 rounded-md p-4 text-[13px]">
+          <h2 className="font-pencil text-section">Account</h2>
+          <div className="panel mt-5 rounded-md p-4 text-ui">
             <p>{user.isAnonymous ? "You're a guest. Your work is saved in this browser session." : `Signed in${user.provider ? ` with ${user.provider}` : ""}${user.email ? ` as ${user.email}` : ""}.`}</p>
-            {user.isAnonymous && <Button asChild size="sm" className="mt-3"><Link href="/login?next=/settings">Sign in to keep this work</Link></Button>}
+            {user.isAnonymous && <Button asChild className="mt-3"><Link href="/login?next=/settings">Sign in to keep this work</Link></Button>}
           </div>
         </section>
       </main>
-      {pending && <Loader2 className="fixed bottom-6 right-6 size-5 animate-spin text-brand" />}
+      {pending && <Loader2 className="fixed bottom-6 right-6 size-5 animate-spin text-brand" aria-label="Saving" />}
     </div>
   );
 }
