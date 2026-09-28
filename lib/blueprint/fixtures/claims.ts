@@ -231,11 +231,11 @@ export const claimsFixture: BlueprintInput = {
             title: "Tell us what happened",
             entityId: "claim",
             fields: [
+              { name: "policyholder", label: "Your name", kind: "text", required: true },
               { name: "policy_no", label: "Policy number", kind: "text", required: true },
               { name: "type", label: "What kind of claim?", kind: "select", options: ["Auto", "Property", "Health", "Travel"], required: true },
-              { name: "date", label: "When did it happen?", kind: "date", required: true },
               { name: "amount", label: "Estimated amount (USD)", kind: "number" },
-              { name: "description", label: "Describe what happened", kind: "textarea", required: true },
+              { name: "summary", label: "Describe what happened", kind: "textarea", required: true },
               { name: "photos", label: "Photos or receipts", kind: "file" },
             ],
             submitLabel: "Submit claim",

@@ -12,6 +12,7 @@ import { addCheckpoint, addLedger, createProject, logUsage, updateProject } from
 import { preflight } from "@/lib/sim/preflight";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import type { Blueprint } from "@/lib/blueprint/schema";
+import { seedSampleRecords } from "@/lib/apps/records";
 
 /** "1 AI helper", "2 AI helpers": counts in plain words. */
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -85,6 +86,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   if (hasAdmin()) {
     const { error } = await adminClient().from("live_sites").insert({ slug, project_id: project.id, checkpoint_id: cp2.id, blueprint: built });
     if (error) console.error("[seed] publishing the demo failed", error.message);
+    // Like every newly published app, the example starts with its plan's sample records, marked as samples.
+    else await seedSampleRecords(project.id, built);
   }
   await supa.from("deployments").insert({
     project_id: project.id,

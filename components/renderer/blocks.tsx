@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Search, Sparkles, Upload } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Loader2, Pencil, Search, Sparkles, Upload } from "lucide-react";
 import { sortPhrase, sortRows, type Action, type Block, type Blueprint, type Entity } from "@/lib/blueprint/schema";
 import { formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -68,14 +68,22 @@ export function KpisBlock({ block }: { block: Extract<Block, { type: "kpis" }> }
   // Numbers that can be read from the rows on this screen are counted from them, so tiles and tables agree.
   const entityId = screenEntityId(app.bp, app.screenId);
   const items = useMemo(() => block.items.map((k) => ({ ...k, ...deriveKpi(k, app.bp, entityId) })), [block.items, app.bp, entityId]);
+  // A published app without its sample data never shows the plan's made-up figures: only what its records add up to.
+  const uncounted = (k: (typeof items)[number]) => Boolean(app.data) && !app.data!.hasSample && !k.derived;
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 [.app-phone_&]:grid-cols-2">
       {items.map((k, i) => (
         <div key={i} className="rounded-[calc(var(--app-radius)+4px)] border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
           <p className="text-[12.5px] text-slate-500">{k.label}</p>
-          <p className="mt-1.5 text-[22px] font-semibold tracking-tight text-slate-900 tabular-nums" title={k.derived ? "Counted from the records in this app" : undefined}>{k.value}</p>
-          {k.delta && <p className={cn("mt-0.5 text-[12px]", k.tone === "good" ? "text-emerald-600" : k.tone === "bad" ? "text-rose-600" : "text-slate-500")}>{k.delta}</p>}
-          {!k.delta && k.tone === "bad" && !k.zero && <p className="mt-0.5 text-[12px] text-rose-600">Needs attention</p>}
+          {uncounted(k) ? (
+            <p className="mt-2.5 text-[13px] text-slate-400" title="This number isn't worked out from the app's records yet">Not counted yet</p>
+          ) : (
+            <>
+              <p className="mt-1.5 text-[22px] font-semibold tracking-tight text-slate-900 tabular-nums" title={k.derived ? "Counted from the records in this app" : undefined}>{k.value}</p>
+              {k.delta && <p className={cn("mt-0.5 text-[12px]", k.tone === "good" ? "text-emerald-600" : k.tone === "bad" ? "text-rose-600" : "text-slate-500")}>{k.delta}</p>}
+              {!k.delta && k.tone === "bad" && !k.zero && <p className="mt-0.5 text-[12px] text-rose-600">Needs attention</p>}
+            </>
+          )}
         </div>
       ))}
     </div>
@@ -204,7 +212,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
               </tr>
             ))}
             {view.length === 0 && (
-              <tr><td colSpan={block.columns.length} className="px-4 py-10 text-center text-[13px] text-slate-400">No {entity?.plural.toLowerCase()} match.</td></tr>
+              <tr><td colSpan={block.columns.length} className="px-4 py-10 text-center text-[13px] text-slate-400">No {entity?.plural.toLowerCase()} {app.data && !entity?.sample.length ? "yet" : "match"}.</td></tr>
             )}
           </tbody>
         </table>
@@ -242,6 +250,7 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
   return (
     <Card title={block.title ?? entity?.plural}>
       <ul className="divide-y divide-slate-100">
+        {app.data && !entity?.sample.length && <li className="px-4 py-8 text-center text-[13px] text-slate-400">No {entity?.plural.toLowerCase()} yet.</li>}
         {(entity?.sample ?? []).slice(0, 8).map((row, i) => {
           const title = String(row[block.titleField] ?? "");
           // A plain row when selecting does nothing, so it isn't focusable or styled like a button.
@@ -266,50 +275,158 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
   );
 }
 
+type EntityField = Entity["fields"][number];
+type Draft = Record<string, string | boolean>;
+
+/** A field's value as its input holds it: a tick for yes/no, text for everything else. */
+const toDraft = (f: EntityField | undefined, v: unknown): string | boolean => (f?.type === "boolean" ? v === true : v === undefined || v === null ? "" : String(v));
+
+/** One field of a record being changed, typed by what the field holds. */
+function EditField({ id, field, value, onChange }: { id: string; field: EntityField | undefined; value: string | boolean; onChange: (v: string | boolean) => void }) {
+  const cls = "w-full rounded-[var(--app-radius)] border border-slate-200 bg-white px-2.5 text-[13.5px] text-slate-900 outline-none focus:border-slate-400";
+  const text = typeof value === "string" ? value : "";
+  if (field?.type === "boolean") return <input id={id} type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[var(--app-primary)]" />;
+  if (field?.type === "text") return <textarea id={id} rows={3} value={text} onChange={(e) => onChange(e.target.value)} className={cn(cls, "py-2")} />;
+  if (field?.type === "enum" && field.options?.length) {
+    const options = text && !field.options.includes(text) ? [text, ...field.options] : field.options;
+    return (
+      <select id={id} value={text} onChange={(e) => onChange(e.target.value)} className={cn(cls, "h-9")}>
+        {!text && <option value="">Choose…</option>}
+        {options.map((o) => <option key={o}>{o}</option>)}
+      </select>
+    );
+  }
+  const type = field?.type === "number" || field?.type === "money" ? "number" : field?.type === "date" && (!text || /^\d{4}-\d{2}-\d{2}$/.test(text)) ? "date" : "text";
+  return <input id={id} type={type} step={type === "number" ? "any" : undefined} value={text} onChange={(e) => onChange(e.target.value)} className={cn(cls, "h-9")} />;
+}
+
 export function DetailBlock({ block }: { block: Extract<Block, { type: "detail" }> }) {
   const app = useApp();
   const run = useRunAction();
   const entity = app.entity(block.entityId);
-  const idx = app.selectedRow[block.entityId] ?? 0;
+  const count = entity?.sample.length ?? 0;
+  const picked = app.selectedRow[block.entityId] ?? 0;
+  const idx = app.data ? Math.min(picked, Math.max(0, count - 1)) : picked;
   const row = entity?.sample[idx] ?? entity?.sample[0] ?? {};
   const [first, ...rest] = block.fields;
   const long = rest.filter((f) => entity?.fields.find((x) => x.name === f)?.type === "text");
   const short = rest.filter((f) => !long.includes(f));
+  const fieldOf = (f: string) => entity?.fields.find((x) => x.name === f);
+  const labelOf = (f: string) => fieldOf(f)?.label ?? f;
+  // Editing belongs to one record: moving to another one leaves it.
+  const recordId = app.data?.recordId(block.entityId, idx);
+  const [editing, setEditing] = useState<{ id: string; draft: Draft } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const draft = editing && editing.id === recordId ? editing.draft : null;
+  const fid = (f: string) => `e-${block.id}-${f}`;
+
+  if (app.data && !count)
+    return (
+      <Card>
+        <p className="px-4 py-10 text-center text-[13px] text-slate-400">No {entity?.plural.toLowerCase() ?? "records"} yet.</p>
+      </Card>
+    );
+
+  const startEdit = () => {
+    if (!recordId) return;
+    setError(null);
+    setEditing({ id: recordId, draft: Object.fromEntries(block.fields.map((f) => [f, toDraft(fieldOf(f), row[f])])) });
+  };
+  const save = async () => {
+    if (!draft || !app.data) return;
+    // Only what changed is sent. An emptied field is sent empty, which clears it (and Undo brings it back).
+    const values = Object.fromEntries(
+      block.fields.flatMap((f) => {
+        const v = draft[f];
+        if (v === toDraft(fieldOf(f), row[f])) return [];
+        return [[f, typeof v === "string" ? v.trim() : v]];
+      }),
+    );
+    if (!Object.keys(values).length) {
+      setEditing(null);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const result = await app.data.updateRecord(block.entityId, idx, values);
+    setSaving(false);
+    if (result.ok) setEditing(null);
+    else setError(result.error);
+  };
+
   return (
     <Card>
       <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 px-4 py-4">
         <div className="min-w-0">
           <p className="text-[12px] text-slate-500">{block.title ?? entity?.name}</p>
-          <p className="text-[18px] font-semibold tracking-tight text-slate-900">{String(row[first] ?? "Untitled")}</p>
+          {draft ? (
+            <div className="mt-1 w-72 max-w-full">
+              <label htmlFor={fid(first)} className="sr-only">{labelOf(first)}</label>
+              <EditField id={fid(first)} field={fieldOf(first)} value={draft[first]} onChange={(v) => setEditing({ id: editing!.id, draft: { ...draft, [first]: v } })} />
+            </div>
+          ) : (
+            <p className="text-[18px] font-semibold tracking-tight text-slate-900">{String(row[first] ?? "Untitled")}</p>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          {block.actions.map((a, i) => (
-            <button key={i} onClick={() => run(a.action)} className={a.variant === "primary" ? primaryBtn : secondaryBtn} style={a.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
-              {a.action.kind === "agent" && <Sparkles className="size-3.5" />}
-              {a.label}
-            </button>
-          ))}
+          {draft ? (
+            <>
+              <button type="button" onClick={() => setEditing(null)} disabled={saving} className={secondaryBtn}>Cancel</button>
+              <button type="button" onClick={() => void save()} disabled={saving} className={cn(primaryBtn, "disabled:opacity-60")} style={{ background: "var(--app-primary)" }}>
+                {saving && <Loader2 className="size-3.5 animate-spin" />}
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </>
+          ) : (
+            <>
+              {app.data?.canEdit && recordId && (
+                <button type="button" onClick={startEdit} className={secondaryBtn} aria-label={`Edit this ${entity?.name.toLowerCase() ?? "record"}`}>
+                  <Pencil className="size-3.5" />
+                  Edit
+                </button>
+              )}
+              {block.actions.map((a, i) => (
+                <button key={i} onClick={() => run(a.action)} className={a.variant === "primary" ? primaryBtn : secondaryBtn} style={a.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
+                  {a.action.kind === "agent" && <Sparkles className="size-3.5" />}
+                  {a.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 px-4 py-4 md:grid-cols-3 [.app-phone_&]:grid-cols-1">
         {short.map((f) => (
           <div key={f}>
-            <dt className="text-[12px] text-slate-500">{entity?.fields.find((x) => x.name === f)?.label ?? f}</dt>
-            <dd className="mt-1 text-[13.5px] text-slate-900"><Value entity={entity} field={f} value={row[f]} /></dd>
+            <dt className="text-[12px] text-slate-500">{draft ? <label htmlFor={fid(f)}>{labelOf(f)}</label> : labelOf(f)}</dt>
+            <dd className="mt-1 text-[13.5px] text-slate-900">
+              {draft ? <EditField id={fid(f)} field={fieldOf(f)} value={draft[f]} onChange={(v) => setEditing({ id: editing!.id, draft: { ...draft, [f]: v } })} /> : <Value entity={entity} field={f} value={row[f]} />}
+            </dd>
           </div>
         ))}
       </dl>
       {long.map((f) => (
         <div key={f} className="border-t border-slate-100 px-4 py-3">
-          <p className="text-[12px] text-slate-500">{entity?.fields.find((x) => x.name === f)?.label ?? f}</p>
-          <p className="mt-1 text-[13.5px] leading-relaxed text-slate-700">{String(row[f] ?? "Not set")}</p>
+          {draft ? (
+            <>
+              <label htmlFor={fid(f)} className="text-[12px] text-slate-500">{labelOf(f)}</label>
+              <div className="mt-1"><EditField id={fid(f)} field={fieldOf(f)} value={draft[f]} onChange={(v) => setEditing({ id: editing!.id, draft: { ...draft, [f]: v } })} /></div>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] text-slate-500">{labelOf(f)}</p>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-slate-700">{String(row[f] ?? "Not set")}</p>
+            </>
+          )}
         </div>
       ))}
-      {entity && entity.sample.length > 1 && (
+      {draft && error && <p role="alert" className="border-t border-slate-100 px-4 py-2 text-[12.5px] text-rose-600">{error}</p>}
+      {entity && count > 1 && !draft && (
         <footer className="flex items-center gap-2 border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
-          <button onClick={() => app.selectRow(block.entityId, (idx - 1 + entity.sample.length) % entity.sample.length)} className="rounded p-1 hover:bg-slate-100" aria-label="Previous record"><ChevronLeft className="size-3.5" /></button>
-          {idx + 1} of {entity.sample.length}
-          <button onClick={() => app.selectRow(block.entityId, (idx + 1) % entity.sample.length)} className="rounded p-1 hover:bg-slate-100" aria-label="Next record"><ChevronRight className="size-3.5" /></button>
+          <button onClick={() => app.selectRow(block.entityId, (idx - 1 + count) % count)} className="rounded p-1 hover:bg-slate-100" aria-label="Previous record"><ChevronLeft className="size-3.5" /></button>
+          {idx + 1} of {count}
+          <button onClick={() => app.selectRow(block.entityId, (idx + 1) % count)} className="rounded p-1 hover:bg-slate-100" aria-label="Next record"><ChevronRight className="size-3.5" /></button>
         </footer>
       )}
     </Card>
@@ -320,14 +437,20 @@ type FormField = Extract<Block, { type: "form" }>["fields"][number];
 
 const isFilled = (v: string | boolean | undefined) => (typeof v === "boolean" ? v : Boolean(v?.trim()));
 
-function fieldError(f: FormField, v: string | boolean | undefined): string | null {
+function fieldError(f: FormField, v: string | boolean | undefined, live = false): string | null {
+  // A published app can't take files yet, so a file field never holds a form back there.
+  if (live && f.kind === "file") return null;
   if (f.required && !isFilled(v)) return f.kind === "select" ? "Choose one." : f.kind === "file" ? "Add a file." : f.kind === "toggle" ? "Tick this to continue." : "Fill this in.";
   if (f.kind === "number" && typeof v === "string" && v.trim() && !Number.isFinite(Number(v))) return "Enter a number.";
   return null;
 }
 
 export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }) {
+  const app = useApp();
   const run = useRunAction();
+  // In a published app a form that fills in a data type saves a real record; any other form keeps its action.
+  const saves = Boolean(app.data && block.entityId);
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -351,18 +474,19 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
       {sent ? (
         <div className="flex flex-col items-center px-6 py-12 text-center">
           <span className="grid size-10 place-items-center rounded-full text-white" style={{ background: "var(--app-primary)" }}><Check className="size-5" /></span>
-          <p className="mt-3 text-[15px] font-semibold text-slate-900">Thanks, we&apos;ve got it.</p>
+          <p className="mt-3 text-[15px] font-semibold text-slate-900">{saves ? "Thanks, it's in." : "Thanks, we've got it."}</p>
           <button onClick={() => { setSent(false); setValues({}); }} className="mt-4 text-[12.5px] text-slate-500 underline underline-offset-4">Submit another</button>
         </div>
       ) : (
         <form
           noValidate
           className="space-y-4 p-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
+            if (sending) return;
             const next: Record<string, string> = {};
             for (const f of block.fields) {
-              const err = fieldError(f, values[f.name]);
+              const err = fieldError(f, values[f.name], saves);
               if (err) next[f.name] = err;
             }
             const invalid = block.fields.find((f) => next[f.name]);
@@ -373,8 +497,17 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
               return;
             }
             // A form with no required fields still needs something in it before it counts as sent.
-            if (!block.fields.some((f) => isFilled(values[f.name]))) {
+            if (!block.fields.some((f) => (!saves || f.kind !== "file") && isFilled(values[f.name]))) {
               setFormError("Fill in at least one field first.");
+              return;
+            }
+            if (saves && app.data && block.entityId) {
+              const filled = block.fields.filter((f) => f.kind !== "file" && isFilled(values[f.name]));
+              setSending(true);
+              const result = await app.data.createRecord(block.entityId, Object.fromEntries(filled.map((f) => { const v = values[f.name]; return [f.name, typeof v === "string" ? v.trim() : v]; })), block.id);
+              setSending(false);
+              if (result.ok) setSent(true);
+              else setFormError(result.error);
               return;
             }
             setSent(true);
@@ -385,10 +518,10 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
             const v = values[f.name];
             return (
               <div key={f.name}>
-                <label className="text-[13px] font-medium text-slate-700" htmlFor={fid(f.name)}>
+                <label className="text-[13px] font-medium text-slate-700" htmlFor={saves && f.kind === "file" ? undefined : fid(f.name)}>
                   {f.label}
-                  {f.required && <span className="text-rose-500" aria-hidden> *</span>}
-                  {f.required && <span className="sr-only"> (required)</span>}
+                  {f.required && !(saves && f.kind === "file") && <span className="text-rose-500" aria-hidden> *</span>}
+                  {f.required && !(saves && f.kind === "file") && <span className="sr-only"> (required)</span>}
                 </label>
                 <div className="mt-1.5">
                   {f.kind === "textarea" ? (
@@ -400,6 +533,11 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
                     </select>
                   ) : f.kind === "toggle" ? (
                     <input id={fid(f.name)} type="checkbox" checked={v === true} onChange={(e) => set(f.name, e.target.checked)} className="size-4 accent-[var(--app-primary)]" {...a11y(f.name)} />
+                  ) : f.kind === "file" && saves ? (
+                    <p className="flex items-center gap-2 rounded-[var(--app-radius)] border border-dashed border-slate-200 px-3 py-3 text-[12.5px] text-slate-400">
+                      <Upload className="size-4 shrink-0" />
+                      Files can&apos;t be added here yet.
+                    </p>
                   ) : f.kind === "file" ? (
                     <label htmlFor={fid(f.name)} className={cn("flex cursor-pointer items-center gap-2 rounded-[var(--app-radius)] border border-dashed px-3 py-3 text-[12.5px] focus-within:border-slate-400", errors[f.name] ? "border-rose-400 text-rose-600" : "border-slate-300 text-slate-500")}>
                       <Upload className="size-4 shrink-0" />
@@ -419,7 +557,10 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
           })}
           {formError && <p role="alert" className="text-[12.5px] text-rose-600">{formError}</p>}
           {Object.keys(errors).length > 0 && <p role="alert" className="text-[12.5px] text-rose-600">Check the {Object.keys(errors).length === 1 ? "field" : `${Object.keys(errors).length} fields`} marked above.</p>}
-          <button type="submit" className={cn(primaryBtn, "h-9 px-4")} style={{ background: "var(--app-primary)" }}>{block.submitLabel}</button>
+          <button type="submit" disabled={sending} className={cn(primaryBtn, "h-9 px-4 disabled:opacity-60")} style={{ background: "var(--app-primary)" }}>
+            {sending && <Loader2 className="size-3.5 animate-spin" />}
+            {sending ? "Sending…" : block.submitLabel}
+          </button>
         </form>
       )}
     </Card>

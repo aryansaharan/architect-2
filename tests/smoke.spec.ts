@@ -112,3 +112,21 @@ test("write a note → priced change → apply → new version", async ({ page }
   await order.getByRole("button", { name: /Apply/ }).click();
   await expect(page.getByText(/version \d+/i).first()).toBeVisible({ timeout: 30_000 });
 });
+
+test("published app: a visitor sees only its public page and the form saves", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const base = await openDemo(page);
+  await page.goto(`${base}/ship`);
+  const slug = (await page.locator("code").filter({ hasText: "/live/" }).first().innerText()).trim();
+  const visitor = await browser.newContext();
+  const v = await visitor.newPage();
+  await v.goto(new URL(slug, page.url()).toString());
+  await expect(v.getByRole("heading", { name: "Intake Queue" })).toHaveCount(0);
+  await v.getByLabel("Your name").fill("Test Visitor");
+  await v.getByLabel("Policy number").fill("POL-12345");
+  await v.getByLabel("What kind of claim?").selectOption("Auto");
+  await v.getByLabel("Describe what happened").fill("A test claim from the smoke suite.");
+  await v.getByRole("button", { name: "Submit claim" }).click();
+  await expect(v.getByText("Thanks, it's in.")).toBeVisible({ timeout: 20_000 });
+  await visitor.close();
+});

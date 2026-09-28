@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ import { creditsUsd } from "@/lib/format";
 import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import { AppControls } from "./app-controls";
+import { useOrigin } from "./use-origin";
 
 type Target = DeploymentRow["target"];
 const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag: string }[] = [
@@ -29,11 +31,6 @@ const TARGETS: { id: Target; name: string; icon: typeof Cloud; body: string; tag
 /** A plain hostname: dot-separated labels of letters, digits and inner hyphens, ending in a real TLD. */
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 
-/** This site's origin, so live links read and copy as full URLs. Empty during server rendering. */
-const noSubscribe = () => () => {};
-function useOrigin(): string {
-  return useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
-}
 
 /** A name as a URL-safe slug: "Claims Desk" → "claims-desk". */
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
@@ -73,11 +70,23 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const bp = ws.blueprint;
   // An imported repo is already built (it is the user's own code), so it needs rehearsals, not a charged build.
   const built = ws.project.buildState === "built" || ws.project.source === "import";
-  const checks = useMemo(() => preflight(bp, { budgetCapCredits: ws.project.settings.budgetCapCredits, built, region: ws.project.settings.region }), [bp, ws.project.settings, built]);
+  const checks = useMemo(
+    () =>
+      preflight(bp, {
+        budgetCapCredits: ws.project.settings.budgetCapCredits,
+        built,
+        region: ws.project.settings.region,
+        hiddenEntities: ws.project.settings.app?.hiddenEntities,
+        publicHelpers: ws.project.settings.app?.publicHelpers,
+      }),
+    [bp, ws.project.settings, built],
+  );
   const ready = canGoLive(checks);
   const blocking = checks.filter((c) => c.blocking && c.status === "fail");
-  const optional = checks.filter((c) => !(c.blocking && c.status === "fail") && c.status !== "pass");
+  const optional = checks.filter((c) => !(c.blocking && c.status === "fail") && c.status !== "pass" && c.status !== "info");
   const passed = checks.filter((c) => c.status === "pass");
+  // Nothing to fix, but worth reading before publishing: what the public pages show.
+  const info = checks.filter((c) => c.status === "info");
   const [target, setTarget] = useState<Target>("architect_cloud");
   const [domain, setDomain] = useState("");
   const [domainTouched, setDomainTouched] = useState(false);
@@ -203,7 +212,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           ) : (
             <h3 id="attention" className="flex items-center gap-2 font-pencil text-section text-ok"><Check className="size-5" strokeWidth={2.5} aria-hidden />Ready to go live</h3>
           )}
-          {(blocking.length > 0 || optional.length > 0) && (
+          {(blocking.length > 0 || optional.length > 0 || info.length > 0) && (
             <ul className="mt-3 space-y-2">
               {[...blocking, ...optional].map((c) => {
                 const must = c.blocking && c.status === "fail";
@@ -221,6 +230,16 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
                   </li>
                 );
               })}
+              {info.map((c) => (
+                <li key={c.id} className="rounded-md border border-dashed border-hairline-hi bg-panel px-4 py-3">
+                  <p className="text-body font-medium">
+                    {c.label}
+                    <span className="ml-2 text-meta font-normal text-muted-foreground">read before you publish</span>
+                  </p>
+                  <p className="mt-0.5 text-ui text-muted-foreground">{c.detail}</p>
+                  <a href="#what-is-public" className="mt-1 inline-block text-ui text-brand underline decoration-dotted underline-offset-4">Change what&apos;s public</a>
+                </li>
+              ))}
             </ul>
           )}
           {passed.length > 0 && (
@@ -283,6 +302,9 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* The owner's controls for the published app: people, what's public, AI helpers for visitors, sample data. */}
+        <AppControls />
 
         {/* After publishing: versions, rollback, and the way offline. */}
         {deployments.length > 0 && (

@@ -4,6 +4,27 @@ import type { Blueprint, Entity } from "@/lib/blueprint/schema";
 
 export type AppMode = "preview" | "live";
 
+export type WriteOutcome = { ok: true } | { ok: false; error: string };
+export type RecordValues = Record<string, string | number | boolean>;
+
+/**
+ * A published app's real records, for the renderer. The blueprint it gets holds the current records
+ * as each entity's rows (newest first); these say which record a row is and write back to the app.
+ * Only set in live mode: the studio preview works on the plan's samples and has no data operations.
+ */
+export type LiveData = {
+  /** The team can change records here (the server decides; this only shows the controls). */
+  canEdit: boolean;
+  /** The app still holds the sample data it was published with. */
+  hasSample: boolean;
+  /** The record behind row `index` of an entity's rows. */
+  recordId: (entityId: string, index: number) => string | undefined;
+  /** Where a record now sits in its entity's rows, or -1. */
+  indexOf: (entityId: string, recordId: string) => number;
+  createRecord: (entityId: string, values: RecordValues, formId?: string) => Promise<WriteOutcome>;
+  updateRecord: (entityId: string, index: number, values: RecordValues) => Promise<WriteOutcome>;
+};
+
 export type AppCtx = {
   bp: Blueprint;
   mode: AppMode;
@@ -16,6 +37,8 @@ export type AppCtx = {
   askAgent: (agentId: string, prompt: string) => void;
   entity: (id: string) => Entity | undefined;
   projectId?: string;
+  /** Real records and writes, in a published app only. */
+  data?: LiveData;
 };
 
 export const AppContext = createContext<AppCtx | null>(null);

@@ -10,7 +10,13 @@ import type { Agent, AgentTool, Blueprint, Entity } from "@/lib/blueprint/schema
 
 type Row = Entity["sample"][number];
 type Field = Entity["fields"][number];
-export type DemoChatContext = { screenId?: string; entityId?: string; selected?: number };
+export type DemoChatContext = {
+  screenId?: string;
+  entityId?: string;
+  selected?: number;
+  /** Answering over a published app's real records (passed in as each entity's rows), not the plan's samples. */
+  live?: boolean;
+};
 type Intent = "action" | "sla" | "flag" | "payout" | "history" | "summary" | "status" | "help";
 
 const DONE = /(paid|approved|done|resolved|closed|complete|sent|solved|replied|won|lost|cancel|rejected|disqualified|started|met\b|ready for day one)/i;
@@ -336,7 +342,23 @@ export function detectIntent(q: string): Intent | null {
   return INTENTS.find(([, re]) => re.test(q))?.[0] ?? null;
 }
 
+/** The same answers over a published app's real records: they speak of the app's records, never "sample data" or "this demo". */
+const LIVE_WORDS: [RegExp, string][] = [
+  [/This demo has no sample data to answer from yet\./, "I can't see any records in this app yet."],
+  [/In this demo I answer from the app's sample data\./, "Right now I'm answering from a script over the app's records."],
+  [/ in the sample data/g, " in the app's records"],
+  [/ in the sample (?=\S)/g, " in the app's "],
+  [/ In this published demo /g, " Right now I'm answering from a script, so "],
+  [/This public demo can't create one/, "I can't create one from here"],
+  [/\. In the real app a person approves/, ". A person approves"],
+];
+
 export function demoReply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: DemoChatContext = {}): string {
+  const out = reply(bp, agent, question, ctx);
+  return ctx.live ? LIVE_WORDS.reduce((s, [re, w]) => s.replace(re, w), out) : out;
+}
+
+function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: DemoChatContext): string {
   const q = question.trim();
   const e = primaryEntity(bp, agent, ctx);
   if (!e) return "This demo has no sample data to answer from yet.";

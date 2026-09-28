@@ -5,7 +5,7 @@ import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { DynamicIcon } from "@/components/icon";
 import { hash } from "@/lib/sim/hash";
 import { cn } from "@/lib/utils";
-import { AppContext, type AppCtx, type AppMode } from "./app-context";
+import { AppContext, type AppCtx, type AppMode, type LiveData } from "./app-context";
 import { RenderBlock } from "./blocks";
 
 const RADIUS = { sm: "4px", md: "8px", lg: "12px" } as const;
@@ -68,6 +68,8 @@ export function SpecApp({
   wrapBlock,
   overlay,
   navMarks,
+  data,
+  viewer: liveViewer,
 }: {
   bp: Blueprint;
   mode: AppMode;
@@ -79,11 +81,26 @@ export function SpecApp({
   overlay?: React.ReactNode;
   /** Screens to mark in the app's own navigation (e.g. unresolved comments), by screen id. */
   navMarks?: Record<string, number>;
+  /** A published app's records and writes (live mode only). */
+  data?: LiveData;
+  /** Who is using a published app, for the sidebar. */
+  viewer?: { name: string; initials: string; note: string };
 }) {
   const [internalScreen, setInternalScreen] = useState(bp.screens[0]?.id);
   const screenId = controlledScreen && bp.screens.some((s) => s.id === controlledScreen) ? controlledScreen : internalScreen && bp.screens.some((s) => s.id === internalScreen) ? internalScreen : bp.screens[0].id;
   const screen = bp.screens.find((s) => s.id === screenId) ?? bp.screens[0];
-  const [selectedRow, setSelectedRow] = useState<Record<string, number>>({});
+  const [pickedRow, setPickedRow] = useState<Record<string, number>>({});
+  // With real records the pick follows the record itself, so a new one arriving at the top never moves it.
+  const [pickedId, setPickedId] = useState<Record<string, string>>({});
+  const selectedRow = useMemo(() => {
+    if (!data) return pickedRow;
+    const out = { ...pickedRow };
+    for (const [e, id] of Object.entries(pickedId)) {
+      const i = data.indexOf(e, id);
+      if (i >= 0) out[e] = i;
+    }
+    return out;
+  }, [data, pickedRow, pickedId]);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [menu, setMenu] = useState(false);
   // The frame's own width, not the window's: the studio preview sits beside panels.
@@ -144,13 +161,18 @@ export function SpecApp({
       screenId: screen.id,
       navigate,
       selectedRow,
-      selectRow: (e, i) => setSelectedRow((s) => ({ ...s, [e]: i })),
+      selectRow: (e, i) => {
+        setPickedRow((s) => ({ ...s, [e]: i }));
+        const id = data?.recordId(e, i);
+        if (id) setPickedId((s) => ({ ...s, [e]: id }));
+      },
       toast,
       askAgent,
       entity: (id) => bp.entities.find((e) => e.id === id),
       projectId,
+      data,
     }),
-    [bp, mode, device, screen.id, navigate, selectedRow, toast, askAgent, projectId],
+    [bp, mode, device, screen.id, navigate, selectedRow, toast, askAgent, projectId, data],
   );
 
   const theme = bp.meta.theme;
@@ -169,7 +191,7 @@ export function SpecApp({
   // The preview shows a sample teammate; a published app never pretends a visitor is signed in.
   const viewer =
     mode === "live"
-      ? { name: "Visitor", initials: "V", note: "Viewing the published app" }
+      ? (liveViewer ?? { name: "Visitor", initials: "V", note: "Viewing the published app" })
       : { name: "Maya Singh", initials: "MS", note: bp.meta.auth.enabled ? "Signed in with SSO" : "Guest" };
   const initial = bp.meta.name.slice(0, 1).toUpperCase();
   const render = (b: Block) => {

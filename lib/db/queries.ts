@@ -115,7 +115,8 @@ export async function liveProjectIds(supa: Supa, projectIds: string[]): Promise<
 }
 
 export async function listAgentRuns(supa: Supa, projectId: string, agentId?: string): Promise<AgentRunRow[]> {
-  let q = supa.from("agent_runs").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).limit(25);
+  // The studio's Replay shows the owner's own test runs; runs inside the published app are the app's own history.
+  let q = supa.from("agent_runs").select("*").eq("project_id", projectId).eq("surface", "studio").order("created_at", { ascending: false }).limit(25);
   if (agentId) q = q.eq("agent_id", agentId);
   const { data, error } = await q;
   if (error) throw error;

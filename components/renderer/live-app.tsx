@@ -1,10 +1,14 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import type { Blueprint } from "@/lib/blueprint/schema";
+import { useRouter } from "next/navigation";
+import { Lock } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SpecApp } from "./spec-app";
+import { createClient } from "@/lib/supabase/client";
+import { SampleBanner, UndoToast, useLiveData, type ClientView } from "./live-data";
+import { accentFor, SpecApp } from "./spec-app";
+import { HelperAccessProvider } from "./helper-context";
 
 const REASONS = [
   { value: "phishing", label: "Phishing or impersonation" },
@@ -73,24 +77,100 @@ function ReportLink({ slug }: { slug: string }) {
   );
 }
 
-export function LiveApp({ bp, publishedAt, slug }: { bp: Blueprint; publishedAt: string; slug: string }) {
+/** Who is looking, as the server read it from their session. Guests have no email, so an invitation can never match them. */
+export type LiveViewer = { signedIn: boolean; guest: boolean; email: string | null; name: string };
+
+/** A private app's front door, in the app's own look: its name, that it's private, and how to get in. */
+function PrivateWall({ app, slug, viewer }: { app: { name: string; primary: string }; slug: string; viewer: LiveViewer }) {
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  const accent = accentFor(app.primary, app.name);
+  const withEmail = viewer.signedIn && !viewer.guest && viewer.email;
+  const signIn = `/login?next=/live/${slug}`;
+  // Someone signed in with the wrong address signs out first, then chooses another account.
+  const switchAccount = async () => {
+    setLeaving(true);
+    await createClient().auth.signOut().catch(() => undefined);
+    router.push(signIn);
+  };
+  return (
+    <main className="grid min-h-0 flex-1 place-items-center overflow-y-auto bg-slate-50 px-4 py-10 font-sans text-slate-900 antialiased" style={{ "--app-primary": app.primary } as React.CSSProperties}>
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white px-6 py-8 text-center shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+        <span aria-hidden className="mx-auto grid size-11 place-items-center rounded-xl text-[17px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${app.primary}, ${accent})` }}>
+          {app.name.slice(0, 1).toUpperCase()}
+        </span>
+        <h1 className="mt-4 text-[17px] font-semibold tracking-tight">{app.name}</h1>
+        <p className="mt-1 inline-flex items-center gap-1.5 text-[13.5px] text-slate-600"><Lock className="size-3.5" aria-hidden />This app is private</p>
+        {withEmail ? (
+          <>
+            <p className="mt-4 text-[13px] leading-relaxed text-slate-500">
+              You&apos;re signed in as <span className="font-medium text-slate-800">{viewer.email}</span>. Ask the app&apos;s owner to invite this address.
+            </p>
+            <button type="button" onClick={() => void switchAccount()} disabled={leaving} className="mt-5 text-[12.5px] text-slate-500 underline underline-offset-4 hover:text-slate-900 disabled:opacity-60">
+              Use a different account
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-4 text-[13px] leading-relaxed text-slate-500">Sign in with the email address the owner invited.</p>
+            <Link href={signIn} className="mt-5 inline-flex h-9 items-center rounded-lg px-4 text-[13.5px] font-medium text-white shadow-sm transition-opacity hover:opacity-90" style={{ background: app.primary }}>
+              Sign in
+            </Link>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
+/** The app with its records, for whoever the server let in: the team gets every screen, a visitor the public pages. */
+function LiveScreens({ slug, view, viewer, device }: { slug: string; view: ClientView; viewer: LiveViewer; device: "desktop" | "phone" }) {
+  const live = useLiveData(slug, view);
+  const team = view.role !== "visitor";
+  const card = team ? { name: viewer.name, initials: initialsOf(viewer.name), note: view.role === "owner" ? "Owner" : (viewer.email ?? "Team member") } : undefined;
+  return (
+    <>
+      {team && live.hasSample && <SampleBanner owner={view.role === "owner"} onClear={live.clearSamples} />}
+      <div className="relative min-h-0 flex-1">
+        <HelperAccessProvider value={{ slug, role: view.role, publicHelpers: view.publicHelpers, onRecordsChanged: () => void live.refresh() }}>
+          <SpecApp bp={live.bp} mode="live" device={device} data={live.data} viewer={card} />
+        </HelperAccessProvider>
+        <UndoToast undo={live.undo} onUndo={() => void live.undoLast()} onDismiss={live.dismissUndo} />
+      </div>
+    </>
+  );
+}
+
+export function LiveApp({ app, view, viewer, publishedAt, slug }: { app: { name: string; primary: string }; view: ClientView | null; viewer: LiveViewer; publishedAt: string; slug: string }) {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
+  const visitor = view?.role === "visitor";
   // The date is formatted in UTC so the server and every visitor's browser render the same text (no hydration mismatch).
   return (
     <div data-crisp className="flex h-dvh flex-col bg-slate-50">
-      <div className="min-h-0 flex-1" onClick={() => undefined}>
-        <SpecApp bp={bp} mode="live" device={device} />
-      </div>
+      {view ? <LiveScreens slug={slug} view={view} viewer={viewer} device={device} /> : <PrivateWall app={app} slug={slug} viewer={viewer} />}
       <div className="flex items-center gap-3 border-t border-slate-200 bg-white px-4 py-1.5 text-[11.5px] text-slate-500">
         <Link href="/" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white py-0.5 pl-1.5 pr-2.5 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900">
           <LogoMark className="size-3.5" /> Built with Prod AI
         </Link>
-        <span className="min-w-0 truncate">Live version · published {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} · AI helpers in this demo answer from its sample data</span>
+        <span className="min-w-0 truncate">Live version · published {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
+        {visitor && view.hasSample && (
+          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-slate-500" title="The records on this page are examples, not real data">Example data</span>
+        )}
         <div className="ml-auto flex shrink-0 items-center gap-3">
+          {visitor &&
+            (viewer.signedIn && !viewer.guest && viewer.email ? (
+              <span className="hidden max-w-[16rem] truncate sm:inline" title="Ask the app's owner to invite this address to see its team screens">Signed in as {viewer.email}</span>
+            ) : (
+              <Link href={`/login?next=/live/${slug}`} className="shrink-0 text-slate-500 underline-offset-2 transition-colors hover:text-slate-900 hover:underline">Team sign in</Link>
+            ))}
           <ReportLink slug={slug} />
-          <button onClick={() => setDevice((d) => (d === "desktop" ? "phone" : "desktop"))} className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
-            {device === "desktop" ? "Phone view" : "Desktop view"}
-          </button>
+          {view && (
+            <button onClick={() => setDevice((d) => (d === "desktop" ? "phone" : "desktop"))} className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+              {device === "desktop" ? "Phone view" : "Desktop view"}
+            </button>
+          )}
         </div>
       </div>
     </div>

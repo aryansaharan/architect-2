@@ -12,6 +12,7 @@ import { estimate } from "@/lib/blueprint/estimate";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import type { DeploymentRow } from "@/lib/db/types";
 import { siteUrl } from "@/lib/env";
+import { seedSampleRecords } from "@/lib/apps/records";
 
 type R = { ok: true; slug?: string; message?: string } | { ok: false; error: string };
 
@@ -103,7 +104,13 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   const supa = await createClient();
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false, error: "Project not found" };
-  const checks = preflight(project.blueprint, { budgetCapCredits: project.settings.budgetCapCredits, built: project.build_state === "built" || project.source === "import", region: project.settings.region });
+  const checks = preflight(project.blueprint, {
+    budgetCapCredits: project.settings.budgetCapCredits,
+    built: project.build_state === "built" || project.source === "import",
+    region: project.settings.region,
+    hiddenEntities: project.settings.app?.hiddenEntities,
+    publicHelpers: project.settings.app?.publicHelpers,
+  });
   if (!canGoLive(checks)) return { ok: false, error: "Preflight has blocking issues. Fix them first." };
   const summary = checks.map((c) => ({ id: c.id, label: c.label, pass: c.status !== "fail" }));
   // Going live with connections on test data is allowed (a warning, not a blocker), but the history says so.
@@ -134,10 +141,14 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
     ? await liveSites().update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId)
     : await liveSites().insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
   if (error) return failed("publish", error.message);
+  // A newly published app starts with its plan's sample data, marked as such (only when it holds no records yet).
+  // Publishing changes never brings back samples the owner cleared.
+  const seeded = existing ? 0 : await seedSampleRecords(projectId, project.blueprint);
+  const samples = seeded ? ` It starts with ${seeded} sample record${seeded === 1 ? "" : "s"} from the plan, marked as samples. Clear them from Publish when real people start using it.` : "";
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
-    { lane: "did", kind: "ship", title: existing ? "Published the changes" : "Published on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${testData}`, checkpointId: cp.id },
+    { lane: "did", kind: "ship", title: existing ? "Published the changes" : "Published on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${samples}${testData}`, checkpointId: cp.id },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, slug };

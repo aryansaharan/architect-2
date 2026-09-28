@@ -42,16 +42,24 @@ export type ModelHold = { ok: true; release: () => Promise<void> } | { ok: false
 const NO_HOLD: ModelHold = { ok: false, reason: "budget" };
 
 export async function holdModelBudget(user: SessionUser, op: ModelOp): Promise<ModelHold> {
+  return holdModelBudgetAs({ payerId: user.id, payerIsGuest: user.isAnonymous, rateKey: `user:${user.id}`, op });
+}
+
+/**
+ * The same hold when the person asking isn't the one who pays: a published app's AI helper is paid
+ * for by the app's owner, while the rate limit follows whoever is typing (a team member or a visitor's network).
+ */
+export async function holdModelBudgetAs(p: { payerId: string; payerIsGuest: boolean; rateKey: string; op: ModelOp }): Promise<ModelHold> {
   // Without the admin connection nothing can be metered, so nothing is spent.
   if (!hasAdmin()) return NO_HOLD;
-  const spec = OPS[op];
-  if (!(await withinLimit(`user:${user.id}:${op}`, spec.max, spec.windowSeconds))) return { ok: false, reason: "rate" };
+  const spec = OPS[p.op];
+  if (!(await withinLimit(`${p.rateKey}:${p.op}`, spec.max, spec.windowSeconds))) return { ok: false, reason: "rate" };
   const budgets = modelBudgets();
-  const cap = user.isAnonymous ? budgets.guest : budgets.member;
+  const cap = p.payerIsGuest ? budgets.guest : budgets.member;
   if (cap <= 0 || budgets.site <= 0) return NO_HOLD;
   const admin = adminClient();
   const { data, error } = await admin.rpc("model_budget_hold", {
-    p_user: user.id,
+    p_user: p.payerId,
     p_estimate_usd: spec.estimateUsd,
     p_user_cap_usd: cap,
     p_site_cap_usd: budgets.site,

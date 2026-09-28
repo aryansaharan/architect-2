@@ -1,10 +1,12 @@
 import type { Blueprint } from "@/lib/blueprint/schema";
 import { signInMethods } from "@/lib/blueprint/describe";
+import { publicAccess } from "@/lib/apps/view";
 
-export type PreflightStatus = "pass" | "warn" | "fail";
+/** "info" is for reading, not fixing: it never blocks publishing and never counts as a problem. */
+export type PreflightStatus = "pass" | "warn" | "fail" | "info";
 export type PreflightFix = "enable_auth" | "gate_irreversible" | "sandbox_keys" | "set_budget" | "build_first" | "run_rehearsals";
 export type PreflightCheck = {
-  id: "signin" | "permissions" | "rehearsals" | "keys" | "budget" | "residency";
+  id: "signin" | "permissions" | "rehearsals" | "keys" | "budget" | "residency" | "public";
   label: string;
   plain: string;
   status: PreflightStatus;
@@ -18,7 +20,7 @@ const REGION_LABEL = { us: "United States", eu: "European Union", in: "India" } 
 /** Deterministic go-live checks. Blocking failures disable "Go live"; warnings don't. */
 export function preflight(
   bp: Blueprint,
-  opts: { budgetCapCredits: number; built?: boolean; region?: "us" | "eu" | "in" },
+  opts: { budgetCapCredits: number; built?: boolean; region?: "us" | "eu" | "in"; hiddenEntities?: string[]; publicHelpers?: boolean },
 ): PreflightCheck[] {
   const irreversible = bp.agents.flatMap((a) => a.tools.map((t) => ({ a, t }))).filter(({ t }) => t.access === "irreversible");
   const ungated = irreversible.filter(({ t }) => t.permission !== "ask");
@@ -84,7 +86,83 @@ export function preflight(
       detail: `Stored in ${REGION_LABEL[region]}.`,
       blocking: false,
     },
+    publicCheck(bp, opts.hiddenEntities ?? [], Boolean(opts.publicHelpers)),
   ];
+}
+
+/**
+ * What a published app's public pages (screens for customers) show to anyone with the link, by data type,
+ * computed like the live app does (lib/apps/view.ts publicAccess) before anything is hidden.
+ * "shows" are the fields public pages display; "collects" the fields their forms take. Files aren't stored.
+ */
+export type PublicSummary = {
+  pages: { id: string; title: string }[];
+  types: { entityId: string; name: string; plural: string; shows: string[]; collects: string[] }[];
+  /** AI helpers that have a chat on a public page. */
+  helpers: { id: string; name: string }[];
+};
+
+const humanize = (name: string) => {
+  const s = name.replace(/[_-]+/g, " ").trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+export function publicSummary(bp: Blueprint): PublicSummary {
+  const access = publicAccess(bp);
+  const screens = bp.screens.filter((s) => access.screens.includes(s.id));
+  const blocks = screens.flatMap((s) => [...s.regions.main, ...(s.regions.side ?? [])]);
+  const forms = blocks.flatMap((b) => (b.type === "form" ? [b] : []));
+  const label = (entityId: string, field: string) => {
+    const own = bp.entities.find((e) => e.id === entityId)?.fields.find((f) => f.name === field)?.label;
+    const asked = forms.find((f) => f.entityId === entityId)?.fields.find((f) => f.name === field)?.label;
+    return own || asked || humanize(field);
+  };
+  const files = new Set(forms.flatMap((f) => f.fields.filter((x) => x.kind === "file").map((x) => `${f.entityId}:${x.name}`)));
+  const ids = [...new Set([...Object.keys(access.read), ...Object.keys(access.create)])];
+  const types = ids.flatMap((id) => {
+    const e = bp.entities.find((x) => x.id === id);
+    if (!e) return [];
+    return [{
+      entityId: id,
+      name: e.name,
+      plural: e.plural,
+      shows: (access.read[id] ?? []).map((f) => label(id, f)),
+      collects: (access.create[id] ?? []).filter((f) => !files.has(`${id}:${f}`)).map((f) => label(id, f)),
+    }];
+  });
+  const helperIds = [...new Set(blocks.flatMap((b) => (b.type === "chat" ? [b.agentId] : [])))];
+  const helpers = helperIds.flatMap((id) => {
+    const a = bp.agents.find((x) => x.id === id);
+    return a ? [{ id, name: a.name }] : [];
+  });
+  return { pages: screens.map((s) => ({ id: s.id, title: s.title })), types, helpers };
+}
+
+/** "a", "a and b", "a, b and c". */
+export const listWords = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** Field labels as written ("Policy number", "When did it happen?"), quoted so questions read cleanly in a sentence. */
+const fieldList = (labels: string[]) => listWords(labels.map((l) => `“${l}”`));
+
+function publicCheck(bp: Blueprint, hidden: string[], helpersOn: boolean): PreflightCheck {
+  const sum = publicSummary(bp);
+  const base = { id: "public" as const, label: "What public pages show", plain: "Anyone with the link can open public pages without signing in.", blocking: false };
+  if (!sum.pages.length) return { ...base, status: "pass", detail: "This app has no public pages. Everything is private to your team." };
+  const off = new Set(hidden);
+  const shown = sum.types.filter((t) => !off.has(t.entityId));
+  const parts = [`Anyone can open ${listWords(sum.pages.map((p) => p.title))} without signing in.`];
+  for (const t of shown) {
+    if (t.collects.length) parts.push(`Anyone can send in ${t.plural.toLowerCase()} with ${fieldList(t.collects)}.`);
+    if (t.shows.length) parts.push(`Anyone can see ${fieldList(t.shows)} of your ${t.plural.toLowerCase()}.`);
+  }
+  if (!shown.some((t) => t.shows.length)) parts.push("Nothing from your records is shown.");
+  const hiddenNames = sum.types.filter((t) => off.has(t.entityId)).map((t) => t.plural);
+  if (hiddenNames.length) parts.push(`Hidden from public pages: ${listWords(hiddenNames)}.`);
+  if (sum.helpers.length) {
+    const names = listWords(sum.helpers.map((h) => h.name));
+    parts.push(helpersOn ? `Visitors can talk to ${names}. Each conversation uses your credits.` : `Visitors can't talk to ${names} unless you turn that on.`);
+  }
+  return { ...base, status: "info", detail: parts.join(" ") };
 }
 
 /** The keys row in words: how many connections run on test data and which, or that none does. */

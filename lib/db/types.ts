@@ -7,6 +7,8 @@ export type ProjectSettings = {
   houseRules: string[];
   region: "us" | "eu" | "in";
   github?: { connected: boolean; repo?: string; account?: string };
+  /** The published app: data types kept off its public pages, and whether visitors may talk to its AI helpers. */
+  app?: { hiddenEntities?: string[]; publicHelpers?: boolean };
 };
 
 export type ImportReport = {
@@ -155,6 +157,8 @@ export type LiveSiteRow = {
   checkpoint_id: string | null;
   blueprint: Blueprint;
   published_at: string;
+  blocked_at?: string | null;
+  blocked_reason?: string | null;
 };
 
 export type ToolCallRecord = {
