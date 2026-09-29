@@ -9,6 +9,7 @@ import { scriptBlueprint } from "@/lib/apps/helper-shared";
 import { usageSummary } from "@/lib/db/queries";
 import { logUsage } from "@/lib/db/writes";
 import { holdModelBudgetAs } from "@/lib/llm/guard";
+import { PRICE, canAfford } from "@/lib/pricing";
 import { costOf } from "@/lib/llm/pricing";
 import { getModel } from "@/lib/llm/provider";
 import { visitorKey } from "@/lib/security/rate-limit";
@@ -16,6 +17,7 @@ import { demoReply, type DemoChatContext } from "@/lib/sim/demo-chat";
 import { adminClient } from "@/lib/supabase/admin";
 import type { Screen } from "@/lib/blueprint/schema";
 import type { ToolCallRecord } from "@/lib/db/types";
+import { monthStartIso } from "@/lib/prices";
 
 /**
  * An AI helper inside a published app (/live/<slug>), working on the app's real records.
@@ -227,11 +229,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
   const hold = await holdModelBudgetAs({ payerId: site.ownerId, payerIsGuest: owner.isGuest, rateKey, op: "chat" });
   if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give it a moment, then try again.", "rate");
 
-  // The project's spending cap is the owner's too: past it, the helper answers from its script.
+  // The owner pays: past the project's spending cap, or without this month's credits for a message,
+  // the helper answers from its script, free.
   let overCap = false;
   if (hold.ok) {
-    const spent = await usageSummary(admin, { projectId: site.projectId }).catch(() => null);
-    overCap = !spent || spent.credits >= site.settings.budgetCapCredits;
+    const [spent, afford] = await Promise.all([usageSummary(admin, { projectId: site.projectId, sinceIso: monthStartIso() }).catch(() => null), canAfford(site.ownerId, owner.isGuest, "helperMessage")]);
+    overCap = !spent || spent.credits >= site.settings.budgetCapCredits || !afford.ok;
   }
   const m = hold.ok && !overCap ? getModel() : null;
 
@@ -252,9 +255,9 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
     const meter = async (input: number, output: number, failed: boolean) => {
       if (metered) return;
       metered = true;
-      const { costUsd, credits } = costOf(m.id, input, output);
-      // A failed run is not charged (0 credits); its real cost still counts toward the owner's daily model budget.
-      await logUsage({ userId: site.ownerId, projectId: site.projectId, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits: failed ? 0 : credits, meta: { agentId: agent.id, runId, surface: "live", actor: actorId ?? "visitor", ...(failed ? { failed: true } : {}) } });
+      const { costUsd } = costOf(m.id, input, output);
+      // One price per message answered, paid by the owner; a failed run is not charged (its real cost still counts toward the owner's daily model budget).
+      await logUsage({ userId: site.ownerId, projectId: site.projectId, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits: failed ? 0 : PRICE.helperMessage, meta: { agentId: agent.id, runId, surface: "live", actor: actorId ?? "visitor", ...(failed ? { failed: true } : {}) } });
       await hold.release();
     };
     try {

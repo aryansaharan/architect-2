@@ -8,7 +8,6 @@ import { TimeAgo } from "@/components/time-ago";
 import { LogoMark } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
-import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
 import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types";
@@ -588,9 +587,7 @@ function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, Thr
       {(outcome || (credits !== null && !needsPerson)) && (
         <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-hairline pt-1.5">
           {credits !== null && !needsPerson && !decided && (
-            <span className="text-meta tabular-nums text-muted-foreground">
-              {creditWords(credits)} ≈ {creditsUsd(credits)}
-            </span>
+            <span className="text-meta tabular-nums text-muted-foreground">{credits > 0 ? creditWords(credits) : "Free"}</span>
           )}
           {outcome && <OutcomeLine outcome={outcome} onReview={() => id && chat.review(id)} />}
         </div>
@@ -715,7 +712,7 @@ function TickRow({ row }: { row: ThreadRow }) {
       : row.blame === "teammate"
         ? { text: "Teammate", cls: "text-muted-foreground" }
         : row.blame === "agent"
-          ? { text: `AI helper · ${creditWords(credits)}`, cls: "text-muted-foreground" }
+          ? { text: credits > 0 ? `AI helper · ${creditWords(credits)}` : "AI helper", cls: "text-muted-foreground" }
           : credits > 0
             ? { text: creditWords(credits), cls: "text-muted-foreground" }
             : null;

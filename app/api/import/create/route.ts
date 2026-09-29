@@ -4,6 +4,7 @@ import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writ
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { holdModelBudget } from "@/lib/llm/guard";
+import { PRICE, canAfford, outOfCreditsNote } from "@/lib/pricing";
 import { projectCapMessage } from "@/lib/security/caps";
 import { verify } from "@/lib/security/sign";
 import type { Blueprint, Framework } from "@/lib/blueprint/schema";
@@ -51,6 +52,15 @@ export async function POST(req: Request) {
   if (full) return Response.json({ error: full }, { status: 403 });
   const hold = await holdModelBudget(user, "import");
   if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of imports in a few minutes. Wait a little, then try again." }, { status: 429 });
+  // Mapping a repo with Claude costs credits; without enough, it maps onto the closest starter plan, free.
+  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "import") : null;
+  if (hold.ok && afford && !afford.ok) await hold.release();
+  const useModel = hold.ok && Boolean(afford?.ok);
+  const noModelNote = user.isAnonymous
+    ? "Guests get the closest starter plan mapped onto the repo. Sign in and Claude maps it from your code."
+    : afford && !afford.ok
+      ? outOfCreditsNote(afford.credits, "the repo is mapped onto the closest starter plan")
+      : undefined;
   const framework = report.frameworks.map((f) => FW[f.id]).find(Boolean) ?? "lyzr";
   // Older clients (and cached reports from before agents were read) send no agents: keep the earlier behaviour.
   const scanned = Array.isArray(report.agents);
@@ -103,11 +113,11 @@ Use the repository's own names for agents and screens where the README or folder
       let projectId: string | null = null;
       let spent: Awaited<ReturnType<typeof streamPlan>>["spent"] = null;
       try {
-        const { blueprint, mode, usage, spent: cost, vertical } = await streamPlan({
+        const { blueprint, mode, spent: cost, vertical } = await streamPlan({
           prompt,
           userId: user.id,
-          allowModel: hold.ok,
-          noModelNote: user.isAnonymous ? "Guests get the closest starter plan mapped onto the repo. Sign in and Claude maps it from your code." : undefined,
+          allowModel: useModel,
+          noModelNote,
           send,
           fallback: () => {
             const s = starterFor(`${report.repo.description ?? ""} ${report.readmeExcerpt.slice(0, 1500)}`).blueprint;
@@ -141,8 +151,8 @@ Use the repository's own names for agents and screens where the README or folder
             lane: "thought",
             kind: "work_order",
             title: `Mapped the repo into ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}${picked?.mapped.length ? " from your code" : ""}`,
-            body: `${mode === "live" ? `Mapped with ${usage?.model}. Mapping is free.` : "Offline mode: screens and data come from the closest starter plan."}${agentNote ? ` ${agentNote}` : ""} Every outside connection starts as not connected (test data) until you add its keys. The first change will open as a pull request. Nothing is pushed to main.`,
-            credits: 0,
+            body: `${mode === "live" ? `Mapped by Claude from your code · ${PRICE.import} credits.` : "Offline mode: screens and data come from the closest starter plan."}${agentNote ? ` ${agentNote}` : ""} Every outside connection starts as not connected (test data) until you add its keys. The first change will open as a pull request. Nothing is pushed to main.`,
+            credits: mode === "live" ? PRICE.import : 0,
             checkpointId: cp.id,
           },
         ]);
@@ -151,9 +161,11 @@ Use the repository's own names for agents and screens where the README or folder
         console.error("[import] save failed", e);
         send({ t: "error", message: "Couldn't save the project. Try again." });
       } finally {
-        // Mapping is free to you. Its real cost is metered, saved or not, for the daily model budget.
-        if (spent) await logUsage({ userId: user.id, projectId, kind: "import", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: 0, meta: { op: "import", modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
-        if (hold.ok) await hold.release();
+        // A saved mapping by Claude costs its price; a failed call or a mapping that couldn't be saved costs nothing.
+        // Its real cost is metered either way, for the daily model budget.
+        const charged = spent && !spent.failed && projectId ? PRICE.import : 0;
+        if (spent) await logUsage({ userId: user.id, projectId, kind: "import", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: charged, meta: { op: "import", modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
+        if (useModel) await hold.release();
       }
       controller.close();
     },

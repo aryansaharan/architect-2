@@ -84,7 +84,7 @@ export function RepairNote() {
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-hairline pt-3">
         <p className="text-meta text-muted-foreground">Either way, every AI helper does its test runs again before you see the app.</p>
         <Button variant="ghost" className="text-muted-foreground" disabled={stopping || Boolean(choice)} onClick={stop}>
-          <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : "Stop and go back to the sketch · refunded"}
+          <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : ws.build.charged ? "Stop and go back to the sketch · refunded" : "Stop and go back to the sketch"}
         </Button>
       </div>
     </section>

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
 import { useWorkspace } from "../context";
-import type { InterruptedBuild } from "../use-build-runner";
+import { stoppedWords, type InterruptedBuild } from "../use-build-runner";
 import { AgentNode, ConnectionNode, EntityNode, ScreenNode } from "./node-card";
 import { WorkOrderDock } from "./work-order-dock";
 import { BuildConsole } from "./build-console";
@@ -280,25 +280,24 @@ const OFFSET = ["", "@min-[640px]/canvas:pt-8", "@min-[640px]/canvas:pt-4", "@mi
 
 /**
  * The server says this project is mid-build, but nothing is running here: the tab was closed or
- * reloaded. The price was already taken, so resuming is free; stopping refunds it.
+ * reloaded. Making it real is free, so resuming and stopping are too (a build charged under the
+ * earlier pricing is refunded when stopped).
  */
 function ResumeDock({ build }: { build: InterruptedBuild }) {
   const ws = useWorkspace();
   const router = useRouter();
   const [busy, setBusy] = useState<"resume" | "stop" | null>(null);
-  // The estimate taken when the build was approved (newest Work Order entry in the history).
-  const paid = ws.ledger.find((r) => r.kind === "work_order")?.credits ?? 0;
   const where = build.step ? `at step ${build.step} of ${build.total}` : "before it finished";
   return (
     <div className="relative z-10 flex shrink-0 justify-center px-3 pb-3 pt-2 sm:px-5">
       <motion.section aria-label="Interrupted build" {...dockMotion} className={dockPanel}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
-            <p className="font-sketch text-sketch text-muted-foreground">Build paused · nothing more to pay</p>
+            <p className="font-sketch text-sketch text-muted-foreground">Build paused</p>
             <p className="mt-1 font-pencil text-note leading-tight">Your build was interrupted {where}.</p>
             <p className="mt-0.5 text-ui text-muted-foreground">
               {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
-              {paid > 0 ? `The ${paid} credits taken when you approved it still cover it. ` : ""}Resume picks up where it stopped, or stop and get the credits back.
+              Resume picks up where it stopped, or stop it and keep the plan as it was.
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -313,11 +312,11 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
                 setBusy(null);
                 if (!r.ok) return void toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped. Nothing was charged", { description: "The credits went back on your demo balance." });
+                toast.success("Build stopped", { description: stoppedWords(r.refunded, "Your plan is exactly as you left it.") });
                 router.refresh();
               }}
             >
-              {busy === "stop" ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and refund
+              {busy === "stop" ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop
             </Button>
             <Button
               size="lg"
@@ -328,7 +327,7 @@ function ResumeDock({ build }: { build: InterruptedBuild }) {
                 setBusy(null);
               }}
             >
-              {busy === "resume" ? <Loader2 className="animate-spin" /> : <RotateCw />} Resume · free
+              {busy === "resume" ? <Loader2 className="animate-spin" /> : <RotateCw />} Resume
             </Button>
           </div>
         </div>
@@ -349,7 +348,7 @@ function MappedDock() {
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-canvas"><FolderGit2 className="size-4 text-brand" /></span>
           <div className="min-w-0 flex-1">
-            <p className="font-sketch text-sketch text-muted-foreground">Adopted · nothing was built or charged</p>
+            <p className="font-sketch text-sketch text-muted-foreground">Adopted · nothing was built</p>
             <p className="mt-1 font-pencil text-note leading-tight">Mapped. Your repo is untouched.</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-ui text-muted-foreground"><GitPullRequest className="size-3.5 shrink-0" />Your first change opens as a pull request.</p>
           </div>

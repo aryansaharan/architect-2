@@ -7,7 +7,7 @@ import { useWorkspace } from "../context";
 import type { NodeState } from "../use-build-runner";
 import { BuildProgress } from "./build-progress";
 import { ConnectionLabels, HelperNotes } from "./helper-notes";
-import { BriefNote, MappedNote, PriceNote } from "./plan-notes";
+import { BriefNote, MappedNote, ReadyNote } from "./plan-notes";
 import { RealApp } from "./real-app";
 import { RepairNote } from "./repair-note";
 import { ResumeNote } from "./resume-note";
@@ -62,7 +62,7 @@ function SheetBody() {
 
 /**
  * Before and during the build: the sketch. Screens as hand-drawn cards, AI helpers as sticky notes,
- * connections as pencil labels and, before the build, the price note and Make it real.
+ * connections as pencil labels and, before the build, the ready note and Make it real (free).
  * During the build each card inks in as its step completes.
  */
 function SketchSheet({ building }: { building: boolean }) {
@@ -181,7 +181,7 @@ function SketchSheet({ building }: { building: boolean }) {
       )}
 
       {/* Also while a start is on its way (the server may already say "building"), so the button never vanishes early. */}
-      {!building && !interrupted && ws.project.buildState !== "built" && (imported ? <MappedNote /> : <PriceNote />)}
+      {!building && !interrupted && ws.project.buildState !== "built" && (imported ? <MappedNote /> : <ReadyNote />)}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { Agent, Blueprint } from "@/lib/blueprint/schema";
 import { allBlocks } from "@/lib/blueprint";
 import { MEMORY_LABEL, PERMISSION_LABEL, supervisionView } from "@/lib/blueprint/describe";
+import { PRICE } from "@/lib/prices";
 
 /** YAML scalar: quote when needed. */
 export function y(v: string | number | boolean): string {
@@ -36,7 +37,7 @@ export function agentYaml(agent: Agent, bp: Blueprint): string {
     "rehearsals:",
     ...agent.rehearsals.flatMap((r) => [`  - name: ${y(r.name)}`, `    input: ${y(r.input)}`, `    expect: ${y(r.expect)}`]),
     "budget:",
-    `  credits_per_run: ${agent.cost.creditsPerRun}`,
+    `  credits_per_message: ${PRICE.helperMessage}   # each message Claude answers`,
     "",
   ];
   return lines.join("\n");

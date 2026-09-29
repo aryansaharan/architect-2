@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { FastForward, FlaskConical, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cancelBuild } from "@/lib/actions/build";
-import { creditsUsd } from "@/lib/format";
+import { stoppedWords } from "../use-build-runner";
 import { PencilRadio } from "./pencil-radio";
 import { stepLine, useSheet } from "./use-sheet";
 
@@ -16,8 +16,8 @@ export const SIMULATED_LINE = "This building step is a visual; the plan, code an
 const HOLD = 1e-4; // a 2 s step now takes hours; small enough to stay inside setTimeout's range
 
 /**
- * Stops the build and refunds it: cancelBuild, then the runner is dismissed. A replay just
- * ends: nothing was charged.
+ * Stops the build: cancelBuild (which refunds a build charged under the earlier pricing), then the
+ * runner is dismissed. A replay just ends.
  */
 export function useStopBuild() {
   const ws = useSheet();
@@ -35,7 +35,7 @@ export function useStopBuild() {
       return void toast.error(r.error);
     }
     ws.build.dismiss();
-    toast.success("Stopped. Nothing was charged", { description: "The credits went back on your demo balance. Your sketch is exactly as you left it." });
+    toast.success("Stopped", { description: stoppedWords(r.refunded, "Your sketch is exactly as you left it.") });
     router.refresh();
   };
   return { stop, stopping };
@@ -93,14 +93,14 @@ export function BuildProgress({ showStop, ref }: { showStop: boolean; ref?: Ref<
           />
           {showStop && (
             <Button variant="ghost" className="text-muted-foreground" disabled={stopping || b.status === "finishing"} onClick={stop}>
-              <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : "Stop · refunded"}
+              <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : b.charged ? "Stop · refunded" : "Stop"}
             </Button>
           )}
         </div>
       </div>
       {!replay && b.charged ? (
         <p className="mt-2 text-meta tabular-nums text-muted-foreground">
-          {b.charged} credits (≈ {creditsUsd(b.charged)}) came off your demo balance for this. Stop and they come back.
+          This build took {b.charged} credits under the earlier pricing. Stop and they come back.
         </p>
       ) : replay ? (
         <p className="mt-2 text-meta text-muted-foreground">Replays are free and change nothing.</p>

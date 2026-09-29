@@ -97,35 +97,25 @@ async function decidedRepair(supa: Supa, projectId: string): Promise<DecidedRepa
  */
 export async function startBuild(projectId: string): Promise<StartBuildResult> {
   try {
-    const { user, supa, project } = await load(projectId);
+    const { supa, project } = await load(projectId);
     if (project.build_state === "built") return { ok: true, state: "built" };
 
     if (project.build_state !== "building" && (await claimState(supa, projectId, project.build_state, { build_state: "building" }))) {
-      // A build stopped without a refund (for example by restoring a save point mid-build) is still paid for.
+      // Making an app real calls no model, so it's free. A build charged under the old pricing and stopped
+      // without a refund (for example by restoring a version mid-build) still has its refund on stop.
       const already = await outstandingCharge(supa, projectId);
-      const estimate = project.blueprint.estimate.credits;
-      const credits = already > 0 ? 0 : estimate;
       await supa.from("work_orders").update({ status: "running" }).eq("project_id", projectId).eq("kind", "build").eq("status", "proposed");
       await addLedger(supa, projectId, [
-        credits
-          ? {
-              lane: "thought",
-              kind: "work_order",
-              title: "You pressed Make it real",
-              body: `Making ${count(project.blueprint.screens.length, "screen")} and ${count(project.blueprint.agents.length, "AI helper")} real takes about 30 seconds. ${credits} credits, refunded if you stop.`,
-              credits,
-            }
-          : {
-              lane: "thought",
-              kind: "work_order",
-              title: "Started the build again · nothing more charged",
-              body: `The ${already} credits taken earlier still cover this build, and they're refunded if you stop.`,
-              credits: 0,
-            },
+        {
+          lane: "thought",
+          kind: "work_order",
+          title: "You pressed Make it real",
+          body: `Making ${count(project.blueprint.screens.length, "screen")} and ${count(project.blueprint.agents.length, "AI helper")} real takes about 30 seconds, and it's free.`,
+          credits: 0,
+        },
       ]);
-      if (credits) await logUsage({ userId: user.id, projectId, kind: "build", credits, meta: { note: "Work Order estimate", scripted: true } });
       revalidatePath(`/p/${projectId}`, "layout");
-      return { ok: true, state: "building", credits, charged: credits || already, resumed: false, repair: null };
+      return { ok: true, state: "building", credits: 0, charged: already, resumed: false, repair: null };
     }
 
     // Already under way here or elsewhere: charge nothing, and hand back what the client needs to pick it up.

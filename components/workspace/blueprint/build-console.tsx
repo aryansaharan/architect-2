@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Segmented } from "@/components/arch/segmented";
 import { Term } from "@/components/arch/term";
-import { creditsUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
 import { useWorkspace } from "../context";
@@ -58,7 +57,7 @@ export function BuildConsole() {
           </span>
           <div className="relative min-w-0 flex-1 overflow-hidden">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-meta text-muted-foreground">{b.mode === "replay" ? "Replay · nothing is charged" : finishing ? "Saving" : b.status === "repair" ? "Paused · waiting for you" : `Step ${Math.min(done + 1, steps.length)} of ${steps.length}`}</p>
+              <p className="text-meta text-muted-foreground">{b.mode === "replay" ? "Replay · changes nothing" : finishing ? "Saving" : b.status === "repair" ? "Paused · waiting for you" : `Step ${Math.min(done + 1, steps.length)} of ${steps.length}`}</p>
               <SimulatedChip />
             </div>
             <AnimatePresence mode="popLayout" initial={false}>
@@ -95,7 +94,7 @@ export function BuildConsole() {
         </div>
         {b.mode === "build" && b.charged ? (
           <p className="-mt-2 px-4 pb-3 text-meta text-muted-foreground">
-            Estimated price: <span className="tabular-nums text-foreground/85">{b.charged} credits (≈ {creditsUsd(b.charged)})</span>, taken from your demo balance. If you stop the build, it&apos;s refunded.
+            This build took <span className="tabular-nums text-foreground/85">{b.charged} credits</span> under the earlier pricing. If you stop it, they come back.
           </p>
         ) : null}
         {logs && (

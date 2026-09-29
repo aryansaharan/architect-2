@@ -9,6 +9,7 @@ import { Avatar } from "@/components/arch/badges";
 import { cancelBuild } from "@/lib/actions/build";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import { stoppedWords } from "../use-build-runner";
 import { Term } from "@/components/arch/term";
 import { SimulatedChip } from "./build-console";
 import { Pill } from "@/components/ui/pill";
@@ -120,11 +121,11 @@ export function RepairOverlay() {
                 setStopping(false);
                 if (!r.ok) return toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped. Nothing was charged", { description: "The credits went back on your demo balance. Your plan is exactly as you left it." });
+                toast.success("Build stopped", { description: stoppedWords(r.refunded, "Your plan is exactly as you left it.") });
                 router.refresh();
               }}
             >
-              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan · estimate refunded
+              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan{ws.build.charged ? " · refunded" : ""}
             </Button>
           ) : (
             <Button variant="ghost" className="text-muted-foreground" onClick={() => ws.build.dismiss()}>

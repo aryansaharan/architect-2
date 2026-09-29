@@ -61,7 +61,6 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
   // Read claim on Just do it, Post in Slack on Tell me, and only Issue payment, which can't be undone, on Ask first).
   const mismatched = built.agents.filter((a) => toolsOffPreset(a).length);
   if (mismatched.length) console.warn("[seed] supervision and tool permissions disagree for", mismatched.map((a) => a.id).join(", "));
-  const { credits: buildCredits, minutes: buildMinutes } = planned.estimate;
 
   const project = await createProject(supa, {
     ownerId: userId,
@@ -102,13 +101,13 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
 
   await addLedger(supa, project.id, [
     { lane: "thought", kind: "brief", title: "You described the project", body: STARTERS.claims.brief, createdAt: at(0) },
-    { lane: "thought", kind: "work_order", title: `Plan ready · ${count(planned.screens.length, "screen")}, ${count(planned.agents.length, "AI helper")}`, body: `Estimated ${buildMinutes} min and ${buildCredits} credits (≈ $${(buildCredits / 100).toFixed(2)}), taken from your demo balance. You approved it.`, checkpointId: cp1.id, credits: 0, createdAt: at(2) },
+    { lane: "thought", kind: "work_order", title: `Plan ready · ${count(planned.screens.length, "screen")}, ${count(planned.agents.length, "AI helper")}`, body: "Started from the closest starter plan, free. Making it real is free too, and you pressed it.", checkpointId: cp1.id, credits: 0, createdAt: at(2) },
     // In the order a real build writes them: the repair when it is chosen mid-build (resolveRepair), then the build and its rehearsal run (completeBuild).
     { lane: "checked", kind: "repair", blame: "system_fix", title: repairLedgerTitle(repair), body: repair.options[0].narration, objectRef: repair.objectRef, credits: 0, meta: { planId: repair.id, optionId: "a", changelog: repair.options[0].changelog }, createdAt: at(25) },
-    { lane: "did", kind: "build_step", title: `Built ${count(built.screens.length, "screen")} and ${count(built.agents.length, "AI helper")}`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: buildCredits, checkpointId: cp2.id, createdAt: at(26) },
+    { lane: "did", kind: "build_step", title: `Built ${count(built.screens.length, "screen")} and ${count(built.agents.length, "AI helper")}`, body: built.screens.map((s) => s.title).join(", ") + ".", credits: 0, checkpointId: cp2.id, createdAt: at(26) },
     { lane: "checked", kind: "rehearsal", title: `Test runs: ${passed} of ${rehearsed.length} passed`, ...(passed < rehearsed.length ? { body: "Open AI helpers › Tests & reliability to see what failed and fix it." } : {}), credits: 0, checkpointId: cp2.id, createdAt: at(27) },
     { lane: "did", kind: "ship", title: "Published on Prod Cloud", body: `Anyone with the link can open /live/${slug}. Payouts stay in test mode.`, checkpointId: cp2.id, createdAt: at(88) },
-    { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0.7, createdAt: at(90) },
+    { lane: "did", kind: "agent_run", blame: "agent", title: "Intake Triage asked before emailing Dana Whitfield", body: "You allowed it once. The email was sent from claims@harbormutual.com.", objectRef: { type: "agent", id: "intake-triage" }, credits: 0, createdAt: at(90) },
     { lane: "thought", kind: "comment", blame: "teammate", title: "Maya commented on Intake Queue", body: "“Can we sort this by SLA risk instead of date?”", objectRef: { type: "screen", id: "intake-queue" }, createdAt: at(91) },
     { lane: "thought", kind: "handoff", title: "You asked Priya to connect the policy system", body: "“I don't have the Guidewire key. Can you wire up the sandbox?”", objectRef: { type: "connection", id: "policy-system" }, createdAt: at(93) },
   ]);
@@ -161,8 +160,8 @@ export async function seedDemoProject(supa: Supa, userId: string): Promise<strin
     created_at: at(90),
   });
 
-  await logUsage({ userId, projectId: project.id, kind: "build", credits: buildCredits, meta: { note: "Work Order estimate", scripted: true } });
-  await logUsage({ userId, projectId: project.id, kind: "agent_run", provider: "anthropic", model: "claude-opus-5", inputTokens: 2140, outputTokens: 610, costUsd: 0.02595, credits: 0.7, meta: { agentId: "intake-triage", scripted: true } });
+  // The example is free: making it real costs nothing and its one conversation was scripted, so neither uses the person's monthly credits.
+  await logUsage({ userId, projectId: project.id, kind: "agent_run", provider: "anthropic", model: "claude-opus-5", inputTokens: 2140, outputTokens: 610, costUsd: 0.02595, credits: 0, meta: { agentId: "intake-triage", scripted: true } });
 
   await updateProject(supa, project.id, { current_checkpoint_id: cp2.id });
   return project.id;

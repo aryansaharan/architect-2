@@ -11,7 +11,9 @@ import { ConnectionIcon } from "@/components/icon";
 import { GitHubMark } from "@/components/brand/logo";
 import { setBudgetCap, toggleIntegration } from "@/lib/actions/settings";
 import type { UsageSummary } from "@/lib/db/queries";
-import { creditsUsd, formatCredits } from "@/lib/format";
+import { formatCredits } from "@/lib/format";
+import { resetWords, type CreditMeter } from "@/lib/prices";
+import { MeterBar, PriceList, meterWords } from "@/components/credits";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -23,8 +25,9 @@ const SECTIONS = [
   { id: "account", label: "Account" },
 ];
 
-// Planning and quotes are logged at 0 credits (they're free), so paid "llm" events are agents drafted from a description.
-const KIND_LABEL: Record<string, string> = { llm: "Drafting new AI helpers", build: "Builds", change: "Changes", agent_run: "AI helper conversations", import: "Imports", refund: "Refunds", tweak: "Tweaks" };
+// Quotes are logged at 0 credits (they're free), so paid "llm" events are plans by Claude and AI helpers it wrote.
+// Builds cost credits only under the earlier pricing; making it real is free now.
+const KIND_LABEL: Record<string, string> = { llm: "Plans and new AI helpers by Claude", build: "Builds, under the earlier pricing", change: "Changes Claude wrote", agent_run: "AI helper messages", import: "Repos imported by Claude", refund: "Refunds", tweak: "Tweaks" };
 
 const CATALOG = [
   { provider: "github", name: "GitHub", body: "Two-way sync, a branch per change, test runs on every change." },
@@ -45,7 +48,7 @@ function providerOf(c: { name: string; kind: string }): string | null {
 }
 
 /** Credits in running text are written out ("12 credits"); "cr" is only for pills and counters. */
-const credits = (n: number) => formatCredits(n).replace(/ cr$/, " credits");
+const creditText = (n: number) => formatCredits(n).replace(/ cr$/, " credits");
 
 function capError(v: string): string | null {
   const n = Number(v);
@@ -59,12 +62,14 @@ export function SettingsView({
   user,
   integrations,
   month,
+  credits,
   projects,
   connections,
 }: {
   user: { name: string; email: string | null; isAnonymous: boolean; provider: string | null };
   integrations: { provider: string; status: string }[];
   month: UsageSummary;
+  credits: CreditMeter;
   projects: { id: string; name: string; cap: number; used: number; agents: { id: string; name: string }[] }[];
   connections: { name: string; kind: string; auth: string; status: string; project: string }[];
 }) {
@@ -117,17 +122,33 @@ export function SettingsView({
 
         <section id="usage" className="scroll-mt-24">
           <h2 className="font-pencil text-section">Usage &amp; budget</h2>
-          <p className="mt-2 text-ui text-muted-foreground">Every credit is attributed. Planning, quotes and fixes for our own mistakes are free and never show up here.</p>
+          <p className="mt-2 text-ui text-muted-foreground">Only work Claude does costs credits, and you see the price before it runs. Every credit is attributed here.</p>
           <div className="panel mt-5 grid rounded-md lg:grid-cols-2">
             <div className="p-4">
-              <p className="micro-label">This month</p>
-              <p className="mt-1.5 text-lead font-semibold tabular-nums">
-                {credits(month.credits)} <span className="text-ui font-normal text-muted-foreground">≈ {creditsUsd(month.credits)} · real model spend {creditsUsd(month.costUsd * 100)}</span>
-              </p>
+              <p className="micro-label">Your free credits · this month</p>
+              {credits.guest ? (
+                <>
+                  <p className="mt-1.5 text-body">Guests use the free starter plans, so nothing costs credits.</p>
+                  <p className="mt-1 text-ui text-muted-foreground">Sign in for {credits.memberAllowance} free credits a month, and Claude plans your apps, writes changes and answers as your AI helpers.</p>
+                  <Button asChild variant="outline" className="mt-3">
+                    <Link href="/login?next=/settings">Sign in for free credits</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1.5 text-lead font-semibold tabular-nums">
+                    {meterWords(credits)} <span className="text-ui font-normal text-muted-foreground">used · {Math.floor(credits.left)} left</span>
+                  </p>
+                  <MeterBar m={credits} className="mt-2" />
+                  <p className="mt-2 text-meta tabular-nums text-muted-foreground">
+                    {credits.allowance} free credits every month. {resetWords(credits.resetsOn)}
+                  </p>
+                </>
+              )}
               <ul className="mt-4 space-y-2.5">
                 {kinds.map(([k, v]) => (
                   <li key={k} className="text-ui">
-                    <div className="flex justify-between gap-3"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("tabular-nums", v < 0 && "text-ok")}>{v < 0 ? "−" : ""}{credits(Math.abs(v))}</span></div>
+                    <div className="flex justify-between gap-3"><span>{KIND_LABEL[k] ?? k}</span><span className={cn("tabular-nums", v < 0 && "text-ok")}>{v < 0 ? "−" : ""}{creditText(Math.abs(v))}</span></div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-deep"><div className={cn("h-full rounded-full", v < 0 ? "bg-ok/60" : "bg-brand/70")} style={{ width: `${(Math.abs(v) / maxKind) * 100}%` }} /></div>
                   </li>
                 ))}
@@ -135,15 +156,22 @@ export function SettingsView({
               </ul>
             </div>
             <div className="border-hairline p-4 max-lg:border-t lg:border-l">
-              <p className="micro-label">By AI helper · conversations</p>
+              <p className="micro-label">What costs credits</p>
+              <PriceList className="mt-3" />
+              <p className="micro-label mt-6">By AI helper · messages</p>
               <ul className="mt-3 space-y-1.5 text-ui">
-                {agents.map(([id, v]) => <li key={id} className="flex justify-between gap-3"><span className="truncate">{agentNames[id] ?? id}</span><span className="shrink-0 tabular-nums">{credits(v)}</span></li>)}
-                {agents.length === 0 && <li className="text-muted-foreground">No conversations yet. Try a helper from its Try it panel.</li>}
+                {agents.map(([id, v]) => <li key={id} className="flex justify-between gap-3"><span className="truncate">{agentNames[id] ?? id}</span><span className="shrink-0 tabular-nums">{creditText(v)}</span></li>)}
+                {agents.length === 0 && <li className="text-muted-foreground">No messages yet. Try a helper from its Try it panel.</li>}
               </ul>
             </div>
           </div>
           <div className="panel mt-3 rounded-md">
-            <p className="border-b border-hairline px-4 py-3 text-ui font-medium">Spending caps · per project, per month</p>
+            <div className="border-b border-hairline px-4 py-3">
+              <p className="text-ui font-medium">Spending caps · optional, per project</p>
+              <p className="mt-0.5 text-meta text-muted-foreground">
+                An extra limit for one project, on top of your monthly credits. Past it, that project stops using credits and says so: changes wait and AI helpers pause or answer from their script, even with credits left.
+              </p>
+            </div>
             <ul className="divide-y divide-hairline">
               {projects.map((p) => {
                 const pct = Math.min(1, p.used / Math.max(1, p.cap));
@@ -153,14 +181,14 @@ export function SettingsView({
                     <Link href={`/p/${p.id}/blueprint`} className="min-w-0 flex-1 basis-40 truncate text-ui underline decoration-hairline-hi decoration-dotted underline-offset-4 transition-colors duration-150 hover:decoration-current">{p.name}</Link>
                     <span className="w-40">
                       <span className="block h-1.5 overflow-hidden rounded-full bg-deep"><span className={cn("block h-full rounded-full", pct > 0.9 ? "bg-foreground/70" : "bg-brand/70")} style={{ width: `${Math.max(2, pct * 100)}%` }} /></span>
-                      <span className="mt-1 block text-meta tabular-nums text-muted-foreground">{Math.round(p.used)} of {p.cap} credits</span>
+                      <span className="mt-1 block text-meta tabular-nums text-muted-foreground">{Math.round(p.used)} of {p.cap} credits this month</span>
                     </span>
                     <span className="flex items-center gap-2">
                       <label className="flex items-center gap-2 text-ui text-muted-foreground">
                         Cap
                         <Input type="number" min={10} max={100000} className="w-24 tabular-nums" value={caps[p.id]} onChange={(e) => setCaps((c) => ({ ...c, [p.id]: e.target.value }))} aria-label={`Cap for ${p.name}`} aria-invalid={err ? true : undefined} aria-describedby={err ? `cap-err-${p.id}` : undefined} />
                       </label>
-                      <Button variant="outline" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok && r.warning) toast.warning(`Cap set to ${r.value} credits a month`, { description: r.warning }); else if (r.ok) toast.success(`Cap set to ${r.value} credits a month`); else toast.error(r.error); router.refresh(); })}>Save</Button>
+                      <Button variant="outline" disabled={pending || Boolean(err) || Number(caps[p.id]) === p.cap} onClick={() => start(async () => { const r = await setBudgetCap(p.id, Number(caps[p.id])); if (r.ok && r.warning) toast.warning(`Cap set to ${r.value} credits`, { description: r.warning }); else if (r.ok) toast.success(`Cap set to ${r.value} credits`); else toast.error(r.error); router.refresh(); })}>Save</Button>
                     </span>
                     {err && <p id={`cap-err-${p.id}`} className="flex basis-full items-center justify-end gap-1.5 text-meta font-medium text-foreground"><CircleAlert className="size-3.5" aria-hidden />{err}</p>}
                   </li>

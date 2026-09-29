@@ -30,13 +30,13 @@ export type BuildRunner = {
   repair: RepairPlan | null;
   repairChoice: "a" | "b" | null;
   speed: number;
-  /** Estimated price taken from the demo balance for this build (null for replays). Refunded if the build is stopped. */
+  /** Credits a build started under the earlier pricing took and hasn't refunded (null otherwise: making it real is free). Refunded if it's stopped. */
   charged: number | null;
   progress: number;
-  /** Set when the project is mid-build on the server but no runner is active here: offer to resume it (free) or stop it (refunded). */
+  /** Set when the project is mid-build on the server but no runner is active here: offer to resume it or stop it. */
   interrupted: InterruptedBuild | null;
   nodeState: (ref: ObjectRef) => NodeState | null;
-  /** Starts the build, or resumes one already under way without charging again. Resolves false if it couldn't. */
+  /** Starts the build (free), or resumes one already under way. Resolves false if it couldn't. */
   start: (opts?: { replay?: boolean }) => Promise<boolean>;
   choose: (option: "a" | "b") => Promise<void>;
   setSpeed: (s: number) => void;
@@ -44,6 +44,14 @@ export type BuildRunner = {
 };
 
 const refKey = (r: ObjectRef) => `${r.type}:${r.id}`;
+
+/**
+ * What stopping a build says. Making it real is free, so there's only a refund to mention for a build
+ * that was charged under the earlier pricing (cancelBuild's `refunded`).
+ */
+export function stoppedWords(refunded: number | undefined, rest: string): string {
+  return refunded ? `The ${refunded} credits it took under the earlier pricing went back on your balance. ${rest}` : rest;
+}
 const FAST = 4;
 /** Per-step delay while a resumed build replays quickly to where it stopped. */
 const CATCH_UP_MS = 45;
@@ -158,9 +166,9 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
   const finish = useCallback(async (): Promise<boolean> => {
     setStatus("finishing");
     if (modeRef.current === "build") {
-      const r = await completeBuild(projectId).catch(() => ({ ok: false as const, error: "Couldn't save the build. Your progress is safe: resume it from the plan, free." }));
+      const r = await completeBuild(projectId).catch(() => ({ ok: false as const, error: "Couldn't save the build. Your progress is safe: resume it from the plan." }));
       if (!r.ok) {
-        // Nothing is lost: the plan offers to resume (free) or stop (refunded).
+        // Nothing is lost: the plan offers to resume it or stop it.
         toast.error(r.error);
         setStatus("idle");
         router.refresh();
@@ -224,7 +232,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
       startingRef.current = true;
       setStarting(true);
       const remembered = parseProgress(readProgressRaw(projectId));
-      const r: StartBuildResult = await startBuild(projectId).catch(() => ({ ok: false as const, error: "Couldn't reach Prod AI. Nothing was charged. Try again." }));
+      const r: StartBuildResult = await startBuild(projectId).catch(() => ({ ok: false as const, error: "Couldn't reach Prod AI. Try again." }));
       startingRef.current = false;
       if (!r.ok) {
         setStarting(false);
@@ -331,7 +339,7 @@ export function useBuildRunner({ projectId, blueprint, buildState }: { projectId
       clear();
       catchUpTo.current = null;
       if (modeRef.current === "build") {
-        // Stopped (refunded) or finished: either way there's nothing to resume.
+        // Stopped or finished: either way there's nothing to resume.
         writeProgress(projectId, null);
         setSettled(true);
       }

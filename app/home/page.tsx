@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { listProjects, liveProjectIds, usageSummary } from "@/lib/db/queries";
+import { listProjects, liveProjectIds } from "@/lib/db/queries";
+import { creditMeter } from "@/lib/pricing";
 import { HomeView } from "@/components/home/home-view";
 import type { HomeProject } from "@/components/home/project-card";
 
@@ -9,12 +10,8 @@ export const metadata = { title: "Projects" };
 export default async function HomePage() {
   const user = await requireUser("/home");
   const supa = await createClient();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const [projects, usage] = await Promise.all([listProjects(supa), usageSummary(supa, { sinceIso: monthStart.toISOString() })]);
+  const [projects, credits] = await Promise.all([listProjects(supa), creditMeter(user)]);
   const liveIds = await liveProjectIds(supa, projects.map((p) => p.id));
-  const cap = projects[0]?.settings.budgetCapCredits ?? 200;
   const cards: HomeProject[] = projects.map((p) => ({
     id: p.id,
     name: p.name,
@@ -28,5 +25,5 @@ export default async function HomePage() {
     updatedAt: p.updated_at,
   }));
 
-  return <HomeView user={{ name: user.name, isAnonymous: user.isAnonymous, avatarUrl: user.avatarUrl }} projects={cards} credits={usage.credits} cap={cap} />;
+  return <HomeView user={{ name: user.name, isAnonymous: user.isAnonymous, avatarUrl: user.avatarUrl }} projects={cards} credits={credits} />;
 }

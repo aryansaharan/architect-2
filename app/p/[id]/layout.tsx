@@ -6,6 +6,8 @@ import { getLiveSiteForProject, getProject, listCheckpoints, listHandoffs, listL
 import { WorkspaceShell } from "@/components/workspace/shell";
 import { parseRailPref, RAIL_COOKIE } from "@/components/workspace/rail-pref";
 import { llmMode } from "@/lib/llm/provider";
+import { creditMeter } from "@/lib/pricing";
+import { monthStartIso } from "@/lib/prices";
 
 export async function generateMetadata(props: LayoutProps<"/p/[id]">) {
   const { id } = await props.params;
@@ -25,11 +27,12 @@ export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
   const supa = await createClient();
   const project = await getProject(supa, id);
   if (!project) notFound();
-  const [checkpoints, ledger, handoffs, usage, live, workOrders, cookieStore] = await Promise.all([
+  const [checkpoints, ledger, handoffs, usage, credits, live, workOrders, cookieStore] = await Promise.all([
     listCheckpoints(supa, id),
     listLedger(supa, id),
     listHandoffs(supa, id),
-    usageSummary(supa, { projectId: id }),
+    usageSummary(supa, { projectId: id, sinceIso: monthStartIso() }),
+    creditMeter(user),
     getLiveSiteForProject(supa, id),
     listWorkOrders(supa, id),
     cookies(),
@@ -54,7 +57,9 @@ export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
         blueprint: project.blueprint,
         checkpoints,
         ledger,
+        // This project's spend against its own optional cap (still enforced), and the person's monthly credits (the meter).
         usage: { credits: usage.credits, cap: project.settings.budgetCapCredits },
+        credits,
         liveSlug: live?.slug ?? null,
         user: { name: user.name, isAnonymous: user.isAnonymous, avatarUrl: user.avatarUrl },
         handoffs,

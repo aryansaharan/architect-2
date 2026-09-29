@@ -14,7 +14,7 @@ function authorized(req: Request): boolean {
 }
 
 /**
- * GET, daily from Vercel Cron (vercel.json): deletes guests who haven't been back for two weeks
+ * GET, daily from Vercel Cron (vercel.json): deletes guests who haven't been back for a week
  * (their projects go with them), then prunes old rate-limit windows, budget holds and versions.
  */
 export async function GET(req: Request) {

@@ -5,20 +5,18 @@ import { toast } from "sonner";
 import { RotateCw, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cancelBuild } from "@/lib/actions/build";
-import type { InterruptedBuild } from "../use-build-runner";
+import { stoppedWords, type InterruptedBuild } from "../use-build-runner";
 import { useSheet } from "./use-sheet";
 
 /**
  * The server says this project is mid-build but nothing here is running it (the tab was closed or
- * reloaded). The price was already taken, so resuming is free; stopping refunds it. Same calls as the
- * plan map's resume dock: ws.build.start() resumes without charging again, cancelBuild refunds.
+ * reloaded). Making it real is free, so resuming and stopping are too. Same calls as the plan map's
+ * resume dock: ws.build.start() resumes, cancelBuild stops (refunding a build charged under the earlier pricing).
  */
 export function ResumeNote({ build }: { build: InterruptedBuild }) {
   const ws = useSheet();
   const router = useRouter();
   const [busy, setBusy] = useState<"resume" | "stop" | null>(null);
-  // What was taken when the build started (the newest build quote in the history).
-  const paid = ws.ledger.find((r) => r.kind === "work_order")?.credits ?? 0;
   // The step it reached is a figure: said in print, not in the pencil heading.
   const where = build.step ? `It stopped at step ${build.step} of ${build.total}. ` : "";
   return (
@@ -29,8 +27,7 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
       <p className="mt-2 max-w-[62ch] text-body tabular-nums text-muted-foreground">
         {where}
         {build.atRepair ? "It was waiting for you to pick a fix. " : ""}
-        {paid > 0 ? `The ${paid} credits you already paid still cover it. ` : ""}
-        Resume picks up where it stopped, or stop now and get the credits back.
+        Resume picks up where it stopped, or stop it and keep the sketch as it was.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button
@@ -42,7 +39,7 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
             setBusy(null);
           }}
         >
-          <RotateCw aria-hidden /> {busy === "resume" ? "Resuming…" : "Resume · free"}
+          <RotateCw aria-hidden /> {busy === "resume" ? "Resuming…" : "Resume"}
         </Button>
         <Button
           variant="ghost"
@@ -55,11 +52,11 @@ export function ResumeNote({ build }: { build: InterruptedBuild }) {
             setBusy(null);
             if (!r.ok) return void toast.error(r.error);
             ws.build.dismiss();
-            toast.success("Stopped. Nothing was charged", { description: "The credits went back on your demo balance." });
+            toast.success("Stopped", { description: stoppedWords(r.refunded, "Your sketch is exactly as you left it.") });
             router.refresh();
           }}
         >
-          <Undo2 aria-hidden /> {busy === "stop" ? "Stopping…" : "Stop · refunded"}
+          <Undo2 aria-hidden /> {busy === "stop" ? "Stopping…" : "Stop"}
         </Button>
       </div>
     </section>

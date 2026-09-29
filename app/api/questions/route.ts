@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const result = await questionsWithModel(brief, { userId: user.id });
   const ms = Date.now() - started;
 
-  // Questions are free to you, like planning: 0 credits on your meter. Tokens and real cost are still
+  // Questions are free to you, like quotes: 0 credits on your meter. Tokens and real cost are still
   // metered (even for an answer that wasn't usable, or a call that timed out) for the daily model budget.
   // Metered after the response, so it never slows it; the hold is released once the cost is recorded.
   const usage = result.usage;

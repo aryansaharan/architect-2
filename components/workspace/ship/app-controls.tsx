@@ -10,6 +10,7 @@ import { Pill } from "@/components/ui/pill";
 import { TimeAgo } from "@/components/time-ago";
 import { clearSampleData, inviteMember, loadAppControls, removeMember, setHiddenEntity, setPublicHelpers, type AppControls as Controls } from "@/lib/actions/app-settings";
 import { listWords, publicSummary } from "@/lib/sim/preflight";
+import { PRICE } from "@/lib/prices";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 import { Switch } from "./switch";
@@ -150,7 +151,7 @@ export function AppControls() {
           <h3 id="public-helpers" className="font-pencil text-section">AI helpers for visitors</h3>
           <div className="panel mt-3 flex items-start gap-4 rounded-md px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-body">Let visitors talk to the AI helpers on your public pages. Each conversation uses your credits.</p>
+              <p className="text-body">Let visitors talk to the AI helpers on your public pages. Each message Claude answers uses {PRICE.helperMessage} of your credits.</p>
               <p className="mt-0.5 text-ui text-muted-foreground">
                 On public pages: {listWords(summary.helpers.map((h) => h.name))}. {helpersOn ? "They keep their permissions and your spending cap, and anything that can't be undone still waits for a person." : "Off: only you and the people you invite can talk to them."}
               </p>

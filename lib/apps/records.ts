@@ -149,7 +149,7 @@ export async function createRecord(projectId: string, entityId: string, data: Re
     .select("id, entity_id, data, is_sample, created_at, updated_at")
     .single();
   if (error || !row) {
-    if (error?.message.includes("app record cap")) return { ok: false, error: "This app is full (5,000 records). Delete some to add more." };
+    if (error?.message.includes("app record cap")) return { ok: false, error: "This app is full (2,000 records). Delete some to add more." };
     console.error("[apps] create failed", error?.message);
     return { ok: false, error: "Couldn't save that. Try again." };
   }

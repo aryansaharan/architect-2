@@ -1,6 +1,7 @@
 import type { Blueprint } from "@/lib/blueprint/schema";
 import { signInMethods } from "@/lib/blueprint/describe";
 import { publicAccess } from "@/lib/apps/view";
+import { PRICE } from "@/lib/prices";
 
 /** "info" is for reading, not fixing: it never blocks publishing and never counts as a problem. */
 export type PreflightStatus = "pass" | "warn" | "fail" | "info";
@@ -72,9 +73,9 @@ export function preflight(
     {
       id: "budget",
       label: "Spending cap is set",
-      plain: "AI helpers stop and tell you before they spend past your cap.",
+      plain: "On top of your monthly credits, this project stops using credits at its own cap, and says so.",
       status: opts.budgetCapCredits > 0 ? "pass" : "fail",
-      detail: opts.budgetCapCredits > 0 ? `${opts.budgetCapCredits} credits a month (≈ $${(opts.budgetCapCredits / 100).toFixed(2)}).` : "No cap. A busy day could cost anything.",
+      detail: opts.budgetCapCredits > 0 ? `This project stops at ${opts.budgetCapCredits} credits.` : "No cap. A busy day could use all your monthly credits.",
       blocking: true,
       fix: opts.budgetCapCredits > 0 ? undefined : { label: "Set a 500-credit cap", action: "set_budget" },
     },
@@ -160,7 +161,7 @@ function publicCheck(bp: Blueprint, hidden: string[], helpersOn: boolean): Prefl
   if (hiddenNames.length) parts.push(`Hidden from public pages: ${listWords(hiddenNames)}.`);
   if (sum.helpers.length) {
     const names = listWords(sum.helpers.map((h) => h.name));
-    parts.push(helpersOn ? `Visitors can talk to ${names}. Each conversation uses your credits.` : `Visitors can't talk to ${names} unless you turn that on.`);
+    parts.push(helpersOn ? `Visitors can talk to ${names}. Each message Claude answers uses ${PRICE.helperMessage} of your credits.` : `Visitors can't talk to ${names} unless you turn that on.`);
   }
   return { ...base, status: "info", detail: parts.join(" ") };
 }

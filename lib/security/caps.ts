@@ -3,7 +3,7 @@ import type { SessionUser } from "@/lib/auth";
 import type { Supa } from "@/lib/supabase/server";
 
 /** How many projects one account may keep (the database enforces the same numbers: policy "project cap"). */
-export const PROJECT_CAP = { guest: 8, member: 100 } as const;
+export const PROJECT_CAP = { guest: 5, member: 25 } as const;
 
 /** A plain message when the person can't make another project, otherwise null. */
 export async function projectCapMessage(supa: Supa, user: SessionUser): Promise<string | null> {

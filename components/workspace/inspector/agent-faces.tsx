@@ -13,7 +13,7 @@ import type { Agent, AgentTool, Framework, ToolPermission } from "@/lib/blueprin
 import { Frameworks } from "@/lib/blueprint/schema";
 import { agentSummary, connectionName, FRAMEWORK_LABEL, MEMORY_LABEL, PERMISSION_LABEL, PERMISSION_PLAIN, presetPermission, SUPERVISION_LABEL, supervisionView } from "@/lib/blueprint/describe";
 import { rehearsalSummary } from "@/lib/sim/preflight";
-import { creditsUsd } from "@/lib/format";
+import { PRICE } from "@/lib/prices";
 import { setFramework, setToolPermission, updateAgentText } from "@/lib/actions/blueprint";
 import { applySupervisionPreset } from "@/lib/actions/agents";
 import { cn } from "@/lib/utils";
@@ -213,7 +213,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
       <Section title="At a glance">
         <dl className="grid grid-cols-2 gap-2">
           <Stat icon={Brain} label="Remembers" value={MEMORY_LABEL[agent.memory.scope].replace("Remembers ", "").replace("Shares memory ", "")} />
-          <Stat icon={Coins} label="Cost per conversation" value={`~${agent.cost.creditsPerRun} credits (≈ ${creditsUsd(agent.cost.creditsPerRun)})`} />
+          <Stat icon={Coins} label="Cost" value={`${PRICE.helperMessage} credits a message`} />
           <Stat icon={ShieldCheck} label={<Term k="rehearsal">Test runs</Term>} value={reh.total ? `${reh.passing} of ${reh.total} passing${reh.notRun ? ` · ${reh.notRun} not run yet` : ""}` : "None yet"} />
           <Stat icon={Gauge} label="Works on" value={s.screens.length ? s.screens.map((x) => x.title).join(", ") : "Background only"} />
         </dl>
@@ -313,8 +313,8 @@ export function AgentSpec({ agent, only }: { agent: Agent; only?: SpecPart[] }) 
               <dd className="mt-0.5 font-mono text-badge">{agent.cost.model}</dd>
             </div>
             <div className="panel rounded-md p-2.5">
-              <dt className="text-meta text-muted-foreground">Cost per conversation</dt>
-              <dd className="mt-0.5">~{agent.cost.creditsPerRun} credits (≈ {creditsUsd(agent.cost.creditsPerRun)})</dd>
+              <dt className="text-meta text-muted-foreground">Cost</dt>
+              <dd className="mt-0.5 tabular-nums">{PRICE.helperMessage} credits a message Claude answers</dd>
             </div>
           </dl>
         </Section>

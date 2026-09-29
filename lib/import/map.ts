@@ -1,5 +1,6 @@
 import type { Agent, AgentTool, Block, Blueprint, Connection, Framework, ToolAccess } from "@/lib/blueprint/schema";
-import { estimateRunCredits, presetPermission } from "@/lib/blueprint/describe";
+import { presetPermission } from "@/lib/blueprint/describe";
+import { PRICE } from "@/lib/prices";
 import { estimate } from "@/lib/blueprint/estimate";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { hash } from "@/lib/sim/hash";
@@ -191,7 +192,7 @@ export function applyDetectedAgents(bp: Blueprint, detected: DetectedAgent[], op
       supervision,
       knowledge: same?.knowledge ?? [],
       memory: same?.memory ?? { scope: "session", retentionDays: 30 },
-      cost: { model, creditsPerRun: estimateRunCredits({ tools, jobDescription, rules, cost: { model } }) },
+      cost: { model, creditsPerRun: PRICE.helperMessage },
       triggers: same?.triggers ?? ["chat"],
       rehearsals: same?.rehearsals ?? [],
       framework: FW[d.framework] ?? "lyzr",

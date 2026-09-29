@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getProject, usageSummary } from "@/lib/db/queries";
 import { addLedger, updateProject } from "@/lib/db/writes";
+import { monthStartIso } from "@/lib/prices";
 
 export async function setBudgetCap(projectId: string, cap: number) {
   await requireUser();
@@ -19,8 +20,7 @@ export async function setBudgetCap(projectId: string, cap: number) {
   revalidatePath("/settings");
   revalidatePath(`/p/${projectId}`, "layout");
   // Say so when the new cap is already used up, instead of a cheerful "saved".
-  const now = new Date();
-  const used = (await usageSummary(supa, { projectId, sinceIso: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString() }).catch(() => null))?.credits ?? 0;
+  const used = (await usageSummary(supa, { projectId, sinceIso: monthStartIso() }).catch(() => null))?.credits ?? 0;
   const warning = used >= value ? `This project has already used ${Math.round(used)} credits this month, so its AI helpers are paused until next month or until you raise the cap.` : undefined;
   return { ok: true as const, value, warning };
 }

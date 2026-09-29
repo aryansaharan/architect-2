@@ -12,6 +12,7 @@ import { Frameworks, type Framework } from "@/lib/blueprint/schema";
 import { FRAMEWORK_LABEL } from "@/lib/blueprint/describe";
 import { addAgentFromDescription, addAgentFromSource } from "@/lib/actions/agents";
 import { agentLocationError } from "@/lib/import/detect";
+import { PRICE } from "@/lib/prices";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 
@@ -41,6 +42,16 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
   const drafting = pending && busyLane === "describe";
   const locError = lane !== "describe" && loc.trim() ? agentLocationError(lane === "code" ? "code" : "endpoint", loc) : null;
   const showLocError = touched && Boolean(locError);
+  // Claude writes a described helper for a price; a guest, someone short of credits, or offline mode gets a template, free.
+  const byClaude = ws.llm === "live" && !ws.credits.guest && ws.credits.left >= PRICE.newHelper;
+  const describeNote =
+    ws.llm !== "live"
+      ? "Offline mode: starts from a careful template you can edit, free."
+      : ws.credits.guest
+        ? `As a guest, it starts from a careful template you can edit, free. Signed in, Claude writes it for ${PRICE.newHelper} credits.`
+        : byClaude
+          ? `Claude writes its job, rules, actions and test runs for ${PRICE.newHelper} credits (a template is free). You check them before it does anything.`
+          : `You have ${Math.floor(ws.credits.left)} credits left this month, so it starts from a careful template you can edit, free. Claude writing it costs ${PRICE.newHelper}.`;
 
   useEffect(() => {
     if (!drafting) return;
@@ -96,10 +107,10 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
                     </li>
                   ))}
                 </ol>
-                <p className="mt-2.5 text-badge text-muted-foreground">{ws.llm === "live" ? "Prod AI is drafting it. This usually takes 10 to 15 seconds." : "Offline mode: starting from a careful template."}</p>
+                <p className="mt-2.5 text-badge text-muted-foreground">{byClaude ? "Claude is drafting it. This usually takes 10 to 15 seconds." : "Starting from a careful template."}</p>
               </div>
             ) : (
-              <p className="mt-1.5 text-meta text-muted-foreground">{ws.llm === "live" ? "Prod AI writes its job, rules, actions and test runs. You check them before it does anything." : "Offline mode: starts from a careful template you can edit."}</p>
+              <p className="mt-1.5 text-meta tabular-nums text-muted-foreground">{describeNote}</p>
             )}
           </div>
         )}

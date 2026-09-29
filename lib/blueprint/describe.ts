@@ -1,7 +1,5 @@
 import type { Agent, AgentTool, Blueprint, Connection, Entity, Screen, ToolAccess, ToolPermission } from "./schema";
 import { allBlocks, BLOCK_LABELS } from "./index";
-import { USD_PER_CREDIT } from "./estimate";
-import { priceFor } from "@/lib/llm/pricing";
 
 /** Plain-English sentences for the "Plain" face. Deterministic, no model needed. */
 
@@ -81,24 +79,6 @@ export function supervisionView(agent: Pick<Agent, "supervision" | "tools">): Su
     plain: `Set tool by tool. ${list(offPreset.map((t) => `${t.name} is on “${PERMISSION_LABEL[t.permission]}”`))}, unlike ${preset}. Pick a preset to reset every tool.`,
     offPreset,
   };
-}
-
-/**
- * Typical credits for one playground conversation, from list prices and the
- * shape of real runs: a prompt that grows with the job description, rules and
- * tools; roughly one model call per two tools (plus the reply); and about 320
- * output tokens per call for tool arguments, thinking and the answer.
- * Calibrated against live claude-opus-5 runs (Settlement: 3.4 and 4.8 credits).
- */
-export function estimateRunCredits(agent: Pick<Agent, "tools" | "jobDescription" | "rules"> & { cost: { model: string } }): number {
-  const tools = agent.tools.length;
-  const calls = Math.min(4, 1 + Math.ceil(tools / 2));
-  const prompt = 600 + Math.ceil((agent.jobDescription.length + agent.rules.join(" ").length) / 4) + 100 * tools;
-  const input = calls * prompt + (300 * calls * (calls - 1)) / 2;
-  const output = 320 * calls;
-  const p = priceFor(agent.cost.model);
-  const usd = (input * p.in + output * p.out) / 1e6;
-  return Math.max(1, Math.round(usd / USD_PER_CREDIT));
 }
 
 export const MEMORY_LABEL: Record<Agent["memory"]["scope"], string> = {

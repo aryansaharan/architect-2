@@ -13,7 +13,7 @@ import { buildTimeLabel } from "@/lib/blueprint/estimate";
 import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { allBlocks, BLOCK_LABELS, blockTitle, relations } from "@/lib/blueprint";
 import { connectionSummary, entitySummary, list, screenSummary, signInMethods } from "@/lib/blueprint/describe";
-import { creditsUsd, formatValue } from "@/lib/format";
+import { formatValue } from "@/lib/format";
 import { setConnectionStatus, setTheme, updateScreenText } from "@/lib/actions/blueprint";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
@@ -268,7 +268,7 @@ export function BriefPlain() {
         </dl>
       </Section>
       <Section title="Estimate to build">
-        <p className="text-ui tabular-nums">{time.label} · {bp.estimate.credits} credits (≈ {creditsUsd(bp.estimate.credits)}) · {bp.estimate.files} files · confidence {bp.estimate.confidence}</p>
+        <p className="text-ui tabular-nums">{time.label} · free · {bp.estimate.files} files · confidence {bp.estimate.confidence}</p>
       </Section>
     </div>
   );

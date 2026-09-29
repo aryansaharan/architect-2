@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { UserMenuView } from "@/components/workspace/top-bar";
+import { meterWords } from "@/components/credits";
+import { resetWords, type CreditMeter } from "@/lib/prices";
 import { cn } from "@/lib/utils";
 
 /** The account's own pages, in one order everywhere. */
@@ -25,11 +27,11 @@ function PencilUnderline() {
 }
 
 /**
- * The header on Home and Settings: the mark, the account's pages, this month's credits and the
- * account menu. On phones the pages move to their own row so nothing is hidden.
+ * The header on Home and Settings: the mark, the account's pages, the person's credits this month
+ * (for a guest, a way to sign in for them) and the account menu. On phones the pages move to their
+ * own row so nothing is hidden.
  */
-export function AppHeader({ current, user, credits, cap }: { current: "/home" | "/settings"; user: AppHeaderUser; credits: number; cap: number }) {
-  const used = Math.round(credits);
+export function AppHeader({ current, user, credits }: { current: "/home" | "/settings"; user: AppHeaderUser; credits: CreditMeter }) {
   return (
     <header className="sticky top-0 z-20 border-b border-hairline bg-canvas/95">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 px-5 sm:px-6 md:h-14 md:flex-nowrap">
@@ -54,9 +56,19 @@ export function AppHeader({ current, user, credits, cap }: { current: "/home" | 
           })}
         </nav>
         <div className="ml-auto flex h-14 items-center gap-3 md:h-auto">
-          <span className="text-meta whitespace-nowrap tabular-nums text-muted-foreground" title="Credits used this month">
-            {used} of {cap} credits<span className="max-sm:hidden"> this month</span>
-          </span>
+          {credits.guest ? (
+            <Link
+              href={`/login?next=${encodeURIComponent(current)}`}
+              className="text-meta whitespace-nowrap tabular-nums text-brand underline decoration-dotted underline-offset-4 transition-colors duration-150 hover:text-brand-hi"
+            >
+              Sign in for {credits.memberAllowance} free credits<span className="max-sm:hidden"> a month</span>
+            </Link>
+          ) : (
+            <span className="text-meta whitespace-nowrap tabular-nums text-muted-foreground" title={`${Math.floor(credits.left)} left. ${resetWords(credits.resetsOn)}`}>
+              {meterWords(credits)}
+              <span className="max-sm:hidden"> this month</span>
+            </span>
+          )}
           <UserMenuView name={user.name} isAnonymous={user.isAnonymous} avatarUrl={user.avatarUrl} />
         </div>
       </div>

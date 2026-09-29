@@ -19,7 +19,7 @@ export async function withinLimit(key: string, max: number, windowSeconds: numbe
 
 /**
  * New guests and demo seeds per network per hour. Guests have no model budget, so these only guard the
- * database (idle guests are removed after two weeks); they are generous because offices and campuses
+ * database (idle guests are removed after a week); they are generous because offices and campuses
  * share one address.
  */
 export const GUEST_LIMIT = { max: 30, windowSeconds: 3600 } as const;

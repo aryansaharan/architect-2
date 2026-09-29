@@ -15,7 +15,8 @@ import { costOf, failedSpend } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
 import { holdModelBudget } from "@/lib/llm/guard";
-import { applySupervision, estimateRunCredits, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
+import { PRICE, canAfford } from "@/lib/pricing";
+import { applySupervision, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
 import { agentLocationError, agentNameFromLocation } from "@/lib/import/detect";
 
@@ -171,7 +172,9 @@ export async function addAgentFromDescription(projectId: string, description: st
   let credits = 0;
   const hold = await holdModelBudget(user, "agent");
   if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of new AI helpers in a few minutes. Wait a little, then try again." };
-  const m = hold.ok ? getModel() : null;
+  // Claude writing the new helper costs credits; without enough, it starts from a template, free.
+  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "newHelper") : null;
+  const m = hold.ok && afford?.ok ? getModel() : null;
   if (m) {
     try {
       const r = await generateText({
@@ -206,14 +209,14 @@ export async function addAgentFromDescription(projectId: string, description: st
         supervision: o.supervision,
         knowledge: [],
         memory: { scope: "project", retentionDays: 30 },
-        cost: { creditsPerRun: 0, model: m.id },
+        cost: { creditsPerRun: PRICE.helperMessage, model: m.id },
         triggers: ["chat"],
         rehearsals: o.rehearsals.slice(0, 4).map((x, i) => ({ id: `r-${kebab(x.name)}-${i}`, name: x.name, input: x.input, expect: x.expect, history: [] })),
         framework: "lyzr",
         origin: "generated",
       };
       const u = r.usage;
-      credits = costOf(m.id, u.inputTokens ?? 0, u.outputTokens ?? 0).credits;
+      credits = PRICE.newHelper;
       await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: m.id, inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0, costUsd: costOf(m.id, u.inputTokens ?? 0, u.outputTokens ?? 0).costUsd, credits, meta: { op: "new-agent" } });
     } catch (e) {
       console.error("[agents] model failed, template:", e instanceof Error ? e.message : e);
@@ -239,14 +242,13 @@ export async function addAgentFromDescription(projectId: string, description: st
       supervision: "approve_all",
       knowledge: [],
       memory: { scope: "session", retentionDays: 30 },
-      cost: { creditsPerRun: 0, model: m?.id ?? "claude-opus-5" },
+      cost: { creditsPerRun: PRICE.helperMessage, model: m?.id ?? "claude-opus-5" },
       triggers: ["chat"],
       rehearsals: [{ id: "r-first", name: "First question", input: `A typical request: ${text.slice(0, 80)}`, expect: "Looks it up and answers briefly.", history: [] }],
       framework: "lyzr",
       origin: "generated",
     };
   }
-  agent.cost.creditsPerRun = estimateRunCredits(agent);
   bp.agents.push(agent);
   try {
     await save(projectId, bp, `Added ${agent.name}`, `${agent.role}. ${agent.tools.length} tools · ${agent.tools.filter((t) => t.permission === "ask").length} ask first.`, agent.id, credits);

@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { ArrowUp, Check, CircleAlert, Crosshair, UsersRound, X } from "lucide-react";
+import { ArrowUp, Check, CircleAlert, Crosshair, Info, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
-import { creditsUsd } from "@/lib/format";
 import { objectLabel } from "@/lib/blueprint";
 import type { ChangeProposal, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
@@ -16,7 +15,8 @@ import { approveChange, rejectChange, requestChange } from "@/lib/actions/change
 import { useWorkspace } from "./context";
 import { undoTo } from "./undo";
 
-type Order = { wo: WorkOrderRow; overBudget: boolean };
+/** A proposed change waiting in the card. `note` says when it was worked out without Claude because credits ran out. */
+type Order = { wo: WorkOrderRow; overBudget: boolean; note?: string };
 
 /** A note sent from the margin. The thread shows it at once, then swaps in the history's own copy when it arrives. */
 export type SentMessage = { key: string; text: string; at: string; scope: ObjectRef | null; wo: WorkOrderRow | null };
@@ -58,6 +58,11 @@ export function workOrderIdOf(r: Pick<LedgerRow, "meta">): string | null {
 export function creditWords(n: number): string {
   const v = Math.round(n * 10) / 10;
   return `${Number.isInteger(v) ? v : v.toFixed(1)} ${v === 1 ? "credit" : "credits"}`;
+}
+
+/** A change's price: "15 credits", or "free" when it costs nothing (a rule-based change). */
+export function priceWords(n: number): string {
+  return n > 0 ? creditWords(n) : "free";
 }
 
 /** A new version is labelled "version 7" (older ones said "Save point #7"): the margin always says "version 7". */
@@ -196,7 +201,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
       const p = r.workOrder.proposal;
       // An answer lands in the notes right above. Only when they're out of sight does it get a card.
       if (p?.answer && threadVisible) setAnnounce(`Prod AI answered: ${p.rationale}`);
-      else setOrder({ wo: r.workOrder, overBudget: r.overBudget });
+      else setOrder({ wo: r.workOrder, overBudget: r.overBudget, note: r.note });
       router.refresh();
     });
   }
@@ -259,7 +264,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
                 ? `Answer: ${p.rationale}`
                 : p.operations.length === 0
                   ? `Needs a person: ${p.summary}`
-                  : `Proposed change: ${p.summary}. ${creditWords(p.credits)}. Apply or not now.`
+                  : `Proposed change: ${p.summary}. ${p.credits > 0 ? creditWords(p.credits) : "Free"}. Apply or not now.`
               : ""}
       </p>
 
@@ -423,6 +428,13 @@ function ChangeCard({
           <>
             <p className="mt-1 text-body font-medium">{p.summary}</p>
             {p.rationale && <p className="mt-1 text-meta text-muted-foreground">{p.rationale}</p>}
+            {/* Why Claude didn't write it: this month's credits ran out, so the free, rule-based way was used. */}
+            {order.note && (
+              <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
+                <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+                <span>{order.note}</span>
+              </p>
+            )}
             {needsPerson ? (
               <div className="mt-2.5 flex items-center gap-2">
                 <Button className="flex-1" onClick={onTeammate}>
@@ -435,15 +447,14 @@ function ChangeCard({
             ) : (
               <>
                 <div className="mt-2 flex flex-wrap items-baseline gap-x-2 border-t border-dashed border-hairline pt-2 tabular-nums">
-                  <span className="text-body font-medium">{creditWords(p.credits)}</span>
-                  <span className="text-meta text-muted-foreground">≈ {creditsUsd(p.credits)}</span>
+                  <span className="text-body font-medium">{p.credits > 0 ? creditWords(p.credits) : "Free"}</span>
                   <span className="text-meta text-muted-foreground">· {touchWords(p.blastRadius)}</span>
                 </div>
                 {order.overBudget && (
                   <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
                     <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
                     <span>
-                      This would go past your spending cap, so it can&apos;t be applied yet.{" "}
+                      This would go past this project&apos;s spending cap, so it can&apos;t be applied yet.{" "}
                       <Link href="/settings#usage" className="text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
                         Change the cap
                       </Link>
@@ -457,7 +468,7 @@ function ChangeCard({
                       "Applying…"
                     ) : (
                       <>
-                        <Check /> Apply · {creditWords(p.credits)}
+                        <Check /> Apply · {priceWords(p.credits)}
                       </>
                     )}
                   </Button>
@@ -468,7 +479,7 @@ function ChangeCard({
                 <p className="mt-1.5 text-meta text-faint">Nothing changes until you apply. Going back is always free.</p>
               </>
             )}
-            {p.mode === "rules" && !needsPerson && <p className="mt-1 text-meta text-faint">Worked out by built-in rules, not by Claude.</p>}
+            {p.mode === "rules" && !needsPerson && !order.note && <p className="mt-1 text-meta text-faint">Worked out by built-in rules, not by Claude.</p>}
           </>
         )}
       </div>

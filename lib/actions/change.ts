@@ -10,9 +10,11 @@ import type { ChangeProposal, WorkOrderRow } from "@/lib/db/types";
 import { proposeChange } from "@/lib/change/propose";
 import { usageSummary } from "@/lib/db/queries";
 import { holdModelBudget } from "@/lib/llm/guard";
+import { PRICE, canAfford, creditsThisMonth, outOfCreditsNote, resetWords } from "@/lib/pricing";
+import { monthStartIso } from "@/lib/prices";
 
 export type RequestChangeResult =
-  | { ok: true; workOrder: WorkOrderRow; overBudget: boolean }
+  | { ok: true; workOrder: WorkOrderRow; overBudget: boolean; note?: string }
   | { ok: false; error: string };
 
 export async function requestChange(projectId: string, request: string, scope: ObjectRef | null): Promise<RequestChangeResult> {
@@ -24,7 +26,7 @@ export async function requestChange(projectId: string, request: string, scope: O
   if (!text) return { ok: false, error: "Describe the change first" };
 
   // Quotes are free, but a project past its cap stays paused, exactly like agent runs (app/api/chat/route.ts).
-  const spent = await usageSummary(supa, { projectId });
+  const spent = await usageSummary(supa, { projectId, sinceIso: monthStartIso() });
   const cap = project.settings.budgetCapCredits;
   if (spent.credits >= cap) {
     return { ok: false, error: `Paused: this project has used ${Math.round(spent.credits)} of its ${cap}-credit cap. Raise the cap in Settings to ask for more changes. Nothing was charged.` };
@@ -32,13 +34,21 @@ export async function requestChange(projectId: string, request: string, scope: O
 
   const hold = await holdModelBudget(user, "change");
   if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of changes in a few minutes. Wait a little, then try again. Nothing was charged." };
+  // Claude writes the change only for someone who could pay to apply it; otherwise the free, rule-based
+  // change is offered (or it goes to a person), so quotes can't run up model costs.
+  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "change") : null;
+  const useModel = hold.ok && Boolean(afford?.ok);
+  const note = afford && !afford.ok && afford.credits.allowance ? outOfCreditsNote(afford.credits, "this change was worked out without Claude") : undefined;
   try {
-    const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: hold.ok });
+    const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: useModel });
     if (usage) {
-      // Free to you: 0 credits on your meter. Tokens and real cost are still metered, failed attempts included, for the daily model budget.
+      // The quote is free: 0 credits. Its real cost is metered, failed attempts included, for the daily model budget.
       await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "change-quote", free: true, modelCredits: usage.credits } });
     }
-    return await saveQuote(supa, projectId, text, scope, proposal, spent.credits, cap);
+    // Applying a change Claude wrote costs one price; a rule-based change, or an answer, is free.
+    const priced = { ...proposal, credits: proposal.mode === "live" && proposal.operations.length ? PRICE.change : 0 };
+    const saved = await saveQuote(supa, projectId, text, scope, priced, spent.credits, cap);
+    return saved.ok && note ? { ...saved, note } : saved;
   } finally {
     if (hold.ok) await hold.release();
   }
@@ -100,6 +110,13 @@ export async function approveChange(projectId: string, workOrderId: string): Pro
   if (!applied.ok) {
     console.warn("[change] quote no longer applies:", applied.error);
     return { ok: false, error: "The project changed since this quote, so it no longer fits. Nothing was charged. Ask again for a fresh quote." };
+  }
+  // A change Claude wrote is paid from this month's credits: check before anything is applied.
+  if (order.proposal.credits > 0) {
+    const c = await creditsThisMonth(user.id, user.isAnonymous);
+    if (c.left < order.proposal.credits) {
+      return { ok: false, error: `This change costs ${order.proposal.credits} credits and you have ${Math.floor(c.left)} left this month. ${resetWords(c.resetsOn)} Nothing was charged.` };
+    }
   }
   // Claim the Work Order before touching anything: a double click or a second tab applies (and charges) it once.
   const { data: claimed, error: claimError } = await supa.from("work_orders").update({ status: "approved" }).eq("id", workOrderId).eq("project_id", projectId).eq("status", "proposed").select("id");

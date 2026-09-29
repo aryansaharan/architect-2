@@ -14,7 +14,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { canGoLive, preflight, type PreflightCheck } from "@/lib/sim/preflight";
 import { generateFiles } from "@/lib/codegen/files";
 import { fixPreflight, goLive, rollbackTo, takeOffline } from "@/lib/actions/ship";
-import { creditsUsd } from "@/lib/format";
+import { PRICE } from "@/lib/prices";
 import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
@@ -68,7 +68,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
   const bp = ws.blueprint;
-  // An imported repo is already built (it is the user's own code), so it needs rehearsals, not a charged build.
+  // An imported repo is already built (it is the user's own code), so it needs rehearsals, not a build.
   const built = ws.project.buildState === "built" || ws.project.source === "import";
   const checks = useMemo(
     () =>
@@ -93,11 +93,10 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const [confirmOffline, setConfirmOffline] = useState(false);
   const [deploying, setDeploying] = useState<number | null>(null);
   const [pending, start] = useTransition();
-  const [users, setUsers] = useState(1000);
   const [launched, setLaunched] = useState<string | null>(null);
   const live = deployments.find((d) => d.status === "live");
-  const perConversation = bp.agents.reduce((s, a) => s + a.cost.creditsPerRun, 0) / Math.max(1, bp.agents.length);
-  const monthly = users * 4 * perConversation;
+  // AI helper messages answered by Claude come out of the person's monthly credits, one price each.
+  const messagesLeft = Math.floor(ws.credits.left / PRICE.helperMessage);
   // Forgive a pasted URL ("https://claims.example.com/"); anything else must be a real hostname.
   const host = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const domainValid = !host || HOSTNAME.test(host);
@@ -111,10 +110,8 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   // The build fix: start the build (or pick up one that was interrupted) right here, then show it running on the plan.
   const buildRunning = ws.build.mode === "build" && (ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing");
   const interrupted = ws.project.buildState === "building" && !buildRunning;
-  const buildCredits = bp.estimate.credits;
-  const overCap = ws.project.buildState === "draft" && buildCredits > Math.max(0, ws.usage.cap - ws.usage.credits);
-  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build · free" : overCap ? "Review the build" : `Make it real · ${buildCredits} credits`;
-  const buildDetail = buildRunning ? "Building now. Test runs happen near the end of the build." : interrupted ? "The build was interrupted before its test runs. Resuming is free: it was already paid for." : null;
+  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build" : "Make it real · free";
+  const buildDetail = buildRunning ? "Building now. Test runs happen near the end of the build." : interrupted ? "The build was interrupted before its test runs. Resume it to finish them." : null;
 
   const [fixing, setFixing] = useState<Parameters<typeof fixPreflight>[1] | null>(null);
   const fix = (action: Parameters<typeof fixPreflight>[1]) => {
@@ -126,8 +123,8 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   };
   const runFix = async (action: Parameters<typeof fixPreflight>[1]) => {
     if (action === "build_first") {
-      // Over the cap, the Work Order on the plan explains why and what to do; otherwise start or resume here.
-      if (!buildRunning && !overCap && !(await ws.build.start())) return;
+      // Start or resume it here (free), then watch it on the plan.
+      if (!buildRunning && !(await ws.build.start())) return;
       router.push(`/p/${ws.project.id}/blueprint`);
       return;
     }
@@ -410,13 +407,25 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
 
             <section aria-labelledby="cost">
               <h4 id="cost" className="text-body font-semibold">What it costs to run</h4>
-              <p className="mt-1 text-ui text-muted-foreground">One conversation with an AI helper costs about <span className="text-foreground">{perConversation.toFixed(1)} credits (≈ {creditsUsd(perConversation)})</span>.</p>
-              <label className="mt-3 block max-w-md text-ui">
-                If <span className="font-medium tabular-nums text-foreground">{users.toLocaleString()}</span> people each use it 4 times a month
-                <input type="range" min={50} max={20000} step={50} value={users} onChange={(e) => setUsers(Number(e.target.value))} className="mt-2 w-full accent-brand" aria-label="People using it" />
-              </label>
-              <p className="mt-2 text-lead font-semibold tabular-nums">About {creditsUsd(monthly)} a month <span className="text-ui font-normal text-muted-foreground">· {Math.round(monthly).toLocaleString()} credits</span></p>
-              <p className="mt-2 text-meta text-muted-foreground">Your cap is {ws.project.settings.budgetCapCredits} credits. Past it, AI helpers pause and tell you. They never keep spending quietly.</p>
+              <p className="mt-1 text-ui text-muted-foreground">
+                Publishing is free. Each message an AI helper answers with Claude costs <span className="tabular-nums text-foreground">{PRICE.helperMessage} credits</span> from your monthly credits, visitors&apos; messages on your published app included.
+              </p>
+              {ws.credits.guest ? (
+                <p className="mt-2 text-ui text-muted-foreground">
+                  As a guest, AI helpers answer from their script, free.{" "}
+                  <Link href={`/login?next=${encodeURIComponent(`/p/${ws.project.id}/ship`)}`} className="text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
+                    Sign in for {ws.credits.memberAllowance} free credits a month
+                  </Link>
+                </p>
+              ) : (
+                <p className="mt-2 text-lead font-semibold tabular-nums">
+                  Enough for {messagesLeft.toLocaleString()} more {messagesLeft === 1 ? "message" : "messages"} this month{" "}
+                  <span className="text-ui font-normal text-muted-foreground">· {Math.floor(ws.credits.left)} of {ws.credits.allowance} credits left</span>
+                </p>
+              )}
+              <p className="mt-2 text-meta text-muted-foreground">
+                Past your monthly credits or this project&apos;s spending cap ({ws.project.settings.budgetCapCredits} credits), AI helpers answer from their script or pause, and tell you. They never keep spending quietly.
+              </p>
             </section>
 
             <p className="text-ui text-muted-foreground">

@@ -9,7 +9,8 @@ import {
   type Vertical,
 } from "@/lib/blueprint/schema";
 import { estimate } from "@/lib/blueprint/estimate";
-import { estimateRunCredits, presetPermission } from "@/lib/blueprint/describe";
+import { presetPermission } from "@/lib/blueprint/describe";
+import { PRICE } from "@/lib/prices";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { hash } from "@/lib/sim/hash";
 import type { Draft } from "./draft";
@@ -198,7 +199,8 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
       supervision: a.supervision,
       knowledge: [],
       memory: { scope: a.memory, retentionDays: a.memory === "org" ? 365 : 30 },
-      cost: { creditsPerRun: estimateRunCredits({ tools, jobDescription, rules: guardrails, cost: { model: opts.modelId } }), model: opts.modelId },
+      // One price for each message Claude answers, whatever the helper (lib/prices.ts).
+      cost: { creditsPerRun: PRICE.helperMessage, model: opts.modelId },
       triggers: ["chat"],
       rehearsals: a.rehearsals.slice(0, 4).map((r, i) => ({ id: `r-${kebab(r.name)}-${i}`, name: r.name, input: r.input, expect: r.expect, history: [] })),
       framework: "lyzr",

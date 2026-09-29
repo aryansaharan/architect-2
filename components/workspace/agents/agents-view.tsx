@@ -20,7 +20,8 @@ import { FRAMEWORKS } from "@/lib/codegen/frameworks";
 import { agentYaml, rulesMd, soulMd } from "@/lib/codegen/agentFiles";
 import { addRehearsal, runRehearsals } from "@/lib/actions/agents";
 import { setFramework } from "@/lib/actions/blueprint";
-import { creditsUsd, formatUsd } from "@/lib/format";
+import { formatUsd } from "@/lib/format";
+import { PRICE } from "@/lib/prices";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 import { AddAgentDialog } from "./add-agent-dialog";
@@ -219,7 +220,7 @@ function HelperView({ agent, onRunSaved, onDetails }: { agent: Agent; onRunSaved
           </section>
 
           <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted-foreground">
-            <span>About <span className="tabular-nums">{agent.cost.creditsPerRun}</span> <Term k="credits">credits</Term> a conversation (≈ {creditsUsd(agent.cost.creditsPerRun)})</span>
+            <span><span className="tabular-nums">{PRICE.helperMessage}</span> <Term k="credits">credits</Term> a message Claude answers</span>
             <span aria-hidden>·</span>
             <button onClick={onDetails} className="underline decoration-dotted underline-offset-4 transition-colors duration-150 hover:text-foreground">Details for developers</button>
           </p>

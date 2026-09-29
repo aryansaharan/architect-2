@@ -1,9 +1,7 @@
 "use client";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, CircleAlert, GitPullRequest, NotebookPen } from "lucide-react";
+import { ArrowRight, GitPullRequest, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { creditsUsd } from "@/lib/format";
 import { simulatedDuration } from "@/lib/blueprint/estimate";
 import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
 import { useChangeOrderOpen } from "../composer-dock";
@@ -50,37 +48,34 @@ export function BriefNote({ brief, label = "What you asked for" }: { brief: stri
 }
 
 /**
- * The price note and the one button. Pressing Make it real starts the build with
- * ws.build.start, the same call as the plan map's "Make it real", so the charge, refunds and resume all work the same.
+ * The note before the build and the one button. Making it real is free: the plan's own price was paid
+ * when Claude planned it, and the history says so. Pressing Make it real starts the build with
+ * ws.build.start, the same call as the plan map's "Make it real", so stopping and resuming work the same.
  */
-export function PriceNote() {
+export function ReadyNote() {
   const ws = useSheet();
   const bp = ws.blueprint;
-  const est = bp.estimate;
   const [starting, setStarting] = useState(false);
   const changeWaiting = useChangeOrderOpen();
-  const remaining = Math.max(0, ws.usage.cap - ws.usage.credits);
-  const over = est.credits > remaining;
   // How long you'll wait here. That the build is a visual is said once, on the build itself.
   const wait = useMemo(() => simulatedDuration(totalDuration(buildTimeline(bp))), [bp]);
-  const priceId = useId();
+  const readyId = useId();
 
   return (
-    <section aria-labelledby={priceId} className="mt-12 border-t border-dashed border-hairline-hi pt-7">
-      {/* The heading in pencil; the price in print, so the figures read as figures. */}
-      <h2 id={priceId} className="font-pencil text-section text-foreground">
+    <section aria-labelledby={readyId} className="mt-12 border-t border-dashed border-hairline-hi pt-7">
+      {/* The heading in pencil; the facts in print. */}
+      <h2 id={readyId} className="font-pencil text-section text-foreground">
         Ready when you are
       </h2>
       <p className="mt-2 text-lead text-foreground">
-        Making it real costs <span className="font-semibold tabular-nums">about {est.credits} credits</span>{" "}
-        <span className="tabular-nums text-muted-foreground">(≈ {creditsUsd(est.credits)})</span> and takes <span className="tabular-nums">about {wait}</span>.
+        Making it real is <span className="font-semibold">free</span> and takes <span className="tabular-nums">about {wait}</span>.
       </p>
       <p className="mt-0.5 text-body text-muted-foreground">Nothing is built until you press Make it real.</p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button
           size="cta"
-          disabled={starting || over || changeWaiting}
+          disabled={starting || changeWaiting}
           onClick={async () => {
             setStarting(true);
             await ws.build.start();
@@ -95,34 +90,9 @@ export function PriceNote() {
         </Button>
       </div>
 
-      <div className="mt-3 space-y-1 text-meta tabular-nums text-muted-foreground">
+      <div className="mt-3 space-y-1 text-meta text-muted-foreground">
         {changeWaiting && <p className="text-foreground">A change note is waiting for your OK in the margin. Decide on it first, then make it real.</p>}
-        {over ? (
-          // Going past the cap can be undone (raise it), so this is ink with an icon, not rose.
-          <p className="flex items-start gap-1.5 text-foreground">
-            <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-            <span>
-              This would go past your monthly cap ({Math.round(remaining)} of {ws.usage.cap} credits left).{" "}
-              <Link href="/settings#usage" className="text-brand underline decoration-dotted underline-offset-4 hover:text-brand-hi">
-                Raise it in Settings
-              </Link>{" "}
-              first.
-            </span>
-          </p>
-        ) : (
-          <p>Stop at any time and the credits come back. If something breaks on our side, fixing it is free. {Math.round(remaining)} of your {ws.usage.cap} credits left this month.</p>
-        )}
-        <details className="group">
-          <summary className="w-fit cursor-pointer rounded-sm underline decoration-dotted underline-offset-4 hover:text-foreground">Where the price comes from</summary>
-          <ul className="mt-2 max-w-[340px] space-y-1 text-meta tabular-nums text-foreground/80">
-            {est.breakdown.map((b) => (
-              <li key={b.label} className="flex justify-between gap-6 border-b border-dashed border-hairline pb-1">
-                <span>{b.label.replace(/\bagents\b/, "AI helpers").replace(/\bapproval gates\b/, "ask-first steps")}</span>
-                <span>{b.credits} credits</span>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <p>Stop at any time. If something breaks on our side, fixing it is free too.</p>
       </div>
     </section>
   );
@@ -134,7 +104,7 @@ export function MappedNote() {
   return (
     <section aria-label="Imported project" className="mt-12 border-t border-dashed border-hairline-hi pt-7">
       <h2 className="font-pencil text-section text-foreground">Mapped from your repo. It&apos;s untouched.</h2>
-      <p className="mt-2 text-body text-muted-foreground">Nothing was built or charged. There&apos;s nothing to make real: it already is.</p>
+      <p className="mt-2 text-body text-muted-foreground">Nothing was built. There&apos;s nothing to make real: it already is.</p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button size="cta" onClick={() => ws.focusComposer(null)}>
           <NotebookPen aria-hidden /> Write your first change note

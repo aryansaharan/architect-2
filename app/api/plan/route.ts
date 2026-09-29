@@ -4,6 +4,7 @@ import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writ
 import { starterFor } from "@/lib/blueprint/fixtures";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { holdModelBudget } from "@/lib/llm/guard";
+import { PRICE, canAfford, outOfCreditsNote } from "@/lib/pricing";
 import { projectCapMessage } from "@/lib/security/caps";
 import { NOTHING_CONNECTED_NOTE, cleanConnections, connectionsNote, ensureConnections, isNothingOnly, saysNothingConnected, startNotConnected } from "@/lib/llm/draft";
 import { estimate } from "@/lib/blueprint/estimate";
@@ -45,6 +46,15 @@ export async function POST(req: Request) {
   if (full) return Response.json({ error: full }, { status: 403 });
   const hold = await holdModelBudget(user, "plan");
   if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of plans in a few minutes. Wait a little, then try again." }, { status: 429 });
+  // A plan by Claude costs credits; without enough, it starts from the closest starter plan, free.
+  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "plan") : null;
+  if (hold.ok && afford && !afford.ok) await hold.release();
+  const useModel = hold.ok && Boolean(afford?.ok);
+  const noModelNote = user.isAnonymous
+    ? "Guests start from the closest starter plan. Sign in and Claude plans it from your own words."
+    : afford && !afford.ok
+      ? outOfCreditsNote(afford.credits, "this plan starts from the closest starter plan")
+      : undefined;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -56,8 +66,8 @@ export async function POST(req: Request) {
         const { blueprint, mode, spent: cost, vertical } = await streamPlan({
           prompt: `Brief: ${brief}\n\nAnswers to quick questions:\n${answers || "(skipped, use sensible defaults)"}${nothingConnected ? `\n\n${NOTHING_CONNECTED_NOTE}` : wanted.length ? `\n\n${connectionsNote(wanted)}` : ""}`,
           userId: user.id,
-          allowModel: hold.ok,
-          noModelNote: user.isAnonymous ? "Guests start from the closest starter plan. Sign in and Claude plans it from your own words." : undefined,
+          allowModel: useModel,
+          noModelNote,
           send,
           fallback: () => starterFor(brief).blueprint,
           adjust,
@@ -84,9 +94,9 @@ export async function POST(req: Request) {
             // Plain facts, no model names: who planned it, what it costs, and that nothing is built yet.
             body:
               mode === "live"
-                ? `Planned by Claude from your words. Planning is free. Making it real costs about ${blueprint.estimate.credits} credits. Nothing is built until you press Make it real.${keysNote}`
-                : `Started from the closest starter plan. Planning is free. Making it real costs about ${blueprint.estimate.credits} credits. Nothing is built until you press Make it real.${keysNote}`,
-            credits: 0,
+                ? `Planned by Claude from your words · ${PRICE.plan} credits. Making it real is free, and nothing is built until you press it.${keysNote}`
+                : `Started from the closest starter plan, free. Making it real is free too, and nothing is built until you press it.${keysNote}`,
+            credits: mode === "live" ? PRICE.plan : 0,
             checkpointId: cp.id,
           },
         ]);
@@ -95,10 +105,11 @@ export async function POST(req: Request) {
         console.error("[plan] save failed", e);
         send({ t: "error", message: e instanceof Error && /project cap|row-level/i.test(e.message) ? (await projectCapMessage(supa, user)) ?? "Couldn't save the project. Try again." : "Couldn't save the project. Try again." });
       } finally {
-        // Planning is free to you: 0 credits on your meter. The real cost is still metered, saved or not,
-        // for the daily model budget; a failed call is billed by the provider too.
-        if (spent) await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: 0, meta: { op: "plan", free: true, modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
-        if (hold.ok) await hold.release();
+        // A saved plan by Claude costs its price; a failed call or a plan that couldn't be saved costs you nothing.
+        // Its real cost is metered either way, for the daily model budget (the provider bills a failed call too).
+        const charged = spent && !spent.failed && projectId ? PRICE.plan : 0;
+        if (spent) await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: spent.model, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens, costUsd: spent.costUsd, credits: charged, meta: { op: "plan", modelCredits: spent.credits, failed: spent.failed, estimated: spent.estimated } });
+        if (useModel) await hold.release();
       }
       controller.close();
     },

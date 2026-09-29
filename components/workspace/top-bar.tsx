@@ -4,8 +4,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { motion } from "motion/react";
-import { Check, ChevronDown, Code2, Coins, Copy, ExternalLink, Eye, History, Home, Inbox, Keyboard, LogOut, Map as MapIcon, Pause, Play, Rocket, Search, Settings, Share2, Undo2, UserRoundPlus, UsersRound } from "lucide-react";
+import { ChevronDown, Code2, Coins, Copy, ExternalLink, Eye, History, Home, Inbox, Keyboard, LogOut, Map as MapIcon, Pause, Play, Rocket, Search, Settings, Share2, Undo2, UserRoundPlus, UsersRound } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
+import { MeterBar, PriceList, meterWords } from "@/components/credits";
 import { Button } from "@/components/ui/button";
 import { Pill, type PillTone } from "@/components/ui/pill";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +17,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
 import { SPRING } from "@/lib/motion";
-import { creditsUsd } from "@/lib/format";
+import { resetWords } from "@/lib/prices";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
 import type { CheckpointMeta } from "@/lib/db/types";
@@ -138,7 +139,7 @@ function ProjectStatus() {
         Replaying
       </Pill>
     );
-  // The Sheet has the resume note (free) and the stop-and-refund choice.
+  // The Sheet has the resume note: resume it or stop it.
   if (ws.build.interrupted)
     return (
       <Link href={`/p/${ws.project.id}`} className="shrink-0 rounded-full transition-opacity duration-150 ease-paper hover:opacity-80">
@@ -314,13 +315,33 @@ function VersionItems({ current }: { current: CheckpointMeta }) {
   );
 }
 
-/** Credits, quietly and always the same words: "97 of 500 credits" on wide screens, a coin with the same words on narrow ones. */
+/**
+ * The person's credits this month, quietly and always the same words: "240 of 300 credits this month" on wide
+ * screens, a coin with the same words on narrow ones. A guest has no credits: it says so and links to sign in.
+ */
 function Credits() {
   const ws = useWorkspace();
-  const { credits, cap } = ws.usage;
-  const used = Math.round(credits);
-  const words = `${used} of ${cap} credits`;
-  const pct = Math.min(1, cap ? credits / cap : 0);
+  const m = ws.credits;
+  if (m.guest) {
+    const offer = `Sign in for ${m.memberAllowance} free credits a month`;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={`/login?next=${encodeURIComponent(`/p/${ws.project.id}`)}`}
+            aria-label={`Guest · starter plans. ${offer}`}
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:bg-deep hover:text-foreground max-sm:hidden"
+          >
+            <Coins className="size-3.5 xl:hidden" aria-hidden />
+            <span className="whitespace-nowrap max-xl:hidden">Guest · starter plans</span>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent>{offer}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  const words = meterWords(m);
+  const { credits: projectSpent, cap } = ws.usage;
   return (
     <Popover>
       <Tooltip>
@@ -328,41 +349,29 @@ function Credits() {
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label={`${words} used this month. Spending details`}
+              aria-label={`${words} used this month. Details`}
               className="flex h-8 items-center gap-1.5 rounded-md px-2 text-meta text-muted-foreground transition-colors duration-150 ease-paper hover:bg-deep hover:text-foreground max-sm:hidden"
             >
               <Coins className="size-3.5 xl:hidden" aria-hidden />
-              <span className="whitespace-nowrap tabular-nums max-xl:hidden">{words}</span>
+              <span className="whitespace-nowrap tabular-nums max-xl:hidden">{words} this month</span>
             </button>
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent>{words} used this month</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-80">
-        <p className="text-meta text-muted-foreground">This project · this month</p>
+        <p className="text-meta text-muted-foreground">Your free credits · this month</p>
         <p className="mt-1 text-lead font-semibold tabular-nums">{words}</p>
-        <p className="text-meta tabular-nums text-muted-foreground">≈ {creditsUsd(credits)} used</p>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-deep">
-          <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, pct * 100)}%` }} />
-        </div>
-        <ul className="mt-4 space-y-2 text-ui">
-          <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
-            Every change shows its price before it runs.
-          </li>
-          <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
-            <span>
-              Fixes for our own mistakes are free. They&apos;re labelled <span className="text-fix">Our fix</span>.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
-            AI helpers pause and tell you before passing the cap.
-          </li>
-        </ul>
+        <MeterBar m={m} className="mt-2" />
+        <p className="mt-2 text-meta tabular-nums text-muted-foreground">
+          {Math.floor(m.left)} left. {resetWords(m.resetsOn)}
+        </p>
+        <PriceList className="mt-4" />
+        <p className="mt-3 text-meta tabular-nums text-muted-foreground">
+          This project&apos;s own spending cap: {Math.round(projectSpent)} of {cap} credits used this month.
+        </p>
         <Button asChild variant="outline" size="sm" className="mt-4 w-full">
-          <Link href="/settings#usage">See the breakdown and change the cap</Link>
+          <Link href="/settings#usage">See the breakdown and the cap</Link>
         </Button>
       </PopoverContent>
     </Popover>

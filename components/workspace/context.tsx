@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { parseRef, refToString } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, LedgerRow, ProjectSettings, WorkOrderRow, BuildState, HandoffRow } from "@/lib/db/types";
+import type { CreditMeter } from "@/lib/prices";
 import { useBuildRunner, type BuildRunner } from "./use-build-runner";
 
 export type WorkspaceData = {
@@ -20,7 +21,10 @@ export type WorkspaceData = {
   blueprint: Blueprint;
   checkpoints: CheckpointMeta[];
   ledger: LedgerRow[];
+  /** This project's spend and its optional spending cap (enforced on changes and AI helpers). */
   usage: { credits: number; cap: number };
+  /** The person's own credits this month: the meter in the top bar. */
+  credits: CreditMeter;
   liveSlug: string | null;
   user: { name: string; isAnonymous: boolean; avatarUrl: string | null };
   handoffs: HandoffRow[];

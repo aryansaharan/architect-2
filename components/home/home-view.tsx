@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
+import type { CreditMeter } from "@/lib/prices";
 import { Greeting } from "./greeting";
 import { HomeComposer } from "./home-composer";
 import { ProjectCard, type HomeProject } from "./project-card";
@@ -10,23 +11,21 @@ export function HomeView({
   user,
   projects,
   credits,
-  cap,
 }: {
   user: { name: string; isAnonymous: boolean; avatarUrl: string | null };
   projects: HomeProject[];
-  credits: number;
-  cap: number;
+  credits: CreditMeter;
 }) {
   const first = user.name.split(" ")[0];
   return (
     <div className="min-h-screen">
-      <AppHeader current="/home" user={user} credits={credits} cap={cap} />
+      <AppHeader current="/home" user={user} credits={credits} />
 
       <main id="main" className="mx-auto max-w-5xl px-5 pb-24 pt-10 sm:px-6 sm:pt-14">
         {user.isAnonymous && (
           <div className="mb-10 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-md border border-dashed border-hairline-hi px-4 py-3 text-body text-muted-foreground">
             <p className="min-w-0 flex-1 basis-72">
-              You&apos;re trying Prod AI as a guest, so new apps start from the closest starter plan. Sign in and Claude plans them from your own words. Your work comes with you.
+              You&apos;re trying Prod AI as a guest, so new apps start from the closest starter plan. Sign in for {credits.memberAllowance} free credits a month and Claude plans them from your own words. Your work comes with you.
             </p>
             <Button asChild variant="outline" className="relative after:absolute after:inset-x-0 after:-inset-y-1">
               <Link href="/login?next=/home">Sign in to keep this work</Link>

@@ -8,9 +8,11 @@ import { costOf } from "@/lib/llm/pricing";
 import { agentInstructions, approvalFor, buildTools, stubResult } from "@/lib/agents/tools";
 import { scriptedRun } from "@/lib/agents/scripted";
 import { holdModelBudget } from "@/lib/llm/guard";
+import { PRICE, canAfford } from "@/lib/pricing";
 import { shortId } from "@/lib/sim/hash";
 import type { Agent, Blueprint } from "@/lib/blueprint/schema";
 import type { ToolCallRecord } from "@/lib/db/types";
+import { monthStartIso } from "@/lib/prices";
 
 export const maxDuration = 90;
 export const dynamic = "force-dynamic";
@@ -195,14 +197,17 @@ export async function POST(req: Request) {
   };
 
   // Budget fence: stop before passing the cap, and say so (HTTP 200, not an error).
-  const spent = await usageSummary(supa, { projectId: project.id });
+  const spent = await usageSummary(supa, { projectId: project.id, sinceIso: monthStartIso() });
   if (spent.credits >= project.settings.budgetCapCredits) {
     return notice(body.messages, "cap", `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on. Nothing was charged for this message.`, "budget");
   }
 
   const hold = await holdModelBudget(user, "chat");
   if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give me a moment, then try again. Nothing was charged.", "rate");
-  const m = hold.ok ? getModel() : null;
+  // A message answered by Claude costs credits; without enough, the helper plays its scripted run, free.
+  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "helperMessage") : null;
+  if (hold.ok && afford && !afford.ok) await hold.release();
+  const m = hold.ok && afford?.ok ? getModel() : null;
   if (m && hold.ok) {
     // Metered exactly once, however the run ends: finished, failed or abandoned. The provider bills every step.
     const done = { input: 0, output: 0 };
@@ -211,9 +216,9 @@ export async function POST(req: Request) {
     const meter = async (input: number, output: number, failed: boolean) => {
       if (metered) return;
       metered = true;
-      const { costUsd, credits } = costOf(m.id, input, output);
-      // A failed run is not charged to you (0 credits); its real cost still counts toward the daily model budget.
-      await logUsage({ userId: user.id, projectId: project.id, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits: failed ? 0 : credits, meta: { agentId: agent.id, runId, ...(failed ? { failed: true } : {}) } });
+      const { costUsd } = costOf(m.id, input, output);
+      // One price per message answered; a failed run is not charged (its real cost still counts toward the daily model budget).
+      await logUsage({ userId: user.id, projectId: project.id, kind: "agent_run", provider: "anthropic", model: m.id, inputTokens: input, outputTokens: output, costUsd, credits: failed ? 0 : PRICE.helperMessage, meta: { agentId: agent.id, runId, ...(failed ? { failed: true } : {}) } });
       await hold.release();
     };
     try {
@@ -259,7 +264,7 @@ export async function POST(req: Request) {
       console.error("[chat] model failed, scripted fallback:", e instanceof Error ? e.message : e);
       await hold.release();
     }
-  } else if (hold.ok) await hold.release();
+  } else if (hold.ok && afford?.ok) await hold.release();
 
   const stream = createUIMessageStream({
     originalMessages: body.messages,
