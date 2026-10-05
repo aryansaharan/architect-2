@@ -49,37 +49,37 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
   {
     part: "Studio, auth, data",
     status: [{ label: "Real", kind: "real" }],
-    today: "Next.js 16 on Vercel, Supabase Auth (Google, email, guest sessions you can keep), Postgres with row-level security on every table",
+    today: "Next.js 16 on Vercel Hobby, Supabase Auth (Google, email link, guest sessions you can keep), Postgres with row-level security on every table. One server-only admin connection writes only the rows people must not: the spend meter, rate limits, budget holds, published sites, abuse reports and published apps' records",
     prod: "The studio backend runs in each regional cell (service identities, residency, long-lived streams); Vercel keeps the marketing site. Plus SAML SSO, SCIM and regional data residency",
   },
   {
     part: "Planner",
     status: [{ label: "Real", kind: "real" }],
-    today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference",
+    today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference. Guests start from a starter plan",
     prod: "Same contract, routed through the model gateway",
   },
   {
     part: "Change requests",
     status: [{ label: "Real", kind: "real" }],
-    today: "Claude returns typed edits; code resolves names and emits validated operations, with one self-repair retry; each change is a priced Work Order and a save point",
+    today: "Claude returns typed edits; code resolves names and emits validated operations, with one self-repair retry; each change has a fixed price, Apply and Undo, and makes a new version",
     prod: "Same, executed by the harness in a sandbox; parallel Work Orders rebase onto a versioned Blueprint",
   },
   {
     part: "Model gateway",
     status: [
-      { label: "Model switch by environment: real", kind: "real" },
+      { label: "Model switch and budgets: real", kind: "real" },
       { label: "Routing gateway: designed", kind: "designed" },
     ],
-    today: "One getModel() seam that picks the model from the environment, with per-call token and cost metering and daily budgets per person. One provider (Anthropic) and no gateway service",
+    today: "One getModel() seam that picks the model from the environment. Every call passes a rate limit and holds its cost against per-person and site-wide 24-hour budgets; failed calls are metered too. One provider (Anthropic) and no gateway service",
     prod: "A gateway service: routing by task, eval-gated switches, failover in the middle of a tool loop, prompt caching, BYOK, and a separate deployment for live apps",
   },
   {
     part: "Approvals and the agent gateway",
     status: [
-      { label: "Approval gate in the playground: real", kind: "real" },
+      { label: "Approval gates: real", kind: "real" },
       { label: "Production gateway: designed", kind: "designed" },
     ],
-    today: "Claude + AI SDK tool approval: tools marked “Ask first” pause for a person before running. Tools run on sandboxed sample data; nothing holds credentials or controls egress yet",
+    today: "Claude + AI SDK tool approval, signed by the server: tools marked “Ask first” pause for a person. Try it runs on sample data; helpers in published apps work on that app's records and send email only after a person says yes. Other outside connections aren't real yet, and nothing holds credentials or controls egress",
     prod: "Every production tool call passes an egress gateway that holds the credentials, enforces approvals and caps, tracks untrusted content per run, and traces the call",
   },
   {
@@ -88,7 +88,7 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
       { label: "Build: simulated, labelled", kind: "stand-in" },
       { label: "Repair decision: real", kind: "real" },
     ],
-    today: "Deterministic build timeline with a real repair decision that changes the Blueprint and creates a save point",
+    today: "A deterministic build animation with a real repair decision that changes the Blueprint and makes a new version. No generated code runs",
     prod: "Full tool loop inside microVMs with verifier and budgets",
   },
   {
@@ -107,13 +107,13 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
     prod: "GitHub App with a branch and worktree per Work Order, a merge queue and two-way sync",
   },
   {
-    part: "Deploy",
+    part: "Deploy and published apps",
     status: [
-      { label: "Public /live URL + rollback: real", kind: "real" },
+      { label: "Public /live URL, records, rollback: real", kind: "real" },
       { label: "Builds and releases: designed", kind: "designed" },
     ],
-    today: "A public /live/… URL serves a published Blueprint snapshot through the spec renderer, with rollback. No build runs; Vercel and VPC targets are sandboxed",
-    prod: "Immutable releases, canary rollout, instant rollback",
+    today: "A public /live/… URL renders a published Blueprint snapshot, with rollback, real records (up to 2,000 per app, with undo) and team screens for invited people. No build runs; Vercel and VPC targets are sandboxed",
+    prod: "Immutable releases, canary rollout, instant rollback, and a database per app",
   },
 ];
 

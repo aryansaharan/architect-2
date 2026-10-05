@@ -94,7 +94,7 @@ export function SettingsView({
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
       await navigator.clipboard.writeText(link);
       setInvite({ link, copied: true });
-      toast.success("Invite link copied", { description: "Sandbox: it opens sign-in. Roles are simulated in this prototype." });
+      toast.success("Invite link copied", { description: "It opens sign-in. Workspace roles aren't enforced yet: to share an app, invite people from its Publish tab." });
     } catch {
       setInvite({ link, copied: false });
       toast.message("Copy the invite link below", { description: "Your browser didn't allow copying automatically." });
@@ -201,7 +201,7 @@ export function SettingsView({
 
         <section id="connections" className="scroll-mt-24">
           <h2 className="font-pencil text-section">Connections</h2>
-          <p className="mt-2 text-ui text-muted-foreground">What your AI helpers may reach. Each connection says in plain English what it allows. Sandbox in this prototype.</p>
+          <p className="mt-2 text-ui text-muted-foreground">What your AI helpers may reach. Each connection says in plain English what it allows. Email is real once it&apos;s set up; the others run on test data for now.</p>
           <ul className="panel mt-5 grid rounded-md lg:grid-cols-2">
             {CATALOG.map((c, i) => {
               const account = connected.has(c.provider);
@@ -302,7 +302,7 @@ export function SettingsView({
           <h2 className="font-pencil text-section">Deploy targets</h2>
           <ul className="panel mt-5 divide-y divide-hairline rounded-md">
             {[
-              { icon: Cloud, name: "Prod Cloud", body: "Managed, instant, regional. Real in this prototype.", on: true },
+              { icon: Cloud, name: "Prod Cloud", body: "Managed and instant. Published apps run here today.", on: true },
               { icon: Server, name: "Vercel", body: "Your team, your deploy previews.", on: connected.has("vercel") },
               { icon: Container, name: "Your VPC / on-prem", body: "Docker bundle and runtime images for your AI helpers.", on: false },
             ].map((t) => (

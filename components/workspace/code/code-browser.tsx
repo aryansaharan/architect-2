@@ -502,7 +502,7 @@ function OpenIn({ pr, snap }: { pr: ImportPullRequest | null; snap: RepoSnapshot
     toast.success("Clone command copied", {
       description: pr
         ? `${cmd}. Your repo is real; PR #${pr.number} is a sandbox and isn't pushed, so its files come from the zip.`
-        : `${cmd}. Sandbox: GitHub isn't really connected in this prototype and nothing has been pushed to ${repo}, so the clone won't find it yet. Use the zip for the code.`,
+        : `${cmd}. Sandbox: GitHub isn't connected for real yet and nothing has been pushed to ${repo}, so the clone won't find it. Use the zip for the code.`,
     });
   };
   return (
@@ -548,7 +548,7 @@ function GitHubPanel({ workOrders, pr, snap, className }: { workOrders: WorkOrde
           <Button className="mt-3 w-full" disabled={pending} onClick={() => start(async () => { const r = await connectGitHub(ws.project.id); if (r.ok) toast.success(`Connected ${r.repo}`, { description: "Sandbox: the flow is real, the push is simulated." }); router.refresh(); })}>
             {pending ? <Loader2 className="animate-spin" /> : <GitHubMark />} Connect GitHub
           </Button>
-          <p className="mt-2 text-meta text-faint">Sandbox in this prototype.</p>
+          <p className="mt-2 text-meta text-faint">A sandbox for now: nothing is pushed for real yet.</p>
         </div>
       ) : (
         <div className="mt-3 space-y-4">

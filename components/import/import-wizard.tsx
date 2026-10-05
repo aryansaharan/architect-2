@@ -103,7 +103,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
             ))}
           </div>
           {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-md border border-hairline-hi bg-panel px-3 py-2 text-ui text-foreground"><CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />{error}</p>}
-          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-ui text-muted-foreground">Private repository? Connect GitHub from Code and GitHub in any project (a sandbox in this prototype). ZIP and Figma imports are next on the list.</p>
+          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-ui text-muted-foreground">Private repository? Connecting GitHub for private repositories is coming; for now, public repositories only. ZIP and Figma imports are next on the list.</p>
         </div>
         {step === "reading" && (
           <ol className="panel mt-4 space-y-1.5 rounded-md px-5 py-4 text-body" aria-live="polite" aria-label="Reading the repository">

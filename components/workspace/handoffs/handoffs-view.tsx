@@ -225,7 +225,7 @@ function Quote({ h }: { h: HandoffRow }) {
   );
 }
 
-/** Resolving is simulated in this prototype: the teammate answers with a small, real change where one applies. */
+/** Resolving is simulated for now: the teammate answers with a small, real change where one applies. */
 function useResolve(h: HandoffRow) {
   const ws = useWorkspace();
   const router = useRouter();
@@ -343,7 +343,7 @@ function RequesterView({ h }: { h: HandoffRow }) {
       ) : (
         <div className="panel flex flex-wrap items-center gap-3 rounded-md p-4">
           <p className="min-w-0 flex-1 text-ui text-muted-foreground">
-            You&apos;ll see {mate.first}&apos;s answer here and in your activity, no need to chase. In this prototype {mate.first} is simulated, so you can play their part.
+            You&apos;ll see {mate.first}&apos;s answer here and in your activity, no need to chase. For now {mate.first} is simulated, so you can play their part.
           </p>
           <Button variant="outline" disabled={resolve.pending} onClick={() => resolve.run()}>
             {resolve.pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve as {mate.first} (simulated)

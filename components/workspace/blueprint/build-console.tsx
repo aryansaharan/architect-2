@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
 import { useWorkspace } from "../context";
 
-export const SIMULATED_NOTE = "The plan, code and data are real. Build steps and test runs are scripted in this prototype.";
+export const SIMULATED_NOTE = "The plan, code and data are real. The build steps and test runs you watch are scripted.";
 
 /** Calm, always-visible label for the parts of the build that are a scripted playback. */
 export function SimulatedChip({ className }: { className?: string }) {

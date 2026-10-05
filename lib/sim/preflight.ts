@@ -16,7 +16,6 @@ export type PreflightCheck = {
   fix?: { label: string; action: PreflightFix };
 };
 
-const REGION_LABEL = { us: "United States", eu: "European Union", in: "India" } as const;
 
 /** Deterministic go-live checks. Blocking failures disable "Go live"; warnings don't. */
 export function preflight(
@@ -28,7 +27,6 @@ export function preflight(
   const missing = bp.connections.filter((c) => c.status === "missing");
   const reh = rehearsalSummary(bp);
   const built = opts.built ?? true;
-  const region = opts.region ?? bp.meta.region;
 
   return [
     {
@@ -81,10 +79,11 @@ export function preflight(
     },
     {
       id: "residency",
-      label: "Data stays where you chose",
+      label: "Where data is stored",
       plain: "Records and AI helper memory are stored in one region.",
       status: "pass",
-      detail: `Stored in ${REGION_LABEL[region]}.`,
+      // One database holds every project today; choosing a region per project is planned (ARCHITECTURE.md, cells).
+      detail: "Stored in the United States (US East) for every project today. Choosing a region per project is planned.",
       blocking: false,
     },
     publicCheck(bp, opts.hiddenEntities ?? [], Boolean(opts.publicHelpers)),

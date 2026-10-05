@@ -20,17 +20,17 @@ const FRAMEWORKS = ["Lyzr ADK", "LangGraph", "CrewAI", "OpenAI Agents SDK", "Goo
 
 const WORKS = [
   "Sign in with Google or an email link, or try it as a guest",
-  "Sign in and Claude plans your app from your own words. Guests start from the closest starter plan.",
+  "Sign in for 300 free credits a month, and Claude plans your app from your own words. Guests start from the closest starter plan, free.",
   "Your projects are saved to your account, and only you can see them",
   "AI helpers you can talk to, which ask before anything that can't be undone",
+  "Published apps keep real records you can undo, with team screens only the people you invite can open",
   "Bring a public GitHub repo, and get code for six agent frameworks",
-  "A public link for every app you publish",
 ];
 
 const TEST_MODE = [
-  "Making it real follows a set script. The plan, the code and the data are yours.",
-  "Pull requests to GitHub stay in a sandbox",
-  "Email, payments and other outside services run on test data",
+  "Making it real is an animation for now. Your app is drawn from its plan; the code it writes doesn't run yet.",
+  "Pull requests to GitHub stay in a sandbox, and publishing goes to Prod Cloud only",
+  "Outside services other than email, like payments and Slack, aren't connected yet: nothing is paid or posted",
 ];
 
 /** A small button's tap area, grown to 40px on touch screens without changing how it looks. */
