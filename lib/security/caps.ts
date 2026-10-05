@@ -9,6 +9,6 @@ export const PROJECT_CAP = { guest: 5, member: 25 } as const;
 export async function projectCapMessage(supa: Supa, user: SessionUser): Promise<string | null> {
   const { data, error } = await supa.rpc("my_project_count");
   if (error || typeof data !== "number") return null;
-  if (user.isAnonymous) return data >= PROJECT_CAP.guest ? `Guests can keep up to ${PROJECT_CAP.guest} projects. Sign in to make more.` : null;
+  if (user.isAnonymous) return data >= PROJECT_CAP.guest ? `Guests can keep up to ${PROJECT_CAP.guest} projects. Sign in to keep more, or delete one.` : null;
   return data >= PROJECT_CAP.member ? `You have ${PROJECT_CAP.member} projects, the most one account can keep. Delete one to make another.` : null;
 }

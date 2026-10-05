@@ -1,21 +1,22 @@
-import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { loadSite, roleFor } from "@/lib/apps/access";
+import { loadSiteOnce, roleFor } from "@/lib/apps/access";
 import { liveView } from "@/lib/apps/live";
+import { publicAccess } from "@/lib/apps/view";
+import { emailConfigured } from "@/lib/email";
 import { LiveApp, type LiveViewer } from "@/components/renderer/live-app";
 
-/** One read per request, shared by the metadata and the page. A blocked or missing site reads as not found. */
-const site = cache(loadSite);
+/** One read per request, shared by the metadata, the social image and the page. A blocked or missing site reads as not found. */
+const site = loadSiteOnce;
 
 export async function generateMetadata(props: PageProps<"/live/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
   const s = await site(slug);
   const robots = { index: false, follow: false };
   if (!s) return { title: "Not found", robots };
-  // A private app shows strangers its name and nothing more.
-  const open = s.blueprint.screens.some((x) => x.audience === "customer");
+  // A private app (no public pages left once hidden data types are taken out) shows strangers its name and nothing more.
+  const open = publicAccess(s.blueprint, s.settings.app?.hiddenEntities).screens.length > 0;
   return { title: { absolute: s.blueprint.meta.name }, description: open ? s.blueprint.meta.tagline : undefined, robots };
 }
 
@@ -35,7 +36,7 @@ export default async function LivePage(props: PageProps<"/live/[slug]">) {
   return (
     <LiveApp
       app={app}
-      view={view.privateOnly ? null : { role: view.role, bp: view.bp, records: view.records, canCreate: view.canCreate, canEdit: view.canEdit, hasSample: view.hasSample, publicHelpers: Boolean(s.settings.app?.publicHelpers) }}
+      view={view.privateOnly ? null : { role: view.role, bp: view.bp, records: view.records, canCreate: view.canCreate, canEdit: view.canEdit, hasSample: view.hasSample, publicHelpers: Boolean(s.settings.app?.publicHelpers), emailReady: emailConfigured() }}
       viewer={viewer}
       publishedAt={s.publishedAt}
       slug={slug}

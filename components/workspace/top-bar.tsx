@@ -16,10 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { TimeAgo } from "@/components/time-ago";
 import { cn } from "@/lib/utils";
-import { SPRING } from "@/lib/motion";
+import { DUR, EASE, SPRING } from "@/lib/motion";
 import { resetWords } from "@/lib/prices";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
+import type { CreditMeter } from "@/lib/prices";
 import type { CheckpointMeta } from "@/lib/db/types";
 import { useWorkspace } from "./context";
 import { projectSection } from "./rail-pref";
@@ -222,6 +223,14 @@ function Versions() {
   const [pending, start] = useTransition();
   const current = ws.checkpoints.find((c) => c.id === ws.project.currentCheckpointId) ?? ws.checkpoints[0];
   const prev = versionBefore(ws.checkpoints, current);
+  // A new version was made while you're here: its number takes a brief ink tint, once (not on arrival).
+  const seq = current?.seq;
+  const [seenSeq, setSeenSeq] = useState(seq);
+  const [inked, setInked] = useState(0);
+  if (seq !== seenSeq) {
+    setSeenSeq(seq);
+    if (seenSeq !== undefined && seq !== undefined) setInked((n) => n + 1);
+  }
   if (!current) return null;
   return (
     <DropdownMenu>
@@ -231,7 +240,21 @@ function Versions() {
             <Button variant="ghost" className="gap-1.5 px-2 text-muted-foreground hover:text-foreground">
               <History className="size-3.5" aria-hidden />
               <span className="max-xl:sr-only">Versions</span>
-              <span className="text-meta tabular-nums text-faint max-sm:hidden">v{current.seq}</span>
+              <span className="relative text-meta tabular-nums text-faint max-sm:hidden">
+                v{current.seq}
+                {inked > 0 && (
+                  <motion.span
+                    key={inked}
+                    aria-hidden
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ duration: DUR.page, delay: DUR.hover, ease: EASE }}
+                    className="pointer-events-none absolute -inset-x-1 -inset-y-0.5 grid place-items-center rounded-sm bg-brand-soft text-brand ring-1 ring-brand/30"
+                  >
+                    v{current.seq}
+                  </motion.span>
+                )}
+              </span>
               <ChevronDown className="size-3 opacity-60" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
@@ -458,14 +481,31 @@ function ShareMenu() {
 
 export function UserMenu({ compact }: { compact?: boolean }) {
   const ws = useWorkspace();
-  return <UserMenuView name={ws.user.name} isAnonymous={ws.user.isAnonymous} avatarUrl={ws.user.avatarUrl} compact={compact} workspace />;
+  return <UserMenuView name={ws.user.name} isAnonymous={ws.user.isAnonymous} avatarUrl={ws.user.avatarUrl} compact={compact} credits={ws.credits} signInNext={`/p/${ws.project.id}`} workspace />;
 }
 
 /**
  * The account menu. `workspace` adds "Jump to anything" (⌘K) and the keyboard shortcuts,
- * which only exist inside a project.
+ * which only exist inside a project. `credits` puts this month's credits in the menu on phones,
+ * where the top bar has no room for the meter (or, for a guest, what signing in gives).
  */
-export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace = false }: { name: string; isAnonymous: boolean; avatarUrl: string | null; compact?: boolean; workspace?: boolean }) {
+export function UserMenuView({
+  name,
+  isAnonymous,
+  avatarUrl,
+  compact,
+  credits,
+  signInNext = "/home",
+  workspace = false,
+}: {
+  name: string;
+  isAnonymous: boolean;
+  avatarUrl: string | null;
+  compact?: boolean;
+  credits?: CreditMeter;
+  signInNext?: string;
+  workspace?: boolean;
+}) {
   const pathname = usePathname();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [leaving, startLeaving] = useTransition();
@@ -504,10 +544,26 @@ export function UserMenuView({ name, isAnonymous, avatarUrl, compact, workspace 
             <span className="block text-ui">{name}</span>
             <span className="block text-meta font-normal text-muted-foreground">{isAnonymous ? "Guest session · nothing is lost if you sign in" : "Signed in"}</span>
           </DropdownMenuLabel>
+          {/* Phones only: the top bar's credits meter (or guest prompt) has no room there, so it lives here. */}
+          {credits && !credits.guest && (
+            <DropdownMenuItem asChild className="sm:hidden">
+              <Link href="/settings#usage">
+                <Coins /> <span className="tabular-nums">{meterWords(credits)} this month</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           {isAnonymous && (
             <DropdownMenuItem asChild>
-              <Link href="/login?next=/home" className="text-brand">
-                <UserRoundPlus /> Sign in to keep this work
+              <Link href={`/login?next=${encodeURIComponent(signInNext)}`} className="items-start text-brand">
+                <UserRoundPlus className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block">Sign in to keep this work</span>
+                  {credits?.guest && (
+                    <span className="block text-meta tabular-nums text-muted-foreground sm:hidden">
+                      Guest · starter plans. Members get {credits.memberAllowance} free credits a month.
+                    </span>
+                  )}
+                </span>
               </Link>
             </DropdownMenuItem>
           )}

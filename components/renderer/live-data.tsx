@@ -3,7 +3,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useState } from "react
 import { Check, Loader2, RotateCcw } from "lucide-react";
 import type { Blueprint } from "@/lib/blueprint/schema";
 import type { AppRole } from "@/lib/apps/access";
-import type { AppRecord } from "@/lib/apps/records";
+import type { AppRecord, HistoryEntry } from "@/lib/apps/records";
 import type { LiveData, RecordValues, WriteOutcome } from "./app-context";
 import { RECORDS_CHANGED_EVENT } from "./helper-context";
 
@@ -17,6 +17,8 @@ export type ClientView = {
   hasSample: boolean;
   /** The owner lets visitors talk to the AI helpers on public pages. */
   publicHelpers: boolean;
+  /** Email is set up on this Prod AI (never the key itself). */
+  emailReady: boolean;
 };
 
 type Undo = { key: number; msg: string; changeId?: string; busy?: boolean };
@@ -59,6 +61,7 @@ export function useLiveData(slug: string, view: ClientView) {
     [view.bp, records],
   );
   const ids = useMemo(() => Object.fromEntries(Object.entries(records).map(([e, rows]) => [e, rows.map((r) => r.id)])), [records]);
+  const stamps = useMemo(() => Object.fromEntries(Object.entries(records).map(([e, rows]) => [e, rows.map((r) => r.updatedAt)])), [records]);
 
   const show = useCallback((u: Omit<Undo, "key">) => setUndo({ ...u, key: Date.now() + Math.random() }), []);
 
@@ -68,6 +71,12 @@ export function useLiveData(slug: string, view: ClientView) {
       hasSample,
       recordId: (entityId, index) => ids[entityId]?.[index],
       indexOf: (entityId, id) => ids[entityId]?.indexOf(id) ?? -1,
+      stamp: (entityId, index) => stamps[entityId]?.[index],
+      history: async (recordId: string) => {
+        const { ok, body } = await call(`${base}/records/${recordId}/history`);
+        if (!ok || !Array.isArray(body?.history)) return { ok: false, error: typeof body?.error === "string" ? body.error : "Couldn't load this record's history." };
+        return { ok: true, history: body.history as HistoryEntry[] };
+      },
       createRecord: async (entityId: string, values: RecordValues, formId?: string) => {
         const { ok, body } = await call(`${base}/records`, { method: "POST", body: JSON.stringify({ entityId, values, formId }) });
         if (!ok) return failed(body, "That didn't go through. Try again.");
@@ -86,7 +95,7 @@ export function useLiveData(slug: string, view: ClientView) {
         return { ok: true };
       },
     }),
-    [view.canEdit, hasSample, ids, base, refresh, show],
+    [view.canEdit, hasSample, ids, stamps, base, refresh, show],
   );
 
   const undoLast = useCallback(async () => {

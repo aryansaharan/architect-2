@@ -539,7 +539,7 @@ function Readout({ id }: { id: string }) {
       <div className="sketch h-full overflow-hidden border bg-raised px-3 py-2" data-readout>
         <div className="arch-readout-hint">
           <p className="font-pencil font-semibold text-foreground" style={NOTE_SIZE}>Trace a flow</p>
-          <p className="mt-0.5 text-meta leading-snug text-muted-foreground">Hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
+          <p className="mt-0.5 text-meta leading-snug text-muted-foreground">Tap, hover or focus a numbered badge (Tab works) to light up its path through the system. The step appears here.</p>
         </div>
         {STEPS.map((s) => {
           const f = FLOWS[s.n - 1];

@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { AnimatePresence } from "motion/react";
 import type { ObjectRef, ObjectType } from "@/lib/blueprint/schema";
 import { buildTimeline } from "@/lib/sim/buildTimeline";
 import { cn } from "@/lib/utils";
+import { useDrawSequence, useFirstShowing } from "@/components/motion/sheet-draw";
 import { useWorkspace } from "../context";
 import type { NodeState } from "../use-build-runner";
 import { BuildProgress } from "./build-progress";
@@ -37,6 +39,29 @@ export function SheetView({ ws }: { ws: SheetWorkspace }) {
 type Phase = "sketch" | "building" | "real";
 
 const refKey = (type: ObjectType, id: string) => `${type}:${id}`;
+
+/**
+ * Where an imported project's map came from, in plain words. Claude reading the code finds the screens there;
+ * a starter plan (a guest, or no credits) supplies the screens and only the agents, if any, come from the code.
+ * Saved with the project at import (settings.mappedBy); older imports are read from their first plan note.
+ */
+function mapLine(ws: SheetWorkspace): string {
+  const bp = ws.blueprint;
+  const saved = ws.project.settings.mappedBy;
+  const planNote = ws.ledger.find((l) => l.kind === "work_order" && /^(Mapped by Claude|Offline mode|The screens and data come from)/.test(l.body ?? ""));
+  const by = saved ?? (planNote ? (planNote.body!.startsWith("Mapped by Claude") ? "claude" : "starter") : null);
+  const all = `${plural(bp.screens.length, "screen")} and ${plural(bp.agents.length, "AI helper")}`;
+  if (by === "claude") return `What Prod AI found in your code: ${all}.`;
+  if (by === null) return `The map of your repo: ${all}.`;
+  const fromCode = bp.agents.filter((a) => a.origin === "imported").length;
+  if (!fromCode) return `${all}, from the closest starter plan rather than your code.`;
+  const helpers = fromCode === bp.agents.length ? (fromCode === 1 ? "The AI helper" : `All ${fromCode} AI helpers`) : `${fromCode} of the ${bp.agents.length} AI helpers`;
+  const screens = bp.screens.length === 1 ? "The screen comes" : `The ${bp.screens.length} screens come`;
+  return `${screens} from the closest starter plan, not your code. ${helpers} ${fromCode === 1 ? "was" : "were"} read from your code.`;
+}
+
+/** Seconds between one sketch card's outline starting and the next: drawn in sequence, overlapping a little. */
+const DRAW_STAGGER = 0.15;
 
 function SheetBody() {
   const ws = useSheet();
@@ -74,6 +99,10 @@ function SketchSheet({ building }: { building: boolean }) {
   const progress = useRef<HTMLElement>(null);
   const atRepair = b.status === "repair";
   const arrived = useRef(false);
+  // The first time this sketch is shown in this browser session, each card's outline draws itself in turn
+  // as it comes into view. Later visits (and a build) show it drawn.
+  const firstShowing = useFirstShowing(`sketch:${ws.project.id}`, !building);
+  const drawSequence = useDrawSequence(DRAW_STAGGER);
 
   // The button that started the build is gone: bring the progress line into view and hand it the keyboard,
   // once per build. If it opens on a decision, the fix note takes the keyboard instead.
@@ -132,7 +161,7 @@ function SketchSheet({ building }: { building: boolean }) {
       {building ? (
         <>
           <BuildProgress ref={progress} showStop={b.status !== "repair"} />
-          {b.status === "repair" && <RepairNote />}
+          <AnimatePresence>{b.status === "repair" && <RepairNote key="repair" />}</AnimatePresence>
         </>
       ) : (
         <>
@@ -155,11 +184,13 @@ function SketchSheet({ building }: { building: boolean }) {
           {building
             ? "Each screen turns from pencil into the real thing as it's built."
             : imported
-              ? `What Prod AI found in your code: ${plural(bp.screens.length, "screen")} and ${plural(bp.agents.length, "AI helper")}. Change anything by writing a note in the margin.`
+              ? `${mapLine(ws)} Change anything by writing a note in the margin.`
               : `${plural(bp.screens.length, "screen")} and ${plural(bp.agents.length, "AI helper")}. Rough on purpose: change anything by writing a note in the margin.`}
         </p>
         <ul className="mt-5 grid grid-cols-1 gap-4 @min-[520px]/sheet:grid-cols-2 @min-[820px]/sheet:grid-cols-3">
-          {bp.screens.map((s, i) => <ScreenSketch key={s.id} bp={bp} screen={s} n={i + 1} state={ink(s.id)} building={showStates} />)}
+          {bp.screens.map((s, i) => (
+            <ScreenSketch key={s.id} bp={bp} screen={s} n={i + 1} state={ink(s.id)} building={showStates} draw={firstShowing ? drawSequence : null} />
+          ))}
         </ul>
       </section>
 

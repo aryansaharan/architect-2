@@ -1,23 +1,36 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { noEmDash } from "@/lib/text";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowUp, CircleAlert, Loader2, RotateCcw } from "lucide-react";
-import type { Agent, Blueprint } from "@/lib/blueprint/schema";
+import type { Agent, Blueprint, ToolPermission } from "@/lib/blueprint/schema";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Avatar } from "@/components/arch/badges";
 import { allowToolAlways } from "@/lib/actions/agents";
 import { PERMISSION_LABEL, supervisionView } from "@/lib/blueprint/describe";
+import { PRICE } from "@/lib/prices";
 import { useAgentChat } from "./use-agent-chat";
 import { ApprovalCard, isToolPart, TraceRow } from "./chat-parts";
 import { Markdown } from "@/components/markdown";
 
-export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSaved }: { projectId: string; agent: Agent; bp: Blueprint; llm: "live" | "offline"; initialPrompt?: string; onRunSaved?: () => void }) {
+/**
+ * Who answers in Try it, known before the first message from the same rules the chat route uses:
+ * Claude when it's configured and the person can pay for a message, otherwise the free practice script.
+ */
+export type PlaygroundMode = "live" | "offline" | "guest" | "credits" | "budget";
+
+const SCRIPT_LABEL: Record<Exclude<PlaygroundMode, "live" | "budget">, { label: string; why: string }> = {
+  offline: { label: "Practice script · offline", why: "Claude isn't set up here, so a free practice script answers." },
+  guest: { label: "Practice script · sign in for live AI", why: `Guests get a free practice script. Signed in, Claude answers for ${PRICE.helperMessage} credits a message.` },
+  credits: { label: "Practice script · not enough credits", why: `Claude answers for ${PRICE.helperMessage} credits a message. Until your credits come back, a free practice script answers.` },
+};
+
+export function Playground({ projectId, agent, bp, startMode, initialPrompt, onRunSaved, onPermissionChange }: { projectId: string; agent: Agent; bp: Blueprint; startMode: PlaygroundMode; initialPrompt?: string; onRunSaved?: () => void; onPermissionChange?: (toolId: string, permission: ToolPermission) => void }) {
   const router = useRouter();
-  // Spend and permissions shown elsewhere in the studio are refreshed once the conversation is out of view,
-  // never mid-chat (see use-agent-chat.ts for why a refresh here blanked the tab).
+  // Spend shown elsewhere in the studio is refreshed once the conversation is out of view, never mid-turn
+  // (see use-agent-chat.ts for why a refresh during a turn blanked the tab).
   const stale = useRef(false);
   const chat = useAgentChat(projectId, agent.id, {
     onTurnEnd: () => {
@@ -32,6 +45,18 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
       if (s.current) refresh();
     };
   }, [refresh]);
+  // A permission changed from an approval card: the panel beside this shows it at once (onPermissionChange),
+  // and the rest of the studio catches up as soon as the conversation is idle: no turn running and no card waiting.
+  // Sending waits while that refresh loads, so no chat update can land mid-refresh.
+  const permissionsChanged = useRef(false);
+  const [refreshing, startRefresh] = useTransition();
+  const awaitingYou = chat.messages.some((m) => m.role === "assistant" && m.parts.some((p) => isToolPart(p) && p.state === "approval-requested"));
+  useEffect(() => {
+    if (!permissionsChanged.current || chat.status !== "ready" || awaitingYou) return;
+    permissionsChanged.current = false;
+    stale.current = false;
+    startRefresh(() => refresh());
+  }, [chat.status, awaitingYou, refresh]);
   const sup = supervisionView(agent);
   const [text, setText] = useState(initialPrompt ?? "");
   const scroller = useRef<HTMLDivElement>(null);
@@ -43,7 +68,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
 
   const send = (t: string) => {
     const v = t.trim();
-    if (!v || busy) return;
+    if (!v || busy || refreshing) return;
     void chat.sendMessage({ text: v });
     setText("");
   };
@@ -52,21 +77,26 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
     if (decision === "always") {
       const r = await allowToolAlways(projectId, agent.id, toolId);
       if (r.ok) {
-        stale.current = true;
+        onPermissionChange?.(toolId, "log");
+        permissionsChanged.current = true;
+        stale.current = true; // still refreshed on the way out if the conversation never goes idle
         toast.success("Won't ask again for this", { description: `Changed to “${PERMISSION_LABEL.log}”. Every change is a new version, so you can go back any time.` });
       } else toast.error(r.error);
     }
     void chat.addToolApprovalResponse({ id: approvalId, approved: decision !== "deny", reason: decision === "deny" ? "Denied by a person in the playground" : undefined });
   };
 
-  const live = chat.mode === "live" || (chat.mode === null && llm === "live");
-  const modeLabel = live ? "Live AI · sample data" : chat.mode === "budget" ? "Paused at your spending cap" : "Practice script · offline";
+  // The server's answer is the final word once there is one; before that, the same rules it uses.
+  const mode = chat.mode === "live" ? "live" : chat.mode === "budget" ? "budget" : chat.mode === "scripted" ? (startMode === "live" || startMode === "budget" ? "script" : startMode) : startMode;
+  const live = mode === "live";
+  const modeLabel = live ? "Live AI · sample data" : mode === "budget" ? "Paused at your spending cap" : mode === "script" ? "Practice script · free" : SCRIPT_LABEL[mode].label;
+  const modeTitle = live ? `Model: ${agent.cost.model}` : mode === "budget" ? "This project reached its spending cap. Raise it in Settings." : mode === "script" ? "A free practice script answered." : SCRIPT_LABEL[mode].why;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 px-4 py-2 sm:px-5">
-        <span title={live ? `Model: ${agent.cost.model}` : undefined}><Pill tone={live ? "ok" : "neutral"} dot={live}>{modeLabel}</Pill></span>
-        <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={chat.reset} disabled={busy || chat.messages.length === 0}>
+        <span title={modeTitle}><Pill tone={live ? "ok" : "neutral"} dot={live}>{modeLabel}</Pill></span>
+        <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={chat.reset} disabled={busy || refreshing || chat.messages.length === 0}>
           <RotateCcw /> Start over
         </Button>
       </div>
@@ -137,7 +167,7 @@ export function Playground({ projectId, agent, bp, llm, initialPrompt, onRunSave
             placeholder={`Ask ${agent.name} to do something…`}
             className="max-h-32 min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-body outline-none placeholder:text-faint"
           />
-          <Button size="icon" onClick={() => send(text)} disabled={!text.trim() || busy} aria-label="Send">
+          <Button size="icon" onClick={() => send(text)} disabled={!text.trim() || busy || refreshing} aria-label="Send">
             {busy ? <Loader2 className="animate-spin" /> : <ArrowUp />}
           </Button>
         </div>

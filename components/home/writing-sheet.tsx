@@ -2,10 +2,15 @@
 import { useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import motion from "@/components/motion/entry-motion.module.css";
 import { cn } from "@/lib/utils";
+import { MAX_BRIEF, MIN_BRIEF } from "./brief-limits";
 import { EXAMPLES } from "./examples";
 
 const TILT = ["-rotate-[1.5deg]", "rotate-[1deg]", "-rotate-[0.5deg]", "rotate-[1.5deg]"];
+
+/** The counter appears this close to the most a note can hold. */
+const COUNT_FROM = MAX_BRIEF - 200;
 
 /**
  * The place you write: a sheet of ruled paper, your words in pencil, a few example
@@ -19,7 +24,7 @@ export function WritingSheet({
   label = "What do you want to make?",
   showLabel = true,
   submitLabel = "Make it",
-  minLength = 1,
+  minLength = MIN_BRIEF,
   rows = 4,
   autoFocus,
   examples = true,
@@ -42,6 +47,7 @@ export function WritingSheet({
 }) {
   const box = useRef<HTMLTextAreaElement>(null);
   const [tooShort, setTooShort] = useState(false);
+  const counting = value.length >= COUNT_FROM;
 
   const submit = () => {
     const text = value.trim();
@@ -65,6 +71,8 @@ export function WritingSheet({
           rows={rows}
           autoFocus={autoFocus}
           value={value}
+          maxLength={MAX_BRIEF}
+          aria-describedby={counting ? `${id}-count` : undefined}
           onChange={(e) => {
             onChange(e.target.value);
             if (tooShort) setTooShort(false);
@@ -76,7 +84,8 @@ export function WritingSheet({
             }
           }}
           placeholder={placeholder}
-          className={cn("paper-lines block w-full resize-none bg-transparent pt-[7px] font-pencil text-note leading-8 text-foreground outline-none placeholder:text-faint", showLabel ? "mt-2" : "mt-0")}
+          // The ruled lines darken a touch while you write (motion.rules): the sheet is yours.
+          className={cn("paper-lines block w-full resize-none bg-transparent pt-[7px] font-pencil text-note leading-8 text-foreground outline-none placeholder:text-faint", motion.rules, showLabel ? "mt-2" : "mt-0")}
         />
         {tooShort && (
           <p role="status" className="pb-1 text-meta text-muted-foreground">
@@ -99,7 +108,8 @@ export function WritingSheet({
                 }}
                 aria-pressed={value === ex.prompt}
                 className={cn(
-                  "sticky-note min-h-9 px-2.5 py-1 font-pencil text-note leading-tight text-foreground transition-transform duration-150 ease-paper hover:rotate-0",
+                  // A note settles straight under your hand, and presses down when picked. It never lifts.
+                  "sticky-note min-h-9 px-2.5 py-1 font-pencil text-note leading-tight text-foreground transition-transform duration-150 ease-paper hover:rotate-0 active:translate-y-px",
                   TILT[i % TILT.length],
                   value === ex.prompt && "ring-1 ring-brand/30",
                 )}
@@ -109,9 +119,18 @@ export function WritingSheet({
             ))}
           </>
         )}
-        <Button size="cta" className="ml-auto" onClick={submit}>
-          {submitLabel} <ArrowRight />
-        </Button>
+        <div className="ml-auto flex items-center gap-3">
+          {/* Quiet until the note nears the most the planner reads. */}
+          {counting && (
+            <span id={`${id}-count`} className={cn("text-meta tabular-nums", value.length >= MAX_BRIEF ? "text-muted-foreground" : "text-faint")}>
+              <span className="sr-only">Characters used: </span>
+              {value.length.toLocaleString("en-US")} / {MAX_BRIEF.toLocaleString("en-US")}
+            </span>
+          )}
+          <Button size="cta" onClick={submit}>
+            {submitLabel} <ArrowRight />
+          </Button>
+        </div>
       </div>
     </div>
   );

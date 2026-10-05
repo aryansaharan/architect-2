@@ -4,11 +4,12 @@ import { isTeam, loadSite, roleFor, type AppRole, type LiveSite } from "@/lib/ap
 import { liveView } from "@/lib/apps/live";
 import { getRecord } from "@/lib/apps/records";
 import { publicAccess } from "@/lib/apps/view";
-import { buildHelperTools, findChatBlock, helperApprovals, helperInstructions, helperReach, type HelperCtx } from "@/lib/apps/helper-tools";
-import { scriptBlueprint } from "@/lib/apps/helper-shared";
+import { buildHelperTools, findHelperBlock, helperApprovals, helperInstructions, helperReach, type HelperCtx } from "@/lib/apps/helper-tools";
+import { scriptBlueprint, type ScriptReason } from "@/lib/apps/helper-shared";
+import { emailConfigured } from "@/lib/email";
 import { usageSummary } from "@/lib/db/queries";
 import { logUsage } from "@/lib/db/writes";
-import { holdModelBudgetAs } from "@/lib/llm/guard";
+import { holdModelBudgetAs, modelBudgets } from "@/lib/llm/guard";
 import { PRICE, canAfford } from "@/lib/pricing";
 import { costOf } from "@/lib/llm/pricing";
 import { getModel } from "@/lib/llm/provider";
@@ -21,10 +22,12 @@ import { monthStartIso } from "@/lib/prices";
 
 /**
  * An AI helper inside a published app (/live/<slug>), working on the app's real records.
- * The team (owner and invited people) can talk to any of the app's helpers; a visitor only to a
- * helper on a public page, and only when the owner switched public helpers on. The owner pays:
- * the model budget and the project's spending cap are the owner's, the rate limit follows whoever
- * is typing. Without a model or budget the helper answers from a script over the same records.
+ * People reach it from one of its chat blocks or from a button that asks it (a record's "Prepare
+ * payout", a button row, a row or item click), named by blockId. The team (owner and invited people)
+ * can talk to any of the app's helpers; a visitor only from a public page, and only when the owner
+ * switched public helpers on. The owner pays: the model budget and the project's spending cap are the
+ * owner's, the rate limit follows whoever is typing. Without a model or budget the helper answers from
+ * a script over the same records, and says why (x-prodai-reason).
  */
 export const maxDuration = 90;
 export const dynamic = "force-dynamic";
@@ -121,13 +124,16 @@ type AnyPart = { type: string; text?: string; toolCallId?: string; state?: strin
 const lastUserText = (messages: UIMessage[]) =>
   ([...messages].reverse().find((m) => m.role === "user")?.parts ?? []).map((p) => (p.type === "text" ? p.text : "")).join(" ").trim();
 
-/** A tool call the person just answered (the scripted helper can't carry it out, so it says so). */
-function answeredApproval(messages: UIMessage[]): string | null {
+/** A tool call the person just answered, and whether they allowed it (the scripted helper can't carry it out, so it says so). */
+function answeredApproval(messages: UIMessage[]): { toolCallId: string; approved: boolean } | null {
   const last = messages[messages.length - 1];
   if (last?.role !== "assistant") return null;
   const p = (last.parts as AnyPart[]).find((x) => x.type.startsWith("tool-") && x.state === "approval-responded" && x.toolCallId);
-  return p?.toolCallId ?? null;
+  return p?.toolCallId ? { toolCallId: p.toolCallId, approved: p.approval?.approved === true } : null;
 }
+
+/** What an allowed action reports when the scripted helper answers instead: it didn't run, and nothing happened. */
+const NOT_RUN = { ok: false, status: "not_run", note: "This couldn't run right now, so nothing happened." } as const;
 
 /** Tool outputs are kept for the audit trail, capped so one run can't outgrow its row. */
 const capped = (v: unknown) => {
@@ -150,7 +156,7 @@ function summarize(messages: UIMessage[], access: Record<string, ToolCallRecord[
         access: access[toolId] ?? "read",
         input: capped(p.input),
         output: capped(p.output),
-        state: p.state === "output-denied" ? "denied" : p.state === "output-error" ? "error" : "done",
+        state: p.state === "output-denied" ? "denied" : p.state === "output-error" || (p.output as { status?: unknown } | undefined)?.status === NOT_RUN.status ? "error" : "done",
         approval: p.approval ? (p.approval.approved === false ? "denied" : p.approval.isAutomatic ? "logged" : "approved") : access[toolId] === "write" ? "logged" : "auto",
       });
     }
@@ -158,15 +164,34 @@ function summarize(messages: UIMessage[], access: Record<string, ToolCallRecord[
   return { transcript: transcript.slice(-60), toolCalls: toolCalls.slice(-60) };
 }
 
-/** GET ?agentId&blockId: may this person talk to this helper? (The server decides again on every message.) */
+/**
+ * Why the helper would answer from its script rather than the AI model, before anything is held:
+ * no model here, a guest owner (no model budget), no credits left, or the project's spending cap.
+ * Null when the model should answer (a busy model or the day's budget can still send it to the script).
+ */
+async function expectedReason(site: LiveSite, owner: { isGuest: boolean }): Promise<ScriptReason | null> {
+  if (!getModel()) return "model";
+  if (owner.isGuest && modelBudgets().guest <= 0) return "guest";
+  const [spent, afford] = await Promise.all([usageSummary(adminClient(), { projectId: site.projectId, sinceIso: monthStartIso() }).catch(() => null), canAfford(site.ownerId, owner.isGuest, "helperMessage")]);
+  if (!afford.ok) return owner.isGuest ? "guest" : "credits";
+  if (!spent || spent.credits >= site.settings.budgetCapCredits) return "cap";
+  return null;
+}
+
+/**
+ * GET ?agentId&blockId: may this person talk to this helper, and will the AI model answer? Also whether
+ * email is set up on this Prod AI (a yes or no, never the key). The server decides again on every message.
+ */
 export async function GET(req: Request, ctx: RouteContext<"/api/apps/[slug]/chat">) {
   const { slug } = await ctx.params;
   const site = await loadSite(slug);
   if (!site) return Response.json({ error: "Not found" }, { status: 404 });
   const url = new URL(req.url);
-  const where = findChatBlock(site.blueprint, url.searchParams.get("agentId") ?? "", url.searchParams.get("blockId") ?? "");
+  const where = findHelperBlock(site.blueprint, url.searchParams.get("agentId") ?? "", url.searchParams.get("blockId") ?? "");
   const role = await roleFor(site, await getSessionUser());
-  return Response.json({ allowed: Boolean(where && mayChat(site, role, where.screen)), team: isTeam(role) }, { headers: { "cache-control": "no-store" } });
+  const allowed = Boolean(where && mayChat(site, role, where.screen));
+  const reason = allowed ? await expectedReason(site, await ownerOf(site)) : site.settings.app?.publicHelpers === true ? null : "public";
+  return Response.json({ allowed, team: isTeam(role), reason, emailReady: emailConfigured() }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/chat">) {
@@ -181,7 +206,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
   const site = await loadSite(slug);
   if (!site) return new Response("Not found", { status: 404 });
   const agent = site.blueprint.agents.find((a) => a.id === body.agentId);
-  const where = agent ? findChatBlock(site.blueprint, agent.id, body.blockId) : null;
+  const where = agent ? findHelperBlock(site.blueprint, agent.id, body.blockId) : null;
   if (!agent || !where) return new Response("This AI helper isn't in the app", { status: 404 });
   const user = await getSessionUser();
   const role = await roleFor(site, user);
@@ -230,13 +255,16 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
   if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give it a moment, then try again.", "rate");
 
   // The owner pays: past the project's spending cap, or without this month's credits for a message,
-  // the helper answers from its script, free.
+  // the helper answers from its script, free, and says which it is.
   let overCap = false;
+  let reason: ScriptReason | null = hold.ok ? null : owner.isGuest ? "guest" : "budget";
   if (hold.ok) {
     const [spent, afford] = await Promise.all([usageSummary(admin, { projectId: site.projectId, sinceIso: monthStartIso() }).catch(() => null), canAfford(site.ownerId, owner.isGuest, "helperMessage")]);
     overCap = !spent || spent.credits >= site.settings.budgetCapCredits || !afford.ok;
+    if (overCap) reason = !afford.ok ? (owner.isGuest ? "guest" : "credits") : "cap";
   }
   const m = hold.ok && !overCap ? getModel() : null;
+  if (hold.ok && !overCap && !m) reason = "model";
 
   if (m && hold.ok) {
     // The record open on screen, when it's one this person may see through the helper.
@@ -299,6 +327,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
       return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": "live", "x-prodai-run": runId } });
     } catch (e) {
       console.error("[helper] model failed, scripted fallback:", e instanceof Error ? e.message : e);
+      reason = "model";
       await hold.release();
     }
   } else if (hold.ok) await hold.release();
@@ -309,10 +338,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
   const bp = scriptBlueprint(view.bp, rows, team ? null : publicAccess(site.blueprint, site.settings.app?.hiddenEntities).read);
   const blocks = [...where.screen.regions.main, ...(where.screen.regions.side ?? [])];
   const detail = blocks.find((b) => b.type === "detail");
-  const withEntity = detail ?? blocks.find((b) => "entityId" in b && Boolean(b.entityId));
+  // Asked from a row of a list or table: that row's data type, and that record, is what "this one" means.
+  const clicked = where.via === "action" && "entityId" in where.block && where.block.entityId ? where.block : undefined;
+  const withEntity = detail ?? clicked ?? blocks.find((b) => "entityId" in b && Boolean(b.entityId));
   const entityId = withEntity && "entityId" in withEntity ? withEntity.entityId : undefined;
   const at = entityId && body.recordId ? (view.records[entityId] ?? []).findIndex((r) => r.id === body.recordId) : -1;
-  const demo: DemoChatContext = { screenId: where.screen.id, entityId, selected: detail && at >= 0 ? at : undefined, live: true };
+  const demo: DemoChatContext = { screenId: where.screen.id, entityId, selected: (detail || clicked) && at >= 0 ? at : undefined, live: true, why: reason ?? "model", emailReady: emailConfigured(), visitor: !team };
   const scriptAgent = bp.agents.find((a) => a.id === agent.id);
   const id = `s-${runId.slice(0, 8)}-${body.messages.length}`;
 
@@ -321,9 +352,13 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
     execute: async ({ writer }) => {
       writer.write({ type: "start-step" });
       const answered = answeredApproval(body.messages);
-      if (answered) {
-        writer.write({ type: "tool-output-denied", toolCallId: answered });
-        await say(writer, id, "I can't carry that out right now, so nothing happened. Try again in a little while.");
+      if (answered?.approved) {
+        // Allowed, but the AI model can't carry it out now: it didn't run, and that's not the person saying no.
+        writer.write({ type: "tool-output-available", toolCallId: answered.toolCallId, output: NOT_RUN });
+        await say(writer, id, "That couldn't run right now, so nothing happened. Try again in a little while.");
+      } else if (answered) {
+        writer.write({ type: "tool-output-denied", toolCallId: answered.toolCallId });
+        await say(writer, id, "OK, I won't do that. Nothing happened.");
       } else {
         await say(writer, id, demoReply(bp, scriptAgent, lastUserText(body.messages) || "What can you do?", demo));
       }
@@ -331,5 +366,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
     },
     onEnd: async ({ messages }) => persist(messages, { input: 0, output: 0, costUsd: 0, mode: "scripted" }),
   });
-  return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": overCap ? "budget" : "scripted", "x-prodai-run": runId } });
+  return createUIMessageStreamResponse({ stream, headers: { "x-prodai-mode": overCap ? "budget" : "scripted", "x-prodai-reason": reason ?? "model", "x-prodai-run": runId } });
 }

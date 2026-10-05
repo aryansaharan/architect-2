@@ -30,3 +30,32 @@ export function scriptBlueprint(bp: Blueprint, rows: Record<string, Record<strin
     }),
   };
 }
+
+/**
+ * Why a published app's AI helper answers from its script instead of the AI model, said the same way
+ * in the chat's note (components/renderer/chat-block.tsx) and in the scripted answers (lib/sim/demo-chat.ts).
+ */
+export type ScriptReason = "guest" | "credits" | "cap" | "budget" | "model" | "public";
+
+const BECAUSE: Record<ScriptReason, string> = {
+  guest: "the app's owner needs to sign in",
+  credits: "the app's owner has used this month's credits",
+  cap: "the app has reached its spending limit for this month",
+  budget: "the app's AI budget for today is used up",
+  model: "the AI model isn't available right now",
+  public: "the app's owner hasn't switched the AI model on for visitors",
+};
+
+export const SCRIPT_REASONS = Object.keys(BECAUSE) as ScriptReason[];
+export const isScriptReason = (v: unknown): v is ScriptReason => typeof v === "string" && v in BECAUSE;
+
+/** "I'm answering from my script because the app's owner needs to sign in" (no full stop, so it can go on). */
+export function answeringFromScript(reason: ScriptReason | null | undefined): string {
+  return reason ? `I'm answering from my script because ${BECAUSE[reason]}` : "Right now I'm answering from my script";
+}
+
+/** The chat's note above a scripted conversation: why, and what the answers come from. */
+export function scriptNote(reason: ScriptReason | null | undefined, team: boolean): string {
+  const from = team ? "Answers come from the app's records." : "Answers come from what this page shows.";
+  return reason ? `This AI helper is answering from its script because ${BECAUSE[reason]}. ${from}` : `This AI helper is answering from its script. ${from}`;
+}

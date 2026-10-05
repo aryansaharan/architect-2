@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { ChevronUp, Crosshair, NotebookPen, PanelRightClose, Undo2, X } from "lucide-react";
@@ -8,6 +8,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { LogoMark } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
+import { DrawnCheck } from "@/components/motion/sheet-draw";
 import { objectLabel } from "@/lib/blueprint";
 import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types";
@@ -25,6 +26,20 @@ const MARGIN_W = "lg:w-[288px] xl:w-[304px] min-[1400px]:w-[340px]";
 
 /** A pencil rule down the page edge: a slightly wobbly graphite line that tiles seamlessly. */
 const RULE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='180' viewBox='0 0 8 180'%3E%3Cpath d='M4 0C3.2 22 4.9 41 4.1 63S3.3 104 4.4 126 3.6 161 4 180' fill='none' stroke='%233f3d38' stroke-opacity='.42' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E")`;
+
+/**
+ * True for a note that arrived while the margin was on the page, false for history that was already there.
+ * A fresh note enters from below and its marks draw themselves; history just sits on the paper.
+ */
+const FreshNote = createContext(false);
+
+/** How a note enters the margin: from just below with a fade (250ms), once, and only if it's new. */
+function enterProps(fresh: boolean) {
+  return { initial: fresh ? { opacity: 0, y: 8 } : false, animate: { opacity: 1, y: 0 }, transition: { duration: DUR.panel, ease: EASE } } as const;
+}
+function useEnter() {
+  return enterProps(useContext(FreshNote));
+}
 
 /** True below 1024px, where the margin becomes a bottom sheet. Matches Tailwind's `lg`. */
 function usePhone() {
@@ -143,6 +158,19 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
     return () => window.removeEventListener(OPEN_NOTES_EVENT, onOpen);
   });
 
+  // On a phone, Escape closes the open notes wherever focus is (after Undo it can fall back to the page),
+  // and focus goes back to the Notes bar. Menus and dialogs on top handle their own Escape first.
+  useEffect(() => {
+    if (!phone || !phoneShown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return;
+      e.preventDefault();
+      fold(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
   return (
     <>
       {/* On a phone, tapping the page behind the sheet closes it. */}
@@ -170,12 +198,6 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
           onFocus={() => setFocusIn(true)}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && phone && !e.defaultPrevented) {
-              e.preventDefault();
-              fold(true);
-            }
           }}
           className={cn("flex h-full min-h-0 flex-col outline-none focus-visible:outline-none max-lg:w-full lg:shrink-0", MARGIN_W)}
         >
@@ -303,6 +325,8 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
   const current = b.current?.kind === "step" && b.status === "running" ? b.current : null;
   const waiting = b.status === "repair";
   const itemCount = thread.rows.length + live.length + (thinking ? 1 : 0) + (current ? 1 : 0) + (waiting ? 1 : 0);
+  // What was already here when the margin first drew: it doesn't animate in. Everything after does.
+  const [born] = useState(() => new Set([...thread.rows.map((r) => r.key), ...live.map((s) => `live-${s.id}`)]));
   // What's at the bottom right now: changes when a reply replaces "reading", even though the count doesn't.
   const newest = `${thread.rows.at(-1)?.key ?? ""}|${thinking}|${live.length}|${current?.title ?? ""}|${waiting}`;
 
@@ -342,7 +366,9 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
       ) : (
         <ol className="flex flex-col gap-3" aria-label="Notes, oldest first">
           {thread.rows.map(({ row, key }) => (
-            <ThreadItem key={key} row={row} applied={thread.applied} onAsk={onAsk} />
+            <FreshNote.Provider key={key} value={!born.has(key)}>
+              <ThreadItem row={row} applied={thread.applied} onAsk={onAsk} />
+            </FreshNote.Provider>
           ))}
           {thinking && (
             <li className="flex items-center gap-2 text-meta text-muted-foreground">
@@ -351,7 +377,7 @@ function NotesThread({ shown, onAsk }: { shown: boolean; onAsk: () => void }) {
             </li>
           )}
           {live.map((s) => (
-            <motion.li key={`live-${s.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2 pl-0.5">
+            <motion.li key={`live-${s.id}`} {...enterProps(!born.has(`live-${s.id}`))} className="flex gap-2 pl-0.5">
               <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", LANE[s.lane].tone)} />
               <div className="min-w-0 flex-1">
                 <p className="text-meta text-foreground/85">
@@ -409,9 +435,10 @@ function ThreadItem({ row, applied, onAsk }: { row: ThreadRow; applied: Map<stri
 /** Yours: written in pencil, straight on the paper. */
 function YouNote({ row, text, caption = "You" }: { row: ThreadRow; text: string; caption?: string }) {
   const [open, setOpen] = useState(false);
+  const enter = useEnter();
   const long = text.length > 220;
   return (
-    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className={cn("pl-0.5", row.sending && "opacity-70")}>
+    <motion.li {...enter} className={cn("pl-0.5", row.sending && "opacity-70")}>
       {row.object_ref && (
         <div className="mb-0.5">
           <AboutTag objectRef={row.object_ref} />
@@ -441,8 +468,9 @@ function ProdMark() {
 
 /** Prod AI's side: a small typed note pinned in the margin, under its name and what kind of reply it is. */
 function AiNote({ row, label, tone = "default", children }: { row: ThreadRow; label: string; tone?: "default" | "fix"; children: ReactNode }) {
+  const enter = useEnter();
   return (
-    <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2">
+    <motion.li {...enter} className="flex gap-2">
       <ProdMark />
       {/* Typed, so in print: the title in body text, the rest in meta. */}
       <div className={cn("panel min-w-0 flex-1 rounded-sm px-2.5 py-2 text-body", tone === "fix" && "border-fix/30")}>
@@ -513,14 +541,30 @@ function changeOutcome(id: string, applied: Map<string, ThreadRow>, chat: Return
 function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () => void }) {
   const ws = useWorkspace();
   const router = useRouter();
+  const fresh = useContext(FreshNote);
   const [undoing, setUndoing] = useState(false);
+  // Undone from here: the tick comes back off the paper and the line says where you are now.
+  const [undoneTo, setUndoneTo] = useState<string | null>(null);
   switch (outcome.kind) {
     case "applied": {
       const undo = outcome.undo;
+      if (undoneTo)
+        return (
+          <span className="inline-flex items-center gap-1 text-meta font-medium tabular-nums text-muted-foreground">
+            <span className="relative size-3.5 shrink-0">
+              <DrawnCheck undraw draw={false} strokeWidth={1.7} className="absolute inset-0 size-3.5 text-ok" />
+              <motion.span aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: DUR.hover, delay: DUR.panel, ease: EASE }} className="absolute inset-0 grid place-items-center">
+                <Undo2 className="size-3" />
+              </motion.span>
+            </span>
+            Undone · back to {undoneTo}
+          </span>
+        );
       return (
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <span className="inline-flex items-center gap-1 text-meta font-medium tabular-nums text-ok">
-            <PencilTick className="size-3.5 shrink-0" />
+            {/* Drawn when it happens here; history is already ticked. */}
+            <DrawnCheck draw={fresh} strokeWidth={1.7} className="size-3.5 shrink-0" />
             Applied{outcome.version ? ` · ${outcome.version}` : ""}
             {outcome.credits ? <span className="font-normal text-muted-foreground"> · {creditWords(outcome.credits)}</span> : null}
           </span>
@@ -528,9 +572,19 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
             <button
               type="button"
               disabled={undoing}
-              onClick={async () => {
+              onClick={async (e) => {
                 setUndoing(true);
-                await undoTo(ws.project.id, undo, () => router.refresh());
+                const back = ws.checkpoints.find((c) => c.id === undo)?.seq;
+                const notes = e.currentTarget.closest<HTMLElement>("#notes");
+                // undoTo only refreshes when going back worked.
+                await undoTo(ws.project.id, undo, () => {
+                  setUndoneTo(back ? `version ${back}` : "the version before");
+                  router.refresh();
+                  // This button goes away: keep focus in the notes rather than letting it fall back to the page.
+                  requestAnimationFrame(() => {
+                    if (!document.activeElement || document.activeElement === document.body) notes?.focus({ preventScroll: true });
+                  });
+                });
                 setUndoing(false);
               }}
               className="inline-flex items-center gap-1 rounded-sm text-meta font-medium text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors duration-150 ease-paper hover:text-foreground disabled:opacity-50"
@@ -545,7 +599,7 @@ function OutcomeLine({ outcome, onReview }: { outcome: Outcome; onReview?: () =>
     case "approved":
       return (
         <span className="inline-flex items-center gap-1 text-meta font-medium text-ok">
-          <PencilTick className="size-3.5 shrink-0" /> Applied
+          <DrawnCheck draw={fresh} strokeWidth={1.7} className="size-3.5 shrink-0" /> Applied
         </span>
       );
     case "dismissed":
@@ -570,10 +624,11 @@ function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, Thr
   const credits = typeof est?.credits === "number" ? est.credits : null;
   const outcome = id && !needsPerson ? changeOutcome(id, applied, chat, ws) : null;
   const decided = outcome?.kind === "applied" || outcome?.kind === "dismissed" || outcome?.kind === "approved";
+  const enter = useEnter();
   // While it waits in the card below, the card is the one place the change is spelled out: here, only a pointer to it.
   if (outcome?.kind === "waiting")
     return (
-      <motion.li initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex items-start gap-2">
+      <motion.li {...enter} className="flex items-start gap-2">
         <ProdMark />
         <p className="pt-0.5 text-meta text-muted-foreground">
           <span className="font-medium text-foreground">Prod AI</span> proposed a change. <span className="font-medium text-brand">It&apos;s waiting for you below.</span>
@@ -705,7 +760,10 @@ function PencilDash({ className }: { className?: string }) {
 /** Build steps and other events: a compact pencil tick in the flow, in the history's plain English. */
 function TickRow({ row }: { row: ThreadRow }) {
   const [open, setOpen] = useState(false);
+  const enter = useEnter();
   const credits = Number(row.credits);
+  // Credits have no cash value: older spending-cap entries began "≈ $5.00." and that part isn't shown.
+  const body = row.kind === "budget" ? row.body?.replace(/^≈\s*\$[\d.,]+\.?\s*/, "") || null : row.body;
   const who =
     row.blame === "system_fix"
       ? { text: "Our fix · free", cls: "text-fix" }
@@ -717,16 +775,16 @@ function TickRow({ row }: { row: ThreadRow }) {
             ? { text: creditWords(credits), cls: "text-muted-foreground" }
             : null;
   return (
-    <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: DUR.panel, ease: EASE }} className="flex gap-2 pl-0.5">
+    <motion.li {...enter} className="flex gap-2 pl-0.5">
       <PencilTick className={cn("mt-[3px] size-3.5 shrink-0", row.blame === "system_fix" ? "text-fix" : LANE[row.lane].tone)} />
       <div className="min-w-0 flex-1">
-        {row.body ? (
+        {body ? (
           <button type="button" className="block w-full text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             <span className="block text-meta text-foreground/85">
               <span className="sr-only">{LANE[row.lane].label}: </span>
               {row.title}
             </span>
-            <span className={cn("block whitespace-pre-line text-meta text-muted-foreground", !open && "line-clamp-1")}>{row.body}</span>
+            <span className={cn("block whitespace-pre-line text-meta text-muted-foreground", !open && "line-clamp-1")}>{body}</span>
           </button>
         ) : (
           <p className="text-meta text-foreground/85">

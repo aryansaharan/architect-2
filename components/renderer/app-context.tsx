@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext } from "react";
 import type { Blueprint, Entity } from "@/lib/blueprint/schema";
+import type { HistoryEntry } from "@/lib/apps/records";
 
 export type AppMode = "preview" | "live";
 
@@ -21,9 +22,16 @@ export type LiveData = {
   recordId: (entityId: string, index: number) => string | undefined;
   /** Where a record now sits in its entity's rows, or -1. */
   indexOf: (entityId: string, recordId: string) => number;
+  /** When a record last changed, so anything showing it (its history) knows to read it again. */
+  stamp: (entityId: string, index: number) => string | undefined;
   createRecord: (entityId: string, values: RecordValues, formId?: string) => Promise<WriteOutcome>;
   updateRecord: (entityId: string, index: number, values: RecordValues) => Promise<WriteOutcome>;
+  /** A record's real history, newest first (the team only; the server refuses anyone else). */
+  history: (recordId: string) => Promise<{ ok: true; history: HistoryEntry[] } | { ok: false; error: string }>;
 };
+
+/** Where an "ask an AI helper" click came from: the block (a button row, a record's buttons, a row click) and the record it was about. */
+export type AskFrom = { blockId: string; entityId?: string; rowIndex?: number };
 
 export type AppCtx = {
   bp: Blueprint;
@@ -34,7 +42,7 @@ export type AppCtx = {
   selectedRow: Record<string, number>;
   selectRow: (entityId: string, index: number) => void;
   toast: (msg: string) => void;
-  askAgent: (agentId: string, prompt: string) => void;
+  askAgent: (agentId: string, prompt: string, from?: AskFrom) => void;
   entity: (id: string) => Entity | undefined;
   projectId?: string;
   /** Real records and writes, in a published app only. */

@@ -9,7 +9,7 @@ import { adminClient } from "@/lib/supabase/admin";
 import { withinLimit } from "@/lib/security/rate-limit";
 import { isTeam, type AppRole, type LiveSite } from "./access";
 import { cleanValues, fieldSpecs, getRecord, listRecords, updateRecord, type AppRecord, type Value } from "./records";
-import { pick, publicAccess } from "./view";
+import { blockActions, pick, publicAccess } from "./view";
 import { toolKind, type HelperToolKind } from "./helper-shared";
 
 export { toolKind, type HelperToolKind };
@@ -46,23 +46,45 @@ export function chatScreens(bp: Blueprint, agentId: string): Screen[] {
   return bp.screens.filter((s) => blocksOf(s).some((b) => b.type === "chat" && b.agentId === agentId));
 }
 
-/** A chat block of this helper and the screen it sits on. */
-export function findChatBlock(bp: Blueprint, agentId: string, blockId: string): { block: Extract<Block, { type: "chat" }>; screen: Screen } | null {
+/** Does clicking this block (a button, a row, an item, a form's submit) ask this helper? */
+const asksHelper = (b: Block, agentId: string) => blockActions(b).some((a) => a.kind === "agent" && a.agentId === agentId);
+
+/** The screens with a button (or row or item click) that asks this helper. */
+export function actionScreens(bp: Blueprint, agentId: string): Screen[] {
+  return bp.screens.filter((s) => blocksOf(s).some((b) => asksHelper(b, agentId)));
+}
+
+/**
+ * Where a person talks to this helper, and the screen it sits on: one of its chat blocks, or a block
+ * whose button (a record's button, a button row, a table row or list item click) asks it. Who may talk
+ * is decided from that screen, the same way for both.
+ */
+export function findHelperBlock(bp: Blueprint, agentId: string, blockId: string): { block: Block; screen: Screen; via: "chat" | "action" } | null {
   for (const screen of bp.screens)
-    for (const b of blocksOf(screen)) if (b.type === "chat" && b.id === blockId && b.agentId === agentId) return { block: b, screen };
+    for (const b of blocksOf(screen)) {
+      if (b.id !== blockId) continue;
+      if (b.type === "chat" && b.agentId === agentId) return { block: b, screen, via: "chat" };
+      if (asksHelper(b, agentId)) return { block: b, screen, via: "action" };
+    }
   return null;
 }
 
 /**
  * The data types this helper works on: the ones it was given as knowledge, together with the ones
  * shown on the screens where people talk to it (a triage helper that knows adjusters still works on
- * the claims next to it). A helper with neither works on every data type.
+ * the claims next to it) and, for a helper limited that way, the ones on screens whose buttons ask it
+ * (so the record a "Prepare payout" button sits on is always one it can read). A helper with neither
+ * works on every data type.
  */
 export function helperEntities(bp: Blueprint, agent: Agent): Entity[] {
   const ids = new Set(agent.knowledge.filter((k) => k.source === "entity").map((k) => k.ref));
-  for (const s of chatScreens(bp, agent.id)) for (const b of blocksOf(s)) if ("entityId" in b && typeof b.entityId === "string") ids.add(b.entityId);
-  const known = bp.entities.filter((e) => ids.has(e.id));
-  return known.length ? known : bp.entities;
+  const add = (screens: Screen[]) => {
+    for (const s of screens) for (const b of blocksOf(s)) if ("entityId" in b && typeof b.entityId === "string") ids.add(b.entityId);
+  };
+  add(chatScreens(bp, agent.id));
+  if (!bp.entities.some((e) => ids.has(e.id))) return bp.entities;
+  add(actionScreens(bp, agent.id));
+  return bp.entities.filter((e) => ids.has(e.id));
 }
 
 /** What this person may read through the helper: every field for the team, the public pages' fields for a visitor. */

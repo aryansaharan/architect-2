@@ -1,16 +1,17 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser, requireUser } from "@/lib/auth";
+import { createClient, type Supa } from "@/lib/supabase/server";
 import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { getCheckpoint, getLiveSiteForProject, getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, updateProject } from "@/lib/db/writes";
-import { canGoLive, preflight, type PreflightFix } from "@/lib/sim/preflight";
+import { accessLine, canGoLive, preflight, type PreflightFix } from "@/lib/sim/preflight";
 import { shortId } from "@/lib/sim/hash";
 import { estimate } from "@/lib/blueprint/estimate";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
-import type { DeploymentRow } from "@/lib/db/types";
+import type { Blueprint } from "@/lib/blueprint/schema";
+import type { CheckpointRow, DeploymentRow, ProjectRow } from "@/lib/db/types";
 import { siteUrl } from "@/lib/env";
 import { seedSampleRecords } from "@/lib/apps/records";
 
@@ -99,6 +100,66 @@ async function requestOrigin(): Promise<string> {
   return siteUrl();
 }
 
+/** The same plan, whatever order its keys come back from the database in. */
+const canonical = (v: unknown) =>
+  JSON.stringify(v, (_k, x: unknown) =>
+    x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x,
+  );
+const sameBlueprint = (a: Blueprint, b: Blueprint) => canonical(a) === canonical(b);
+
+/**
+ * The version publishing puts live: the project's current version when it is exactly the project as it
+ * is now, otherwise the next number (some edits, like test-run results, change the project without
+ * saving a version, so publishing saves one first).
+ */
+async function versionToPublish(supa: Supa, project: ProjectRow): Promise<{ current: CheckpointRow | null; upToDate: boolean; seq: number }> {
+  const [current, { data: last }] = await Promise.all([
+    project.current_checkpoint_id ? getCheckpoint(supa, project.current_checkpoint_id) : Promise.resolve(null),
+    supa.from("checkpoints").select("seq").eq("project_id", project.id).order("seq", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const own = current && current.project_id === project.id ? current : null;
+  if (own && sameBlueprint(own.blueprint, project.blueprint)) return { current: own, upToDate: true, seq: own.seq };
+  return { current: own, upToDate: false, seq: ((last?.seq as number | undefined) ?? 0) + 1 };
+}
+
+/** The version to publish, saving the project as a new version first only when it has edits its current version doesn't. */
+async function checkpointToPublish(supa: Supa, project: ProjectRow): Promise<CheckpointRow> {
+  const v = await versionToPublish(supa, project);
+  if (v.upToDate && v.current) return v.current;
+  return addCheckpoint(supa, project.id, {
+    label: v.current ? `Changes since version ${v.current.seq}` : "First version",
+    kind: "ship",
+    blueprint: project.blueprint,
+    summary: "Saved when you published, so the live app is a version you can come back to.",
+  });
+}
+
+export type PublishState = {
+  /** What's live is exactly the project as it is now, so there is nothing to publish. */
+  unchanged: boolean;
+  /** The version publishing puts live. */
+  version: number;
+  /** Publishing first saves the project's latest edits as that version. */
+  savesEdits: boolean;
+  /** Who can use what's live now, in one sentence (null when nothing is live). */
+  access: string | null;
+};
+
+/** What publishing would do right now, for the Publish page: whether anything changed and which version goes live. */
+export async function publishState(projectId: string): Promise<PublishState | null> {
+  if (!(await getSessionUser())) return null;
+  const supa = await createClient();
+  const project = await getProject(supa, projectId).catch(() => null);
+  if (!project) return null;
+  const [live, next] = await Promise.all([getLiveSiteForProject(supa, projectId).catch(() => null), versionToPublish(supa, project)]);
+  return {
+    unchanged: Boolean(live && sameBlueprint(live.blueprint, project.blueprint)),
+    version: next.seq,
+    savesEdits: !next.upToDate,
+    access: live ? accessLine(live.blueprint, project.settings.app?.hiddenEntities) : null,
+  };
+}
+
 export async function goLive(projectId: string, target: DeploymentRow["target"], domain?: string): Promise<R> {
   await requireUser();
   const supa = await createClient();
@@ -118,7 +179,8 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   const testData = keys?.status === "warn" ? ` Heads up: ${keys.detail}` : "";
 
   if (target !== "architect_cloud") {
-    await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: project.current_checkpoint_id, status: "sandbox", preflight: summary, url: null });
+    const cp = await checkpointToPublish(supa, project);
+    await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "sandbox", preflight: summary, url: null });
     await addLedger(supa, projectId, [
       {
         lane: "did",
@@ -134,9 +196,15 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   if (!hasAdmin()) return NO_ADMIN;
   const existing = await getLiveSiteForProject(supa, projectId);
   if (isBlocked(existing)) return BLOCKED;
-  const slug = existing?.slug ?? slugFor(project.name, projectId);
+  // Publishing what's already live would only add a duplicate row to the history.
+  if (existing && sameBlueprint(existing.blueprint, project.blueprint)) return { ok: false, error: "No changes since you published." };
+  // Published again after going offline: the same link comes back (the offline note promises it), even if the project was renamed.
+  const { data: last } = existing ? { data: null } : await supa.from("deployments").select("url").eq("project_id", projectId).eq("target", "architect_cloud").not("url", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const before = /^\/live\/([a-z0-9][a-z0-9-]{2,79})$/.exec((last?.url as string | null | undefined) ?? "")?.[1];
+  const slug = existing?.slug ?? before ?? slugFor(project.name, projectId);
   const link = `${await requestOrigin()}/live/${slug}`;
-  const cp = await addCheckpoint(supa, projectId, { label: "Published", kind: "ship", blueprint: project.blueprint, summary: `Live at ${link}` });
+  // The project's current version goes live; the live row points at it rather than at a copy of it.
+  const cp = await checkpointToPublish(supa, project);
   const { error } = existing
     ? await liveSites().update({ blueprint: project.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId)
     : await liveSites().insert({ slug, project_id: projectId, checkpoint_id: cp.id, blueprint: project.blueprint });
@@ -148,7 +216,13 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
   await addLedger(supa, projectId, [
-    { lane: "did", kind: "ship", title: existing ? "Published the changes" : "Published on Prod Cloud", body: `Anyone with the link can open ${link}.${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${samples}${testData}`, checkpointId: cp.id },
+    {
+      lane: "did",
+      kind: "ship",
+      title: existing ? `Published version ${cp.seq}` : `Published version ${cp.seq} on Prod Cloud`,
+      body: `Live at ${link}. ${accessLine(project.blueprint, project.settings.app?.hiddenEntities)}${domain ? ` ${domain} will point here once DNS checks pass.` : ""}${samples}${testData}`,
+      checkpointId: cp.id,
+    },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true, slug };
@@ -165,6 +239,7 @@ export async function rollbackTo(projectId: string, deploymentId: string): Promi
   if (isBlocked(live)) return BLOCKED;
   const cp = await getCheckpoint(supa, dep.checkpoint_id);
   if (!cp || cp.project_id !== projectId) return { ok: false, error: "That version is gone" };
+  if (live.checkpoint_id === cp.id) return { ok: false, error: `Version ${cp.seq} is already live.` };
   const { error } = await liveSites().update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId);
   if (error) return failed("rollback", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
@@ -182,7 +257,7 @@ export async function takeOffline(projectId: string): Promise<R> {
   const { error } = await liveSites().delete().eq("project_id", projectId).is("blocked_at", null);
   if (error) return failed("unpublish", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
-  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: "Took the live version offline", body: "The link now shows “not found”. Your project and save points are untouched." }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "ship", title: "Took the live version offline", body: "The link now shows “not found”. Your project and its versions are untouched." }]);
   revalidatePath(`/p/${projectId}`, "layout");
   return { ok: true };
 }

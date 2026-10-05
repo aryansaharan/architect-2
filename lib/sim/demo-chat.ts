@@ -1,4 +1,5 @@
 import type { Agent, AgentTool, Blueprint, Entity } from "@/lib/blueprint/schema";
+import { answeringFromScript, toolKind, type ScriptReason } from "@/lib/apps/helper-shared";
 
 /**
  * Scripted answers for the public /live app, where anonymous visitors never
@@ -16,6 +17,12 @@ export type DemoChatContext = {
   selected?: number;
   /** Answering over a published app's real records (passed in as each entity's rows), not the plan's samples. */
   live?: boolean;
+  /** Live only: why the script answers rather than the AI model (the owner needs to sign in, no credits left...). */
+  why?: ScriptReason;
+  /** Live only: email is set up on this Prod AI (RESEND_API_KEY and EMAIL_FROM), so an approved email would really go out. */
+  emailReady?: boolean;
+  /** Live only: a visitor on a public page, whose AI helpers only look things up. */
+  visitor?: boolean;
 };
 type Intent = "action" | "sla" | "flag" | "payout" | "history" | "summary" | "status" | "help";
 
@@ -277,6 +284,7 @@ function slaAnswer(bp: Blueprint, e: Entity, q: string, ctx: DemoChatContext): s
     basis = `the oldest open ones${F.assignee ? ` with no ${lower(label(F.assignee))} yet` : ""}`;
   }
   rows = rows.slice(0, Math.min(cap, rows.length));
+  if (!rows.length) return `Nothing open${by.length ? ` for ${by.join(", ")}` : ""} is at risk in the sample data.`;
   const when = (r: Row) => (F.due ? `${label(F.due)} ${show(F.due, r[F.due.name])}` : F.created ? `${lower(label(F.created))} ${show(F.created, r[F.created.name])}` : undefined);
   // "Breaching SLA" only when the list really has an SLA field, or the question and this screen's headline number both say SLA.
   const slaWords = F.due ? /sla/i.test(label(F.due)) : /\bsla\b/i.test(q) && kpiCap(bp, ctx.screenId, e.id, /sla/i) !== null;
@@ -304,8 +312,22 @@ function toolFor(bp: Blueprint, agent: Agent | undefined, want: RegExp, verb: st
   return hits.sort((x, y) => y.score - x.score)[0];
 }
 
+/**
+ * Why nothing happens, exactly. In the studio's demo it's the demo. In a published app: a visitor's helpers only
+ * look things up; an email can't go out while email isn't connected; a connection the app doesn't have yet does
+ * nothing; otherwise the script is answering, and it says why (the owner needs to sign in, no credits left...).
+ */
+function nothingHappens(bp: Blueprint, t: AgentTool | undefined, none: string, ctx: DemoChatContext): string {
+  if (!ctx.live) return `In this published demo ${none}.`;
+  if (ctx.visitor) return `AI helpers on public pages only look things up, so ${none}.`;
+  const kind = t ? toolKind(bp, t) : null;
+  if (kind === "email" && ctx.emailReady === false) return `Email isn't connected in this app yet, so ${none}.`;
+  if (kind === "unavailable" && t) return `${bp.connections.find((c) => c.id === t.connectionId)?.name ?? "That connection"} isn't set up for this app yet, so ${none}.`;
+  return `${answeringFromScript(ctx.why)}, so ${none}.`;
+}
+
 /** Orders like "Send a reorder email to The Copper Kettle now": said plainly, never done, since the demo can't act. */
-function actionAnswer(bp: Blueprint, agent: Agent | undefined, q: string, hit: { e: Entity; r: Row } | null): string {
+function actionAnswer(bp: Blueprint, agent: Agent | undefined, q: string, hit: { e: Entity; r: Row } | null, ctx: DemoChatContext): string {
   const verb = lc(q.match(new RegExp(`\\b(${ACT})\\b`, "i"))?.[1] ?? "send").replace("-", "");
   const sends = /^(send|email|message|notify)$/.test(verb);
   const found = toolFor(bp, agent, sends ? /send|e-?mail|message|notify|slack/i : /^(pay|refund)$/.test(verb) ? /pay|refund|transfer|money/i : new RegExp(verb.slice(0, 5), "i"), verb);
@@ -325,15 +347,17 @@ function actionAnswer(bp: Blueprint, agent: Agent | undefined, q: string, hit: {
     : `${doing[0]} ${target || doing[1]}`;
   const none = /^(pay|refund)$/.test(verb) ? "no money moves" : sends ? "nothing is sent" : "nothing changes";
   // Approving is the person's step itself, so no helper tool stands in for it.
-  if (/^(approve|reject|decline)$/.test(verb)) return `${say} is a person's call: AI helpers here prepare the work and a person gives the final OK. In this published demo ${none}.`;
+  if (/^(approve|reject|decline)$/.test(verb)) return `${say} is a person's call: AI helpers here prepare the work and a person gives the final OK. ${nothingHappens(bp, undefined, none, ctx)}`;
   if (!found) return `No AI helper in this app is set up to do that, so nothing happens. In apps built here, anything that can't be undone, like ${lc(say[0]) + say.slice(1)}, asks a person first.`;
   const helper = found.a === agent ? "this AI helper" : found.a.name;
   const what = lc(found.t.description[0]) + found.t.description.slice(1).replace(/\.$/, "");
+  const tail = nothingHappens(bp, found.t, found.t.access === "write" ? "nothing changes" : none, ctx);
   if (found.t.access === "write")
-    return `For that, ${helper} would ${what}. That can be undone${found.t.permission === "ask" ? ", and a person still OKs it first" : ", and every change is logged for a person to check"}. In this published demo nothing changes.`;
-  return found.t.permission === "ask" || found.a.supervision === "approve_all"
-    ? `${say} can't be undone, so ${helper} asks a person first. In this published demo ${none}.`
-    : `${say} can't be undone. ${helper === "this AI helper" ? "This AI helper" : helper} is set to do it on its own${found.t.permission === "log" ? " and log it for a person to check" : ""}. In this published demo ${none}.`;
+    return `For that, ${helper} would ${what}. That can be undone${found.t.permission === "ask" ? ", and a person still OKs it first" : ", and every change is logged for a person to check"}. ${tail}`;
+  // In a published app anything that can't be undone always waits for a person (lib/agents/tools.ts approvalFor).
+  return ctx.live || found.t.permission === "ask" || found.a.supervision === "approve_all"
+    ? `${say} can't be undone, so ${helper} asks a person first. ${tail}`
+    : `${say} can't be undone. ${helper === "this AI helper" ? "This AI helper" : helper} is set to do it on its own${found.t.permission === "log" ? " and log it for a person to check" : ""}. ${tail}`;
 }
 
 const INTENT_RE = Object.fromEntries(INTENTS) as Record<Intent, RegExp>;
@@ -343,19 +367,17 @@ export function detectIntent(q: string): Intent | null {
 }
 
 /** The same answers over a published app's real records: they speak of the app's records, never "sample data" or "this demo". */
-const LIVE_WORDS: [RegExp, string][] = [
+const liveWords = (ctx: DemoChatContext): [RegExp, string][] => [
   [/This demo has no sample data to answer from yet\./, "I can't see any records in this app yet."],
-  [/In this demo I answer from the app's sample data\./, "Right now I'm answering from a script over the app's records."],
+  [/In this demo I answer from the app's sample data\./, `${answeringFromScript(ctx.visitor ? (ctx.why ?? "public") : ctx.why)}.`],
   [/ in the sample data/g, " in the app's records"],
   [/ in the sample (?=\S)/g, " in the app's "],
-  [/ In this published demo /g, " Right now I'm answering from a script, so "],
-  [/This public demo can't create one/, "I can't create one from here"],
   [/\. In the real app a person approves/, ". A person approves"],
 ];
 
 export function demoReply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: DemoChatContext = {}): string {
   const out = reply(bp, agent, question, ctx);
-  return ctx.live ? LIVE_WORDS.reduce((s, [re, w]) => s.replace(re, w), out) : out;
+  return ctx.live ? liveWords(ctx).reduce((s, [re, w]) => s.replace(re, w), out) : out;
 }
 
 function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: DemoChatContext): string {
@@ -373,7 +395,7 @@ function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: D
   const current = pointsAtThis && e.sample.length ? { e, r: e.sample[ctx.selected ?? 0] ?? e.sample[0] } : null;
 
   // 0. Orders to do something ("Send ...", "Refund ... now"): the record named, or the one in view.
-  if (intent === "action") return actionAnswer(bp, agent, q, named[0] ?? current);
+  if (intent === "action") return actionAnswer(bp, agent, q, named[0] ?? current, ctx);
 
   // 1. Earlier records from the same person as the one in view (or the one named).
   if (intent === "history" && (named[0] || current)) {
@@ -399,7 +421,8 @@ function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: D
     const key = String(current.r[F.title.name] ?? "");
     const related = pe && pe !== e ? pe.sample.find((r) => Object.values(r).some((v) => String(v) === key)) : undefined;
     if (pe && related) return `A payout is already prepared for it:\n\n${describe(pe, related)}`;
-    return `${describe(current.e, current.r)}\n\nNo payout has been prepared for it yet. This public demo can't create one${paymentsGated(bp) ? ". In the real app a person approves every payout before money moves" : ""}.`;
+    const cant = !ctx.live ? "This public demo can't create one" : ctx.visitor ? "AI helpers on public pages only look things up, so I can't create one" : `${answeringFromScript(ctx.why)}, so I can't create one`;
+    return `${describe(current.e, current.r)}\n\nNo payout has been prepared for it yet. ${cant}${paymentsGated(bp) ? ". In the real app a person approves every payout before money moves" : ""}.`;
   }
   if (current && (thisRecord || intent === null || intent === "status" || intent === "flag" || intent === "help")) return describe(current.e, current.r);
 
@@ -439,7 +462,8 @@ function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: D
     const ent = slaEntity(bp, e);
     if (!ent) {
       const open = e.sample.filter((r) => isOpen(e, r));
-      return `This app's data has no due dates, so I can't tell what's running late. ${plural(open.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} still open:\n\n${bullets(e, open)}`;
+      const none = "This app's data has no due dates, so I can't tell what's running late.";
+      return open.length ? `${none} ${plural(open.length, `${lower(e.name)} is`, `${lower(e.plural)} are`)} still open:\n\n${bullets(e, open)}` : `${none} No ${lower(e.plural)} are open right now.`;
     }
     return slaAnswer(bp, ent, q, ctx);
   }
@@ -467,6 +491,8 @@ function reply(bp: Blueprint, agent: Agent | undefined, question: string, ctx: D
   }
 
   if (intent === "summary" || (intent === null && /\b(what|which|how)\b.*\b(today|new)\b/i.test(q))) {
+    // Nothing to list: say so in a sentence, never a heading with an empty list under it.
+    if (!e.sample.length) return `There are no ${lower(e.plural)} in the sample data yet.`;
     const wantsToday = /\b(today\w*|latest|this morning|so far)\b/i.test(q) && F.created;
     const wantsNew = /\bnew\b/i.test(q) && F.status?.options?.some((o) => /^new$/i.test(o));
     const { rows: scoped, by } = filterByMention(e, e.sample, q);

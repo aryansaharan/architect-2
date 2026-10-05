@@ -231,13 +231,14 @@ function dataToday(bp: Blueprint): number | null {
   return best;
 }
 
-function inWindow(rows: Row[], ev: Eval, bp: Blueprint): Row[] {
+/** Sample rows are anchored to their own latest date; real records to today (UTC, like the dates they hold). */
+function inWindow(rows: Row[], ev: Eval, bp: Blueprint, records = false): Row[] {
   if (!ev.span || !ev.dateField) return rows;
   const name = ev.dateField.name;
   const times = rows.map((r) => parseDate(r[name])).filter((t): t is number => t !== null);
-  if (!times.length) return rows;
+  if (!times.length && !records) return rows;
   const forward = ev.span.forward || FUTURE_DATE.test(name);
-  const anchor = forward ? (dataToday(bp) ?? Math.min(...times)) : Math.max(...times);
+  const anchor = records ? (parseDate(new Date().toISOString()) ?? 0) : forward ? (dataToday(bp) ?? Math.min(...times)) : Math.max(...times);
   const [from, to] = forward ? [anchor, anchor + (ev.span.days - 1) * DAY] : [anchor - (ev.span.days - 1) * DAY, anchor];
   return rows.filter((r) => {
     const t = parseDate(r[name]);
@@ -259,11 +260,15 @@ export function screenEntityId(bp: Blueprint, screenId: string | undefined): str
  * Tiles like "Approved this week" or "Ready for day one" count items that have left the
  * queue the sample rows show (approved payouts are sent, ready hires are done). A zero
  * computed from the queue would be misleading, so keep the authored figure then.
+ *
+ * Over a published app's real records (`records`) the rows are the truth: a type with no
+ * records yet counts 0 ("Open tickets: 0"), and a zero is shown as a zero. Only a tile the
+ * records can't answer (a duration, a rate of nothing) keeps the authored value.
  */
-export function deriveKpi(item: KpiItem, bp: Blueprint, screenEntity?: string): DerivedKpi {
-  const d = deriveFromRows(item, bp, screenEntity);
+export function deriveKpi(item: KpiItem, bp: Blueprint, screenEntity?: string, opts: { records?: boolean } = {}): DerivedKpi {
+  const d = deriveFromRows(item, bp, screenEntity, opts.records === true);
   const authoredNonZero = /[1-9]/.test(item.value.replace(/\bof\b.*$/, ""));
-  const out = d.zero && authoredNonZero ? { value: item.value, delta: item.delta, derived: false, zero: false } : d;
+  const out = d.zero && authoredNonZero && !opts.records ? { value: item.value, delta: item.delta, derived: false, zero: false } : d;
   return out.derived ? out : { ...out, value: formatAuthored(out.value, item.label, bp) };
 }
 
@@ -304,7 +309,7 @@ export function formatAuthored(value: string, label: string, bp: Blueprint): str
   return Number.isInteger(n) ? n.toLocaleString("en-US") : value.trim();
 }
 
-function deriveFromRows(item: KpiItem, bp: Blueprint, screenEntity?: string): DerivedKpi {
+function deriveFromRows(item: KpiItem, bp: Blueprint, screenEntity: string | undefined, records: boolean): DerivedKpi {
   const authored: DerivedKpi = { value: item.value, delta: item.delta, derived: false, zero: false };
   const authoredShape = parseShape(item.value);
   if (!authoredShape) return authored;
@@ -320,13 +325,14 @@ function deriveFromRows(item: KpiItem, bp: Blueprint, screenEntity?: string): De
     .filter((x) => x.entity.id === screenEntity || x.mention || (x.unaccounted.length === 0 && (x.filters.length > 0 || x.measure !== null)))
     .sort((a, b) => a.unaccounted.length - b.unaccounted.length || Number(b.entity.id === screenEntity) - Number(a.entity.id === screenEntity) || Number(b.mention) - Number(a.mention));
   const ev = candidates[0];
-  if (!ev || !ev.entity.sample.length) return authored;
+  // Sample rows can be missing from a plan; real records can simply be none yet, which counts as 0.
+  if (!ev || (!ev.entity.sample.length && !records)) return authored;
   // The field decides how the number is written: a bare "66900" on a money field is money, a rate is a percentage.
   let shape = authoredShape;
   if ((shape.kind === "count" || shape.kind === "decimal") && ev.measure?.type === "money") shape = { kind: "money", symbol: DEFAULT_CURRENCY, compact: "" };
   else if ((shape.kind === "count" || shape.kind === "decimal") && RATE.test(item.label)) shape = { kind: "percent" };
 
-  const windowRows = inWindow(ev.entity.sample, ev, bp);
+  const windowRows = inWindow(ev.entity.sample, ev, bp, records);
   const rows = windowRows.filter((r) => ev.filters.every((f) => f.test(r[f.field])));
   const moneyField = ev.measure?.type === "money" ? ev.measure : ev.entity.fields.find((f) => f.type === "money") ?? null;
   const sum = (f: Field, rs: Row[]) => rs.reduce((s, r) => s + (num(r[f.name]) ?? 0), 0);

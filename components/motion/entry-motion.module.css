@@ -1,0 +1,186 @@
+/*
+ * Motion on the way in: the landing, sign-in, Home and New project (docs/DESIGN.md, Motion).
+ * Each effect says what just happened: something was written, drawn, placed or inked.
+ * One easing, the paper curve. Durations 150 / 250 / 450ms, and 1100ms for ink.
+ * Only transform, opacity, clip-path and stroke-dashoffset move. Every keyframe starts
+ * from the "before" state and ends on the element's own style, so with no animation
+ * (reduced motion, or already seen this session) everything is simply there.
+ */
+
+/* ------------------------------------------------------------ landing hero */
+
+/* "Sketch your app." written on, left to right, like a pen moving. */
+.heroWrite {
+  display: inline-block;
+  animation: entry-write 700ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Then the wavy line under "Sketch" is drawn. */
+.heroUnderline {
+  animation: entry-wipe 450ms cubic-bezier(0.22, 1, 0.36, 1) 550ms backwards;
+}
+
+/* "Get a production app." starts as a pencil line and is inked over: grey pencil out, green ink in. */
+.heroInkLine {
+  position: relative;
+  display: inline-block;
+}
+.heroInkLine::before {
+  content: attr(data-pencil) / "";
+  position: absolute;
+  inset: 0;
+  color: var(--graphite);
+  opacity: 0;
+  pointer-events: none;
+  animation: entry-pencil-out 1100ms cubic-bezier(0.22, 1, 0.36, 1) 700ms backwards;
+}
+.heroInk {
+  animation: entry-ink 1100ms cubic-bezier(0.22, 1, 0.36, 1) 700ms backwards;
+}
+
+/* A note in the margin, written after the headline, with its arrow drawn to the sheet. */
+.marginNote {
+  animation: entry-write 450ms cubic-bezier(0.22, 1, 0.36, 1) 1500ms backwards;
+}
+.marginArrow path {
+  stroke-dasharray: 1 2;
+  animation: entry-stroke 450ms cubic-bezier(0.22, 1, 0.36, 1) 1850ms backwards;
+}
+.marginArrow path + path {
+  animation-duration: 250ms;
+  animation-delay: 2250ms;
+}
+
+/* ---------------------------------------------------------- writing sheet */
+
+/* The ruled lines darken a touch while you write: the sheet is yours. */
+@property --entry-rule {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: rgb(44 98 201 / 0.12);
+}
+.rules {
+  --entry-rule: rgb(44 98 201 / 0.12);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--entry-rule) 31px, var(--entry-rule) 32px);
+  transition: --entry-rule 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rules:focus {
+  --entry-rule: rgb(44 98 201 / 0.2);
+}
+
+/* ------------------------------------------------------------ new project */
+
+/* The answers arrive one after another. --entry-i is the option's place in the list. */
+.optIn {
+  animation: entry-fade 250ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--entry-i, 0) * 35ms);
+}
+
+/* A tick drawn in one stroke when someone picks an answer (the path has pathLength="1"). */
+.tickDraw {
+  stroke-dasharray: 1 2;
+  animation: entry-stroke 250ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* -------------------------------------------------------------------- home */
+
+/* Project cards laid down on the paper, one after another, on the first visit of the session. */
+.cardIn {
+  animation: entry-card 450ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(min(var(--entry-i, 0), 8) * 60ms);
+}
+
+/* ------------------------------------------------------------------ sign in */
+
+/* The note someone wrote on the landing page, carried over and placed here. */
+.notePlaced {
+  animation: entry-place 450ms cubic-bezier(0.22, 1, 0.36, 1) 150ms backwards;
+}
+
+/* ------------------------------------------------------------------ header */
+
+/* The pencil line moves to the tab you just opened: drawn under it, left to right. */
+.tabDraw {
+  animation: entry-wipe 450ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* --------------------------------------------------------------- keyframes */
+
+@keyframes entry-write {
+  from {
+    clip-path: inset(-25% 100% -35% -8%);
+  }
+  to {
+    clip-path: inset(-25% -8% -35% -8%);
+  }
+}
+@keyframes entry-wipe {
+  from {
+    clip-path: inset(-50% 100% -50% 0);
+  }
+  to {
+    clip-path: inset(-50% 0 -50% 0);
+  }
+}
+@keyframes entry-stroke {
+  from {
+    stroke-dashoffset: 1.1;
+  }
+}
+@keyframes entry-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes entry-ink {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes entry-pencil-out {
+  from {
+    opacity: 0.5;
+  }
+}
+@keyframes entry-place {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) rotate(-2deg);
+  }
+}
+@keyframes entry-card {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Seen already this session (a reload, or coming back to the page): no replay. */
+[data-entry-seen] .heroWrite,
+[data-entry-seen] .heroUnderline,
+[data-entry-seen] .heroInk,
+[data-entry-seen] .heroInkLine::before,
+[data-entry-seen] .marginNote,
+[data-entry-seen] .marginArrow path,
+[data-entry-seen] .cardIn {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroWrite,
+  .heroUnderline,
+  .heroInk,
+  .heroInkLine::before,
+  .marginNote,
+  .marginArrow path,
+  .optIn,
+  .tickDraw,
+  .cardIn,
+  .notePlaced,
+  .tabDraw {
+    animation: none !important;
+  }
+  .rules {
+    transition: none;
+  }
+}

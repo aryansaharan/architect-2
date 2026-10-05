@@ -1,5 +1,4 @@
 import type { Blueprint } from "@/lib/blueprint/schema";
-import { signInMethods } from "@/lib/blueprint/describe";
 import { publicAccess } from "@/lib/apps/view";
 import { PRICE } from "@/lib/prices";
 
@@ -34,7 +33,8 @@ export function preflight(
       label: "People must sign in",
       plain: "Only people you invite can open the team screens.",
       status: bp.meta.auth.enabled ? "pass" : "fail",
-      detail: bp.meta.auth.enabled ? `Sign in with ${signInMethods(bp.meta.auth.providers)}.` : "Anyone with the link could see your data.",
+      // A published app takes Google or an email link (components/auth/auth-panel.tsx), whatever the plan lists.
+      detail: bp.meta.auth.enabled ? "Sign in with Google or an email link." : "Anyone with the link could see your data.",
       blocking: true,
       fix: bp.meta.auth.enabled ? undefined : { label: "Turn on sign-in", action: "enable_auth" },
     },
@@ -163,6 +163,16 @@ function publicCheck(bp: Blueprint, hidden: string[], helpersOn: boolean): Prefl
     parts.push(helpersOn ? `Visitors can talk to ${names}. Each message Claude answers uses ${PRICE.helperMessage} of your credits.` : `Visitors can't talk to ${names} unless you turn that on.`);
   }
   return { ...base, status: "info", detail: parts.join(" ") };
+}
+
+/**
+ * Who can use a published app, in one sentence, from what it makes public (lib/apps/view.ts publicAccess,
+ * the same rule the live app uses): without public pages only the owner and the people they invite get in.
+ */
+export function accessLine(bp: Blueprint, hiddenEntities: string[] = []): string {
+  return publicAccess(bp, hiddenEntities).screens.length
+    ? "Its public pages are open to anyone with the link; team screens are only for you and the people you invite."
+    : "Private: only you and the people you invite.";
 }
 
 /** The keys row in words: how many connections run on test data and which, or that none does. */

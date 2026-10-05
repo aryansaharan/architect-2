@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
 import { GitHubMark } from "@/components/brand/logo";
 import { PlanningView, usePlanStream } from "@/components/new/plan-stream";
+import { CapNote } from "@/components/new/cap-note";
 import { PencilBox } from "@/components/landing/sketches";
 import { cn } from "@/lib/utils";
 import { Term } from "@/components/arch/term";
@@ -17,7 +18,13 @@ const READ_STEPS = ["Fetching the repository details", "Listing every file", "Re
 
 type Step = "input" | "reading" | "report" | "mapping";
 
-export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: string; llm?: "live" | "offline" }) {
+/** Back to the import after signing in, with the repo still filled in. */
+const comeBack = (repo: string) => {
+  const r = repo.trim().replace(/^https?:\/\//, "").replace(/^github\.com\//, "");
+  return r ? `/new?mode=import&repo=${encodeURIComponent(r)}` : "/new?mode=import";
+};
+
+export function ImportWizard({ initialRepo, llm = "live", isGuest = false, capMessage = null }: { initialRepo: string; llm?: "live" | "offline"; isGuest?: boolean; capMessage?: string | null }) {
   const [step, setStep] = useState<Step>("input");
   const [repo, setRepo] = useState(initialRepo);
   const [readStep, setReadStep] = useState(0);
@@ -57,12 +64,13 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
   }
 
   useEffect(() => {
-    if (initialRepo && !autostarted.current) {
+    // Full up: nothing to map into, so the repo isn't read. The page says so instead.
+    if (initialRepo && !autostarted.current && !capMessage) {
       autostarted.current = true;
       void read(initialRepo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- start once for the repo in the URL; read() is recreated every render
-  }, [initialRepo]);
+  }, [initialRepo, capMessage]);
 
   const map = () => {
     setStep("mapping");
@@ -75,7 +83,7 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
     setNewRule("");
   };
 
-  if (step === "mapping") return <PlanningView s={planner} eyebrow="From your GitHub repo · sketching what's there" onRetry={map} />;
+  if (step === "mapping") return <PlanningView s={planner} eyebrow="From your GitHub repo · sketching what's there" onRetry={map} signInNext={isGuest ? comeBack(report ? `${report.repo.owner}/${report.repo.name}` : repo) : null} />;
 
   if (step === "input" || step === "reading") {
     return (
@@ -85,26 +93,31 @@ export function ImportWizard({ initialRepo, llm = "live" }: { initialRepo: strin
         <p className="mt-4 text-lead text-muted-foreground">
           Prod AI reads your repository first, tells you what it understood and what it didn&apos;t, and writes down the rules it will follow before it touches a file. Every change comes as a pull request you review.
         </p>
-        <div className="panel mt-7 rounded-md p-5 sm:p-7">
-          <label htmlFor="repo-url" className="font-pencil text-section">Which repository?</label>
-          <div className="mt-3 flex gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-raised px-3 transition-[border-color,box-shadow] duration-150 ease-paper hover:border-line-strong focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
-              <GitHubMark className="text-muted-foreground" />
-              <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full min-w-0 bg-transparent font-mono text-code outline-none placeholder:text-faint" disabled={step === "reading"} />
+        {capMessage ? (
+          // Full up: said before the repo is read, with the ways on. The repo in the link comes back after signing in.
+          <CapNote className="mt-7" message={capMessage} signInNext={isGuest ? comeBack(repo) : null} />
+        ) : (
+          <div className="panel mt-7 rounded-md p-5 sm:p-7">
+            <label htmlFor="repo-url" className="font-pencil text-section">Which repository?</label>
+            <div className="mt-3 flex gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-raised px-3 transition-[border-color,box-shadow] duration-150 ease-paper hover:border-line-strong focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
+                <GitHubMark className="text-muted-foreground" />
+                <input id="repo-url" value={repo} onChange={(e) => setRepo(e.target.value)} onKeyDown={(e) => e.key === "Enter" && read()} placeholder="github.com/owner/repo" className="h-10 w-full min-w-0 bg-transparent font-mono text-code outline-none placeholder:text-faint" disabled={step === "reading"} />
+              </div>
+              <Button size="lg" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
+                Read it <ArrowRight />
+              </Button>
             </div>
-            <Button size="lg" onClick={() => read()} disabled={!repo.trim() || step === "reading"}>
-              Read it <ArrowRight />
-            </Button>
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 font-sketch text-sketch text-faint">Or try</span>
+              {EXAMPLES.map((r) => (
+                <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-badge text-muted-foreground transition-colors duration-150 hover:border-line-strong hover:text-foreground">{r}</button>
+              ))}
+            </div>
+            {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-md border border-hairline-hi bg-panel px-3 py-2 text-ui text-foreground"><CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />{error}</p>}
+            <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-ui text-muted-foreground">Private repository? Connecting GitHub for private repositories is coming; for now, public repositories only. ZIP and Figma imports are next on the list.</p>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 font-sketch text-sketch text-faint">Or try</span>
-            {EXAMPLES.map((r) => (
-              <button key={r} onClick={() => { setRepo(`github.com/${r}`); void read(r); }} disabled={step === "reading"} className="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-badge text-muted-foreground transition-colors duration-150 hover:border-line-strong hover:text-foreground">{r}</button>
-            ))}
-          </div>
-          {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-md border border-hairline-hi bg-panel px-3 py-2 text-ui text-foreground"><CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />{error}</p>}
-          <p className="mt-5 border-t border-dashed border-hairline-hi pt-4 text-ui text-muted-foreground">Private repository? Connecting GitHub for private repositories is coming; for now, public repositories only. ZIP and Figma imports are next on the list.</p>
-        </div>
+        )}
         {step === "reading" && (
           <ol className="panel mt-4 space-y-1.5 rounded-md px-5 py-4 text-body" aria-live="polite" aria-label="Reading the repository">
             {READ_STEPS.map((s, i) => (

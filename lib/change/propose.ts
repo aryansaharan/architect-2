@@ -174,7 +174,7 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
   return {
     proposal: {
       summary: "This one needs a person",
-      rationale: `I can't make “${request.slice(0, 80)}” safely on my own${m ? "" : " in offline mode"}. Hand it to a teammate. They'll get the screen, your request and the latest changes.`,
+      rationale: `I can't make “${request.slice(0, 80)}” safely on my own${m ? "" : " without Claude"}. Hand it to a teammate. They'll get the screen, your request and the latest changes.`,
       operations: [],
       blastRadius: { screens: [], agents: [], files: 0 },
       credits: 0,

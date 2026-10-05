@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Chat, useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from "ai";
 import { ArrowUp, Check, Hand, Loader2, Lock, Mail, Pencil, RotateCcw, Search, ShieldAlert, Sparkles, X } from "lucide-react";
@@ -7,7 +7,7 @@ import { noEmDash } from "@/lib/text";
 import type { Agent, AgentTool, Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { lowerFirst } from "@/lib/blueprint/describe";
 import { publicAccess } from "@/lib/apps/view";
-import { scriptBlueprint, toolKind, type HelperToolKind } from "@/lib/apps/helper-shared";
+import { isScriptReason, scriptBlueprint, scriptNote, toolKind, type HelperToolKind, type ScriptReason } from "@/lib/apps/helper-shared";
 import { cn } from "@/lib/utils";
 import { useApp, type AppCtx } from "./app-context";
 import { RECORDS_CHANGED_EVENT, useHelperAccess } from "./helper-context";
@@ -18,15 +18,25 @@ import { demoReply, type DemoChatContext } from "@/lib/sim/demo-chat";
 
 type ChatBlock = Extract<Block, { type: "chat" }>;
 
-function Shell({ block, agent, children, footer }: { block: ChatBlock; agent: Agent | undefined; children: React.ReactNode; footer: React.ReactNode }) {
+/** What a conversation looks like wherever it sits: a chat block on a screen, or the dialog a button opens. */
+type Look = { title: string; subtitle?: string; placeholder: string; starters: string[] };
+
+const lookOf = (block: ChatBlock, agent: Agent | undefined): Look => ({ title: block.title ?? agent?.name ?? "AI helper", subtitle: agent?.role, placeholder: block.placeholder, starters: block.starters });
+
+function Shell({ look, children, footer, onClose, titleId, inDialog = false }: { look: Look; children: React.ReactNode; footer: React.ReactNode; onClose?: () => void; titleId?: string; inDialog?: boolean }) {
   return (
-    <section className="flex h-[420px] flex-col rounded-[calc(var(--app-radius)+4px)] border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+    <section className={cn("flex flex-col bg-white", inDialog ? "h-full min-h-0" : "h-[420px] rounded-[calc(var(--app-radius)+4px)] border border-slate-200 shadow-[0_1px_2px_rgb(15_23_42/0.04)]")}>
       <header className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
-        <span className="grid size-7 place-items-center rounded-full text-white" style={{ background: "var(--app-primary)" }}><Sparkles className="size-3.5" /></span>
-        <span className="min-w-0">
-          <span className="block truncate text-[13.5px] font-semibold text-slate-900">{block.title ?? agent?.name}</span>
-          <span className="block truncate text-[11.5px] text-slate-500">{agent?.role}</span>
+        <span className="grid size-7 shrink-0 place-items-center rounded-full text-white" style={{ background: "var(--app-primary)" }}><Sparkles className="size-3.5" /></span>
+        <span className="min-w-0 flex-1">
+          <span id={titleId} className="block truncate text-[13.5px] font-semibold text-slate-900">{look.title}</span>
+          {look.subtitle && <span className="block truncate text-[11.5px] text-slate-500">{look.subtitle}</span>}
         </span>
+        {onClose && (
+          <button type="button" onClick={onClose} className="-mr-1 shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+            <X className="size-4" />
+          </button>
+        )}
       </header>
       {children}
       {footer}
@@ -34,12 +44,24 @@ function Shell({ block, agent, children, footer }: { block: ChatBlock; agent: Ag
   );
 }
 
-function Composer({ value, onChange, onSend, busy, placeholder }: { value: string; onChange: (v: string) => void; onSend: () => void; busy: boolean; placeholder: string }) {
+/** The message box. While an approval card waits for an answer it's locked, with a hint saying why. */
+function Composer({ value, onChange, onSend, busy, placeholder, locked, inputRef }: { value: string; onChange: (v: string) => void; onSend: () => void; busy: boolean; placeholder: string; locked?: string; inputRef?: React.Ref<HTMLInputElement> }) {
   return (
     <div className="border-t border-slate-100 p-2.5">
-      <div className="flex items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5">
-        <input value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onSend()} placeholder={placeholder} maxLength={4000} className="h-9 flex-1 bg-transparent text-[13px] text-slate-900 outline-none placeholder:text-slate-400" aria-label="Message" />
-        <button onClick={onSend} disabled={busy || !value.trim()} className="grid size-7 place-items-center rounded-md text-white disabled:opacity-40" style={{ background: "var(--app-primary)" }} aria-label="Send">
+      <div className={cn("flex items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5", locked && "bg-slate-50")} title={locked}>
+        {locked && <Hand className="size-3.5 shrink-0 text-slate-400" aria-hidden />}
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !locked && onSend()}
+          placeholder={locked ?? placeholder}
+          disabled={Boolean(locked)}
+          maxLength={4000}
+          className="h-9 min-w-0 flex-1 bg-transparent text-[13px] text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+          aria-label="Message"
+        />
+        <button onClick={onSend} disabled={busy || Boolean(locked) || !value.trim()} className="grid size-7 shrink-0 place-items-center rounded-md text-white disabled:opacity-40" style={{ background: "var(--app-primary)" }} aria-label="Send">
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUp className="size-3.5" />}
         </button>
       </div>
@@ -47,8 +69,8 @@ function Composer({ value, onChange, onSend, busy, placeholder }: { value: strin
   );
 }
 
-function Starters({ block, onPick }: { block: ChatBlock; onPick: (s: string) => void }) {
-  return block.starters.map((s) => (
+function Starters({ starters, onPick }: { starters: string[]; onPick: (s: string) => void }) {
+  return starters.map((s) => (
     <button key={s} onClick={() => onPick(s)} className="block w-full rounded-[var(--app-radius)] border border-slate-200 px-3 py-2 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">{s}</button>
   ));
 }
@@ -57,22 +79,40 @@ function UserBubble({ text }: { text: string }) {
   return <p className="ml-auto w-fit max-w-[88%] whitespace-pre-wrap rounded-2xl rounded-br-md px-3 py-2 text-[13px] text-white" style={{ background: "var(--app-primary)" }}>{noEmDash(text)}</p>;
 }
 
-/** "Ask <agent>" buttons elsewhere on the screen route here. */
-function useAskAgent(agentId: string, send: (prompt: string) => void) {
+/** "Ask <agent>" buttons elsewhere on the screen route here (a chat block only, never the dialog a button opened). */
+function useAskAgent(agentId: string, send: (prompt: string) => void, enabled = true) {
   const onAsk = useEffectEvent((prompt: string) => send(prompt));
   useEffect(() => {
+    if (!enabled) return;
     const handler = (e: Event) => {
       const d = (e as CustomEvent<{ agentId: string; prompt: string }>).detail;
       if (d.agentId === agentId) onAsk(d.prompt);
     };
     window.addEventListener("prodai:ask-agent", handler);
     return () => window.removeEventListener("prodai:ask-agent", handler);
-  }, [agentId]);
+  }, [agentId, enabled]);
+}
+
+/** A button's prompt, sent once when its dialog opens (not again when the dialog remounts, e.g. after switching phone and desktop view). */
+const sentPrompts = new Set<string>();
+function useOpeningPrompt(initial: { id: number; prompt: string } | undefined, key: string, send: (prompt: string) => void, shouldSend: () => boolean) {
+  const fire = useEffectEvent(() => {
+    if (!initial || sentPrompts.has(`${key}#${initial.id}`)) return;
+    sentPrompts.add(`${key}#${initial.id}`);
+    if (shouldSend()) send(initial.prompt);
+  });
+  const id = initial?.id;
+  useEffect(() => {
+    if (id === undefined) return;
+    // After the first paint, so the dialog is on screen before the run starts.
+    const t = setTimeout(() => fire(), 0);
+    return () => clearTimeout(t);
+  }, [id]);
 }
 
 const blocksOf = (s: Screen) => [...s.regions.main, ...(s.regions.side ?? [])];
 
-/** The screen a chat block sits on, and the data type (and detail view) its "this one" questions refer to. */
+/** The screen a block sits on, and the data type (and detail view) its "this one" questions refer to. */
 function placeOf(bp: Blueprint, blockId: string) {
   const screen = bp.screens.find((s) => blocksOf(s).some((b) => b.id === blockId));
   const blocks = screen ? blocksOf(screen) : [];
@@ -87,7 +127,7 @@ export function ChatBlockView({ block }: { block: ChatBlock }) {
   const agent = app.bp.agents.find((a) => a.id === block.agentId);
   if (app.mode === "preview" && app.projectId && agent) return <LiveAgentChat block={block} agent={agent} bp={app.bp} projectId={app.projectId} />;
   if (app.mode === "live" && app.data && agent) return <PublishedHelper block={block} agent={agent} />;
-  return <DemoChat block={block} agent={agent} />;
+  return <BlockDemoChat block={block} agent={agent} />;
 }
 
 /** The studio preview: the playground's sandboxed run (app/api/chat) on the plan's sample data. */
@@ -115,12 +155,12 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
     setText("");
   };
   return (
-    <Shell block={block} agent={agent} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
+    <Shell look={lookOf(block, agent)} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
       <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {chat.messages.length === 0 && (
           <div className="space-y-2 pt-2">
             <p className="text-[12.5px] text-slate-500">Try:</p>
-            <Starters block={block} onPick={send} />
+            <Starters starters={block.starters} onPick={send} />
           </div>
         )}
         {chat.messages.map((m) =>
@@ -152,7 +192,7 @@ function LiveAgentChat({ block, agent, bp, projectId }: { block: ChatBlock; agen
 
 // ---------------------------------------------------------------- a published app's real AI helper
 
-type Probe = { allowed: boolean; team: boolean };
+type Probe = { allowed: boolean; team: boolean; reason?: ScriptReason | null; emailReady?: boolean };
 const probes = new Map<string, Promise<Probe>>();
 
 /** The app's slug from its /live/<slug> address (only read in the browser, after hydration). */
@@ -164,7 +204,7 @@ function usePathSlug(): string | null {
   );
 }
 
-/** Without the live app telling us who this is, ask the server once whether this helper is open to them. */
+/** Without the live app telling us who this is, ask the server once whether this helper is open to them from this block. */
 function useProbe(slug: string | null, agentId: string, blockId: string, skip: boolean): Probe | null {
   const [result, setResult] = useState<Probe | null>(null);
   useEffect(() => {
@@ -189,34 +229,44 @@ function useProbe(slug: string | null, agentId: string, blockId: string, skip: b
   return result;
 }
 
+/** Who may talk to this helper from this block: the team anywhere, a visitor only on a public page when the owner allows it. */
+function useHelperDecision(agentId: string, blockId: string) {
+  const app = useApp();
+  const access = useHelperAccess();
+  const pathSlug = usePathSlug();
+  const slug = access?.slug ?? pathSlug;
+  const { screen } = placeOf(app.bp, blockId);
+  const known: Probe | null = access ? { allowed: access.role !== "visitor" || (access.publicHelpers && screen?.audience === "customer"), team: access.role !== "visitor", emailReady: access.emailReady } : null;
+  const probed = useProbe(slug, agentId, blockId, Boolean(known));
+  return { slug, decided: known ?? probed, access };
+}
+
 /**
  * The team talks to the real helper (on the app's records) from any chat block; a visitor only on a
  * public page, when the owner allows it. Everyone else keeps the scripted chat.
  */
 function PublishedHelper({ block, agent }: { block: ChatBlock; agent: Agent }) {
   const app = useApp();
-  const access = useHelperAccess();
-  const pathSlug = usePathSlug();
-  const slug = access?.slug ?? pathSlug;
-  const { screen } = placeOf(app.bp, block.id);
-  const known = access ? { allowed: access.role !== "visitor" || (access.publicHelpers && screen?.audience === "customer"), team: access.role !== "visitor" } : null;
-  const probed = useProbe(slug, agent.id, block.id, Boolean(known));
-  const decided = known ?? probed;
+  const { slug, decided, access } = useHelperDecision(agent.id, block.id);
+  const look = lookOf(block, agent);
   if (!decided || !slug)
     return (
-      <Shell block={block} agent={agent} footer={<Composer value="" onChange={() => undefined} onSend={() => undefined} busy placeholder={block.placeholder} />}>
+      <Shell look={look} footer={<Composer value="" onChange={() => undefined} onSend={() => undefined} busy placeholder={block.placeholder} />}>
         <div className="min-h-0 flex-1 p-3" />
       </Shell>
     );
-  if (!decided.allowed) return <DemoChat block={block} agent={agent} />;
-  return <HelperChat slug={slug} block={block} agent={agent} team={decided.team} onRecordsChanged={access?.onRecordsChanged} />;
+  if (!decided.allowed) return <BlockDemoChat block={block} agent={agent} emailReady={decided.emailReady} />;
+  const place = placeOf(app.bp, block.id);
+  const recordId = place.detail && place.entityId ? app.data?.recordId(place.entityId, app.selectedRow[place.entityId] ?? 0) : undefined;
+  return <HelperChat slug={slug} chatKey={`${slug}/${block.id}`} blockId={block.id} look={look} agent={agent} team={decided.team} recordId={recordId} onRecordsChanged={access?.onRecordsChanged} />;
 }
 
-/** Conversations by app and chat block, so switching phone and desktop view (which remounts the block) keeps them. Only kept in the browser. */
+/** Conversations by app and chat block (or button), so switching phone and desktop view (which remounts them) keeps them. Only kept in the browser. */
 const helperChats = new Map<string, Chat<UIMessage>>();
-/** Per conversation: the record open on screen (sent with each message) and how the last answer was made. */
+/** Per conversation: the record open on screen (sent with each message), how the last answer was made, and why a script made it. */
 const openRecord = new Map<string, string | undefined>();
 const answerMode = new Map<string, string>();
+const answerReason = new Map<string, ScriptReason>();
 /** Changes already announced to the app (so its tables reload once), and changes undone from the chat. */
 const announced = new Set<string>();
 const undone = new Set<string>();
@@ -234,6 +284,8 @@ function helperChat(key: string, slug: string, agentId: string, blockId: string)
         const res = await fetch(input, init);
         const mode = res.headers.get("x-prodai-mode");
         if (mode) answerMode.set(key, mode);
+        const reason = res.headers.get("x-prodai-reason");
+        if (isScriptReason(reason)) answerReason.set(key, reason);
         return res;
       },
     }),
@@ -268,16 +320,49 @@ function recordTitle(app: AppCtx, recordId: string | undefined): string | null {
   return null;
 }
 
-function HelperChat({ slug, block, agent, team, onRecordsChanged }: { slug: string; block: ChatBlock; agent: Agent; team: boolean; onRecordsChanged?: () => void }) {
+/** An approval card is waiting for the person's answer: until then, nothing else can be sent. */
+const awaitingApproval = (messages: UIMessage[]) =>
+  messages.some((m) => m.role === "assistant" && m.parts.some((p) => isToolPart(p) && p.state === "approval-requested" && Boolean(p.approval) && !p.approval!.isAutomatic));
+
+export const ANSWER_FIRST = "Answer the request above first";
+
+function HelperChat({
+  slug,
+  chatKey,
+  blockId,
+  look,
+  agent,
+  team,
+  recordId,
+  onRecordsChanged,
+  opening,
+  onClose,
+  titleId,
+  inDialog = false,
+}: {
+  slug: string;
+  chatKey: string;
+  blockId: string;
+  look: Look;
+  agent: Agent;
+  team: boolean;
+  recordId: string | undefined;
+  onRecordsChanged?: () => void;
+  /** A button's prompt to send when the dialog opens. */
+  opening?: { id: number; prompt: string };
+  onClose?: () => void;
+  titleId?: string;
+  inDialog?: boolean;
+}) {
   const app = useApp();
-  const key = `${slug}/${block.id}`;
-  const [kept] = useState(() => helperChat(key, slug, agent.id, block.id));
+  const key = chatKey;
+  const [kept] = useState(() => helperChat(key, slug, agent.id, blockId));
   const chat = useChat({ chat: kept });
   const [text, setText] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const busy = chat.status === "submitted" || chat.status === "streaming";
-  const place = placeOf(app.bp, block.id);
-  const recordId = place.detail && place.entityId ? app.data?.recordId(place.entityId, app.selectedRow[place.entityId] ?? 0) : undefined;
+  const waiting = awaitingApproval(chat.messages);
 
   useEffect(() => {
     openRecord.set(key, recordId);
@@ -308,26 +393,38 @@ function HelperChat({ slug, block, agent, team, onRecordsChanged }: { slug: stri
 
   const send = (t: string) => {
     const v = t.trim();
-    if (!v || busy) return;
+    if (!v || busy || awaitingApproval(chat.messages)) return;
+    // The record in view goes with this very message, even when the dialog opened a moment ago.
+    openRecord.set(key, recordId);
     void chat.sendMessage({ text: v });
     setText("");
   };
-  useAskAgent(agent.id, send);
+  useAskAgent(agent.id, send, !inDialog);
+  // A button's prompt goes once when its dialog opens: into an empty conversation, or again after a failed try.
+  useOpeningPrompt(opening, key, send, () => chat.messages.length === 0 || Boolean(chat.error));
+  useEffect(() => {
+    if (inDialog) input.current?.focus();
+  }, [inDialog]);
 
   const mode = answerMode.get(key) ?? null;
+  const reason = answerReason.get(key) ?? (mode === "budget" ? "cap" : "model");
   return (
-    <Shell block={block} agent={agent} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
+    <Shell
+      look={look}
+      onClose={onClose}
+      titleId={titleId}
+      inDialog={inDialog}
+      footer={<Composer inputRef={input} value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={look.placeholder} locked={waiting ? ANSWER_FIRST : undefined} />}
+    >
       <div ref={scroller} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
         <p className="text-[11.5px] text-slate-400">
-          {mode === "budget"
-            ? "This app's AI budget is used up, so answers come from a script over its records."
-            : mode === "scripted"
-              ? "The AI model isn't available right now, so answers come from a script over the app's records."
-              : team
-                ? "Works on this app's records. Changes can be undone, and anything that can't be undone asks you first."
-                : "Answers from what this page shows."}
+          {mode === "budget" || mode === "scripted"
+            ? scriptNote(reason, team)
+            : team
+              ? "Works on this app's records. Changes can be undone, and anything that can't be undone asks you first."
+              : "Answers from what this page shows."}
         </p>
-        {chat.messages.length === 0 && <Starters block={block} onPick={send} />}
+        {chat.messages.length === 0 && !opening && <Starters starters={look.starters} onPick={send} />}
         {chat.messages.map((m) =>
           m.role === "user" ? (
             <UserBubble key={m.id} text={m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")} />
@@ -368,8 +465,11 @@ function HelperStep({ part, tool, kind, slug, team, onUndone }: { part: ToolPart
   const [, rerender] = useState(0);
   const Icon = KIND_ICON[kind];
   const running = part.state === "input-streaming" || part.state === "input-available" || part.state === "approval-responded";
-  const denied = part.state === "output-denied" || (part.state === "approval-responded" && part.approval?.approved === false);
-  const failed = part.state === "output-error" || out?.ok === false || ["refused", "limit", "failed"].includes(out?.status ?? "");
+  // Only the person's own "Deny" reads as a no. An allowed action that couldn't run says so instead.
+  const allowed = part.approval?.approved === true;
+  const denied = (part.state === "output-denied" && !allowed) || (part.state === "approval-responded" && part.approval?.approved === false);
+  const notRun = part.state === "output-denied" && allowed;
+  const failed = notRun || part.state === "output-error" || out?.ok === false || ["refused", "limit", "failed", "not_run", "not_connected", "not_configured"].includes(out?.status ?? "");
 
   const title =
     kind === "search" ? `Looked up ${input.type ? lowerFirst(input.type) : "records"}${input.query ? ` for “${input.query}”` : ""}`
@@ -429,7 +529,8 @@ function HelperStep({ part, tool, kind, slug, team, onUndone }: { part: ToolPart
         </p>
       )}
       {denied && <p className="mt-1 pl-5 text-slate-500">You said no, so nothing happened.</p>}
-      {!denied && (out?.error || (out?.note && kind !== "search")) && <p className={cn("mt-1 pl-5", failed ? "text-rose-700" : "text-slate-600")}>{out.error ?? out.note}</p>}
+      {notRun && <p className="mt-1 pl-5 text-rose-700">This couldn&apos;t run right now, so nothing happened.</p>}
+      {!denied && !notRun && (out?.error || (out?.note && kind !== "search")) && <p className={cn("mt-1 pl-5", failed ? "text-rose-700" : "text-slate-600")}>{out.error ?? out.note}</p>}
       {part.state === "output-error" && part.errorText && <p className="mt-1 pl-5 text-rose-700">That step failed, so nothing happened.</p>}
     </div>
   );
@@ -486,20 +587,167 @@ function HelperApproval({ part, tool, kind, agent, onRespond }: { part: ToolPart
   );
 }
 
+// ---------------------------------------------------------------- an AI helper asked from a button
+
+/** A button (or a row or item click) that asks an AI helper, in a published app: the dialog it opens. */
+export type AskRequest = { id: number; agentId: string; prompt: string; blockId: string; entityId?: string; recordId?: string };
+
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+/**
+ * "Prepare payout" and the like, in a published app: a small dialog with that helper's chat. The button's
+ * prompt is sent with the record it's about, and the run shows as it happens, approval cards included.
+ * The same rules as a chat block decide who gets the real helper; anyone else gets the scripted answer.
+ * Escape, the close button or a click outside closes it; the conversation is kept for when it opens again.
+ */
+export function AskHelperDialog({ ask, onClose }: { ask: AskRequest; onClose: () => void }) {
+  const app = useApp();
+  const agent = app.bp.agents.find((a) => a.id === ask.agentId);
+  const titleId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+        return;
+      }
+      // Focus stays inside the dialog while it's open.
+      if (e.key !== "Tab" || !box.current) return;
+      const items = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!box.current.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      before?.focus();
+    };
+  }, []);
+  if (!agent) return null;
+  return (
+    <div className="absolute inset-0 z-40 flex items-end justify-center bg-slate-900/25 sm:items-center sm:p-4 [.app-phone_&]:items-end [.app-phone_&]:p-0" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby={titleId} className="flex h-[min(560px,88%)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-xl border border-slate-200 bg-white shadow-[0_24px_48px_-12px_rgb(15_23_42/0.35)] animate-in fade-in slide-in-from-bottom-2 sm:rounded-xl [.app-phone_&]:rounded-b-none [.app-phone_&]:rounded-t-xl">
+        <AskHelperBody ask={ask} agent={agent} onClose={onClose} titleId={titleId} />
+      </div>
+    </div>
+  );
+}
+
+function AskHelperBody({ ask, agent, onClose, titleId }: { ask: AskRequest; agent: Agent; onClose: () => void; titleId: string }) {
+  const app = useApp();
+  const { slug, decided, access } = useHelperDecision(agent.id, ask.blockId);
+  // The record the button is about, by its title ("Claim CLM-20931"), under the helper's name.
+  const entity = ask.entityId ? app.entity(ask.entityId) : undefined;
+  const index = entity && ask.recordId && app.data ? app.data.indexOf(entity.id, ask.recordId) : -1;
+  const titleField = entity?.fields[0]?.name;
+  const about = entity && index >= 0 && titleField ? `About ${entity.name.toLowerCase()} ${String(entity.sample[index]?.[titleField] ?? "")}`.trim() : agent.role;
+  const look: Look = { title: agent.name, subtitle: about, placeholder: `Ask ${agent.name}…`, starters: [] };
+  const opening = { id: ask.id, prompt: ask.prompt };
+  if (!decided || !slug)
+    return (
+      <Shell look={look} onClose={onClose} titleId={titleId} inDialog footer={<Composer value="" onChange={() => undefined} onSend={() => undefined} busy placeholder={look.placeholder} />}>
+        <div className="min-h-0 flex-1 p-3" />
+      </Shell>
+    );
+  if (!decided.allowed) {
+    const place = placeOf(app.bp, ask.blockId);
+    const selected = place.entityId && index >= 0 && place.entityId === entity?.id ? index : place.detail && place.entityId ? (app.selectedRow[place.entityId] ?? 0) : undefined;
+    return (
+      <DemoChat
+        logKey={`${app.bp.meta.name}/ask/${ask.blockId}/${agent.id}/${ask.recordId ?? ""}`}
+        agent={agent}
+        look={look}
+        ctx={{ screenId: place.screen?.id, entityId: place.entityId, selected, live: true, visitor: true, why: "public", emailReady: decided.emailReady }}
+        opening={opening}
+        onClose={onClose}
+        titleId={titleId}
+        inDialog
+      />
+    );
+  }
+  return (
+    <HelperChat
+      slug={slug}
+      chatKey={`${slug}/ask/${ask.blockId}/${agent.id}/${ask.recordId ?? ""}`}
+      blockId={ask.blockId}
+      look={look}
+      agent={agent}
+      team={decided.team}
+      recordId={ask.recordId}
+      onRecordsChanged={access?.onRecordsChanged}
+      opening={opening}
+      onClose={onClose}
+      titleId={titleId}
+      inDialog
+    />
+  );
+}
+
 // ---------------------------------------------------------------- the scripted chat
 
 type DemoLog = { role: "user" | "agent"; text: string }[];
 /** Conversations by app and chat block, so switching phone and desktop view (which remounts the block) keeps them. Only written in the browser. */
 const demoLogs = new Map<string, DemoLog>();
 
+function BlockDemoChat({ block, agent, emailReady }: { block: ChatBlock; agent: Agent | undefined; emailReady?: boolean }) {
+  const app = useApp();
+  const live = app.mode === "live" && Boolean(app.data);
+  // The screen this chat sits on decides which records "today", "this claim" and so on refer to.
+  const place = placeOf(app.bp, block.id);
+  const ctx: DemoChatContext = {
+    screenId: place.screen?.id,
+    entityId: place.entityId,
+    selected: place.detail && place.entityId ? (app.selectedRow[place.entityId] ?? 0) : undefined,
+    live,
+    // In a published app only a visitor gets the scripted chat (the team always gets the real helper).
+    ...(live ? { visitor: true, why: "public" as const, emailReady } : {}),
+  };
+  return <DemoChat logKey={`${app.bp.meta.name}/${block.id}`} agent={agent} agentId={block.agentId} look={lookOf(block, agent)} ctx={ctx} listen />;
+}
+
 /**
  * No model call: replies are matched to the question's intent and built from the rows the app shows
  * (lib/sim/demo-chat.ts), so they answer what was asked. In a published app those rows are its real
  * records (a visitor's, only the fields public pages show); elsewhere, the plan's sample data.
  */
-function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined }) {
+function DemoChat({
+  logKey,
+  agent,
+  agentId,
+  look,
+  ctx,
+  listen = false,
+  opening,
+  onClose,
+  titleId,
+  inDialog = false,
+}: {
+  logKey: string;
+  agent: Agent | undefined;
+  agentId?: string;
+  look: Look;
+  ctx: DemoChatContext;
+  listen?: boolean;
+  opening?: { id: number; prompt: string };
+  onClose?: () => void;
+  titleId?: string;
+  inDialog?: boolean;
+}) {
   const app = useApp();
-  const logKey = `${app.bp.meta.name}/${block.id}`;
   const [log, setLogState] = useState<DemoLog>(() => demoLogs.get(logKey) ?? []);
   const setLog = (next: (l: DemoLog) => DemoLog) => setLogState((l) => {
     const v = next(l);
@@ -513,11 +761,7 @@ function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [log, busy]);
 
-  const live = app.mode === "live" && Boolean(app.data);
-  // The screen this chat sits on decides which records "today", "this claim" and so on refer to.
-  const place = placeOf(app.bp, block.id);
-  const ctx: DemoChatContext = { screenId: place.screen?.id, entityId: place.entityId, selected: place.detail && place.entityId ? (app.selectedRow[place.entityId] ?? 0) : undefined, live };
-
+  const live = Boolean(ctx.live);
   const send = (t: string) => {
     const v = t.trim();
     if (!v || busy) return;
@@ -532,13 +776,14 @@ function DemoChat({ block, agent }: { block: ChatBlock; agent: Agent | undefined
       setBusy(false);
     }, 700);
   };
-  useAskAgent(block.agentId, send);
+  useAskAgent(agentId ?? agent?.id ?? "", send, listen);
+  useOpeningPrompt(opening, logKey, send, () => log.length === 0);
 
   return (
-    <Shell block={block} agent={agent} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={block.placeholder} />}>
+    <Shell look={look} onClose={onClose} titleId={titleId} inDialog={inDialog} footer={<Composer value={text} onChange={setText} onSend={() => send(text)} busy={busy} placeholder={look.placeholder} />}>
       <div ref={scroller} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
         <p className="text-[11.5px] text-slate-400">{live ? "This AI helper answers from what this page shows." : "This AI helper answers from the app's sample data."}</p>
-        {log.length === 0 && <Starters block={block} onPick={send} />}
+        {log.length === 0 && !opening && <Starters starters={look.starters} onPick={send} />}
         {log.map((m, i) =>
           m.role === "user" ? (
             <UserBubble key={i} text={m.text} />

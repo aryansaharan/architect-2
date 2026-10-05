@@ -16,7 +16,7 @@ export async function setBudgetCap(projectId: string, cap: number) {
   if (!Number.isFinite(value) || value < 10) return { ok: false as const, error: "Minimum is 10 credits a month." };
   if (value > 100000) return { ok: false as const, error: "Maximum is 100,000 credits a month." };
   await updateProject(supa, projectId, { settings: { ...project.settings, budgetCapCredits: value } });
-  await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: `Spending cap set to ${value} credits a month`, body: `≈ $${(value / 100).toFixed(2)}. AI helpers pause and tell you before passing it.`, credits: 0 }]);
+  await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: `Spending cap set to ${value} credits a month`, body: "AI helpers pause and tell you before passing it.", credits: 0 }]);
   revalidatePath("/settings");
   revalidatePath(`/p/${projectId}`, "layout");
   // Say so when the new cap is already used up, instead of a cheerful "saved".

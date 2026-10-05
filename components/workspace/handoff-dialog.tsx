@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Loader2, Send } from "lucide-react";
@@ -26,12 +26,56 @@ function suggestion(type: string | undefined, label: string, missing: boolean) {
   return "Can you take a look at this with me?";
 }
 
+/** Where focus should go back to: a menu item stands for the button that opened its menu. Null for the page itself or a dialog. */
+function focusTarget(el: Element | null): HTMLElement | null {
+  if (!(el instanceof HTMLElement) || el === document.body || el.closest('[role="dialog"], [role="alertdialog"]')) return null;
+  const menu = el.closest('[role="menu"]');
+  if (menu) {
+    const trigger = menu.getAttribute("aria-labelledby");
+    return trigger ? document.getElementById(trigger) : null;
+  }
+  return el;
+}
+
+/**
+ * Dialogs opened from state (not from a Radix trigger) have nothing to hand focus back to, so Escape left it
+ * on the page and the next Tab landed on "Skip to content". This remembers what opened the dialog (or, when that
+ * was a menu or the command palette that has since closed, the last thing focused on the page) and returns focus there.
+ * Spread the result onto DialogContent.
+ */
+export function useReturnFocus() {
+  const opener = useRef<HTMLElement | null>(null);
+  const lastFocused = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const t = focusTarget(e.target as Element | null);
+      if (t) lastFocused.current = t;
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+  return {
+    onOpenAutoFocus: () => {
+      // Runs before Radix moves focus into the dialog, so this is still whatever opened it.
+      opener.current = focusTarget(document.activeElement) ?? lastFocused.current;
+    },
+    onCloseAutoFocus: (e: Event) => {
+      const el = opener.current;
+      opener.current = null;
+      if (!el?.isConnected) return;
+      e.preventDefault();
+      el.focus({ preventScroll: true });
+    },
+  };
+}
+
 export function HandoffDialog() {
   const ws = useWorkspace();
   const open = Boolean(ws.handoffTarget);
+  const returnFocus = useReturnFocus();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && ws.closeHandoff()}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[520px]" {...returnFocus}>
         <DialogHeader>
           <DialogTitle className="font-pencil text-section font-medium">Ask a teammate</DialogTitle>
           <DialogDescription>They get everything they need to help: no screenshots, no “what did you click?”</DialogDescription>

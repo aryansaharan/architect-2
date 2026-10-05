@@ -3,10 +3,11 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BatteryFull, Bell, Check, ChevronLeft, Menu, Search, SignalHigh, Sparkles, Wifi, X } from "lucide-react";
 import type { Block, Blueprint, Screen } from "@/lib/blueprint/schema";
 import { DynamicIcon } from "@/components/icon";
-import { hash } from "@/lib/sim/hash";
 import { cn } from "@/lib/utils";
-import { AppContext, type AppCtx, type AppMode, type LiveData } from "./app-context";
+import { AppContext, type AppCtx, type AppMode, type AskFrom, type LiveData } from "./app-context";
 import { RenderBlock } from "./blocks";
+import { accentFor } from "./theme";
+import { AskHelperDialog, type AskRequest } from "./chat-block";
 
 const RADIUS = { sm: "4px", md: "8px", lg: "12px" } as const;
 /** Below this frame width the agent chat folds into a drawer and the sidebar into an icon rail, so tables keep their columns. */
@@ -14,38 +15,7 @@ export const ROOMY_WIDTH = 1200;
 
 export type WrapBlock = (block: Block, screen: Screen, node: React.ReactNode) => React.ReactNode;
 
-/**
- * A second colour for each app, taken from its own theme: the primary's hue turned a little
- * (which way and how far is fixed by the app's name), so two apps that share a primary still
- * look like two apps. Used for the app mark and the screen badges, never for buttons.
- */
-export function accentFor(primary: string, seed: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(primary.trim());
-  if (!m) return primary;
-  const n = parseInt(m[1], 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const d = max - min;
-  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-  let h = d === 0 ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  h = (h * 60 + 360) % 360;
-  // Never turn into red: in an app, red means something needs attention.
-  const turns = [-42, -28, 28, 42].filter((t) => {
-    const x = (h + t + 360) % 360;
-    return x > 20 && x < 335;
-  });
-  const turn = turns.length ? turns[hash(seed) % turns.length] : 0;
-  const H = (h + turn + 360) % 360;
-  const S = Math.min(0.75, Math.max(0.45, sat));
-  const L = Math.min(0.48, Math.max(0.36, l));
-  const c = (1 - Math.abs(2 * L - 1)) * S;
-  const x = c * (1 - Math.abs(((H / 60) % 2) - 1));
-  const o = L - c / 2;
-  const [R, G, B] = H < 60 ? [c, x, 0] : H < 120 ? [x, c, 0] : H < 180 ? [0, c, x] : H < 240 ? [0, x, c] : H < 300 ? [x, 0, c] : [c, 0, x];
-  return `#${[R, G, B].map((v) => Math.round((v + o) * 255).toString(16).padStart(2, "0")).join("")}`;
-}
+export { accentFor } from "./theme";
 
 export type ScreenPurpose = "overview" | "detail" | "form" | "assistant";
 
@@ -116,7 +86,11 @@ export function SpecApp({
   }, []);
   const phone = device === "phone";
   const compact = !phone && (device === "tablet" || (frameWidth !== null && frameWidth < ROOMY_WIDTH));
+  // A phone-sized frame in the desktop layout (a published app on a phone): the header gives the title the room.
+  const narrow = !phone && frameWidth !== null && frameWidth < 640;
   const [chatOpen, setChatOpen] = useState(false);
+  // A published app's "ask an AI helper" button whose helper has no chat on this screen opens this dialog.
+  const [ask, setAsk] = useState<AskRequest | null>(null);
 
   const navigate = useCallback(
     (id: string) => {
@@ -124,6 +98,7 @@ export function SpecApp({
       onScreenChange?.(id);
       setMenu(false);
       setChatOpen(false);
+      setAsk(null);
     },
     [onScreenChange],
   );
@@ -133,7 +108,7 @@ export function SpecApp({
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
   }, []);
   const askAgent = useCallback(
-    (agentId: string, prompt: string) => {
+    (agentId: string, prompt: string, from?: AskFrom) => {
       const hasChat = (s: Screen) => [...s.regions.main, ...s.regions.side].some((b) => b.type === "chat" && b.agentId === agentId);
       const fire = () => window.dispatchEvent(new CustomEvent("prodai:ask-agent", { detail: { agentId, prompt } }));
       const name = bp.agents.find((a) => a.id === agentId)?.name ?? "The agent";
@@ -143,6 +118,18 @@ export function SpecApp({
         if (inDrawer(screen)) setChatOpen(true);
         return fire();
       }
+      // In a published app the helper really runs, right here, on the record the button is about
+      // (a row clicked, or the record open on this screen), instead of leaving the record for another screen.
+      if (mode === "live" && data && from && bp.agents.some((a) => a.id === agentId)) {
+        const detail = [...screen.regions.main, ...screen.regions.side].find((b) => b.type === "detail");
+        const entityId = from.entityId ?? (detail && "entityId" in detail ? detail.entityId : undefined);
+        const count = entityId ? (bp.entities.find((e) => e.id === entityId)?.sample.length ?? 0) : 0;
+        const rowIndex = from.rowIndex ?? (entityId ? Math.min(selectedRow[entityId] ?? 0, Math.max(0, count - 1)) : undefined);
+        const recordId = entityId && rowIndex !== undefined ? data.recordId(entityId, rowIndex) : undefined;
+        setChatOpen(false);
+        setAsk({ id: Date.now() + Math.random(), agentId, prompt, blockId: from.blockId, entityId: recordId ? entityId : undefined, recordId });
+        return;
+      }
       const target = bp.screens.find(hasChat);
       if (target) {
         navigate(target.id);
@@ -150,7 +137,7 @@ export function SpecApp({
         setTimeout(fire, 350);
       } else toast(`${name} is on it.`);
     },
-    [bp, screen, navigate, toast, compact],
+    [bp, screen, navigate, toast, compact, mode, data, selectedRow],
   );
 
   const ctx = useMemo<AppCtx>(
@@ -246,8 +233,8 @@ export function SpecApp({
             ) : (
               <span className="grid size-6 place-items-center rounded-md text-[11px] font-bold text-white" style={{ background: "linear-gradient(135deg, var(--app-primary), var(--app-accent))" }}>{initial}</span>
             )}
-            <span className="truncate text-[13px] font-semibold">{screen.title}</span>
-            <button onClick={() => setMenu((m) => !m)} className="ml-auto rounded-md p-1.5 text-slate-500" aria-label="Menu"><Menu className="size-4" /></button>
+            <span className="line-clamp-2 min-w-0 break-words text-[13px] font-semibold leading-tight">{screen.title}</span>
+            <button onClick={() => setMenu((m) => !m)} className="ml-auto shrink-0 rounded-md p-1.5 text-slate-500" aria-label="Menu"><Menu className="size-4" /></button>
             {menu && (
               <nav className="absolute inset-x-2 top-11 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg" aria-label="App">
                 {bp.screens.map((s) => <NavItem key={s.id} s={s} active={s.id === screen.id} onClick={() => navigate(s.id)} />)}
@@ -257,8 +244,8 @@ export function SpecApp({
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!phone && (
-            <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-3">
-              {!backTo && (
+            <header className={cn("flex items-center gap-3 border-b border-slate-200 bg-white py-3", narrow ? "px-3" : "px-6")}>
+              {!backTo && !narrow && (
                 <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-[var(--app-radius)]" style={{ background: "color-mix(in oklab, var(--app-accent) 11%, white)", color: "var(--app-accent)" }}>
                   <DynamicIcon name={screen.icon} className="size-[18px]" />
                 </span>
@@ -270,8 +257,9 @@ export function SpecApp({
                     {backTo.title}
                   </button>
                 )}
-                <h1 className="truncate text-[16px] font-semibold tracking-tight">{screen.title}</h1>
-                <p className="truncate text-[12.5px] text-slate-500">{screen.purpose}</p>
+                {/* On a narrow frame the title may take two lines rather than being cut to "Inta…". */}
+                <h1 className={cn("text-[16px] font-semibold tracking-tight", narrow ? "line-clamp-2 break-words leading-snug" : "truncate")}>{screen.title}</h1>
+                <p className={cn("truncate text-[12.5px] text-slate-500", narrow && "hidden")}>{screen.purpose}</p>
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2 text-slate-400">
                 {drawerChats.length > 0 && (
@@ -280,15 +268,17 @@ export function SpecApp({
                     onClick={() => setChatOpen((o) => !o)}
                     aria-expanded={chatVisible}
                     aria-controls="app-chat-drawer"
-                    className={cn("inline-flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] border px-2.5 text-[12.5px] font-medium transition-colors", chatVisible ? "border-transparent text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50")}
+                    aria-label={narrow ? (drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent") : undefined}
+                    title={narrow ? (drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent") : undefined}
+                    className={cn("inline-flex h-8 items-center gap-1.5 rounded-[var(--app-radius)] border text-[12.5px] font-medium transition-colors", narrow ? "w-8 justify-center" : "px-2.5", chatVisible ? "border-transparent text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50")}
                     style={chatVisible ? { background: "var(--app-primary)" } : undefined}
                   >
                     <Sparkles className="size-3.5" />
-                    {drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent"}
+                    {!narrow && (drawerAgent ? `Ask ${drawerAgent.name}` : "Ask the agent")}
                   </button>
                 )}
                 {!compact && purpose !== "form" && <span className="hidden h-8 items-center gap-2 rounded-[var(--app-radius)] border border-slate-200 px-2.5 text-[12.5px] lg:flex"><Search className="size-3.5" />Search</span>}
-                <span className="grid size-8 place-items-center rounded-[var(--app-radius)] border border-slate-200"><Bell className="size-3.5" /></span>
+                {!narrow && <span className="grid size-8 place-items-center rounded-[var(--app-radius)] border border-slate-200"><Bell className="size-3.5" /></span>}
               </div>
             </header>
           )}
@@ -330,6 +320,7 @@ export function SpecApp({
             </div>
           ))}
         </div>
+        {ask && <AskHelperDialog key={ask.id} ask={ask} onClose={() => setAsk(null)} />}
         {overlay}
       </div>
     </AppContext.Provider>

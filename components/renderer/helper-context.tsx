@@ -12,6 +12,8 @@ export type HelperAccess = {
   role: "owner" | "member" | "visitor";
   /** The owner lets visitors talk to the helpers on public pages (settings.app.publicHelpers). */
   publicHelpers: boolean;
+  /** Email is set up on this Prod AI (a yes or no from the server, never the key), so an approved email really goes out. */
+  emailReady: boolean;
   /** Read the app's records again after a helper changed one (or a change was undone from the chat). */
   onRecordsChanged?: () => void;
 };

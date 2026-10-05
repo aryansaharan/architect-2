@@ -139,9 +139,11 @@ export function SupervisionPicker({ agent }: { agent: Agent }) {
             { value: "autonomous", label: "On its own", title: "Looks up: Just do it · Changes: Tell me · Can't undo: Ask first" },
             { value: "spot_check", label: "Spot-check", title: "Same as On its own, and a person reviews a sample of finished runs" },
             { value: "approve_all", label: "Approve everything", title: "Every action: Ask first" },
+            // Set action by action: shown as the current choice, so no preset looks selected when none applies.
+            ...(sup.mode === "custom" ? [{ value: "custom" as const, label: "Custom", title: "Each action has its own setting" }] : []),
           ]}
         />
-        {pending ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Saving" /> : sup.mode === "custom" ? <Pill>Custom</Pill> : null}
+        {pending ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
       </div>
       <p className="mt-1.5 text-meta text-muted-foreground">
         {sup.mode === "custom" ? (

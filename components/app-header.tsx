@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
+import { EntryTabLine } from "@/components/motion/entry-tab-line";
 import { UserMenuView } from "@/components/workspace/top-bar";
 import { meterWords } from "@/components/credits";
 import { resetWords, type CreditMeter } from "@/lib/prices";
@@ -15,14 +16,14 @@ const NAV = [
 
 export type AppHeaderUser = { name: string; isAnonymous: boolean; avatarUrl: string | null };
 
-/** The hand-drawn line under the current tab, the same stroke as the project's top bar. */
-function PencilUnderline() {
+/** The hand-drawn line under the current tab, the same stroke as the project's top bar. Drawn in when you move to another tab. */
+function PencilUnderline({ tab }: { tab: string }) {
   return (
-    <span aria-hidden className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-brand">
+    <EntryTabLine tab={tab} className="pointer-events-none absolute inset-x-1.5 bottom-0.5 text-brand">
       <svg viewBox="0 0 100 6" preserveAspectRatio="none" className="block h-[5px] w-full">
         <path d="M1.5 3.8C18 2.2 38 4.6 58 3.1S88 2.7 98.5 3.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
-    </span>
+    </EntryTabLine>
   );
 }
 
@@ -50,7 +51,7 @@ export function AppHeader({ current, user, credits }: { current: "/home" | "/set
                 className={cn("relative inline-flex h-9 items-center px-2.5 transition-colors duration-150", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
               >
                 {n.label}
-                {on && <PencilUnderline />}
+                {on && <PencilUnderline tab={n.href} />}
               </Link>
             );
           })}

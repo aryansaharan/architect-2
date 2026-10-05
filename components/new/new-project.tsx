@@ -4,10 +4,14 @@ import Link from "next/link";
 import { ArrowRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { questionsFor, renderAnswers, type Question } from "@/lib/blueprint/questions";
-import { matchVertical } from "@/lib/blueprint/match";
+import { guestStarterNote, matchVertical } from "@/lib/blueprint/match";
 import { WritingSheet } from "@/components/home/writing-sheet";
+import { MAX_BRIEF, MIN_BRIEF } from "@/components/home/brief-limits";
 import { PencilBox } from "@/components/landing/sketches";
+import motion from "@/components/motion/entry-motion.module.css";
 import { cn } from "@/lib/utils";
+import { CapNote, signInHref } from "./cap-note";
+import { PencilCircle } from "./pencil-circle";
 import { PlanningView, usePlanStream } from "./plan-stream";
 import { connectionsFor, isConnectionsQuestion, isNothingOption, toggleConnection } from "./connections";
 
@@ -37,13 +41,15 @@ export function Steps({ at }: { at: number }) {
   );
 }
 
+/** Back to this page with the note still written, after signing in. */
+const comeBack = (brief: string) => (brief.trim() ? `/new?prompt=${encodeURIComponent(brief.trim().slice(0, MAX_BRIEF))}` : "/new");
+
 /** Said once, before anything is planned: guests get a starter plan; signing in gets Claude. */
 function GuestNote({ brief }: { brief: string }) {
-  const next = brief.trim() ? `/new?prompt=${encodeURIComponent(brief.trim().slice(0, 2000))}` : "/new";
   return (
     <p>
       As a guest you start from the closest starter plan.{" "}
-      <Link href={`/login?next=${encodeURIComponent(next)}`} className="text-foreground underline decoration-dotted underline-offset-4">
+      <Link href={signInHref(comeBack(brief))} className="text-foreground underline decoration-dotted underline-offset-4">
         Sign in
       </Link>{" "}
       and Claude plans it from your own words.
@@ -51,13 +57,13 @@ function GuestNote({ brief }: { brief: string }) {
   );
 }
 
-export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPrompt: string; llm: "live" | "offline"; isGuest?: boolean }) {
-  const [step, setStep] = useState<Step>(initialPrompt.trim().length >= 12 ? "questions" : "describe");
+export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = null }: { initialPrompt: string; llm: "live" | "offline"; isGuest?: boolean; capMessage?: string | null }) {
+  const [step, setStep] = useState<Step>(initialPrompt.trim().length >= MIN_BRIEF ? "questions" : "describe");
   const [brief, setBrief] = useState(initialPrompt);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const planner = usePlanStream(llm);
 
-  const vertical = useMemo(() => (brief.length > 12 ? matchVertical(brief) : null), [brief]);
+  const vertical = useMemo(() => (brief.length > MIN_BRIEF ? matchVertical(brief) : null), [brief]);
   // Instant: the template questions for the closest vertical, with the brief's own systems pre-selected.
   const template: Question[] = useMemo(() => questionsFor(vertical && vertical.confidence > 0.2 ? vertical.vertical : "custom", brief), [vertical, brief]);
   // Then the three questions written for this brief (POST /api/questions), swapped in only if they arrive
@@ -69,7 +75,7 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
   const tailoring = llm === "live" && step === "questions" && settledFor !== brief && !tailoredHere;
   const hasTailored = Boolean(tailoredHere);
   useEffect(() => {
-    if (llm !== "live" || step !== "questions" || brief.trim().length < 12 || hasTailored) return;
+    if (llm !== "live" || step !== "questions" || brief.trim().length < MIN_BRIEF || hasTailored || capMessage) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TAILOR_WAIT_MS);
     fetch("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief }), signal: ctrl.signal })
@@ -86,7 +92,7 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [llm, step, brief, hasTailored]);
+  }, [llm, step, brief, hasTailored, capMessage]);
   const canned: Question[] = tailoredHere ?? template;
   // "What must it connect to?" takes several answers, pre-selected from what the brief names (email, texts, Slack…).
   const conn = useMemo(() => {
@@ -95,6 +101,9 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
   }, [canned, brief]);
   const questions = useMemo(() => canned.map((q) => (conn && q.id === conn.question.id ? conn.question : q)), [canned, conn]);
   const [pickedByHand, setPicked] = useState<string[] | null>(null);
+  // Answers the person has clicked. Their ticks are drawn in pencil as they appear; the defaults' ticks just fade in.
+  // (A tick's style never changes while it's on screen, so nothing replays when another answer is picked.)
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const handPicked = pickedByHand?.filter((o) => conn?.question.options.includes(o)) ?? [];
   const picked = handPicked.length ? handPicked : (conn?.preselected ?? []);
 
@@ -107,6 +116,7 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
   const toDescribe = () => {
     setPicked(null);
     setAnswers({});
+    setTouched(new Set());
     answeredRef.current = false;
     setStep("describe");
   };
@@ -115,7 +125,33 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
     fn();
   };
 
-  if (step === "planning") return <PlanningView s={planner} eyebrow={<Steps at={2} />} onRetry={() => plan(false)} />;
+  if (step === "planning")
+    return (
+      <PlanningView
+        s={planner}
+        eyebrow={<Steps at={2} />}
+        onRetry={() => plan(false)}
+        // The same note the server sends a guest: the closest starter, or plainly a general one when none is close.
+        expectedNote={isGuest ? guestStarterNote(brief) : undefined}
+        signInNext={isGuest ? comeBack(brief) : null}
+      />
+    );
+
+  // Full up: say so before anything is written. A guest's note (from the landing page or Home) comes with them.
+  if (capMessage)
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Steps at={0} />
+        <h1 className="mt-4 font-pencil text-title">What do you want to make?</h1>
+        <CapNote className="mt-7" message={capMessage} signInNext={isGuest ? comeBack(brief) : null} />
+        {isGuest && brief.trim() && (
+          <div className="panel mt-4 rounded-md px-5 pb-4 pt-4 sm:px-8">
+            <p className="font-sketch text-sketch text-faint">Your note, kept for when you&apos;re back</p>
+            <p className="paper-lines mt-1 whitespace-pre-wrap break-words pt-[7px] font-pencil text-note leading-8 text-foreground">{brief}</p>
+          </div>
+        )}
+      </div>
+    );
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -133,7 +169,7 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
             label="Describe what you want to make"
             showLabel={false}
             submitLabel="Next"
-            minLength={12}
+            minLength={MIN_BRIEF}
             rows={5}
             autoFocus
             onSubmit={() => {
@@ -170,9 +206,11 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
               <p className="mt-2 text-body text-muted-foreground">They decide who the AI helpers answer to. Skip them and Prod AI picks careful defaults.</p>
 
               <div key={tailoredHere ? "tailored" : "template"} className={cn("mt-6 space-y-6", tailoredHere && "fade-up")}>
-                {questions.map((q) => {
+                {questions.map((q, qi) => {
                   const multi = conn?.question.id === q.id;
                   const selected = multi ? picked : [answers[q.id] ?? q.options[q.defaultIndex]];
+                  // Where this question's answers start in the whole list, so they arrive one after another.
+                  const first = questions.slice(0, qi).reduce((n, x) => n + x.options.length, 0);
                   return (
                     <fieldset key={q.id}>
                       <legend className="text-body font-medium">
@@ -182,16 +220,26 @@ export function NewProject({ initialPrompt, llm, isGuest = false }: { initialPro
                       <div className="mt-1.5 flex flex-wrap gap-x-6 text-body">
                         {q.options.map((o, oi) => {
                           const on = selected.includes(o);
+                          const key = `${q.id}\u0000${o}`;
                           return (
                             <button
                               key={o}
                               type="button"
                               aria-pressed={on}
-                              onClick={() => answer(() => (multi ? setPicked(toggleConnection(picked, o, q.options)) : setAnswers((a) => ({ ...a, [q.id]: o }))))}
-                              className={cn("inline-flex min-h-9 items-center gap-2 rounded-md text-left transition-colors duration-150", on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                              onClick={() =>
+                                answer(() => {
+                                  setTouched((t) => (t.has(key) ? t : new Set(t).add(key)));
+                                  if (multi) setPicked(toggleConnection(picked, o, q.options));
+                                  else setAnswers((a) => ({ ...a, [q.id]: o }));
+                                })
+                              }
+                              style={{ "--entry-i": first + oi } as React.CSSProperties}
+                              className={cn("relative inline-flex min-h-9 items-center gap-2 rounded-md text-left transition-colors duration-150", motion.optIn, on ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
                             >
-                              <PencilBox on={on} round={!multi} seed={oi + 1} />
+                              <PencilBox on={on} round={!multi} seed={oi + 1} draw={touched.has(key)} />
                               {o}
+                              {/* An answer you chose yourself is circled in pencil as you pick it; the defaults are only ticked. */}
+                              {!multi && answers[q.id] === o && <PencilCircle />}
                             </button>
                           );
                         })}

@@ -224,7 +224,8 @@ function People({ data, setData, busy, setBusy, origin }: SectionProps & { origi
         <div className="panel mt-3 rounded-md p-4">
           <p className="text-body">You&apos;re using Prod AI as a guest, so only you can open the team screens.</p>
           <p className="mt-0.5 text-ui text-muted-foreground">An invitation comes from your name and email address. Sign in first, and everything you made stays yours.</p>
-          <Button asChild className="mt-3">
+          {/* Outline: the page's one filled button is Publish (or the fix that comes before it). */}
+          <Button asChild variant="outline" className="mt-3">
             <Link href={`/login?next=${encodeURIComponent(`/p/${ws.project.id}/ship`)}`}>Sign in to invite people</Link>
           </Button>
         </div>
@@ -250,7 +251,7 @@ function People({ data, setData, busy, setBusy, origin }: SectionProps & { origi
               disabled={full}
               maxLength={254}
             />
-            <Button type="submit" disabled={busy !== null || full}>
+            <Button type="submit" variant="outline" disabled={busy !== null || full}>
               {busy === "invite" ? <Loader2 className="animate-spin" /> : null} Invite
             </Button>
           </form>

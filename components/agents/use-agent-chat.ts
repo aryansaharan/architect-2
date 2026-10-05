@@ -38,9 +38,7 @@ export function useAgentChat(projectId: string, agentId: string, opts: { onTurnE
     ...chat,
     runId,
     mode,
-    reset: () => {
-      setRunId(crypto.randomUUID());
-      setMode(null);
-    },
+    // Starting over keeps the last mode the server reported: it's fresher than what the page loaded with.
+    reset: () => setRunId(crypto.randomUUID()),
   };
 }

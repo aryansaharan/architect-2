@@ -15,6 +15,7 @@ import { agentLocationError } from "@/lib/import/detect";
 import { PRICE } from "@/lib/prices";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
+import { useReturnFocus } from "../handoff-dialog";
 
 type Lane = "describe" | "code" | "endpoint";
 
@@ -39,6 +40,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
   const [stage, setStage] = useState(0);
   const [touched, setTouched] = useState(false);
   const [busyLane, setBusyLane] = useState<Lane | null>(null);
+  const returnFocus = useReturnFocus();
   const drafting = pending && busyLane === "describe";
   const locError = lane !== "describe" && loc.trim() ? agentLocationError(lane === "code" ? "code" : "endpoint", loc) : null;
   const showLocError = touched && Boolean(locError);
@@ -77,7 +79,7 @@ export function AddAgentDialog({ open, onOpenChange, onAdded }: { open: boolean;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[560px]" {...returnFocus}>
         <DialogHeader>
           <DialogTitle className="font-pencil text-section font-medium">Add an AI helper</DialogTitle>
           <DialogDescription>Describe what it should do, or bring one you already have. Every helper gets the same permissions, test runs and replay.</DialogDescription>

@@ -4,7 +4,9 @@ import { ArrowRight } from "lucide-react";
 import { Logo, GitHubMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { LandingComposer } from "@/components/landing/landing-composer";
-import { PencilArrow, PencilBox, PlanSketch, RealSketch, WriteSketch } from "@/components/landing/sketches";
+import { HeroTitle, MarginNote } from "@/components/landing/hero-title";
+import { PencilBox, PlanSketch, RealSketch, WriteSketch } from "@/components/landing/sketches";
+import { DrawOnView } from "@/components/motion/entry-draw";
 import { getSessionUser } from "@/lib/auth";
 import { hasSupabase } from "@/lib/env";
 
@@ -72,11 +74,7 @@ export default async function Landing() {
       <main id="main">
         {/* Hero: say what you want. */}
         <section className="mx-auto max-w-3xl px-5 pb-10 pt-14 text-center sm:px-6 sm:pt-20">
-          <h1 className="text-balance font-pencil text-[46px] sm:text-hero">
-            <span className="pencil-underline">Sketch</span> your app.
-            <br />
-            <em>Get a production app.</em>
-          </h1>
+          <HeroTitle />
           <p className="mx-auto mt-6 max-w-xl text-lead text-muted-foreground">
             Write what you want in plain words. Prod AI draws it in pencil first, then makes it a real app when you say so.
           </p>
@@ -85,8 +83,7 @@ export default async function Landing() {
         <section aria-label="Start with a note" className="relative mx-auto max-w-3xl px-5 sm:px-6">
           <LandingComposer signedIn={Boolean(user)} />
           <div className="pointer-events-none absolute -right-52 top-24 hidden w-48 xl:block" aria-hidden>
-            <p className="font-pencil text-note leading-tight text-muted-foreground">no forms, no tech words. just write.</p>
-            <PencilArrow className="-ml-6 mt-1 w-28" />
+            <MarginNote />
           </div>
         </section>
 
@@ -96,7 +93,10 @@ export default async function Landing() {
           <ol className="mt-12 grid gap-14 md:grid-cols-3 md:gap-10">
             {STEPS.map((s, i) => (
               <li key={s.title} className="flex flex-col items-center text-center">
-                <s.Sketch className="h-auto w-full max-w-[300px]" />
+                {/* Each sketch draws itself in pencil the first time it scrolls into view. */}
+                <DrawOnView id={`landing-how-${i + 1}`} className="w-full max-w-[300px]">
+                  <s.Sketch className="block h-auto w-full" />
+                </DrawOnView>
                 <h3 className="mt-5 font-pencil text-section">
                   <span className="text-brand">{i + 1}.</span> {s.title}
                 </h3>
@@ -115,6 +115,8 @@ export default async function Landing() {
                 alt="A project in Prod AI: the app's screens, its AI helpers and the price on one sheet, with notes in the margin"
                 width={1440}
                 height={900}
+                sizes="(min-width: 1024px) 1024px, 100vw"
+                fetchPriority="high"
                 className="block h-auto w-full rounded-sm"
               />
             </div>

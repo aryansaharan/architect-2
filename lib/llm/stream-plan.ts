@@ -12,7 +12,7 @@ export type PlanEvent =
   | { t: "partial"; draft: unknown }
   | { t: "note"; text: string }
   | { t: "done"; projectId: string; mode: "live" | "offline"; name: string }
-  | { t: "error"; message: string };
+  | { t: "error"; message: string; code?: "cap" };
 
 export type PlanUsage = ModelSpend;
 

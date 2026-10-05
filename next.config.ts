@@ -12,10 +12,11 @@ const supabase = (() => {
   }
 })();
 
-// No nonces, so pages stay static and cacheable. React only needs 'unsafe-eval' in development (for its error overlay).
+// No nonces, so pages stay static and cacheable. React only needs 'unsafe-eval' in development (for its error overlay),
+// and Vercel Analytics loads its debug script from its own origin only in development.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -28,6 +29,10 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Browsers ask for /favicon.ico on their own; the icon is app/icon.svg.
+  async redirects() {
+    return [{ source: "/favicon.ico", destination: "/icon.svg", permanent: true }];
+  },
   // Vercel adds Strict-Transport-Security on its own domains; these cover everything else.
   async headers() {
     return [

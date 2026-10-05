@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Check, ChevronRight, CircleX, Code2, History, Loader2, Play, Plus, ShieldCheck, Wand2 } from "lucide-react";
-import type { Agent } from "@/lib/blueprint/schema";
+import type { Agent, ToolPermission } from "@/lib/blueprint/schema";
 import type { AgentRunRow } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { CodeView } from "@/components/arch/code-view";
 import { Segmented } from "@/components/arch/segmented";
 import { Term } from "@/components/arch/term";
-import { Playground } from "@/components/agents/playground";
+import { Playground, type PlaygroundMode } from "@/components/agents/playground";
 import { AgentSpec, PermissionEditorList, SupervisionPicker } from "../inspector/agent-faces";
 import { rehearsalSummary } from "@/lib/sim/preflight";
 import { FRAMEWORKS } from "@/lib/codegen/frameworks";
@@ -138,13 +138,14 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
               {/* Phones: the helpers as one small choice (a styled list once there are more than four). */}
               <div className="flex w-full min-w-0 items-center gap-2 md:hidden">
                 {agents.length <= 4 ? (
-                  <Segmented ariaLabel="AI helper" value={agent.id} onChange={pick} className="min-w-0 max-w-full overflow-x-auto" options={agents.map((a) => ({ value: a.id, label: a.name }))} />
+                  // Names wrap onto a second row instead of being cut off, so every helper stays readable.
+                  <Segmented ariaLabel="AI helper" value={agent.id} onChange={pick} className="min-w-0 flex-wrap [&>button]:h-auto [&>button]:min-h-7 [&>button]:py-1 [&>button]:text-left [&>button]:whitespace-normal" options={agents.map((a) => ({ value: a.id, label: a.name }))} />
                 ) : (
                   <select aria-label="AI helper" value={agent.id} onChange={(e) => pick(e.target.value)} className={cn(SELECT, "min-w-0 flex-1")}>
                     {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 )}
-                <Button variant="outline" size="icon" className="ml-auto" onClick={() => setAdding(true)} aria-label="Add an AI helper"><Plus /></Button>
+                <Button variant="outline" size="icon" className="ml-auto shrink-0" onClick={() => setAdding(true)} aria-label="Add an AI helper"><Plus /></Button>
               </div>
               <p className="text-ui text-muted-foreground max-md:hidden">Each helper does one job, only the way you allow.</p>
               <Button variant="ghost" className="ml-auto text-muted-foreground max-md:-mr-2" onClick={() => setDev(true)}>
@@ -184,9 +185,21 @@ export function AgentsView({ runs, initialAgent, initialTab }: { runs: AgentRunR
  * The helper itself, for everyone: a sticky note says who it is; a card below says what it's allowed
  * to do, beside a small test conversation. Everything developer-shaped is one click away, not in the way.
  */
-function HelperView({ agent, onRunSaved, onDetails }: { agent: Agent; onRunSaved: () => void; onDetails: () => void }) {
+function HelperView({ agent: saved, onRunSaved, onDetails }: { agent: Agent; onRunSaved: () => void; onDetails: () => void }) {
   const ws = useWorkspace();
+  // "Always allow" in Try it shows here at once; the saved helper replaces it as soon as the page catches up.
+  const [granted, setGranted] = useState<{ base: Agent; tools: Record<string, ToolPermission> }>({ base: saved, tools: {} });
+  const extra = granted.base === saved ? granted.tools : null;
+  const agent = useMemo(() => (extra && Object.keys(extra).length ? { ...saved, tools: saved.tools.map((t) => (extra[t.id] ? { ...t, permission: extra[t.id] } : t)) } : saved), [saved, extra]);
+  const onPermissionChange = useCallback(
+    (toolId: string, permission: ToolPermission) => setGranted((g) => ({ base: saved, tools: { ...(g.base === saved ? g.tools : {}), [toolId]: permission } })),
+    [saved],
+  );
   const ungated = agent.tools.filter((t) => t.access === "irreversible" && t.permission !== "ask");
+  // Who answers in Try it, decided by the same rules as the chat route: the spending cap first, then whether
+  // Claude is set up, then whether this person can pay for a message.
+  const startMode: PlaygroundMode =
+    ws.usage.credits >= ws.usage.cap ? "budget" : ws.llm !== "live" ? "offline" : ws.credits.guest ? "guest" : ws.credits.left < PRICE.helperMessage ? "credits" : "live";
   return (
     <div className="h-full min-h-0 overflow-y-auto xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:overflow-hidden">
       <div className="px-4 py-5 sm:px-6 xl:min-h-0 xl:overflow-y-auto">
@@ -233,7 +246,7 @@ function HelperView({ agent, onRunSaved, onDetails }: { agent: Agent; onRunSaved
           <p className="mt-1 text-ui text-muted-foreground">A small test conversation. It uses sample data, so nothing real happens.</p>
         </div>
         <div className="min-h-0 flex-1">
-          <Playground key={agent.id} projectId={ws.project.id} agent={agent} bp={ws.blueprint} llm={ws.llm} onRunSaved={onRunSaved} />
+          <Playground key={agent.id} projectId={ws.project.id} agent={agent} bp={ws.blueprint} startMode={startMode} onRunSaved={onRunSaved} onPermissionChange={onPermissionChange} />
         </div>
       </section>
     </div>

@@ -1,7 +1,12 @@
+import motion from "@/components/motion/entry-motion.module.css";
+
 /**
  * Pencil drawings. Every line is drawn by code with a little wobble, from a fixed
- * seed, so the server and the browser draw exactly the same thing. No motion.
+ * seed, so the server and the browser draw exactly the same thing.
  * Pencil = graphite with a second, lighter pass. Ink = the same shapes, crisp.
+ * The drawings are still on their own. Parts are marked so a drawing can be drawn in
+ * order when it first appears (components/motion/entry-draw.tsx): data-stroke for a
+ * line, data-write for a word, data-fade for a filled shape.
  */
 
 function rng(seed: number) {
@@ -68,12 +73,24 @@ const GRAPHITE = "var(--graphite)";
 const SOFT = "var(--graphite-soft)";
 const INK = "var(--foreground)";
 
-/** A path drawn in pencil: one firm pass and a lighter second pass beside it. */
-function Pencil({ d, d2, width = 1.4, color = GRAPHITE, opacity = 1 }: { d: string; d2?: string; width?: number; color?: string; opacity?: number }) {
+/** The separate strokes in a path: each "M" starts a new one, the way a pencil lifts between lines. */
+const strokesOf = (d: string) => d.split(/(?=M)/).filter(Boolean);
+
+/**
+ * A path drawn in pencil: one firm pass and a lighter second pass beside it. Each stroke is its own
+ * path, so it can be drawn in turn; `still` leaves it out of the drawing (it's simply there).
+ */
+function Pencil({ d, d2, width = 1.4, color = GRAPHITE, opacity = 1, still }: { d: string; d2?: string; width?: number; color?: string; opacity?: number; still?: boolean }) {
+  const mark = still ? undefined : "";
   return (
     <>
-      <path d={d} fill="none" stroke={color} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      {d2 && <path d={d2} fill="none" stroke={color} strokeWidth={width * 0.7} strokeOpacity={opacity * 0.4} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+      {strokesOf(d).map((part, i) => (
+        <path key={`a${i}`} data-stroke={mark} d={part} fill="none" stroke={color} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      ))}
+      {d2 &&
+        strokesOf(d2).map((part, i) => (
+          <path key={`b${i}`} data-stroke={mark} d={part} fill="none" stroke={color} strokeWidth={width * 0.7} strokeOpacity={opacity * 0.4} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        ))}
     </>
   );
 }
@@ -86,11 +103,11 @@ export function WriteSketch({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 240 170" className={className} role="img" aria-label="A pencil writing a note on ruled paper">
       <g transform="rotate(-4 118 86)">
-        <rect x="54" y="18" width="130" height="136" fill="var(--panel)" />
-        {rules.map((y, i) => (
-          <path key={y} d={roughLine(60, y, 178, y, 40 + i, 0.4)} stroke="rgb(44 98 201 / 0.22)" strokeWidth="0.9" fill="none" />
-        ))}
+        <rect data-fade="" x="54" y="18" width="130" height="136" fill="var(--panel)" />
         <Pencil d={roughRect(54, 18, 130, 136, 11)} d2={roughRect(54, 18, 130, 136, 12, 1.4)} />
+        {rules.map((y, i) => (
+          <path key={y} data-stroke="" d={roughLine(60, y, 178, y, 40 + i, 0.4)} stroke="rgb(44 98 201 / 0.22)" strokeWidth="0.9" fill="none" />
+        ))}
         <Pencil d={scribble(64, 46, 98, 21)} width={1.2} />
         <Pencil d={scribble(64, 64, 108, 22)} width={1.2} />
         <Pencil d={scribble(64, 82, 62, 23)} width={1.2} />
@@ -100,7 +117,7 @@ export function WriteSketch({ className }: { className?: string }) {
         <path d="M139 116.2 L139 119.8 L134 118 Z" fill={GRAPHITE} />
         <rect x="150" y="112" width="68" height="12" fill="var(--note-line)" />
         <rect x="218" y="112" width="10" height="12" fill="var(--hairline-hi)" />
-        <Pencil d={roughRect(150, 112, 78, 12, 31, 0.6) + roughLine(150, 112, 134, 118, 32, 0.4) + roughLine(150, 124, 134, 118, 33, 0.4) + roughLine(218, 112, 218, 124, 34, 0.3)} width={1.2} />
+        <Pencil d={roughRect(150, 112, 78, 12, 31, 0.6) + roughLine(150, 112, 134, 118, 32, 0.4) + roughLine(150, 124, 134, 118, 33, 0.4) + roughLine(218, 112, 218, 124, 34, 0.3)} width={1.2} still />
       </g>
     </svg>
   );
@@ -125,16 +142,16 @@ export function PlanSketch({ className }: { className?: string }) {
       <Pencil d={scribble(71, 123, 24, 58, 2)} width={1} />
 
       <g transform="rotate(5 184 104)">
-        <rect x="152" y="76" width="66" height="56" fill="var(--note)" stroke="var(--note-line)" />
-        <text x="160" y="96" fontSize="15" fill={GRAPHITE} style={handwriting}>helper</text>
+        <rect data-fade="" x="152" y="76" width="66" height="56" fill="var(--note)" stroke="var(--note-line)" />
+        <text data-write="" x="160" y="96" fontSize="15" fill={GRAPHITE} style={handwriting}>helper</text>
         <Pencil d={scribble(160, 110, 46, 81, 2.2)} width={1} />
         <Pencil d={scribble(160, 122, 34, 82, 2.2)} width={1} />
       </g>
 
       <g transform="rotate(9 200 20)">
         <Pencil d={`M170 10 L210 10 L220 20 L210 30 L170 30 Z`} width={1.2} />
-        <circle cx="212" cy="20" r="2" fill="none" stroke={GRAPHITE} strokeWidth="1" />
-        <text x="175" y="25" fontSize="14" fill="var(--brand)" style={handwriting}>$0.60</text>
+        <circle data-stroke="" cx="212" cy="20" r="2" fill="none" stroke={GRAPHITE} strokeWidth="1" />
+        <text data-write="" x="175" y="25" fontSize="14" fill="var(--brand)" style={handwriting}>$0.60</text>
       </g>
     </svg>
   );
@@ -163,9 +180,9 @@ export function RealSketch({ className }: { className?: string }) {
       <rect x="66" y="124" width="38" height="16" rx="3" fill="var(--brand)" />
       <rect x="73" y="130.5" width="24" height="3" rx="1.5" fill="var(--canvas)" />
 
-      <text x="104" y="17" fontSize="16" fill="var(--brand)" style={handwriting}>a bigger title, please</text>
-      <path d="M102 14 C 78 12, 58 18, 50 36" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M45 29 L50 37 L56 30" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <text data-write="" x="104" y="17" fontSize="16" fill="var(--brand)" style={handwriting}>a bigger title, please</text>
+      <path data-stroke="" d="M102 14 C 78 12, 58 18, 50 36" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" />
+      <path data-stroke="" d="M45 29 L50 37 L56 30" fill="none" stroke="var(--brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -174,14 +191,14 @@ export function RealSketch({ className }: { className?: string }) {
 export function PencilArrow({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 120 70" className={className} aria-hidden>
-      <path d="M112 8 C 84 2, 40 8, 16 54" fill="none" stroke={GRAPHITE} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M8 44 L15 56 L27 50" fill="none" stroke={GRAPHITE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path pathLength={1} d="M112 8 C 84 2, 40 8, 16 54" fill="none" stroke={GRAPHITE} strokeWidth="1.5" strokeLinecap="round" />
+      <path pathLength={1} d="M8 44 L15 56 L27 50" fill="none" stroke={GRAPHITE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/** A hand-drawn checkbox (square) or choice (round). The tick is inked in the accent. */
-export function PencilBox({ on, round, seed = 1 }: { on: boolean; round?: boolean; seed?: number }) {
+/** A hand-drawn checkbox (square) or choice (round). The tick is inked in the accent; with `draw` it is drawn in one stroke as it appears. */
+export function PencilBox({ on, round, seed = 1, draw }: { on: boolean; round?: boolean; seed?: number; draw?: boolean }) {
   return (
     <svg viewBox="0 0 20 20" className="size-[18px] shrink-0 overflow-visible" aria-hidden>
       {round ? (
@@ -189,7 +206,7 @@ export function PencilBox({ on, round, seed = 1 }: { on: boolean; round?: boolea
       ) : (
         <path d={roughRect(2.5, 2.5, 15, 15, seed, 0.7)} fill="none" stroke={GRAPHITE} strokeWidth="1.3" strokeLinecap="round" />
       )}
-      {on && <path d="M4.5 10.5 L8.6 14.6 L18.5 2.5" fill="none" stroke="var(--brand)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="fade-up" />}
+      {on && <path d="M4.5 10.5 L8.6 14.6 L18.5 2.5" pathLength={1} fill="none" stroke="var(--brand)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={draw ? motion.tickDraw : "fade-up"} />}
     </svg>
   );
 }

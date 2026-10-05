@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writes";
 import { starterFor } from "@/lib/blueprint/fixtures";
+import { guestStarterNote, matchVertical } from "@/lib/blueprint/match";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { holdModelBudget } from "@/lib/llm/guard";
 import { PRICE, canAfford, outOfCreditsNote } from "@/lib/pricing";
@@ -43,17 +44,19 @@ export async function POST(req: Request) {
   const supa = await createClient();
   // Don't spend a model call on a plan that couldn't be saved.
   const full = await projectCapMessage(supa, user);
-  if (full) return Response.json({ error: full }, { status: 403 });
+  if (full) return Response.json({ error: full, code: "cap" }, { status: 403 });
   const hold = await holdModelBudget(user, "plan");
   if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of plans in a few minutes. Wait a little, then try again." }, { status: 429 });
   // A plan by Claude costs credits; without enough, it starts from the closest starter plan, free.
   const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "plan") : null;
   if (hold.ok && afford && !afford.ok) await hold.release();
   const useModel = hold.ok && Boolean(afford?.ok);
+  // When no starter plan shares the brief's words, say so plainly instead of calling it the closest.
+  const weak = matchVertical(brief).weak;
   const noModelNote = user.isAnonymous
-    ? "Guests start from the closest starter plan. Sign in and Claude plans it from your own words."
+    ? guestStarterNote(brief)
     : afford && !afford.ok
-      ? outOfCreditsNote(afford.credits, "this plan starts from the closest starter plan")
+      ? outOfCreditsNote(afford.credits, weak ? "and none of the starter plans is close to this, so this plan starts from a general one" : "this plan starts from the closest starter plan")
       : undefined;
 
   const stream = new ReadableStream<Uint8Array>({
@@ -71,7 +74,9 @@ export async function POST(req: Request) {
           send,
           fallback: () => starterFor(brief).blueprint,
           adjust,
-          failureNote: "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
+          failureNote: weak
+            ? "The model didn't answer in time, and none of the starter plans is close to this, so this is a general one to start from. You can reshape it before building."
+            : "The model didn't answer in time, so I started from the closest starter plan. You can reshape it before building.",
         });
         spent = cost;
         const project = await createProject(supa, { ownerId: user.id, name: blueprint.meta.name, vertical, brief, blueprint, buildState: "draft" });
@@ -95,7 +100,7 @@ export async function POST(req: Request) {
             body:
               mode === "live"
                 ? `Planned by Claude from your words · ${PRICE.plan} credits. Making it real is free, and nothing is built until you press it.${keysNote}`
-                : `Started from the closest starter plan, free. Making it real is free too, and nothing is built until you press it.${keysNote}`,
+                : `Started from ${weak ? "a general starter plan (none is close to this)" : "the closest starter plan"}, free. Making it real is free too, and nothing is built until you press it.${keysNote}`,
             credits: mode === "live" ? PRICE.plan : 0,
             checkpointId: cp.id,
           },
@@ -103,7 +108,9 @@ export async function POST(req: Request) {
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[plan] save failed", e);
-        send({ t: "error", message: e instanceof Error && /project cap|row-level/i.test(e.message) ? (await projectCapMessage(supa, user)) ?? "Couldn't save the project. Try again." : "Couldn't save the project. Try again." });
+        // At the project cap the person can't fix it by trying again: say so, with its own code so the page offers sign-in instead.
+        const cap = e instanceof Error && /project cap|row-level/i.test(e.message) ? await projectCapMessage(supa, user) : null;
+        send(cap ? { t: "error", message: cap, code: "cap" } : { t: "error", message: "Couldn't save the project. Try again." });
       } finally {
         // A saved plan by Claude costs its price; a failed call or a plan that couldn't be saved costs you nothing.
         // Its real cost is metered either way, for the daily model budget (the provider bills a failed call too).

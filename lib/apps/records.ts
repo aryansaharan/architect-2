@@ -183,6 +183,57 @@ export async function updateRecord(projectId: string, id: string, patch: Record<
   return { ok: true, record: toRecord(row as Row), changeId: change?.id as string | undefined };
 }
 
+/** One step in a record's life, newest first: how it was created, then each change, by whom and when. */
+export type HistoryEntry = {
+  id: string;
+  at: string;
+  kind: "created" | "changed";
+  /** "sample": a sample record the app was published with; "unknown": created before changes were logged. */
+  by: Actor["kind"] | "sample" | "unknown";
+  /** The person behind it, for the team: "owner" or a teammate's email. A helper's change names whose request it was. */
+  person: string | null;
+  /** The AI helper that made it, by name. */
+  helper: string | null;
+  changes: { field: string; from: Value | null; to: Value | null }[];
+};
+
+/**
+ * A record's real history from its change log (app_record_changes), newest first, for the team only.
+ * Sample records were seeded without a log entry, so they get one "added when the app was published" step.
+ */
+export async function recordHistory(projectId: string, record: AppRecord, ownerId: string, agentName: (agentId: string) => string | null, limit = 50): Promise<HistoryEntry[]> {
+  const admin = adminClient();
+  const { data, error } = await admin
+    .from("app_record_changes")
+    .select("id, before, after, actor, actor_id, run_id, created_at")
+    .eq("project_id", projectId)
+    .eq("record_id", record.id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) console.error("[apps] history read failed", error.message);
+  type ChangeRow = { id: string; before: Record<string, Value | null> | null; after: Record<string, Value | null> | null; actor: Actor["kind"]; actor_id: string | null; run_id: string | null; created_at: string };
+  const rows = (data ?? []) as ChangeRow[];
+  // Teammates by their invitation email; the owner as "owner". Helpers by the run that made the change.
+  const ids = [...new Set(rows.map((r) => r.actor_id).filter((x): x is string => Boolean(x) && x !== ownerId))];
+  const runs = [...new Set(rows.map((r) => r.run_id).filter((x): x is string => Boolean(x)))];
+  const [members, agents] = await Promise.all([
+    ids.length ? admin.from("app_members").select("user_id, email").eq("project_id", projectId).in("user_id", ids) : Promise.resolve({ data: [] as { user_id: string; email: string }[] }),
+    runs.length ? admin.from("agent_runs").select("id, agent_id").eq("project_id", projectId).in("id", runs) : Promise.resolve({ data: [] as { id: string; agent_id: string }[] }),
+  ]);
+  const emailOf = new Map(((members.data ?? []) as { user_id: string; email: string }[]).map((m) => [m.user_id, m.email]));
+  const agentOf = new Map(((agents.data ?? []) as { id: string; agent_id: string }[]).map((a) => [a.id, a.agent_id]));
+  const person = (id: string | null) => (!id ? null : id === ownerId ? "owner" : (emailOf.get(id) ?? "a teammate"));
+  const out: HistoryEntry[] = rows.map((r) => {
+    const created = r.before === null;
+    const changes = created ? [] : Object.keys(r.after ?? {}).map((field) => ({ field, from: r.before?.[field] ?? null, to: r.after?.[field] ?? null }));
+    const agentId = r.run_id ? agentOf.get(r.run_id) : undefined;
+    return { id: r.id, at: r.created_at, kind: created ? "created" : "changed", by: r.actor, person: r.actor === "visitor" ? null : person(r.actor_id), helper: r.actor === "helper" && agentId ? agentName(agentId) : null, changes };
+  });
+  if (!out.some((e) => e.kind === "created") && rows.length < limit)
+    out.push({ id: `created-${record.id}`, at: record.createdAt, kind: "created", by: record.isSample ? "sample" : "unknown", person: null, helper: null, changes: [] });
+  return out;
+}
+
 /** Puts a changed record's fields back to what they were before one change. */
 export async function undoChange(projectId: string, changeId: string, actor: Actor): Promise<WriteResult> {
   const { data: change } = await adminClient().from("app_record_changes").select("record_id, before").eq("project_id", projectId).eq("id", changeId).maybeSingle();

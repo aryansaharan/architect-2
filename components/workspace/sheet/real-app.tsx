@@ -1,12 +1,15 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import { ArrowUpRight, Monitor, MousePointerClick, NotebookPen, Play, Rocket, Smartphone, Tablet, X } from "lucide-react";
 import type { Block, ObjectRef, Screen } from "@/lib/blueprint/schema";
 import { SpecApp, type WrapBlock } from "@/components/renderer/spec-app";
 import { Button } from "@/components/ui/button";
 import { blockTitle } from "@/lib/blueprint";
 import { cn } from "@/lib/utils";
+import { EASE } from "@/lib/motion";
+import { useFirstShowing } from "@/components/motion/sheet-draw";
 import { PencilRadio } from "./pencil-radio";
 import { Pill } from "@/components/ui/pill";
 import { plural, reducedMotion, useSheet } from "./use-sheet";
@@ -67,6 +70,13 @@ function NoteTarget({ block, screen, picked, onPick, children }: { block: Block;
   );
 }
 
+/** The title is written on left to right (a clip-path reveal, with room for the handwriting's loops). */
+const WRITE_FROM = "inset(-25% 100% -35% -8%)";
+const WRITTEN = "inset(-25% -8% -35% -8%)";
+/** ink-in's length (app/globals.css), and when the app starts inking in under the title. */
+const INK_S = 1.1;
+const INK_AFTER_S = 0.45;
+
 /**
  * After the build: the real app, large and crisp on the paper. It's the production output, so nothing
  * here is drawn in pencil. Point at any part of it to write a note about it in the margin.
@@ -89,6 +99,8 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
   const replay = ws.build.status === "done" && ws.build.mode === "replay";
   const version = (ws.checkpoints.find((c) => c.id === ws.project.currentCheckpointId) ?? ws.checkpoints.reduce<(typeof ws.checkpoints)[number] | null>((m, c) => (!m || c.seq > m.seq ? c : m), null))?.seq;
   const asks = bp.agents.flatMap((a) => a.tools).filter((t) => t.permission === "ask").length;
+  // The moment it lands, once: the title is written on, then the app inks in under it.
+  const landing = useFirstShowing(`real:${ws.project.id}:${ws.build.mode}`, justBuilt);
 
   // The moment it lands: bring the heading into view and give it the keyboard, so nobody is left on a button that's gone.
   useEffect(() => {
@@ -127,7 +139,14 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
             {version ? <Pill className="tabular-nums">version {version}</Pill> : null}
           </p>
           <h1 ref={heading} tabIndex={-1} className="mt-1 font-pencil text-title text-foreground outline-none sm:text-hero">
-            {replay ? "That's how it was made." : "It's real."}
+            <motion.span
+              className="inline-block"
+              initial={landing ? { clipPath: WRITE_FROM } : false}
+              animate={landing ? { clipPath: WRITTEN } : undefined}
+              transition={{ duration: INK_S, ease: EASE }}
+            >
+              {replay ? "That's how it was made." : "It's real."}
+            </motion.span>
           </h1>
           <p className="mt-2.5 max-w-[60ch] text-lead text-muted-foreground">
             {replay
@@ -227,18 +246,20 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
           onPhone ? "-mx-3 border-y border-hairline" : "panel-raised mx-auto rounded-lg",
           // Change shape only when someone picks a device, not when the first paint settles on the one that fits.
           picked && !onPhone && "transition-[width] duration-250 ease-paper motion-reduce:transition-none",
-          justBuilt && "ink-in motion-reduce:animate-none!",
+          landing && "ink-in motion-reduce:animate-none!",
         )}
-        style={
-          onPhone
+        style={{
+          ...(onPhone
             ? { height: "max(26rem, calc(100dvh - 9rem))" }
             : {
                 width: device === "phone" ? 390 : device === "tablet" ? 834 : "100%",
                 maxWidth: "100%",
                 height: device === "phone" ? "min(800px, calc(100dvh - 120px))" : "clamp(520px, calc(100dvh - 240px), 780px)",
                 minHeight: device === "phone" ? 560 : undefined,
-              }
-        }
+              }),
+          // It inks in as the title's last words are written.
+          ...(landing ? { animationDelay: `${INK_AFTER_S}s` } : null),
+        }}
       >
         <div className="flex h-8 shrink-0 items-center gap-2 border-b border-hairline bg-deep/70 px-3">
           {device !== "phone" && (

@@ -107,6 +107,7 @@ function TeammateView({ h }: { h: HandoffRow }) {
   const file = files[Math.min(fileIdx, files.length - 1)];
   const guest = ws.user.isAnonymous;
   const resolve = useResolve(h);
+  const outcome = outcomeWords(useSavedVersion(h));
 
   return (
     <div className="mt-5 space-y-4">
@@ -155,13 +156,19 @@ function TeammateView({ h }: { h: HandoffRow }) {
       {h.status !== "resolved" ? (
         <div className="panel rounded-md p-4">
           <label htmlFor="resolution" className="text-meta font-medium text-muted-foreground">Reply in plain English (it goes straight to {guest ? "your" : `${ws.user.name.split(" ")[0]}'s`} activity)</label>
-          <Textarea id="resolution" rows={2} className="mt-2 text-ui" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave empty to use the suggested summary of the fix." />
+          <Textarea id="resolution" rows={2} className="mt-2 text-ui" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Leave empty to use the suggested answer." />
           <Button className="mt-3" disabled={resolve.pending} onClick={() => resolve.run(note)}>
             {resolve.pending ? <Loader2 className="animate-spin" /> : <Check />} Resolve as {mate[0].split(" ")[0]} (simulated)
           </Button>
         </div>
       ) : (
-        <p className="flex items-start gap-2 rounded-md border border-ok/30 bg-brand-soft p-4 text-ui"><Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />Resolved: {h.resolution}</p>
+        <div className="flex items-start gap-2 rounded-md border border-ok/30 bg-brand-soft p-4 text-ui">
+          <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden />
+          <div className="min-w-0">
+            <p>Resolved: {h.resolution}</p>
+            {outcome && <p className="mt-1 text-meta text-muted-foreground">{outcome}</p>}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -234,10 +241,30 @@ function useResolve(h: HandoffRow) {
     start(async () => {
       const r = await resolveHandoff(ws.project.id, h.id, note);
       if (!r.ok) return void toast.error(r.error ?? "Couldn't resolve");
-      toast.success("Resolved", { description: r.changelog });
+      toast.success("Resolved", { description: `${r.changelog ?? ""} ${typeof r.version === "number" ? `Saved as version ${r.version}.` : "Nothing in the app changed."}`.trim() });
       router.refresh();
     });
   return { pending, run };
+}
+
+/**
+ * The version a resolved handoff saved: its number, null when the teammate changed nothing, undefined when
+ * that isn't known (resolved before it was recorded, and its activity entry has scrolled away).
+ */
+function useSavedVersion(h: HandoffRow): number | null | undefined {
+  const ws = useWorkspace();
+  if (h.status !== "resolved") return undefined;
+  const v = (h.context as { savedVersion?: unknown }).savedVersion;
+  if (typeof v === "number" || v === null) return v;
+  const entry = ws.ledger.find((l) => l.kind === "handoff" && l.meta?.handoffId === h.id);
+  if (!entry) return undefined;
+  return entry.checkpoint_id ? (ws.checkpoints.find((c) => c.id === entry.checkpoint_id)?.seq ?? undefined) : null;
+}
+
+/** What the answer did to the app, in one plain sentence. */
+function outcomeWords(version: number | null | undefined): string | null {
+  if (version === undefined) return null;
+  return version === null ? "Nothing in the app changed, so there's no new version." : `It's in the test version now, saved as version ${version} you can always go back to.`;
 }
 
 /** Files and line counts in the diff that went with the request, so you can see what was shared without reading code. */
@@ -260,10 +287,12 @@ function RequesterView({ h }: { h: HandoffRow }) {
   const [brief, ...requests] = h.context.promptHistory ?? [];
   const changed = diffFilesOf(h.context.lastDiff);
   const done = h.status === "resolved";
+  const version = useSavedVersion(h);
+  const outcome = outcomeWords(version);
   const steps: { label: string; state: "done" | "active" | "pending"; at?: string | null }[] = [
     { label: "You sent it with the context below", state: "done", at: h.created_at },
     { label: `In ${mate.first}'s activity`, state: "done", at: h.created_at },
-    { label: done ? `${mate.first} fixed and tested it` : `Waiting on ${mate.first}`, state: done ? "done" : "active", at: h.resolved_at },
+    { label: done ? (version === null ? `${mate.first} looked into it` : version === undefined ? `${mate.first} answered` : `${mate.first} fixed and tested it`) : `Waiting on ${mate.first}`, state: done ? "done" : "active", at: h.resolved_at },
     { label: "The answer comes back to you in plain English", state: done ? "done" : "pending", at: h.resolved_at },
   ];
   return (
@@ -338,7 +367,7 @@ function RequesterView({ h }: { h: HandoffRow }) {
             {h.resolved_at && <TimeAgo iso={h.resolved_at} className="ml-auto text-meta text-faint" />}
           </div>
           <p className="mt-2.5 font-pencil text-note leading-tight">{h.resolution}</p>
-          <p className="mt-3 text-meta text-muted-foreground">It&apos;s in the test version now, saved as a new version you can always go back to.</p>
+          {outcome && <p className="mt-3 text-meta text-muted-foreground">{outcome}</p>}
         </div>
       ) : (
         <div className="panel flex flex-wrap items-center gap-3 rounded-md p-4">

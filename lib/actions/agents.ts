@@ -72,7 +72,7 @@ export async function applySupervisionPreset(projectId: string, agentId: string,
  * "Always allow" from a playground approval card: the tool moves to "Tell me".
  * Deliberately doesn't revalidate the page: a router refresh while the chat is
  * still streaming swapped the Agents tab for its loading skeleton. The playground
- * refreshes the rest of the studio once the conversation is out of view.
+ * shows the new permission at once and refreshes the studio when the conversation is idle.
  */
 export async function allowToolAlways(projectId: string, agentId: string, toolId: string): Promise<R> {
   await requireUser();
@@ -145,6 +145,94 @@ export async function addRehearsal(projectId: string, agentId: string, input: { 
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not add" };
   }
+}
+
+/** "Checks" from "check", for a role written as an imperative ("Check every refund"). */
+function thirdPerson(verb: string): string {
+  if (/[^aeiou]y$/.test(verb)) return `${verb.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh|o)$/.test(verb)) return `${verb}es`;
+  return `${verb}s`;
+}
+
+/** The person-noun for a job's verb: check → Checker. Verbs without a natural one make a "Helper". */
+const AGENT_NOUN: Record<string, string> = {
+  check: "Checker", "double-check": "Checker", verify: "Checker", review: "Reviewer", read: "Reader", sort: "Sorter", route: "Router",
+  triage: "Triage", draft: "Drafter", write: "Writer", summarize: "Summarizer", summarise: "Summariser", track: "Tracker", watch: "Watcher",
+  monitor: "Monitor", schedule: "Scheduler", approve: "Approver", screen: "Screener", score: "Scorer", match: "Matcher", find: "Finder",
+  chase: "Chaser", send: "Sender", plan: "Planner", audit: "Auditor", tag: "Tagger", classify: "Classifier", translate: "Translator",
+  reply: "Responder", respond: "Responder", answer: "Responder", flag: "Checker", scan: "Scanner", collect: "Collector",
+  prepare: "Preparer", reconcile: "Reconciler", remind: "Reminder", escalate: "Escalation", label: "Labeller", forecast: "Forecaster",
+};
+/** Other verbs a job often starts with: skipped when looking for what it works on. */
+const OTHER_VERBS = new Set([
+  "handle", "manage", "process", "look", "keep", "help", "make", "take", "get", "give", "pull", "gather", "create", "build", "update", "close",
+  "open", "move", "file", "log", "post", "notify", "alert", "email", "call", "text", "message", "ping", "compare", "catch", "spot", "detect",
+  "estimate", "calculate", "count", "rank", "prioritise", "prioritize", "organise", "organize", "group", "merge", "clean", "fix", "suggest",
+  "recommend", "explain", "propose", "turn", "convert", "extract", "fetch", "search", "go", "do", "work", "run", "assign", "book", "validate",
+]);
+/** Words that come before what a job works on: every refund, all new claims, the inbox. */
+const LEAD_WORDS = new Set([
+  "every", "each", "all", "the", "a", "an", "new", "any", "our", "your", "my", "their", "its", "this", "these", "those", "some", "incoming",
+  "open", "pending", "upcoming", "latest", "recent", "large", "big", "small", "high", "low", "overdue", "late", "unpaid", "urgent", "suspicious",
+  "daily", "weekly", "monthly", "quarterly", "yearly", "quick", "short", "simple", "detailed", "first", "next", "possible",
+  "please", "i", "we", "want", "need", "would", "like", "ai", "helper", "agent", "assistant", "bot", "that", "who", "which", "to", "will", "should", "can", "it",
+]);
+/** Where a role is cut when the first clause runs long: before the part that says how or when. */
+const CUT_WORDS = new Set(["against", "and", "for", "from", "with", "before", "after", "above", "below", "over", "under", "in", "on", "to", "by", "when", "if", "that", "which", "who", "so", "then", "into", "about", "via", "using", "but", "or", "until", "while", "at"]);
+
+const verbBase = (w: string): string | null => {
+  for (const c of [w, w.replace(/ies$/, "y"), w.replace(/(ch|sh|ss|x|z|o)es$/, "$1"), w.replace(/s$/, "")]) if (AGENT_NOUN[c] || OTHER_VERBS.has(c)) return c;
+  return null;
+};
+const singular = (w: string) => (/ies$/.test(w) ? `${w.slice(0, -3)}y` : /(ch|sh|ss|x)es$/.test(w) ? w.slice(0, -2) : /[^su]s$/.test(w) ? w.slice(0, -1) : w);
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+
+/**
+ * A free template helper's name and role, written from its description: named for what it works on and
+ * what it does with it ("Checks every refund request…" → "Refund Checker"), its role the job in a few plain words.
+ * (Not exported: a "use server" file may only export server actions.)
+ */
+function templateIdentity(description: string): { name: string; role: string; thing: string | null } {
+  const clause = description.split(/[.;:!?](?:\s|$)|\n/)[0].replace(/,\s.*$/, "").trim();
+  // "I want a helper that checks…" says the same as "Checks…".
+  const job = clause.replace(/^(?:please\s+)?(?:(?:i|we)\s+(?:want|need|would like)\s+)?(?:(?:an?|one)\s+)?(?:ai\s+)?(?:helper|agent|assistant|bot)\s+(?:that|who|which|to)\s+/i, "").trim() || clause;
+  const words = job.split(/\s+/).filter(Boolean);
+  const lower = words.map((w) => w.toLowerCase().replace(/[^a-z'-]/g, ""));
+  // For the name, "keeps track of" and "looks after" are just verbs.
+  const named = lower.join(" ").replace(/\bkeeps? (?:track|an eye) (?:of|on)\b/, "tracks").replace(/\blooks? (?:after|over|into|through|for)\b/, "checks").split(" ");
+  let verb: string | null = null;
+  let verbAt = -1;
+  let thing: string | null = null;
+  for (let i = 0; i < named.length && !thing; i++) {
+    const w = named[i];
+    if (!/^[a-z]/.test(w)) continue;
+    const base = LEAD_WORDS.has(w) ? null : verbBase(w);
+    if (!verb) {
+      // The first word ending in -s before "every", "the" and the like is a verb even if it isn't listed ("Handles every…").
+      const unlisted = !base && i === 0 && /s$/.test(w) && LEAD_WORDS.has(named[1] ?? "");
+      if (base || unlisted) {
+        verb = base ?? w.replace(/s$/, "");
+        verbAt = i;
+        continue;
+      }
+    } else if (base && ["and", "or", "then"].includes(named[i - 1] ?? "")) continue; // "reads and routes…"
+    if (LEAD_WORDS.has(w) || CUT_WORDS.has(w)) continue;
+    thing = singular(w);
+  }
+  const noun = (verb && AGENT_NOUN[verb]) || "Helper";
+  const name = thing ? `${cap(thing)} ${noun}` : noun === "Helper" ? "New Helper" : noun;
+  // The role: the first clause, cut before its "how" or "when" part once it runs past six words.
+  let roleWords = words.slice(Math.max(0, verbAt));
+  const roleLower = lower.slice(Math.max(0, verbAt));
+  if (roleWords.length > 6) {
+    let cut = 0;
+    for (let i = 2; i <= 6 && i < roleLower.length; i++) if (CUT_WORDS.has(roleLower[i])) cut = i;
+    roleWords = roleWords.slice(0, cut || 6);
+  }
+  // Written as an instruction ("Check every refund")? The role says what it does ("Checks every refund").
+  if (verb && verbAt >= 0 && roleLower[0] === verb) roleWords = [thirdPerson(verb), ...roleWords.slice(1)];
+  const role = cap(roleWords.join(" ").replace(/[\s,;:-]+$/, ""));
+  return { name: name.slice(0, 40), role: role.slice(0, 60) || "Does the job you described", thing };
 }
 
 const NewAgentSchema = z.object({
@@ -227,12 +315,12 @@ export async function addAgentFromDescription(projectId: string, description: st
   }
   if (hold.ok) await hold.release();
   if (!agent) {
-    const name = text.split(/[.,;:]| that | who | to /i)[0].split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ") || "Helper";
+    const { name, role, thing } = templateIdentity(text);
     const id = uniqueId(bp, kebab(name));
     agent = {
       id,
       name,
-      role: "New agent",
+      role,
       avatarHue: hash(id) % 360,
       plain: `${text} It starts with read access only, and approves everything: it asks before each look-up. Loosen it when you trust it.`,
       jobDescription: `You are ${name}. ${text} Use your tools to look things up before answering, keep answers short, and hand anything you're unsure about to a person.`,
@@ -244,14 +332,17 @@ export async function addAgentFromDescription(projectId: string, description: st
       memory: { scope: "session", retentionDays: 30 },
       cost: { creditsPerRun: PRICE.helperMessage, model: m?.id ?? "claude-opus-5" },
       triggers: ["chat"],
-      rehearsals: [{ id: "r-first", name: "First question", input: `A typical request: ${text.slice(0, 80)}`, expect: "Looks it up and answers briefly.", history: [] }],
+      rehearsals: [{ id: "r-first", name: "First question", input: thing ? `A new ${thing} just came in. Can you take a look?` : "Can you take a look at the latest one?", expect: "Looks it up and answers briefly.", history: [] }],
       framework: "lyzr",
       origin: "generated",
     };
   }
   bp.agents.push(agent);
   try {
-    await save(projectId, bp, `Added ${agent.name}`, `${agent.role}. ${agent.tools.length} tools · ${agent.tools.filter((t) => t.permission === "ask").length} ask first.`, agent.id, credits);
+    const n = agent.tools.length;
+    const asks = agent.tools.filter((t) => t.permission === "ask").length;
+    const gates = asks === 0 ? "none ask first" : asks === n ? (n === 1 ? "it asks first" : "all ask first") : `${asks} ask${asks === 1 ? "s" : ""} first`;
+    await save(projectId, bp, `Added ${agent.name}`, `${agent.role}. ${n} action${n === 1 ? "" : "s"} · ${gates}.`, agent.id, credits);
     return { ok: true, agentId: agent.id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not add the agent" };

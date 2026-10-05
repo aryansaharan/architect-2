@@ -9,6 +9,7 @@ import type { LiveSiteRow, ProjectRow } from "@/lib/db/types";
 import { clearSampleRecords, hasSampleRecords } from "@/lib/apps/records";
 import { EMAIL_RE, emailConfigured, hashEmail, sendEmail } from "@/lib/email";
 import { withinLimit } from "@/lib/security/rate-limit";
+import { publicAccess } from "@/lib/apps/view";
 import { publicSummary, type PublicSummary } from "@/lib/sim/preflight";
 import { siteUrl } from "@/lib/env";
 
@@ -182,7 +183,10 @@ export async function removeMember(projectId: string, rawEmail: string): Promise
   const { data, error } = await adminClient().from("app_members").delete().eq("project_id", o.project.id).eq("email", email).select("email");
   if (error) return failed("remove", error.message);
   if (!data?.length) return { ok: false, error: "That person isn't on the list." };
-  await addLedger(o.supa, o.project.id, [{ lane: "did", kind: "ship", title: `Removed ${email} from the published app`, body: "They can't open its team screens any more. Public pages stay open to everyone.", credits: 0 }]).catch((e) => console.error("[app-settings] ledger failed", e));
+  // Say what's still open to them: the public pages, if this app has any (the live app's own rule).
+  const site = await liveSite(o);
+  const hasPublic = Boolean(site && publicAccess(site.blueprint, o.project.settings.app?.hiddenEntities).screens.length);
+  await addLedger(o.supa, o.project.id, [{ lane: "did", kind: "ship", title: `Removed ${email} from the published app`, body: `They can't open its team screens any more.${hasPublic ? " Its public pages stay open to anyone with the link." : ""}`, credits: 0 }]).catch((e) => console.error("[app-settings] ledger failed", e));
   revalidatePath(`/p/${o.project.id}`, "layout");
   return { ok: true };
 }

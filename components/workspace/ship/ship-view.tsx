@@ -9,11 +9,11 @@ import type { DeploymentRow } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
-import { DUR, EASE } from "@/lib/motion";
+import { DUR, EASE, SPRING } from "@/lib/motion";
 import { TimeAgo } from "@/components/time-ago";
-import { canGoLive, preflight, type PreflightCheck } from "@/lib/sim/preflight";
+import { accessLine, canGoLive, preflight, type PreflightCheck } from "@/lib/sim/preflight";
 import { generateFiles } from "@/lib/codegen/files";
-import { fixPreflight, goLive, rollbackTo, takeOffline } from "@/lib/actions/ship";
+import { fixPreflight, goLive, publishState, rollbackTo, takeOffline, type PublishState } from "@/lib/actions/ship";
 import { PRICE } from "@/lib/prices";
 import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,52 @@ function attentionLine(c: PreflightCheck, bp: ReturnType<typeof useWorkspace>["b
 /** Short, one-click fix labels. The build fix gets its own label (it may start, resume or only show the build). */
 const FIX_LABEL: Record<string, string> = { enable_auth: "Turn on sign-in", gate_irreversible: "Make them ask first", sandbox_keys: "Add keys", set_budget: "Set a 500-credit cap", run_rehearsals: "Run them" };
 
+/** Which must-fix comes first (and gets the one filled button): nothing else matters until it's built, then who can see the data. */
+const blockerRank = (c: PreflightCheck) => (c.fix?.action === "build_first" ? 0 : ({ signin: 1, permissions: 2, budget: 3, rehearsals: 4 } as Record<string, number>)[c.id] ?? 5);
+
+type HistoryRow = { d: DeploymentRow; title: string; status: string; rollBackTo: number | null };
+const TARGET_NAME: Record<Target, string> = { architect_cloud: "", vercel: "Vercel (sandbox)", vpc: "Your VPC (sandbox)" };
+
+/**
+ * Published versions as plain history, newest first: "Version 6 · Change the brand colour to teal" when
+ * a version was published, "Rolled back to version 4" when an older one was put back. Publishing always
+ * puts the project's newest version live, so a row that put up an older version than the row before it
+ * was a rollback. Each older version shown gets one "Roll back to this", on the latest row that names it
+ * ("Version 4 · …" rather than "Rolled back to version 4" when both are shown).
+ */
+function versionHistory(deployments: DeploymentRow[], checkpoints: { id: string; seq: number; label: string }[], liveCheckpointId: string | null, limit: number): HistoryRow[] {
+  const byId = new Map(checkpoints.map((c) => [c.id, c]));
+  const seqOf = (d: DeploymentRow) => (d.checkpoint_id ? byId.get(d.checkpoint_id)?.seq ?? null : null);
+  const liveSeq = liveCheckpointId ? byId.get(liveCheckpointId)?.seq ?? null : null;
+  const cloud = deployments.filter((d) => d.target === "architect_cloud");
+  const rollback = new Set<string>();
+  // Oldest first, so each row is compared with the one it replaced.
+  [...cloud].reverse().forEach((d, i, rows) => {
+    const seq = seqOf(d);
+    const before = i > 0 ? seqOf(rows[i - 1]) : null;
+    if (seq !== null && before !== null && seq < before) rollback.add(d.id);
+  });
+  const shown = deployments.slice(0, limit);
+  const olderThanLive = (d: DeploymentRow) => {
+    const seq = seqOf(d);
+    return d.target === "architect_cloud" && d.status !== "live" && seq !== null && liveSeq !== null && seq < liveSeq;
+  };
+  // The row that offers each older version: its latest publish row shown, else its latest row shown.
+  const offer = new Map<string, string>();
+  for (const d of shown) if (olderThanLive(d) && !rollback.has(d.id) && !offer.has(d.checkpoint_id!)) offer.set(d.checkpoint_id!, d.id);
+  for (const d of shown) if (olderThanLive(d) && !offer.has(d.checkpoint_id!)) offer.set(d.checkpoint_id!, d.id);
+  return shown.map((d) => {
+    const seq = seqOf(d);
+    const cp = d.checkpoint_id ? byId.get(d.checkpoint_id) : undefined;
+    // Older rows were labelled "Published" or "Went live" when publishing made a copy; those say nothing about the version.
+    const what = cp && !/^(Published|Went live)$/.test(cp.label) ? ` · ${cp.label}` : "";
+    const title = seq === null ? "A saved version" : rollback.has(d.id) ? `Rolled back to version ${seq}` : `Version ${seq}${what}`;
+    const takenOffline = !liveCheckpointId && d.status !== "sandbox" && d.id === cloud[0]?.id;
+    const status = d.status === "live" ? "Live now" : d.status === "sandbox" ? "Prepared" : takenOffline ? "Taken offline" : "Replaced";
+    return { d, title, status, rollBackTo: d.checkpoint_id && offer.get(d.checkpoint_id) === d.id ? seq : null };
+  });
+}
+
 export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
@@ -82,7 +128,9 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
     [bp, ws.project.settings, built],
   );
   const ready = canGoLive(checks);
-  const blocking = checks.filter((c) => c.blocking && c.status === "fail");
+  const blocking = checks.filter((c) => c.blocking && c.status === "fail").sort((a, b) => blockerRank(a) - blockerRank(b));
+  // One filled button on the page: the first must-fix that has a fix, or else Publish.
+  const primaryFix = blocking.find((c) => c.fix)?.id ?? null;
   const optional = checks.filter((c) => !(c.blocking && c.status === "fail") && c.status !== "pass" && c.status !== "info");
   const passed = checks.filter((c) => c.status === "pass");
   // Nothing to fix, but worth reading before publishing: what the public pages show.
@@ -106,6 +154,25 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const origin = useOrigin();
   const liveUrl = ws.liveSlug ? `${origin}/live/${ws.liveSlug}` : "";
   const isLive = Boolean(live && ws.liveSlug);
+  const liveVersion = live?.checkpoint_id ? ws.checkpoints.find((c) => c.id === live.checkpoint_id)?.seq ?? null : null;
+  const history = useMemo(() => versionHistory(deployments, ws.checkpoints, isLive ? live?.checkpoint_id ?? null : null, 6), [deployments, ws.checkpoints, isLive, live]);
+
+  // What publishing would do now: whether anything changed since the live version and which version goes live.
+  // Asked again whenever the project, its versions or what's published change.
+  const [state, setState] = useState<PublishState | "checking" | "unknown">("checking");
+  useEffect(() => {
+    let gone = false;
+    publishState(ws.project.id)
+      .then((s) => !gone && setState(s ?? "unknown"))
+      .catch(() => !gone && setState("unknown"));
+    return () => {
+      gone = true;
+    };
+  }, [ws.project.id, ws.blueprint, ws.checkpoints, deployments]);
+  const known = typeof state === "object" ? state : null;
+  const unchanged = isLive && target === "architect_cloud" && (state === "checking" || Boolean(known?.unchanged));
+  // Who can use the live app, from what it makes public; the project's own plan until the server has answered.
+  const access = known?.access ?? accessLine(bp, ws.project.settings.app?.hiddenEntities);
 
   // The build fix: start the build (or pick up one that was interrupted) right here, then show it running on the plan.
   const buildRunning = ws.build.mode === "build" && (ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing");
@@ -143,6 +210,8 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
     const r = await goLive(ws.project.id, target, host || undefined);
     setDeploying(null);
     if (!r.ok) return void toast.error(r.error);
+    // What's live is the project as it is now, until the next change.
+    if (target === "architect_cloud") setState((s) => (typeof s === "object" ? { ...s, unchanged: true } : s));
     if (target === "architect_cloud") setLaunched(r.slug ?? ws.liveSlug ?? "");
     else toast.success(target === "vercel" ? "Vercel deploy prepared (sandbox)" : "Bundle ready (sandbox)");
     router.refresh();
@@ -166,12 +235,29 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   };
 
   const publishLabel = isLive && target === "architect_cloud" ? "Publish changes" : "Publish";
+  const canPublish = ready && domainValid && deploying === null && !unchanged;
+  const publishHint = !ready
+    ? `Fix the ${blocking.length === 1 ? "item" : `${blocking.length} items`} above to publish.`
+    : !domainValid
+      ? "Fix the custom domain under More options to publish."
+      : target !== "architect_cloud"
+        ? `Prepares ${target === "vercel" ? "your Vercel project" : "a bundle for your network"} (sandbox).`
+        : isLive && state === "checking"
+          ? "Checking for changes since you published…"
+          : unchanged
+            ? "No changes since you published."
+            : !known
+              ? isLive
+                ? "Replaces the live version with your latest changes. Rolling back is one click."
+                : "Goes live on Prod Cloud. You can take it offline any time."
+              : `${known.savesEdits ? `Saves your latest edits as version ${known.version} and puts it live` : `Puts version ${known.version} live`}${
+                  !isLive ? " on Prod Cloud. You can take it offline any time." : liveVersion !== null ? ` in place of version ${liveVersion}. Rolling back is one click.` : ". Rolling back is one click."
+                }`;
   const fixRow = (c: PreflightCheck) => {
     const action = c.fix?.action;
     if (!action) return null;
-    const must = c.blocking && c.status === "fail";
     return (
-      <Button variant={must ? "default" : "outline"} className="shrink-0" disabled={pending} onClick={() => fix(action)}>
+      <Button variant={c.id === primaryFix ? "default" : "outline"} className="shrink-0" disabled={pending} onClick={() => fix(action)}>
         {fixing === action ? <Loader2 className="animate-spin" /> : null}
         {action === "build_first" ? buildLabel : FIX_LABEL[action] ?? c.fix!.label}
       </Button>
@@ -191,12 +277,17 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           <section aria-label="Live link" className="panel mt-6 rounded-md p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Pill tone="ok" dot size="md">Live now</Pill>
-              <span className="text-ui text-muted-foreground">Anyone with the link can use it · published <TimeAgo iso={live.created_at} /></span>
+              <span className="text-ui text-muted-foreground">
+                {liveVersion !== null ? `Version ${liveVersion} · ` : ""}published <TimeAgo iso={live.created_at} />
+              </span>
             </div>
+            {/* Who can use it, from what the live app makes public. */}
+            <p className="mt-2 text-ui text-muted-foreground">{access}</p>
             {/* A copy field: the whole link on one line, cut short with an ellipsis if it doesn't fit, never broken mid-word. */}
             <div className="mt-3 flex items-center gap-2 rounded-md border border-hairline bg-canvas p-1.5 pl-3">
               <code className="min-w-0 flex-1 truncate font-mono text-code text-foreground" title={liveUrl || undefined}>{liveUrl || `/live/${ws.liveSlug}`}</code>
-              <Button size="sm" className="shrink-0" onClick={copyLink}><Copy /> Copy link</Button>
+              {/* Filled only when there's nothing to fix or publish: then sharing the link is what's left to do. */}
+              <Button size="sm" variant={canPublish || primaryFix ? "outline" : "default"} className="shrink-0" onClick={copyLink}><Copy /> Copy link</Button>
             </div>
             <Button asChild variant="outline" size="sm" className="mt-3"><a href={liveUrl || `/live/${ws.liveSlug}`} target="_blank" rel="noreferrer">Open it <ExternalLink /></a></Button>
           </section>
@@ -259,21 +350,17 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
 
         {/* One primary action. */}
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Button size="cta" disabled={!ready || !domainValid || deploying !== null} onClick={deploy}>
-            {deploying !== null ? <Loader2 className="animate-spin" /> : null} {publishLabel}
+          <Button size="cta" disabled={!canPublish} onClick={deploy}>
+            {deploying !== null ? (
+              <>
+                <Loader2 className="animate-spin" /> Publishing…
+              </>
+            ) : (
+              publishLabel
+            )}
           </Button>
           {target === "vpc" && <Button size="lg" variant="outline" onClick={downloadBundle}><Download /> Download bundle</Button>}
-          <p className="text-ui text-muted-foreground">
-            {!ready
-              ? `Fix the ${blocking.length === 1 ? "item" : `${blocking.length} items`} above to publish.`
-              : !domainValid
-                ? "Fix the custom domain under More options to publish."
-                : target === "architect_cloud"
-                  ? isLive
-                    ? `Replaces the live version with version ${ws.checkpoints[0]?.seq ?? 1}. Rolling back is one click.`
-                    : "Goes live on Prod Cloud. Rolling back is one click."
-                  : `Prepares ${target === "vercel" ? "your Vercel project" : "a bundle for your network"} (sandbox).`}
-          </p>
+          <p className="text-ui text-muted-foreground">{publishHint}</p>
         </div>
         <AnimatePresence>
           {deploying !== null && (
@@ -308,25 +395,36 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           <section aria-labelledby="versions" className="mt-10">
             <h3 id="versions" className="font-pencil text-section">Versions</h3>
             <ul className="panel mt-3 divide-y divide-hairline rounded-md">
-              {deployments.slice(0, 6).map((d) => {
-                const cp = ws.checkpoints.find((c) => c.id === d.checkpoint_id);
-                return (
-                  <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-ui">
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-ui font-medium">{cp ? <>Version {cp.seq} · {cp.label === "Went live" ? "Published" : cp.label}</> : "A saved version"}</span>
-                      <span className="block text-meta text-muted-foreground">
-                        {d.status === "live" ? "Live now" : d.status === "sandbox" ? "Prepared" : "Replaced"} · {d.target === "architect_cloud" ? "Prod Cloud" : d.target === "vercel" ? "Vercel (sandbox)" : "Your VPC (sandbox)"} · <TimeAgo iso={d.created_at} />
-                      </span>
+              {history.map(({ d, title, status, rollBackTo }) => (
+                <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-ui">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-ui font-medium">{title}</span>
+                    <span className="block text-meta text-muted-foreground">
+                      {status}
+                      {TARGET_NAME[d.target] && ` · ${TARGET_NAME[d.target]}`} · <TimeAgo iso={d.created_at} />
                     </span>
-                    {d.status === "live" && <Pill tone="ok" dot>Live</Pill>}
-                    {d.status === "rolled_back" && d.target === "architect_cloud" && live && (
-                      <Button size="sm" variant="outline" disabled={pending} onClick={() => start(async () => { const r = await rollbackTo(ws.project.id, d.id); if (r.ok) toast.success("Rolled back", { description: "Instant and free." }); else toast.error(r.error); router.refresh(); })}>
-                        <Undo2 /> Roll back to this
-                      </Button>
-                    )}
-                  </li>
-                );
-              })}
+                  </span>
+                  {d.status === "live" && <Pill tone="ok" dot>Live</Pill>}
+                  {rollBackTo !== null && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      aria-label={`Roll back to this, version ${rollBackTo}`}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await rollbackTo(ws.project.id, d.id);
+                          if (r.ok) toast.success(`Rolled back to version ${rollBackTo}`, { description: "Instant and free. Your test version is unchanged." });
+                          else toast.error(r.error);
+                          router.refresh();
+                        })
+                      }
+                    >
+                      <Undo2 /> Roll back to this
+                    </Button>
+                  )}
+                </li>
+              ))}
             </ul>
             {live && (
               <div className="mt-3">
@@ -459,10 +557,11 @@ function LaunchMoment({ slug, origin, name, onClose }: { slug: string; origin: s
         role="dialog"
         aria-modal="true"
         aria-label="You're live"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 6 }}
-        transition={{ duration: DUR.panel, ease: EASE }}
+        // Put down on the page once: it drops in a touch askew and settles straight.
+        initial={{ opacity: 0, y: -12, rotate: -2 }}
+        animate={{ opacity: 1, y: 0, rotate: 0 }}
+        exit={{ opacity: 0, y: 6, transition: { duration: DUR.hover, ease: EASE } }}
+        transition={{ ...SPRING, opacity: { duration: DUR.panel, ease: EASE } }}
         className="panel-raised relative w-full min-w-0 max-w-[520px] rounded-lg px-5 pb-7 pt-9 text-center sm:px-8"
       >
         <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X /></Button>

@@ -1,8 +1,11 @@
 "use client";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { Check, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DUR, EASE } from "@/lib/motion";
+import { DrawnCheck } from "@/components/motion/sheet-draw";
 import { useStopBuild } from "./build-progress";
 import { plainWords, plural, reducedMotion, useSheet } from "./use-sheet";
 
@@ -20,7 +23,11 @@ function touches(r: { screens: number; agents: number; files: number }): string 
  */
 export function RepairNote() {
   const ws = useSheet();
-  const plan = ws.build.repair;
+  // Kept while the note leaves (the Sheet fades it out), so the fix you picked stays ticked until it's gone.
+  const live = ws.build.repair;
+  const [last, setLast] = useState(live);
+  if (live && live !== last) setLast(live);
+  const plan = live ?? last;
   const { stop, stopping } = useStopBuild();
   const id = useId();
   const box = useRef<HTMLElement>(null);
@@ -40,13 +47,19 @@ export function RepairNote() {
   const options = [...plan.options].sort((a, b) => Number(Boolean(b.recommended)) - Number(Boolean(a.recommended)));
 
   return (
-    <section
+    // Written in from the margin's side: a short slide and settle, once.
+    <motion.section
       ref={box}
       role="alertdialog"
       aria-modal="false"
       aria-labelledby={`${id}-t`}
       aria-describedby={`${id}-d`}
-      className="sketch fade-up mt-6 scroll-mt-6 border-fix/70 bg-panel p-5 sm:p-6"
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      // Once a fix is picked: a beat for its tick to finish, then a quick fade as the build carries on.
+      exit={{ opacity: 0, transition: { duration: DUR.hover, delay: DUR.hover, ease: EASE } }}
+      transition={{ duration: DUR.panel, ease: EASE }}
+      className="sketch mt-6 scroll-mt-6 border-fix/70 bg-panel p-5 sm:p-6"
     >
       <p className="font-sketch text-sketch text-fix">Caught before you saw it · fixing it is free</p>
       <h2 id={`${id}-t`} className="mt-1 font-pencil text-section text-foreground">{plainWords(plan.title)}</h2>
@@ -59,7 +72,9 @@ export function RepairNote() {
         {options.map((o, i) => {
           const chosen = choice === o.id;
           return (
-            <div key={o.id} className={cn("flex flex-col p-4", o.recommended ? "sketch border-brand/70 bg-brand-soft" : "sketch-soft bg-panel")}>
+            <div key={o.id} className={cn("relative flex flex-col p-4", o.recommended ? "sketch border-brand/70 bg-brand-soft" : "sketch-soft bg-panel")}>
+              {/* The pick, ticked in pencil on its corner. */}
+              {chosen && <DrawnCheck className="pointer-events-none absolute -left-2.5 -top-3.5 size-7 text-brand" />}
               <div className="flex items-center gap-2">
                 {o.recommended ? <span className="font-sketch text-sketch text-brand">what we&apos;d pick</span> : <span className="font-sketch text-sketch text-muted-foreground">or</span>}
                 <span className="ml-auto text-meta font-medium tabular-nums text-fix">{o.credits > 0 ? plural(o.credits, "credit") : "Free"}</span>
@@ -87,6 +102,6 @@ export function RepairNote() {
           <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : ws.build.charged ? "Stop and go back to the sketch · refunded" : "Stop and go back to the sketch"}
         </Button>
       </div>
-    </section>
+    </motion.section>
   );
 }

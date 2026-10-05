@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
+import { EntryOnce } from "@/components/motion/entry-once";
+import motion from "@/components/motion/entry-motion.module.css";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import type { CreditMeter } from "@/lib/prices";
@@ -11,10 +13,13 @@ export function HomeView({
   user,
   projects,
   credits,
+  capMessage = null,
 }: {
   user: { name: string; isAnonymous: boolean; avatarUrl: string | null };
   projects: HomeProject[];
   credits: CreditMeter;
+  /** Set when the person can't keep another project: said before they write. */
+  capMessage?: string | null;
 }) {
   const first = user.name.split(" ")[0];
   return (
@@ -27,9 +32,12 @@ export function HomeView({
             <p className="min-w-0 flex-1 basis-72">
               You&apos;re trying Prod AI as a guest, so new apps start from the closest starter plan. Sign in for {credits.memberAllowance} free credits a month and Claude plans them from your own words. Your work comes with you.
             </p>
-            <Button asChild variant="outline" className="relative after:absolute after:inset-x-0 after:-inset-y-1">
-              <Link href="/login?next=/home">Sign in to keep this work</Link>
-            </Button>
+            {/* At the guest cap the note under the greeting carries the sign-in, so it isn't offered twice. */}
+            {!capMessage && (
+              <Button asChild variant="outline" className="relative after:absolute after:inset-x-0 after:-inset-y-1">
+                <Link href="/login?next=/home">Sign in to keep this work</Link>
+              </Button>
+            )}
           </div>
         )}
 
@@ -38,7 +46,7 @@ export function HomeView({
             <Greeting name={user.isAnonymous ? undefined : first} />
           </h1>
           <div className="mt-6">
-            <HomeComposer />
+            <HomeComposer capMessage={capMessage} isGuest={user.isAnonymous} />
           </div>
         </section>
 
@@ -54,13 +62,16 @@ export function HomeView({
           {projects.length === 0 ? (
             <p className="mt-4 font-pencil text-note leading-tight text-muted-foreground">Nothing here yet. Your first app is one sentence away.</p>
           ) : (
-            <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p, i) => (
-                <li key={p.id}>
-                  <ProjectCard p={p} seed={i + 1} />
-                </li>
-              ))}
-            </ul>
+            // The cards are laid down one after another on the first visit of the session; after that they're simply there.
+            <EntryOnce id="home-cards">
+              <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {projects.map((p, i) => (
+                  <li key={p.id} className={motion.cardIn} style={{ "--entry-i": i } as React.CSSProperties}>
+                    <ProjectCard p={p} seed={i + 1} />
+                  </li>
+                ))}
+              </ul>
+            </EntryOnce>
           )}
         </section>
       </main>

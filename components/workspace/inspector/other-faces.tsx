@@ -81,18 +81,36 @@ export function ScreenSpec({ screen }: { screen: Screen }) {
   const [title, setTitle] = useState(screen.title);
   const [purpose, setPurpose] = useState(screen.purpose);
   const dirty = title !== screen.title || purpose !== screen.purpose;
+  // Enter saves, Escape puts back what's saved (and keeps the inspector open).
+  const cancel = (e: React.KeyboardEvent) => {
+    if (e.key !== "Escape" || !dirty) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setTitle(screen.title);
+    setPurpose(screen.purpose);
+  };
   return (
-    <div>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (dirty && !pending && title.trim()) run(() => updateScreenText(ws.project.id, screen.id, { title, purpose }), "Screen updated");
+      }}
+    >
       <Section title="Title">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Screen title" />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={cancel} aria-label="Screen title" enterKeyHint="done" />
       </Section>
       <Section title="Purpose">
-        <Input value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label="Screen purpose" />
+        <Input value={purpose} onChange={(e) => setPurpose(e.target.value)} onKeyDown={cancel} aria-label="Screen purpose" enterKeyHint="done" />
       </Section>
       {dirty && (
-        <Button size="sm" className="mt-2" disabled={pending} onClick={() => run(() => updateScreenText(ws.project.id, screen.id, { title, purpose }), "Screen updated")}>
-          {pending ? <Loader2 className="animate-spin" /> : <Check />} Save · free
-        </Button>
+        <div className="mt-2 flex items-center gap-2">
+          <Button type="submit" size="sm" disabled={pending || !title.trim()}>
+            {pending ? <Loader2 className="animate-spin" /> : <Check />} Save · free
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setTitle(screen.title); setPurpose(screen.purpose); }}>
+            Cancel
+          </Button>
+        </div>
       )}
       <Section title="Layout" aside={<span className="font-mono text-badge text-faint">{screen.layout}</span>}>
         <ol className="space-y-1.5">
@@ -110,7 +128,7 @@ export function ScreenSpec({ screen }: { screen: Screen }) {
       <Section title="Identifiers">
         <p className="font-mono text-badge text-muted-foreground">id: {screen.id} · route: /{screen.slug} · audience: {screen.audience}</p>
       </Section>
-    </div>
+    </form>
   );
 }
 

@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addCheckpoint, addLedger, createProject, logUsage } from "@/lib/db/writes";
 import { starterFor } from "@/lib/blueprint/fixtures";
+import { matchVertical } from "@/lib/blueprint/match";
 import { streamPlan, type PlanEvent } from "@/lib/llm/stream-plan";
 import { holdModelBudget } from "@/lib/llm/guard";
 import { PRICE, canAfford, outOfCreditsNote } from "@/lib/pricing";
@@ -11,7 +12,7 @@ import type { Blueprint, Framework } from "@/lib/blueprint/schema";
 import { estimate } from "@/lib/blueprint/estimate";
 import { cleanTree, type ImportReportWithTree } from "@/lib/import/snapshot";
 import { cleanAgents } from "@/lib/import/agents";
-import { applyDetectedAgents, detectedAgentsPrompt, mappingNote, pickAgents } from "@/lib/import/map";
+import { applyDetectedAgents, detectedAgentsPrompt, mappingNote } from "@/lib/import/map";
 import { startNotConnected } from "@/lib/llm/draft";
 
 export const maxDuration = 120;
@@ -49,17 +50,21 @@ export async function POST(req: Request) {
   const supa = await createClient();
   // Don't spend a model call on a mapping that couldn't be saved.
   const full = await projectCapMessage(supa, user);
-  if (full) return Response.json({ error: full }, { status: 403 });
+  if (full) return Response.json({ error: full, code: "cap" }, { status: 403 });
   const hold = await holdModelBudget(user, "import");
   if (!hold.ok && hold.reason === "rate") return Response.json({ error: "That's a lot of imports in a few minutes. Wait a little, then try again." }, { status: 429 });
   // Mapping a repo with Claude costs credits; without enough, it maps onto the closest starter plan, free.
   const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "import") : null;
   if (hold.ok && afford && !afford.ok) await hold.release();
   const useModel = hold.ok && Boolean(afford?.ok);
+  // Without Claude the screens come from a starter plan picked by the README's words. When none is close, say so.
+  const starterText = `${report.repo.description ?? ""} ${report.readmeExcerpt.slice(0, 1500)}`;
+  const weak = matchVertical(starterText).weak;
+  const starterWords = weak ? "a general starter plan (none is close to this repo)" : "the closest starter plan";
   const noModelNote = user.isAnonymous
-    ? "Guests get the closest starter plan mapped onto the repo. Sign in and Claude maps it from your code."
+    ? `As a guest, the screens come from ${starterWords} and any agents are read from your code. Sign in and Claude maps it all from your code.`
     : afford && !afford.ok
-      ? outOfCreditsNote(afford.credits, "the repo is mapped onto the closest starter plan")
+      ? outOfCreditsNote(afford.credits, `the screens come from ${starterWords} and any agents are read from your code`)
       : undefined;
   const framework = report.frameworks.map((f) => FW[f.id]).find(Boolean) ?? "lyzr";
   // Older clients (and cached reports from before agents were read) send no agents: keep the earlier behaviour.
@@ -91,7 +96,6 @@ export async function POST(req: Request) {
     next.estimate = estimate(next);
     return next;
   };
-  const picked = scanned ? pickAgents(report.agents!, report.tree) : null;
 
   const prompt = `Reverse-engineer the plan of this EXISTING repository so it can be developed further in Prod AI. Map what is already there. Do not invent a different product.
 Repository: ${report.repo.owner}/${report.repo.name}: ${report.repo.description ?? "no description"}
@@ -120,16 +124,21 @@ Use the repository's own names for agents and screens where the README or folder
           noModelNote,
           send,
           fallback: () => {
-            const s = starterFor(`${report.repo.description ?? ""} ${report.readmeExcerpt.slice(0, 1500)}`).blueprint;
+            const s = starterFor(starterText).blueprint;
             s.meta.name = pretty(report.repo.name);
             s.meta.tagline = report.repo.description?.slice(0, 90) ?? s.meta.tagline;
             return s;
           },
-          failureNote: "The model didn't answer in time, so I mapped the repo onto the closest starter plan. Everything in your repo is untouched.",
+          failureNote: `The model didn't answer in time, so the screens come from ${starterWords} and any agents are read from your code. Everything in your repo is untouched.`,
           adjust,
         });
         spent = cost;
         const brief = `Imported from github.com/${report.repo.owner}/${report.repo.name}${report.repo.description ? `: ${report.repo.description}` : ""}`;
+        // Who drew the map, kept with the project so the Sheet can say where the screens came from:
+        // Claude reading the code, or a starter plan (only the agents, if any, are read from the code).
+        const mappedBy: "claude" | "starter" = mode === "live" ? "claude" : "starter";
+        const settings = { houseRules, github: { connected: true, repo: `${report.repo.owner}/${report.repo.name}`, account: report.repo.owner }, mappedBy };
+        const fromCode = blueprint.agents.filter((a) => a.origin === "imported").length;
         const project = await createProject(supa, {
           ownerId: user.id,
           name: blueprint.meta.name,
@@ -139,7 +148,7 @@ Use the repository's own names for agents and screens where the README or folder
           blueprint,
           importReport: report,
           buildState: "draft",
-          settings: { houseRules, github: { connected: true, repo: `${report.repo.owner}/${report.repo.name}`, account: report.repo.owner } },
+          settings,
         });
         projectId = project.id;
         const cp = await addCheckpoint(supa, project.id, { label: "Imported from GitHub", kind: "import", blueprint, summary: `${report.repo.owner}/${report.repo.name} · ${report.fileCount} files · ${report.frameworks.map((f) => f.label).join(", ") || "no agent framework"}` });
@@ -150,8 +159,14 @@ Use the repository's own names for agents and screens where the README or folder
           {
             lane: "thought",
             kind: "work_order",
-            title: `Mapped the repo into ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}${picked?.mapped.length ? " from your code" : ""}`,
-            body: `${mode === "live" ? `Mapped by Claude from your code · ${PRICE.import} credits.` : "Offline mode: screens and data come from the closest starter plan."}${agentNote ? ` ${agentNote}` : ""} Every outside connection starts as not connected (test data) until you add its keys. The first change will open as a pull request. Nothing is pushed to main.`,
+            // Say where each part came from: Claude read the code, or the screens come from a starter plan and only the agents from the code.
+            title:
+              mappedBy === "claude"
+                ? `Mapped the repo into ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}`
+                : fromCode
+                  ? `Started from ${weak ? "a general" : "the closest"} starter plan: ${count(blueprint.screens.length, "screen")}, with ${count(fromCode, "AI helper")} from your code`
+                  : `Started from ${weak ? "a general" : "the closest"} starter plan: ${count(blueprint.screens.length, "screen")} and ${count(blueprint.agents.length, "AI helper")}`,
+            body: `${mappedBy === "claude" ? `Mapped by Claude from your code · ${PRICE.import} credits.` : `The screens and data come from ${starterWords}, not from your code${user.isAnonymous ? ". Sign in and Claude maps it from your code" : ""}.`}${agentNote ? ` ${agentNote}` : ""} Every outside connection starts as not connected (test data) until you add its keys. The first change will open as a pull request. Nothing is pushed to main.`,
             credits: mode === "live" ? PRICE.import : 0,
             checkpointId: cp.id,
           },
@@ -159,7 +174,9 @@ Use the repository's own names for agents and screens where the README or folder
         send({ t: "done", projectId: project.id, mode, name: blueprint.meta.name });
       } catch (e) {
         console.error("[import] save failed", e);
-        send({ t: "error", message: "Couldn't save the project. Try again." });
+        // At the project cap the person can't fix it by trying again: say so, with its own code so the page offers sign-in instead.
+        const cap = e instanceof Error && /project cap|row-level/i.test(e.message) ? await projectCapMessage(supa, user) : null;
+        send(cap ? { t: "error", message: cap, code: "cap" } : { t: "error", message: "Couldn't save the project. Try again." });
       } finally {
         // A saved mapping by Claude costs its price; a failed call or a mapping that couldn't be saved costs nothing.
         // Its real cost is metered either way, for the daily model budget.

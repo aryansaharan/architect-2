@@ -44,7 +44,7 @@ export async function scriptedRun(writer: UIMessageStreamWriter, bp: Blueprint, 
     const t = agent.tools.find((x) => x.id === responded.toolId);
     if (responded.approved && t) {
       writer.write({ type: "tool-output-available", toolCallId: responded.toolCallId, output: stubResult(bp, agent, t, responded.query) });
-      await text(writer, `t-${seed}`, `Done: ${t.name.toLowerCase()} went through (sandbox reference recorded above). I've logged it so the team can see who approved what.`);
+      await text(writer, `t-${seed}`, `Done. "${t.name}" ran in the practice sandbox, so nothing outside the app changed. It's in the log with who approved it.`);
     } else {
       writer.write({ type: "tool-output-denied", toolCallId: responded.toolCallId });
       await text(writer, `t-${seed}`, `Understood. I won't do that. I've left it for a person to handle and noted why in the activity log.`);

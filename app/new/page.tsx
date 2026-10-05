@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { projectCapMessage } from "@/lib/security/caps";
+import { MAX_BRIEF } from "@/components/home/brief-limits";
 import { Logo, GitHubMark } from "@/components/brand/logo";
 import { NewProject } from "@/components/new/new-project";
 import { ImportWizard } from "@/components/import/import-wizard";
@@ -12,7 +15,9 @@ const LINK = "inline-flex h-9 items-center rounded-md px-2.5 text-muted-foregrou
 export default async function NewPage(props: PageProps<"/new">) {
   const sp = await props.searchParams;
   const user = await requireUser("/new");
-  const prompt = typeof sp.prompt === "string" ? sp.prompt.slice(0, 2000) : "";
+  // At the most projects they can keep, people hear it before they write, not after the plan is sketched.
+  const capMessage = await projectCapMessage(await createClient(), user);
+  const prompt = typeof sp.prompt === "string" ? sp.prompt.slice(0, MAX_BRIEF) : "";
   const repo = typeof sp.repo === "string" ? sp.repo : "";
   const isImport = sp.mode === "import";
   return (
@@ -39,7 +44,11 @@ export default async function NewPage(props: PageProps<"/new">) {
         </div>
       </header>
       <main id="main" className="px-5 pb-20 pt-10 sm:px-6 sm:pt-14">
-        {isImport ? <ImportWizard initialRepo={repo} llm={llmMode()} /> : <NewProject initialPrompt={prompt} llm={llmMode()} isGuest={user.isAnonymous} />}
+        {isImport ? (
+          <ImportWizard initialRepo={repo} llm={llmMode()} isGuest={user.isAnonymous} capMessage={capMessage} />
+        ) : (
+          <NewProject initialPrompt={prompt} llm={llmMode()} isGuest={user.isAnonymous} capMessage={capMessage} />
+        )}
       </main>
     </div>
   );

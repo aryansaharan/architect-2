@@ -4,7 +4,8 @@ import { ArrowDown, ArrowRight, ArrowUp, CalendarDays, Check, ChevronLeft, Chevr
 import { sortPhrase, sortRows, type Action, type Block, type Blueprint, type Entity } from "@/lib/blueprint/schema";
 import { formatValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { enumTone, useApp } from "./app-context";
+import { enumTone, useApp, type AskFrom } from "./app-context";
+import type { HistoryEntry } from "@/lib/apps/records";
 import { ChatBlockView } from "./chat-block";
 import { deriveKpi, screenEntityId } from "./kpi";
 
@@ -26,14 +27,15 @@ export function Card({ title, children, className, right }: { title?: string; ch
   );
 }
 
+/** Runs a click's action. `from` says which block it came from and, for a row or a record, which one: an AI helper asked from there gets that record as context. */
 function useRunAction() {
   const app = useApp();
-  return (a: Action | undefined, rowIndex?: number, entityId?: string) => {
+  return (a: Action | undefined, from?: AskFrom) => {
     if (!a) return;
-    if (entityId !== undefined && rowIndex !== undefined) app.selectRow(entityId, rowIndex);
+    if (from?.entityId !== undefined && from.rowIndex !== undefined) app.selectRow(from.entityId, from.rowIndex);
     if (a.kind === "navigate") app.navigate(a.screenId);
     else if (a.kind === "toast") app.toast(a.message);
-    else if (a.kind === "agent") app.askAgent(a.agentId, a.prompt);
+    else if (a.kind === "agent") app.askAgent(a.agentId, a.prompt, from);
     else if (a.kind === "openDetail") {
       const detail = detailScreen(app.bp, a.entityId);
       if (detail) app.navigate(detail.id);
@@ -67,7 +69,9 @@ export function KpisBlock({ block }: { block: Extract<Block, { type: "kpis" }> }
   const app = useApp();
   // Numbers that can be read from the rows on this screen are counted from them, so tiles and tables agree.
   const entityId = screenEntityId(app.bp, app.screenId);
-  const items = useMemo(() => block.items.map((k) => ({ ...k, ...deriveKpi(k, app.bp, entityId) })), [block.items, app.bp, entityId]);
+  // Over real records (no sample data left) a data type with none yet counts 0, not "not counted".
+  const records = Boolean(app.data) && !app.data!.hasSample;
+  const items = useMemo(() => block.items.map((k) => ({ ...k, ...deriveKpi(k, app.bp, entityId, { records }) })), [block.items, app.bp, entityId, records]);
   // A published app without its sample data never shows the plan's made-up figures: only what its records add up to.
   const uncounted = (k: (typeof items)[number]) => Boolean(app.data) && !app.data!.hasSample && !k.derived;
   return (
@@ -203,7 +207,7 @@ export function TableBlock({ block }: { block: Extract<Block, { type: "table" }>
           </thead>
           <tbody>
             {view.map(({ row, i }) => (
-              <tr key={i} onClick={clickable ? () => run(block.rowAction, i, block.entityId) : undefined} className={cn("border-b border-slate-50 text-slate-700 last:border-0", clickable && "cursor-pointer hover:bg-slate-50")}>
+              <tr key={i} onClick={clickable ? () => run(block.rowAction, { blockId: block.id, rowIndex: i, entityId: block.entityId }) : undefined} className={cn("border-b border-slate-50 text-slate-700 last:border-0", clickable && "cursor-pointer hover:bg-slate-50")}>
                 {block.columns.map((c, ci) => (
                   <td key={c} className={cn("whitespace-nowrap px-4 py-2.5", ci === 0 && "font-medium text-slate-900")}>
                     <Value entity={entity} field={c} value={row[c]} />
@@ -257,7 +261,7 @@ export function ListBlock({ block }: { block: Extract<Block, { type: "list" }> }
           const Row = clickable ? "button" : "div";
           return (
             <li key={i}>
-              <Row {...(clickable ? { type: "button" as const, onClick: () => run(block.onSelect, i, block.entityId) } : {})} className={cn("flex w-full items-center gap-3 px-4 py-2.5 text-left", clickable && "hover:bg-slate-50")}>
+              <Row {...(clickable ? { type: "button" as const, onClick: () => run(block.onSelect, { blockId: block.id, rowIndex: i, entityId: block.entityId }) } : {})} className={cn("flex w-full items-center gap-3 px-4 py-2.5 text-left", clickable && "hover:bg-slate-50")}>
                 <span className="grid size-8 shrink-0 place-items-center rounded-full text-[12px] font-semibold" style={{ background: "color-mix(in oklab, var(--app-primary) 12%, white)", color: "var(--app-primary)" }}>
                   {title.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                 </span>
@@ -387,7 +391,7 @@ export function DetailBlock({ block }: { block: Extract<Block, { type: "detail" 
                 </button>
               )}
               {block.actions.map((a, i) => (
-                <button key={i} onClick={() => run(a.action)} className={a.variant === "primary" ? primaryBtn : secondaryBtn} style={a.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
+                <button key={i} onClick={() => run(a.action, { blockId: block.id, rowIndex: idx, entityId: block.entityId })} className={a.variant === "primary" ? primaryBtn : secondaryBtn} style={a.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
                   {a.action.kind === "agent" && <Sparkles className="size-3.5" />}
                   {a.label}
                 </button>
@@ -511,7 +515,7 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
               return;
             }
             setSent(true);
-            run(block.onSubmit);
+            run(block.onSubmit, { blockId: block.id });
           }}
         >
           {block.fields.map((f) => {
@@ -567,7 +571,20 @@ export function FormBlock({ block }: { block: Extract<Block, { type: "form" }> }
   );
 }
 
+/**
+ * In a published app, a timeline beside a record (a screen with a detail block) is that record's history,
+ * so it shows the real one; the plan's fixed steps are never passed off as a record's past. The team sees
+ * it; a visitor never does. A timeline on any other screen is page content and stays as written.
+ */
 export function TimelineBlock({ block }: { block: Extract<Block, { type: "timeline" }> }) {
+  const app = useApp();
+  const screen = app.bp.screens.find((s) => s.id === app.screenId);
+  const detail = screen ? [...screen.regions.main, ...screen.regions.side].find((b): b is Extract<Block, { type: "detail" }> => b.type === "detail") : undefined;
+  if (app.data && detail) return app.data.canEdit ? <RecordHistory block={block} detail={detail} /> : null;
+  return <PlannedTimeline block={block} />;
+}
+
+function PlannedTimeline({ block }: { block: Extract<Block, { type: "timeline" }> }) {
   return (
     <Card title={block.title}>
       <ol className="px-4 py-3">
@@ -582,6 +599,83 @@ export function TimelineBlock({ block }: { block: Extract<Block, { type: "timeli
           </li>
         ))}
       </ol>
+    </Card>
+  );
+}
+
+const whenFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Who did it, in plain words: the public form, the owner or a teammate, or an AI helper (and whose request it was). */
+function byWords(e: HistoryEntry): string {
+  const person = e.person === "owner" ? "the owner" : e.person;
+  if (e.by === "sample") return "Sample record, added when the app was published";
+  if (e.by === "visitor") return e.kind === "created" ? "Sent in through the public form" : "Changed through the public form";
+  if (e.by === "helper") {
+    const helper = e.helper ?? "An AI helper";
+    return `${e.kind === "created" ? "Created" : "Changed"} by ${helper}${e.helper ? " (AI helper)" : ""}${person ? `, asked by ${person}` : ""}`;
+  }
+  if (e.by === "unknown") return "Created";
+  return `${e.kind === "created" ? "Added" : "Changed"} by ${person ?? "the team"}`;
+}
+
+/** The record's real history (app_record_changes), newest first, read again whenever the record changes. */
+function RecordHistory({ block, detail }: { block: Extract<Block, { type: "timeline" }>; detail: Extract<Block, { type: "detail" }> }) {
+  const app = useApp();
+  const entity = app.entity(detail.entityId);
+  const count = entity?.sample.length ?? 0;
+  const idx = Math.min(app.selectedRow[detail.entityId] ?? 0, Math.max(0, count - 1));
+  const recordId = count ? app.data?.recordId(detail.entityId, idx) : undefined;
+  const stamp = count ? app.data?.stamp(detail.entityId, idx) : undefined;
+  const load = app.data?.history;
+  const want = recordId ? `${recordId}@${stamp ?? ""}` : null;
+  const [got, setGot] = useState<{ key: string; entries: HistoryEntry[] | null; error?: string } | null>(null);
+  useEffect(() => {
+    if (!want || !recordId || !load) return;
+    let current = true;
+    void load(recordId).then((r) => {
+      if (current) setGot(r.ok ? { key: want, entries: r.history } : { key: want, entries: null, error: r.error });
+    });
+    return () => {
+      current = false;
+    };
+  }, [want, recordId, load]);
+  if (!recordId) return null;
+  // While a newer version loads, the last one stays (only the first load shows "Loading").
+  const shown = got && (got.key === want || got.key.split("@")[0] === recordId) ? got : null;
+  const label = (name: string) => entity?.fields.find((f) => f.name === name)?.label ?? name.replace(/_/g, " ");
+  const value = (name: string, v: unknown) => (v === null || v === undefined || v === "" ? "not set" : formatValue(v, entity?.fields.find((f) => f.name === name)?.type));
+  const entries = shown?.entries ?? [];
+  return (
+    <Card title={block.title ?? "History"}>
+      {!shown ? (
+        <p className="flex items-center gap-2 px-4 py-4 text-[12.5px] text-slate-400"><Loader2 className="size-3.5 animate-spin" />Loading this {entity?.name.toLowerCase() ?? "record"}&apos;s history…</p>
+      ) : shown.error ? (
+        <p role="alert" className="px-4 py-4 text-[12.5px] text-rose-600">{shown.error}</p>
+      ) : !entries.length ? (
+        <p className="px-4 py-4 text-[12.5px] text-slate-400">No history for this {entity?.name.toLowerCase() ?? "record"} yet.</p>
+      ) : (
+        <ol className="px-4 py-3" aria-label={`History of this ${entity?.name.toLowerCase() ?? "record"}, newest first`}>
+          {entries.map((e, i) => (
+            <li key={e.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {i < entries.length - 1 && <span className="absolute left-[7px] top-4 h-full w-px bg-slate-200" />}
+              <span className={cn("relative mt-1 size-[15px] shrink-0 rounded-full border-2", i === 0 ? "border-transparent" : "border-slate-300 bg-white")} style={i === 0 ? { background: "var(--app-primary)" } : undefined} />
+              <span className="min-w-0">
+                <span className="block text-[13px] text-slate-800">{byWords(e)}</span>
+                {e.changes.length > 0 && (
+                  <span className="mt-0.5 block space-y-0.5">
+                    {e.changes.map((c) => (
+                      <span key={c.field} className="block text-[12.5px] text-slate-600">
+                        {label(c.field)}: {value(c.field, c.from)} to <span className="font-medium text-slate-800">{value(c.field, c.to)}</span>
+                      </span>
+                    ))}
+                  </span>
+                )}
+                <time dateTime={e.at} className="block text-[11.5px] text-slate-400">{whenFormat.format(new Date(e.at))}</time>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </Card>
   );
 }
@@ -627,7 +721,7 @@ export function ActionsBlock({ block }: { block: Extract<Block, { type: "actions
   return (
     <div className="flex flex-wrap gap-2">
       {block.buttons.map((b, i) => (
-        <button key={i} onClick={() => run(b.action)} className={b.variant === "primary" ? primaryBtn : secondaryBtn} style={b.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
+        <button key={i} onClick={() => run(b.action, { blockId: block.id })} className={b.variant === "primary" ? primaryBtn : secondaryBtn} style={b.variant === "primary" ? { background: "var(--app-primary)" } : undefined}>
           {b.label}
         </button>
       ))}

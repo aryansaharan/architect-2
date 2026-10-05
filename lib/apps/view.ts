@@ -1,4 +1,4 @@
-import type { Block, Blueprint, Entity } from "@/lib/blueprint/schema";
+import type { Action, Block, Blueprint, Entity } from "@/lib/blueprint/schema";
 
 /**
  * What a published app shows to whom. Team screens are for the owner and the people they invite;
@@ -23,9 +23,27 @@ function shown(b: Block): { entityId: string; fields: string[] } | null {
   return null;
 }
 
+/** A list, table, record or form of a data type the owner hid from public pages: it leaves no trace there. */
+export function hiddenBlock(b: Block, hidden: Set<string>): boolean {
+  if (b.type === "table" || b.type === "list" || b.type === "detail") return hidden.has(b.entityId);
+  return b.type === "form" && Boolean(b.entityId) && hidden.has(b.entityId!);
+}
+
+const holdsData = (b: Block) => b.type === "table" || b.type === "list" || b.type === "detail" || b.type === "form";
+
+/**
+ * A public page that hiding emptied: every list, record and form on it was of a hidden data type, and no
+ * AI helper chat is left, so only its text would remain ("We confirm your claim by email"). It drops out.
+ */
+function emptiedByHiding(s: Blueprint["screens"][number], hidden: Set<string>): boolean {
+  if (!hidden.size) return false;
+  const blocks = [...s.regions.main, ...(s.regions.side ?? [])];
+  return blocks.some((b) => hiddenBlock(b, hidden)) && !blocks.some((b) => (holdsData(b) && !hiddenBlock(b, hidden)) || b.type === "chat");
+}
+
 export function publicAccess(bp: Blueprint, hiddenEntities: string[] = []): PublicAccess {
   const hidden = new Set(hiddenEntities);
-  const screens = bp.screens.filter((s) => s.audience === "customer").map((s) => s.id);
+  const screens = bp.screens.filter((s) => s.audience === "customer" && !emptiedByHiding(s, hidden)).map((s) => s.id);
   const read: Record<string, Set<string>> = {};
   const create: Record<string, Set<string>> = {};
   for (const b of blocksOf(bp, new Set(screens))) {
@@ -35,6 +53,16 @@ export function publicAccess(bp: Blueprint, hiddenEntities: string[] = []): Publ
   }
   const plain = (m: Record<string, Set<string>>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [...v]]));
   return { screens, read: plain(read), create: plain(create) };
+}
+
+/** What a block's buttons and clicks do: a record's buttons, a button row, a row or item click, a form's submit. */
+export function blockActions(b: Block): Action[] {
+  if (b.type === "actions") return b.buttons.map((x) => x.action);
+  if (b.type === "detail") return b.actions.map((x) => x.action);
+  if (b.type === "table") return b.rowAction ? [b.rowAction] : [];
+  if (b.type === "list") return b.onSelect ? [b.onSelect] : [];
+  if (b.type === "form") return [b.onSubmit];
+  return [];
 }
 
 /** The data types a published app keeps records for: every entity the plan defines. */

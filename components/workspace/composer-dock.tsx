@@ -7,16 +7,23 @@ import { toast } from "sonner";
 import { ArrowUp, Check, CircleAlert, Crosshair, Info, UsersRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DUR, EASE } from "@/lib/motion";
+import { DUR, EASE, SPRING } from "@/lib/motion";
+import { DrawnCheck } from "@/components/motion/sheet-draw";
 import { objectLabel } from "@/lib/blueprint";
 import type { ChangeProposal, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
-import { approveChange, rejectChange, requestChange } from "@/lib/actions/change";
+import { approveChange, rejectChange, requestChange, type RequestChangeResult } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
 import { undoTo } from "./undo";
 
-/** A proposed change waiting in the card. `note` says when it was worked out without Claude because credits ran out. */
+/** A proposed change waiting in the card. `note` says when it was worked out without Claude (credits ran out, or Claude is paused by the project's spending cap). */
 type Order = { wo: WorkOrderRow; overBudget: boolean; note?: string };
+
+/** True when the browser knows it has no connection: then a failed send says "You're offline" instead of a vaguer line. */
+const isOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
+/** How long an applied change stays in its card, saying "Applied · version N", before the card folds away into the notes. */
+const APPLIED_BEAT_MS = 1400;
 
 /** A note sent from the margin. The thread shows it at once, then swaps in the history's own copy when it arrives. */
 export type SentMessage = { key: string; text: string; at: string; scope: ObjectRef | null; wo: WorkOrderRow | null };
@@ -77,7 +84,7 @@ export function touchWords(b: ChangeProposal["blastRadius"]): string {
     b.screens.length ? `${b.screens.length} ${b.screens.length === 1 ? "screen" : "screens"}` : "",
     b.agents.length ? `${b.agents.length} ${b.agents.length === 1 ? "AI helper" : "AI helpers"}` : "",
   ].filter(Boolean);
-  if (!parts.length) return b.files ? `A small change to ${b.files} ${b.files === 1 ? "file" : "files"}` : "A small change";
+  if (!parts.length) return "A small change";
   return `Changes ${parts.join(" and ")}`;
 }
 
@@ -103,7 +110,8 @@ export function ComposerDockProvider({ changeOrders = [], children }: { changeOr
   const review = useCallback(
     (id: string) => {
       const wo = orders.get(id);
-      if (wo?.status === "proposed" && wo.proposal) setOrder({ wo, overBudget: spent + wo.proposal.credits > cap });
+      // A free change (built-in rules) is never held back by the spending cap: only Claude's work is.
+      if (wo?.status === "proposed" && wo.proposal) setOrder({ wo, overBudget: wo.proposal.credits > 0 && spent + wo.proposal.credits > cap });
     },
     [orders, spent, cap],
   );
@@ -148,6 +156,12 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
   const [announce, setAnnounce] = useState("");
   const [pending, start] = useTransition();
   const [approving, setApproving] = useState(false);
+  // Said in plain words beside the writing area when a note couldn't be sent (offline, say): the note stays put.
+  const [problem, setProblem] = useState<string | null>(null);
+  // The same for Apply, said inside the card it belongs to.
+  const [applyProblem, setApplyProblem] = useState<{ id: string; text: string } | null>(null);
+  // A change just applied: its card stays a moment to say so (its Apply button becomes "Applied · version N").
+  const [landed, setLanded] = useState<{ order: Order; version: string } | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const scope = ws.scope === null && ws.selected ? ws.selected : ws.scope;
   // The ✕ on the "About" tag clears it for the current scope + focus request only.
@@ -163,6 +177,12 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
     // No scroll: a folded margin keeps this box in a zero-width strip, and focusing it opens the margin.
     if (ws.composerFocusKey) ref.current?.focus({ preventScroll: true });
   }, [ws.composerFocusKey]);
+
+  useEffect(() => {
+    if (!landed) return;
+    const t = setTimeout(() => setLanded(null), APPLIED_BEAT_MS);
+    return () => clearTimeout(t);
+  }, [landed]);
 
   // "Ask for it" under an answer puts its suggestion here.
   useEffect(() => {
@@ -188,9 +208,20 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
     setSent((s) => [...s.filter((m) => !m.wo || !logged.has(m.wo.id)), { key, text: request, at: new Date().toISOString(), scope: scopeAtSend, wo: null }]);
     setText("");
     setAnnounce("");
+    setLanded(null);
+    setProblem(null);
     onSent?.();
     start(async () => {
-      const r = await requestChange(ws.project.id, request, scopeAtSend);
+      let r: RequestChangeResult;
+      try {
+        r = await requestChange(ws.project.id, request, scopeAtSend);
+      } catch {
+        // No connection (or the server couldn't be reached): the note goes back in the writing area, nothing is lost.
+        setSent((s) => s.filter((m) => m.key !== key));
+        setText((t) => t || request);
+        setProblem(isOffline() ? "You're offline. Your note is still here: send it again when you're back." : "Couldn't reach Prod AI just now. Your note is still here: send it again.");
+        return;
+      }
       if (!r.ok) {
         setSent((s) => s.filter((m) => m.key !== key));
         setText((t) => t || request);
@@ -210,14 +241,27 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
   async function apply(viaKeyboard: boolean) {
     if (!order) return;
     setApproving(true);
+    setApplyProblem(null);
     const prev = ws.project.currentCheckpointId;
-    const r = await approveChange(ws.project.id, order.wo.id);
-    setApproving(false);
+    let r: Awaited<ReturnType<typeof approveChange>>;
+    try {
+      r = await approveChange(ws.project.id, order.wo.id);
+    } catch {
+      // No connection: nothing reached the server. Apply works again as soon as it's back (a change is only ever applied once).
+      setApplyProblem({
+        id: order.wo.id,
+        text: isOffline() ? "You're offline. Nothing was applied or charged: apply it again when you're back." : "Couldn't reach Prod AI just now. Try again: a change is only ever applied and charged once.",
+      });
+      return;
+    } finally {
+      setApproving(false);
+    }
     if (!r.ok) {
       toast.error(r.error ?? "Couldn't apply the change");
       return;
     }
     setOutcome(order.wo.id, { status: "applied", label: r.label ?? "Applied", undo: prev });
+    setLanded({ order, version: r.label ? versionWords(r.label) : "" });
     toast.success(order.wo.proposal?.summary ?? "Change applied", {
       description: `${r.label ? `Applied · ${versionWords(r.label)}` : "Applied"}. Going back is always free.`,
       duration: 9000,
@@ -230,13 +274,17 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
 
   function dismiss(viaKeyboard: boolean) {
     if (!order) return;
-    void rejectChange(ws.project.id, order.wo.id);
+    // Best effort: offline, the card still goes and the change stays undecided ("review it" in the notes).
+    rejectChange(ws.project.id, order.wo.id).catch(() => {});
     if (!order.wo.proposal?.answer) setOutcome(order.wo.id, { status: "dismissed" });
     setOrder(null);
     if (viaKeyboard) ref.current?.focus();
   }
 
   const p = order?.wo.proposal;
+  // The card on show: the change waiting for you, or the one just applied (for a moment).
+  const card = order ?? landed?.order ?? null;
+  const cardP = card?.wo.proposal;
   const label = effectiveScope ? objectLabel(ws.blueprint, effectiveScope) : "";
   const placeholder = building
     ? ws.build.mode === "replay"
@@ -269,9 +317,9 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
       </p>
 
       <AnimatePresence initial={false}>
-        {order && p && (
+        {card && cardP && (
           <motion.div
-            key={order.wo.id}
+            key={card.wo.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6, transition: { duration: DUR.hover } }}
@@ -279,12 +327,14 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
             className="pb-2.5"
           >
             <ChangeCard
-              order={order}
+              order={card}
               approving={approving}
+              problem={applyProblem?.id === card.wo.id ? applyProblem.text : null}
+              applied={order ? null : (landed?.version ?? null)}
               onApply={(k) => void apply(k)}
               onDismiss={dismiss}
               onRephrase={() => {
-                setText(p.summary);
+                setText(cardP.summary);
                 setOrder(null);
                 ref.current?.focus();
               }}
@@ -317,6 +367,13 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
             </button>
           ))}
         </div>
+      )}
+
+      {problem && (
+        <p role="alert" className="mb-2 flex items-start gap-1.5 text-meta text-foreground">
+          <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>{problem}</span>
+        </p>
       )}
 
       <div className={cn("rounded-sm border border-hairline-hi bg-panel shadow-hair transition-colors duration-150 ease-paper focus-within:border-brand/50", building && "opacity-70")}>
@@ -388,6 +445,8 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
 function ChangeCard({
   order,
   approving,
+  problem,
+  applied,
   onApply,
   onDismiss,
   onRephrase,
@@ -395,6 +454,10 @@ function ChangeCard({
 }: {
   order: Order;
   approving: boolean;
+  /** Why the last Apply didn't go through (offline, say), in plain words. */
+  problem: string | null;
+  /** Set once it's applied: the version it made ("version 7"), said where the Apply button was. */
+  applied: string | null;
   onApply: (viaKeyboard: boolean) => void;
   onDismiss: (viaKeyboard: boolean) => void;
   onRephrase: () => void;
@@ -428,7 +491,7 @@ function ChangeCard({
           <>
             <p className="mt-1 text-body font-medium">{p.summary}</p>
             {p.rationale && <p className="mt-1 text-meta text-muted-foreground">{p.rationale}</p>}
-            {/* Why Claude didn't write it: this month's credits ran out, so the free, rule-based way was used. */}
+            {/* Why Claude didn't write it: this month's credits ran out, or the project's spending cap paused Claude, so the free, rule-based way was used. */}
             {order.note && (
               <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
                 <Info className="mt-px size-3.5 shrink-0" aria-hidden />
@@ -462,21 +525,46 @@ function ChangeCard({
                   </p>
                 )}
                 <div className="mt-2.5 flex items-center gap-2">
-                  {/* A click from the keyboard has detail 0: only then pull focus back to the writing area. */}
-                  <Button className="flex-1" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
-                    {approving ? (
-                      "Applying…"
-                    ) : (
-                      <>
-                        <Check /> Apply · {priceWords(p.credits)}
-                      </>
-                    )}
-                  </Button>
-                  <Button variant="ghost" onClick={(e) => onDismiss(e.detail === 0)} disabled={approving}>
-                    Not now
-                  </Button>
+                  {applied !== null ? (
+                    // The Apply button becomes what it did: same place, stretched across the row, with a tick drawn.
+                    <motion.p
+                      layoutId={`apply-${order.wo.id}`}
+                      transition={SPRING}
+                      className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-brand-soft px-2.5 text-ui font-medium tabular-nums text-ok ring-1 ring-brand/30"
+                    >
+                      <DrawnCheck className="size-4 shrink-0" delay={0.1} />
+                      <motion.span layout="position" className="truncate">
+                        Applied{applied ? ` · ${applied}` : ""}
+                      </motion.span>
+                    </motion.p>
+                  ) : (
+                    <>
+                      <motion.div layoutId={`apply-${order.wo.id}`} transition={SPRING} className="flex min-w-0 flex-1">
+                        {/* A click from the keyboard has detail 0: only then pull focus back to the writing area. */}
+                        <Button className="w-full" onClick={(e) => onApply(e.detail === 0)} disabled={approving || order.overBudget}>
+                          {approving ? (
+                            "Applying…"
+                          ) : (
+                            <>
+                              <Check /> Apply · {priceWords(p.credits)}
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
+                      <Button variant="ghost" onClick={(e) => onDismiss(e.detail === 0)} disabled={approving}>
+                        Not now
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <p className="mt-1.5 text-meta text-faint">Nothing changes until you apply. Going back is always free.</p>
+                {problem && applied === null ? (
+                  <p role="alert" className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
+                    <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+                    <span>{problem}</span>
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-meta text-faint">{applied !== null ? "Saved as a new version. Going back is always free." : "Nothing changes until you apply. Going back is always free."}</p>
+                )}
               </>
             )}
             {p.mode === "rules" && !needsPerson && !order.note && <p className="mt-1 text-meta text-faint">Worked out by built-in rules, not by Claude.</p>}

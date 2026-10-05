@@ -2,10 +2,16 @@
 import { toast } from "sonner";
 import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 
-/** "Undo" on a toast: go back to the save point from just before the change. */
+/** "Undo" on a toast: go back to the version from just before the change. Never throws, offline included. */
 export async function undoTo(projectId: string, checkpointId: string, refresh: () => void) {
-  const r = await restoreCheckpoint(projectId, checkpointId);
+  let r: Awaited<ReturnType<typeof restoreCheckpoint>>;
+  try {
+    r = await restoreCheckpoint(projectId, checkpointId);
+  } catch {
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    return void toast.error(offline ? "You're offline" : "Couldn't undo just now", { description: offline ? "Nothing changed. Undo again when you're back." : "Nothing changed. Try again." });
+  }
   if (!r.ok) return void toast.error(r.error ?? "Couldn't undo");
-  toast.success("Undone", { description: "Back where you were. The change is still kept as a save point." });
+  toast.success("Undone", { description: "Back where you were. The change is still kept as a version." });
   refresh();
 }

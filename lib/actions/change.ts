@@ -25,22 +25,23 @@ export async function requestChange(projectId: string, request: string, scope: O
   const text = request.trim().slice(0, 1000);
   if (!text) return { ok: false, error: "Describe the change first" };
 
-  // Quotes are free, but a project past its cap stays paused, exactly like agent runs (app/api/chat/route.ts).
+  // Past the project's spending cap only Claude's work is paused, exactly like agent runs (app/api/chat/route.ts).
+  // Free, rule-based changes still come back, with a short note saying why Claude didn't write it.
   const spent = await usageSummary(supa, { projectId, sinceIso: monthStartIso() });
   const cap = project.settings.budgetCapCredits;
-  if (spent.credits >= cap) {
-    return { ok: false, error: `Paused: this project has used ${Math.round(spent.credits)} of its ${cap}-credit cap. Raise the cap in Settings to ask for more changes. Nothing was charged.` };
-  }
+  const capped = spent.credits >= cap;
 
   const hold = await holdModelBudget(user, "change");
   if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of changes in a few minutes. Wait a little, then try again. Nothing was charged." };
   // Claude writes the change only for someone who could pay to apply it; otherwise the free, rule-based
   // change is offered (or it goes to a person), so quotes can't run up model costs.
-  const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "change") : null;
-  const useModel = hold.ok && Boolean(afford?.ok);
-  const note = afford && !afford.ok && afford.credits.allowance ? outOfCreditsNote(afford.credits, "this change was worked out without Claude") : undefined;
+  const afford = hold.ok && !capped ? await canAfford(user.id, user.isAnonymous, "change") : null;
+  const useModel = hold.ok && !capped && Boolean(afford?.ok);
+  const creditsNote = afford && !afford.ok && afford.credits.allowance ? outOfCreditsNote(afford.credits, "this change was worked out without Claude") : undefined;
   try {
     const { proposal, usage } = await proposeChange(project.blueprint, text, scope, { allowModel: useModel });
+    const capWords = `Claude is paused: this project has reached its ${cap}-credit spending cap this month`;
+    const note = capped ? (proposal.operations.length ? `${capWords}, so the free built-in rules worked this out.` : `${capWords}, and the free built-in rules can't make this one.`) : creditsNote;
     if (usage) {
       // The quote is free: 0 credits. Its real cost is metered, failed attempts included, for the daily model budget.
       await logUsage({ userId: user.id, projectId, kind: "llm", provider: "anthropic", model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, credits: 0, meta: { op: "change-quote", free: true, modelCredits: usage.credits } });
@@ -66,7 +67,8 @@ async function saveQuote(supa: Supa, projectId: string, text: string, scope: Obj
   }
   const workOrder = data as WorkOrderRow;
   await logChat(supa, projectId, text, scope, workOrder.id, proposal);
-  return { ok: true, workOrder, overBudget: spentCredits + proposal.credits > cap };
+  // Only a priced change (Claude's) can go past the cap; a free one never does.
+  return { ok: true, workOrder, overBudget: proposal.credits > 0 && spentCredits + proposal.credits > cap };
 }
 
 /**

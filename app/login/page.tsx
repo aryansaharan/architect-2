@@ -4,6 +4,7 @@ import { CircleAlert } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { getSessionUser } from "@/lib/auth";
+import motion from "@/components/motion/entry-motion.module.css";
 
 export const metadata = { title: "Sign in" };
 
@@ -61,7 +62,8 @@ export default async function LoginPage(props: PageProps<"/login">) {
         </p>
 
         {note && (
-          <figure className="sticky-note mt-6 -rotate-[0.6deg] px-4 pb-3 pt-2.5">
+          // The note from the landing page, placed here with a small settle: it came with you.
+          <figure className={`sticky-note mt-6 -rotate-[0.6deg] px-4 pb-3 pt-2.5 ${motion.notePlaced}`}>
             <figcaption className="text-meta text-muted-foreground">Your note is safe. You&apos;ll pick up right here:</figcaption>
             <blockquote className="mt-1 line-clamp-3 font-pencil text-note leading-tight text-foreground">{note}</blockquote>
           </figure>

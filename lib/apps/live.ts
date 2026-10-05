@@ -1,9 +1,9 @@
 import "server-only";
-import type { Blueprint } from "@/lib/blueprint/schema";
+import type { Block, Blueprint } from "@/lib/blueprint/schema";
 import { QUOTED_RULES } from "@/lib/sim/demo-chat";
 import { isTeam, type AppRole, type LiveSite } from "./access";
 import { hasSampleRecords, listRecords, type AppRecord } from "./records";
-import { pick, publicAccess } from "./view";
+import { blockActions, hiddenBlock, pick, publicAccess } from "./view";
 
 /**
  * What a visitor's browser gets: the screens, sample data and what the scripted chat reads
@@ -67,15 +67,20 @@ export async function liveView(site: LiveSite, role: AppRole): Promise<LiveView>
   }
   const access = publicAccess(site.blueprint, site.settings.app?.hiddenEntities);
   if (!access.screens.length) return { role, bp: { ...withoutSamples(bp), screens: [] }, records: {}, canCreate: {}, canEdit: false, hasSample: false, privateOnly: true };
+  // Public pages that hiding left with nothing but text are already gone from access.screens (lib/apps/view.ts).
   const screens = new Set(access.screens);
   const used = new Set([...Object.keys(access.read), ...Object.keys(access.create)]);
-  const chatAgents = new Set(
-    bp.screens.filter((s) => screens.has(s.id)).flatMap((s) => [...s.regions.main, ...(s.regions.side ?? [])]).flatMap((b) => (b.type === "chat" ? [b.agentId] : [])),
-  );
   const hidden = new Set(site.settings.app?.hiddenEntities ?? []);
-  const visible = (b: Blueprint["screens"][number]["regions"]["main"][number]) =>
-    !((b.type === "table" || b.type === "list" || b.type === "detail") && hidden.has(b.entityId)) && !(b.type === "form" && b.entityId && hidden.has(b.entityId));
-  const agents = bp.agents.filter((a) => chatAgents.has(a.id));
+  const visible = (b: Block) => !hiddenBlock(b, hidden);
+  // The AI helpers a visitor can meet: one with a chat on their pages, or one a button there asks.
+  const helperIds = new Set(
+    bp.screens
+      .filter((s) => screens.has(s.id))
+      .flatMap((s) => [...s.regions.main, ...(s.regions.side ?? [])])
+      .filter(visible)
+      .flatMap((b) => (b.type === "chat" ? [b.agentId] : blockActions(b).flatMap((a) => (a.kind === "agent" ? [a.agentId] : [])))),
+  );
+  const agents = bp.agents.filter((a) => helperIds.has(a.id));
   const connections = new Set(agents.flatMap((a) => a.tools.map((t) => t.connectionId)));
   // A visitor's copy names only what their pages use: of each data type, the fields those pages show or
   // collect, and only the connections their AI helpers' tools use. The rest of the plan stays on the server.

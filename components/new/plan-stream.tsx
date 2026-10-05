@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleAlert, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Wireframe } from "@/components/landing/sketches";
+import { drawDrawing, nextTurn, prefersReducedMotion, useEntrance } from "@/components/motion/entry-draw";
 import { cn } from "@/lib/utils";
+import { CapNote } from "./cap-note";
 
 export type PartialDraft = {
   name?: string;
@@ -21,6 +23,8 @@ export function usePlanStream(initialMode: "live" | "offline") {
   const [mode, setMode] = useState<"live" | "offline">(initialMode);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "cap": the person can't keep another project. Trying again won't help, so the page offers the ways on instead.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [done, setDone] = useState(false);
   const [running, setRunning] = useState(false);
@@ -35,6 +39,7 @@ export function usePlanStream(initialMode: "live" | "offline") {
   async function start(url: string, body: unknown, redirect: (projectId: string) => string) {
     setRunning(true);
     setError(null);
+    setErrorCode(null);
     setNote(null);
     setDraft({});
     setDone(false);
@@ -43,6 +48,7 @@ export function usePlanStream(initialMode: "live" | "offline") {
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
+        if (typeof j.code === "string") setErrorCode(j.code);
         throw new Error(j.error ?? "Planning failed");
       }
       const reader = res.body.getReader();
@@ -63,7 +69,10 @@ export function usePlanStream(initialMode: "live" | "offline") {
             setNote(e.text);
             setMode("offline");
           }
-          if (e.t === "error") throw new Error(e.message);
+          if (e.t === "error") {
+            if (typeof e.code === "string") setErrorCode(e.code);
+            throw new Error(e.message);
+          }
           if (e.t === "done") {
             setDone(true);
             setTimeout(() => router.push(redirect(e.projectId)), 900);
@@ -75,19 +84,99 @@ export function usePlanStream(initialMode: "live" | "offline") {
     }
   }
 
-  return { draft, mode, note, error, elapsed, done, running, start };
+  return { draft, mode, note, error, errorCode, elapsed, done, running, start };
 }
 
 
 /** The screen kinds the planner uses, drawn as the nearest wireframe. Offline plans have no kind, so they vary by position. */
 const LAYOUT: Record<string, string> = { queue: "single", dashboard: "dashboard", report: "dashboard", detail: "split", assistant: "split", form: "form" };
-const layoutOf = (kind: string | undefined, i: number) => (kind && LAYOUT[kind]) || ["dashboard", "split", "single", "form"][i % 4];
+const byPosition = (i: number) => ["dashboard", "split", "single", "form"][i % 4];
 
 const TILT = ["-rotate-[1.2deg]", "rotate-[0.8deg]", "-rotate-[0.4deg]"];
 
+/** A sketch card's outline, the same uneven corners as .sketch, stretched to the card. Starts top left, like a hand would. */
+const OUTLINE = "M4.2 0.75H98Q99.25 0.75 99.25 5.6V97.6Q99.25 99.25 96 99.25H2.1Q0.75 99.25 0.75 93.5V3.4Q0.75 0.75 4.2 0.75Z";
+
+/**
+ * One planned screen, drawn as it's decided: its outline in pencil, then its name written in, then
+ * its wireframe. While Claude is still choosing what kind of screen it is, the wireframe's space
+ * waits empty (no jump when it arrives), then it's drawn. Re-renders as the plan streams never redraw it.
+ */
+function ScreenSketch({ title, layout, seed }: { title: string; layout: string | null; seed: number }) {
+  const card = useRef<HTMLLIElement>(null);
+  const wire = useRef<HTMLDivElement>(null);
+  const wireDrawn = useRef(false);
+  const started = useRef(false);
+  useLayoutEffect(() => {
+    if (started.current || !card.current) return;
+    started.current = true;
+    wireDrawn.current = Boolean(layout);
+    if (prefersReducedMotion()) return;
+    drawDrawing(card.current, { delay: nextTurn("screen", 220), duration: layout ? 1300 : 500 });
+    // Only when the card first appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => {
+    if (!layout || wireDrawn.current || !wire.current) return;
+    wireDrawn.current = true;
+    if (!prefersReducedMotion()) drawDrawing(wire.current, { duration: 900 });
+  }, [layout]);
+  return (
+    <li ref={card} className="relative min-w-0 border-[1.25px] border-transparent px-3 pb-2.5 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
+      <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute -left-[1.25px] -top-[1.25px] h-[calc(100%+2.5px)] w-[calc(100%+2.5px)] overflow-visible">
+        <path data-fade="" d={OUTLINE} fill="var(--panel)" fillOpacity={0.7} />
+        <path data-stroke="" d={OUTLINE} fill="none" stroke="var(--graphite)" strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <p data-write="" className="relative truncate font-sketch text-sketch text-foreground">
+        {title}
+      </p>
+      <div ref={wire} className="relative mt-2 aspect-[8/5]">
+        {layout && <Wireframe layout={layout} seed={seed} className="block h-auto w-full" />}
+      </div>
+    </li>
+  );
+}
+
+/** An AI helper's sticky note, placed on the sheet with a small settle when it's decided. */
+function HelperNote({ name, role, risky, tilt }: { name: string; role?: string; risky: number; tilt: string }) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEntrance(ref, "place", { gap: 120 });
+  return (
+    <li ref={ref} className={cn("sticky-note px-3.5 pb-2.5 pt-1.5", tilt)}>
+      <p className="font-pencil text-note leading-tight text-foreground">{name}</p>
+      {role && <p className="mt-0.5 line-clamp-2 text-meta text-muted-foreground">{role}</p>}
+      {risky > 0 && <p className="fade-up mt-1 text-meta text-ask">Asks first before {risky} {risky === 1 ? "thing" : "things"} it can&apos;t undo</p>}
+    </li>
+  );
+}
+
+/** Words in pencil, written in when they arrive. Things arriving together are written one after another. */
+function Written({ as: Tag = "span", className, lane, children }: { as?: "span" | "li"; className?: string; lane: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEntrance(ref, "write", { lane, gap: 90 });
+  return (
+    <Tag ref={ref as React.RefObject<HTMLLIElement & HTMLSpanElement>} className={className}>
+      {children}
+    </Tag>
+  );
+}
+
 /** The plan as a sketch forming: screens drawn in pencil, AI helpers on sticky notes, a pencil line saying what's happening. */
-export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof usePlanStream>; eyebrow: React.ReactNode; onRetry: () => void }) {
-  const { draft, mode, note, error, elapsed, done } = s;
+export function PlanningView({
+  s,
+  eyebrow,
+  onRetry,
+  expectedNote,
+  signInNext,
+}: {
+  s: ReturnType<typeof usePlanStream>;
+  eyebrow: React.ReactNode;
+  onRetry: () => void;
+  expectedNote?: string;
+  /** Where a guest comes back to after signing in, if they hit the project cap. Null for members. */
+  signInNext?: string | null;
+}) {
+  const { draft, mode, note, error, errorCode, elapsed, done } = s;
   const screens = (draft.screens ?? []).filter((x) => x?.title);
   const helpers = (draft.agents ?? []).filter((a) => a?.name).map((a) => ({ name: a.name!, role: a.role, risky: (a.tools ?? []).filter((t) => t?.access === "irreversible").length }));
   const remembers = (draft.entities ?? []).map((e) => e?.plural ?? e?.name).filter((x): x is string => Boolean(x));
@@ -108,19 +197,38 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
               ? "Adding AI helpers, and what each may do…"
               : "Drawing the screens people will use…";
 
+  // Full up: nothing was sketched and trying again can't help. Say so, with the ways on (sign in, or delete one).
+  if (error && errorCode === "cap")
+    return (
+      <div className="mx-auto max-w-2xl">
+        {typeof eyebrow === "string" ? <p className="font-sketch text-sketch text-muted-foreground">{eyebrow}</p> : eyebrow}
+        <h1 className="mt-4 font-pencil text-title">No room for another project</h1>
+        <CapNote alert className="mt-6" message={error} signInNext={signInNext} />
+      </div>
+    );
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {typeof eyebrow === "string" ? <p className="font-sketch text-sketch text-muted-foreground">{eyebrow}</p> : eyebrow}
         <p className="text-meta text-faint sm:ml-auto">{mode === "live" ? "Sketching with Claude" : "Starting from a ready-made sketch"}</p>
       </div>
-      <h1 className="mt-4 font-pencil text-title">{draft.name ?? <span className="text-faint">Sketching…</span>}</h1>
-      <p className="mt-3 min-h-[1.55em] text-lead text-muted-foreground">{draft.tagline ?? ""}</p>
+      <h1 className="mt-4 font-pencil text-title">
+        {draft.name ? (
+          <Written key="name" lane="name" className="inline-block">
+            {draft.name}
+          </Written>
+        ) : (
+          <span className="text-faint">Sketching…</span>
+        )}
+      </h1>
+      <p className="mt-3 min-h-[1.55em] text-lead text-muted-foreground">{draft.tagline ? <span className="fade-up">{draft.tagline}</span> : ""}</p>
 
-      {note && (
+      {/* A note we already know is coming (a guest's starter plan) shows from the start, so nothing jumps when the server says it. */}
+      {(note ?? expectedNote) && (
         <p className="mt-4 flex max-w-2xl gap-2 rounded-md border border-hairline bg-panel px-3 py-2.5 text-body text-foreground">
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-          {note}
+          {note ?? expectedNote}
         </p>
       )}
       {error && (
@@ -139,16 +247,18 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
         <section aria-label="Screens">
           <Label title="Screens" count={screens.length} />
           <ul className="mt-3 grid grid-cols-2 gap-3 sm:gap-4">
+            {/* Keyed by place, not by title: a title still being written must not redraw its card. */}
             {screens.map((x, i) => (
-              <li key={`${i}-${x.title}`} className="sketch fade-up min-w-0 bg-panel/70 px-3 pb-2.5 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
-                <p className="truncate font-sketch text-sketch text-foreground">{x.title}</p>
-                <Wireframe layout={layoutOf(x.kind, i)} seed={i + 3} className="mt-2 block h-auto w-full" />
-              </li>
+              <ScreenSketch key={`screen-${i}`} title={x.title!} layout={mode === "offline" ? byPosition(i) : (x.kind && LAYOUT[x.kind]) || (done ? byPosition(i) : null)} seed={i + 3} />
             ))}
-            {working &&
+            {/* Empty places, the same size as a drawn card, so the sheet doesn't jump when the screens arrive (or as it opens). */}
+            {(working || done) &&
               Array.from({ length: Math.max(1, 4 - screens.length) }).map((_, i) => (
-                <li key={`empty-${i}`} className="sketch-soft grid min-h-[100px] place-items-center sm:min-h-[150px]" aria-hidden>
-                  {i === 0 && <span className="font-pencil text-note leading-tight text-faint">{screens.length ? "and…" : "screens go here"}</span>}
+                <li key={`empty-${i}`} className={cn("sketch-soft px-3 pb-2.5 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3", done && "invisible")} aria-hidden>
+                  <p className="invisible font-sketch text-sketch">&nbsp;</p>
+                  <div className="mt-2 grid aspect-[8/5] place-items-center text-center">
+                    {i === 0 && <span className="font-pencil text-note leading-tight text-faint">{screens.length ? "and…" : "screens go here"}</span>}
+                  </div>
                 </li>
               ))}
           </ul>
@@ -159,11 +269,7 @@ export function PlanningView({ s, eyebrow, onRetry }: { s: ReturnType<typeof use
             <Label title="AI helpers" count={helpers.length} />
             <ul className="mt-3 space-y-3">
               {helpers.map((h, i) => (
-                <li key={`${i}-${h.name}`} className={cn("sticky-note fade-up px-3.5 pb-2.5 pt-1.5", TILT[i % TILT.length])}>
-                  <p className="font-pencil text-note leading-tight text-foreground">{h.name}</p>
-                  {h.role && <p className="mt-0.5 line-clamp-2 text-meta text-muted-foreground">{h.role}</p>}
-                  {h.risky > 0 && <p className="mt-1 text-meta text-ask">Asks first before {h.risky} {h.risky === 1 ? "thing" : "things"} it can&apos;t undo</p>}
-                </li>
+                <HelperNote key={`helper-${i}`} name={h.name} role={h.role} risky={h.risky} tilt={TILT[i % TILT.length]} />
               ))}
               {working && helpers.length === 0 && <li className="sketch-soft h-16" aria-hidden />}
             </ul>
@@ -208,10 +314,10 @@ function PencilList({ title, items, working }: { title: string; items: string[];
       <Label title={title} count={0} />
       {items.length ? (
         <ul className="mt-1.5 space-y-0.5">
-          {items.map((x) => (
-            <li key={x} className="fade-up font-pencil text-note leading-tight text-foreground">
+          {items.map((x, i) => (
+            <Written key={`${title}-${i}`} as="li" lane={title} className="w-fit font-pencil text-note leading-tight text-foreground">
               {x}
-            </li>
+            </Written>
           ))}
         </ul>
       ) : (

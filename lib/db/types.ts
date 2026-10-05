@@ -9,6 +9,8 @@ export type ProjectSettings = {
   github?: { connected: boolean; repo?: string; account?: string };
   /** The published app: data types kept off its public pages, and whether visitors may talk to its AI helpers. */
   app?: { hiddenEntities?: string[]; publicHelpers?: boolean };
+  /** An imported project: whether Claude mapped its screens from the code, or they came from a starter plan. */
+  mappedBy?: "claude" | "starter";
 };
 
 export type ImportReport = {

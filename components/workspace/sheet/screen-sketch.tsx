@@ -1,10 +1,11 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Check, PenLine } from "lucide-react";
 import type { Blueprint, Screen } from "@/lib/blueprint/schema";
 import { ScreenThumb } from "../screen-thumb";
 import { SpecApp } from "@/components/renderer/spec-app";
 import { cn } from "@/lib/utils";
+import { DrawnOutline, useDrawTurn, type DrawSequence } from "@/components/motion/sheet-draw";
 import { useWidth } from "./use-sheet";
 
 /** Where a screen is on its way from sketch to ink. */
@@ -52,14 +53,26 @@ const STATE_LABEL: Record<InkState, string> = { sketch: "sketch", inking: "inkin
 /**
  * One planned screen as a hand-drawn card: its name in architect's lettering, a pencil wireframe,
  * and one plain line on what it's for. During the build it inks in: the wireframe gives way to the real screen.
+ * `draw` (the first time this sketch is shown in a session): the card's outline is drawn in pencil, then
+ * what's on it appears. While a screen is being inked, ink goes over its pencil outline.
  */
-export function ScreenSketch({ bp, screen, n, state, building }: { bp: Blueprint; screen: Screen; n: number; state: InkState; building: boolean }) {
+export function ScreenSketch({ bp, screen, n, state, building, draw = null }: { bp: Blueprint; screen: Screen; n: number; state: InkState; building: boolean; draw?: DrawSequence | null }) {
   const inked = state === "inked";
+  const inking = state === "inking";
+  const card = useRef<HTMLLIElement>(null);
+  // Its turn to be drawn, once the card is in view.
+  const turn = useDrawTurn(card, draw, n);
+  const [drawn, setDrawn] = useState(false);
+  // Until its outline is drawn, what's on the card waits (opacity only, so nothing moves).
+  const waiting = draw !== null && !drawn;
+  const appear = cn("transition-opacity duration-250 ease-paper", waiting && "opacity-0");
   return (
-    <li
-      className={cn("sketch flex min-w-0 flex-col bg-panel p-3.5 transition-colors duration-250 ease-paper", state === "inking" && "border-brand")}
-    >
-      <div className="flex min-w-0 items-baseline gap-2">
+    <li ref={card} className={cn("sketch relative flex min-w-0 flex-col bg-panel p-3.5", draw && "border-transparent")}>
+      {/* The drawn line stands in for the card's border while this sketch is on screen. */}
+      {draw && turn !== null && <DrawnOutline delay={turn} onDone={() => setDrawn(true)} />}
+      {/* Ink going over the pencil: traced once while this screen's step runs. */}
+      {inking && <DrawnOutline duration={1.1} color="var(--brand)" />}
+      <div className={cn("flex min-w-0 items-baseline gap-2", appear)}>
         <span aria-hidden className="font-sketch text-sketch text-faint">{n}</span>
         <h3 className="min-w-0 flex-1 truncate font-pencil text-note text-foreground">{screen.title}</h3>
         {building && (
@@ -71,18 +84,19 @@ export function ScreenSketch({ bp, screen, n, state, building }: { bp: Blueprint
         )}
         {!building && screen.audience === "customer" && <span className="shrink-0 font-sketch text-sketch text-muted-foreground">for customers</span>}
       </div>
-      <div className={cn("relative mt-2.5 aspect-[16/10] overflow-hidden rounded-sm border", inked ? "border-hairline-hi bg-raised" : "border-dashed border-hairline-hi bg-canvas/50")}>
+      <div className={cn("relative mt-2.5 aspect-[16/10] overflow-hidden rounded-sm border", inked ? "border-hairline-hi bg-raised" : "border-dashed border-hairline-hi bg-canvas/50", appear)}>
         {inked ? (
           <InkedScreen bp={bp} screen={screen} />
         ) : (
-          <div aria-hidden className="pencil-state absolute inset-0 p-3">
+          // While it's being inked, the pencil darkens as the ink goes on; then the real screen inks in.
+          <div aria-hidden className={cn("pencil-state absolute inset-0 p-3", inking && "opacity-100 transition-opacity duration-1100 ease-paper")}>
             <div style={{ filter: `url(#${GRAPHITE_FILTER})` }}>
               <ScreenThumb screen={screen} large primary="var(--graphite)" />
             </div>
           </div>
         )}
       </div>
-      <p className="mt-2.5 text-body text-muted-foreground">{screen.purpose}</p>
+      <p className={cn("mt-2.5 text-body text-muted-foreground", appear)}>{screen.purpose}</p>
     </li>
   );
 }

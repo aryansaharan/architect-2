@@ -134,7 +134,7 @@ function LiveScreens({ slug, view, viewer, device }: { slug: string; view: Clien
     <>
       {team && live.hasSample && <SampleBanner owner={view.role === "owner"} onClear={live.clearSamples} />}
       <div className="relative min-h-0 flex-1">
-        <HelperAccessProvider value={{ slug, role: view.role, publicHelpers: view.publicHelpers, onRecordsChanged: () => void live.refresh() }}>
+        <HelperAccessProvider value={{ slug, role: view.role, publicHelpers: view.publicHelpers, emailReady: view.emailReady, onRecordsChanged: () => void live.refresh() }}>
           <SpecApp bp={live.bp} mode="live" device={device} data={live.data} viewer={card} />
         </HelperAccessProvider>
         <UndoToast undo={live.undo} onUndo={() => void live.undoLast()} onDismiss={live.dismissUndo} />
@@ -150,15 +150,16 @@ export function LiveApp({ app, view, viewer, publishedAt, slug }: { app: { name:
   return (
     <div data-crisp className="flex h-dvh flex-col bg-slate-50">
       {view ? <LiveScreens slug={slug} view={view} viewer={viewer} device={device} /> : <PrivateWall app={app} slug={slug} viewer={viewer} />}
-      <div className="flex items-center gap-3 border-t border-slate-200 bg-white px-4 py-1.5 text-[11.5px] text-slate-500">
+      {/* Wraps onto a second line on a phone rather than pushing the page sideways; the date gives way first. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-200 bg-white px-3 py-1.5 text-[11.5px] text-slate-500 sm:px-4">
         <Link href="/" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white py-0.5 pl-1.5 pr-2.5 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900">
           <LogoMark className="size-3.5" /> Built with Prod AI
         </Link>
-        <span className="min-w-0 truncate">Live version · published {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
+        <span className="hidden min-w-0 truncate sm:inline">Live version · published {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
         {visitor && view.hasSample && (
           <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-slate-500" title="The records on this page are examples, not real data">Example data</span>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {visitor &&
             (viewer.signedIn && !viewer.guest && viewer.email ? (
               <span className="hidden max-w-[16rem] truncate sm:inline" title="Ask the app's owner to invite this address to see its team screens">Signed in as {viewer.email}</span>

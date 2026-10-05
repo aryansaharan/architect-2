@@ -28,6 +28,8 @@ export const DEMO_LIMIT = { max: 20, windowSeconds: 3600 } as const;
 /** The visitor's IP address as Vercel reports it, hashed so it is never stored readable. */
 export async function visitorKey(): Promise<string> {
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  // Vercel sets x-vercel-forwarded-for itself, so a visitor can't pick their own address; x-forwarded-for is
+  // only the fallback for running elsewhere (and locally, where anyone can set it).
+  const ip = h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   return "ip:" + createHash("sha256").update(`${process.env.RATE_LIMIT_SALT ?? "prodai"}:${ip}`).digest("hex").slice(0, 32);
 }

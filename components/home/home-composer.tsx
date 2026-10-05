@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { GitHubMark } from "@/components/brand/logo";
+import { CapNote } from "@/components/new/cap-note";
 import { WritingSheet } from "./writing-sheet";
 
-/** Home's writing area: a note goes to a new project; a GitHub repo is the quiet second way in. */
-export function HomeComposer({ autoFocus }: { autoFocus?: boolean }) {
+/**
+ * Home's writing area: a note goes to a new project; a GitHub repo is the quiet second way in.
+ * At the most projects someone can keep, it says so before they write (their projects are right below).
+ */
+export function HomeComposer({ autoFocus, capMessage = null, isGuest = false }: { autoFocus?: boolean; capMessage?: string | null; isGuest?: boolean }) {
   const router = useRouter();
   const [text, setText] = useState("");
+  if (capMessage) return <CapNote message={capMessage} signInNext={isGuest ? "/new" : null} projectsHref={null} />;
   return (
     <div>
       <WritingSheet id="brief" value={text} onChange={setText} autoFocus={autoFocus} onSubmit={(t) => router.push(`/new?prompt=${encodeURIComponent(t)}`)} />

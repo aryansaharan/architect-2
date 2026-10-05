@@ -11,6 +11,9 @@ const COLOURS: Record<string, string> = {
   blue: "#2563EB", indigo: "#4F46E5", purple: "#7C3AED", violet: "#7C3AED", pink: "#DB2777", black: "#111827", navy: "#1E3A8A",
 };
 
+/** A name without the straight or curly quotes around it: “Claims Inbox” → Claims Inbox. */
+const unquote = (s: string) => s.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+
 const snake = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 32);
 
 const ORDINALS: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8 };
@@ -118,10 +121,11 @@ export function ruleProposal(bp: Blueprint, request: string, scope: ObjectRef | 
   }
 
   // Rename: rename X to Y / call it Y
-  const rename = text.match(/rename (?:the )?(.+?) to [“"']?(.+?)[”"']?$/i) ?? text.match(/call (?:it|this) [“"']?(.+?)[”"']?$/i);
+  // Either name may be in straight or curly quotes: Rename "Intake Queue" to “Claims Inbox”.
+  const rename = text.match(/rename (?:the )?(.+?) to (.+?)[.!]?$/i) ?? text.match(/call (?:it|this) (.+?)[.!]?$/i);
   if (rename) {
-    const to = (rename[2] ?? rename[1]).trim().slice(0, 40);
-    const from = rename[2] ? rename[1].trim().toLowerCase() : null;
+    const to = unquote(rename[2] ?? rename[1]).slice(0, 40);
+    const from = rename[2] ? unquote(rename[1].replace(/\s+(?:screen|page|agent|ai helper|helper)$/i, "")).toLowerCase() : null;
     const si = bp.screens.findIndex((s) => (from ? s.title.toLowerCase() === from : scope?.type === "screen" && s.id === scope.id));
     if (si >= 0) return { summary: `Rename “${bp.screens[si].title}” to “${to}”`, rationale: "Changes the screen's title and its navigation label.", operations: [{ op: "set", path: `/screens/${si}/title`, value: to }] };
     const ai = bp.agents.findIndex((a) => (from ? a.name.toLowerCase() === from : scope?.type === "agent" && a.id === scope.id));

@@ -17,7 +17,8 @@ const ERRORS: Record<string, string> = {
 
 /** Supabase's own error text, said plainly: the common cases by name, anything else without internals. */
 function authError(raw: string): string {
-  if (/rate limit|too many|security purposes/i.test(raw)) return "Too many sign-in emails just now. Wait a minute, then try again.";
+  // The built-in email sender allows only a few sign-in emails an hour across the whole site.
+  if (/rate limit|too many|security purposes/i.test(raw)) return "Email sign-in is busy right now. Continue with Google, or try the email link again later.";
   if (/invalid.*email|email.*invalid|unable to validate email/i.test(raw)) return "That email address doesn't look right. Check it and try again.";
   if (/signups? not allowed|disabled/i.test(raw)) return "New sign-ups are paused for a moment. Continue as a guest, or try again later.";
   console.error("sign-in failed:", raw);
@@ -62,9 +63,29 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
     setPending("email");
     setMessage(null);
     const supabase = createClient();
-    const { error } = linking
-      ? await supabase.auth.updateUser({ email }, { emailRedirectTo: redirectTo() })
-      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
+    if (linking) {
+      const { data, error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: redirectTo() });
+      if (error) {
+        setPending(null);
+        setMessage(authError(error.message));
+        return;
+      }
+      // Where email confirmations are off, the address is confirmed on the spot and no email is sent: the guest
+      // is already a member, with all their work. Refresh the session (it still says "guest") and carry on.
+      const u = data.user;
+      const confirmed = Boolean(u?.email_confirmed_at) && !u?.new_email && u?.email?.toLowerCase() === email.trim().toLowerCase();
+      if (confirmed) {
+        setPending("member");
+        await supabase.auth.refreshSession();
+        // A full navigation, so every page is drawn again for a member.
+        window.location.assign(next);
+        return;
+      }
+      setPending(null);
+      setSent(true);
+      return;
+    }
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
     setPending(null);
     if (error) setMessage(authError(error.message));
     else setSent(true);
@@ -95,7 +116,7 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
       <Or>or get a sign-in link by email</Or>
 
       {sent ? (
-        <div role="status" className="rounded-md border border-hairline bg-canvas p-4 text-body">
+        <div role="status" className="fade-up rounded-md border border-hairline bg-canvas p-4 text-body">
           <p className="font-pencil text-note leading-tight">Check your inbox</p>
           <p className="mt-2 text-muted-foreground">We sent a sign-in link to {email}. It works once and expires in an hour.</p>
         </div>
@@ -104,7 +125,7 @@ export function AuthPanel({ next, guestNext, error, isGuest }: { next: string; g
           <label htmlFor="email" className="sr-only">Your email</label>
           <Input id="email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" autoComplete="email" />
           <Button type="submit" size="lg" variant="outline" className="shrink-0" disabled={!!pending}>
-            {pending === "email" ? "Sending…" : "Email me a link"}
+            {pending === "email" ? "Sending…" : pending === "member" ? "Signing you in…" : "Email me a link"}
           </Button>
         </form>
       )}
