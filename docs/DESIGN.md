@@ -7,6 +7,18 @@ on the same sheet. Every screen, including the ones under the hood, is the same 
 The generated apps (`components/renderer/*`) use their own slate theme on purpose. These rules cover
 everything around them.
 
+## Logo
+
+The name is written **prod** with its **o** drawn as a quick pencil circle around a drop of ink, and a
+small **AI** beside it: the gesture people use to pick what they want, and the point where it becomes
+real. It lives in `components/brand/logo.tsx`.
+
+- `Wordmark` is the name, wherever there's room (site headers, the architecture title block). Don't
+  set "Prod AI" in plain type as a logo.
+- `LogoMark` is the circle alone, where space is tight (the project top bar, "Built with Prod AI",
+  the browser tab: `app/icon.svg`).
+- The circle is brand green and the ink drop is ink (paper on dark). Nothing else is added to it.
+
 ## Type
 
 Twelve sizes, defined as tokens in `app/globals.css`. Don't use arbitrary sizes such as `text-[13.5px]`.

@@ -4,16 +4,21 @@ export const alt = "Prod AI: sketch your app, make it real, change it with notes
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+const LOOP = "M22.9 7.9C19.4 5.2 12.2 5.9 8.9 9.8 5.8 13.5 6.8 20.6 11.1 23.4c4.4 2.9 11.5 1.6 13.9-2.7 2.2-3.9.8-9.1-3.6-11.4-1.9-1-4.4-1.4-6.7-.9";
+
 export default function OpengraphImage() {
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#f7f5f0", color: "#1a1a17", padding: 72, fontFamily: "serif" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <svg width="44" height="44" viewBox="0 0 24 24">
-            <path d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2" fill="none" stroke="#1a1a17" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="10.8" cy="13.6" r="1.9" fill="#1f4d3a" />
+        {/* The wordmark: "prod" with its o drawn as a pencil circle around a drop of ink (components/brand/logo.tsx). */}
+        <div style={{ display: "flex", alignItems: "flex-end", fontSize: 46, fontWeight: 700, letterSpacing: -1.4, fontFamily: "sans-serif", lineHeight: 1 }}>
+          <span>pr</span>
+          <svg width="32" height="32" viewBox="5 4 23 23" style={{ marginBottom: 0, marginLeft: 1, marginRight: 1 }}>
+            <path d={LOOP} fill="none" stroke="#1f4d3a" strokeWidth="2.9" strokeLinecap="round" />
+            <circle cx="16.4" cy="16" r="2.7" fill="#1a1a17" />
           </svg>
-          <span style={{ fontSize: 36, fontWeight: 600, fontFamily: "sans-serif" }}>Prod AI</span>
+          <span>d</span>
+          <span style={{ fontSize: 18, letterSpacing: 1.4, color: "#1f4d3a", marginLeft: 10, marginBottom: 26 }}>AI</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <span style={{ fontSize: 80, lineHeight: 1.04, letterSpacing: -2 }}>Sketch your app.</span>

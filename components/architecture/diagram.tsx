@@ -3,7 +3,7 @@ import {
   HardDrive, History, IdCard, KeyRound, LayoutDashboard, Laptop, Mail, MessageSquare, Network, Package, Radio, Rocket, Router, Server, Shield, ShieldCheck, UserRound, Users, Waypoints, Workflow, Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { LogoMark } from "@/components/brand/logo";
+import { Wordmark } from "@/components/brand/logo";
 import { Pill, type PillTone } from "@/components/ui/pill";
 
 /**
@@ -564,12 +564,8 @@ function TitleBlock() {
   return (
     <foreignObject x={32} y={8} width={264} height={112}>
       <div className="flex h-full flex-col justify-center">
-        <p className="flex items-center gap-2">
-          <LogoMark className="size-5" />
-          <span className="flex items-baseline gap-1.5">
-            <span className="text-lead font-semibold tracking-tight text-foreground">Prod</span>
-            <span className="rounded-sm border border-brand/30 bg-brand-soft px-1 font-mono text-badge font-semibold text-brand">AI</span>
-          </span>
+        <p className="flex items-center">
+          <Wordmark className="text-[22px]" />
         </p>
         <p className="mt-1.5 font-pencil text-section font-semibold text-foreground">Production architecture</p>
         <p className="mt-1 text-meta text-muted-foreground">prod-ai-studio.vercel.app</p>

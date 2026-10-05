@@ -1,35 +1,48 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** The mark: an ink P drawn in one stroke, closed by a small accent dot. */
+/**
+ * The mark: a quick pencil circle, the one people draw around what they want, with a drop of ink
+ * at its centre where it becomes real. The circle redraws once on hover (.logo-trail).
+ */
+const LOOP = "M22.9 7.9C19.4 5.2 12.2 5.9 8.9 9.8 5.8 13.5 6.8 20.6 11.1 23.4c4.4 2.9 11.5 1.6 13.9-2.7 2.2-3.9.8-9.1-3.6-11.4-1.9-1-4.4-1.4-6.7-.9";
+
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn("size-5 overflow-visible", className)} aria-hidden>
-      <path
-        className="logo-trail"
-        pathLength={1}
-        d="M7.5 20.4V6.4c0-1.6 1.2-2.8 2.8-2.8H13c2.9 0 5.2 2.2 5.2 5s-2.3 5-5.2 5h-2.2"
-        fill="none"
-        stroke="var(--foreground)"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="10.8" cy="13.6" r="1.9" fill="var(--brand)" />
+    <svg viewBox="4 3 25 25" className={cn("size-5 overflow-visible", className)} aria-hidden>
+      <path className="logo-trail" pathLength={1} d={LOOP} fill="none" stroke="var(--brand)" strokeWidth="2.6" strokeLinecap="round" />
+      <circle cx="16.4" cy="16" r="2.8" fill="var(--foreground)" />
     </svg>
+  );
+}
+
+/**
+ * The name as it's written: "prod", its o drawn as the pencil circle around a drop of ink, and a small
+ * "AI". Sized by the font size you give it (a brand asset, so its sizes sit outside the type scale).
+ */
+export function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex items-baseline font-bold leading-none tracking-[-0.03em] text-foreground", className)}>
+      <span aria-hidden className="inline-flex items-baseline">
+        pr
+        <svg viewBox="5 4 23 23" className="mx-[-0.01em] size-[0.6em] translate-y-[0.11em] overflow-visible">
+          <path className="logo-trail" pathLength={1} d={LOOP} fill="none" stroke="var(--brand)" strokeWidth="2.9" strokeLinecap="round" />
+          <circle cx="16.4" cy="16" r="2.7" fill="currentColor" />
+        </svg>
+        d
+      </span>
+      <span aria-hidden className="ml-[0.28em] inline-block -translate-y-[1.15em] text-[0.4em] tracking-[0.08em] text-brand">
+        AI
+      </span>
+      <span className="sr-only">Prod AI</span>
+    </span>
   );
 }
 
 export function Logo({ href = "/", className, compact }: { href?: string; className?: string; compact?: boolean }) {
   return (
-    <Link href={href} className={cn("group inline-flex min-h-9 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand/60", className)} aria-label="Prod AI home">
-      <LogoMark />
-      {!compact && (
-        <span className="flex items-baseline gap-1.5">
-          <span className="text-lead font-semibold tracking-tight text-foreground">Prod</span>
-          <span className="rounded-sm border border-brand/30 bg-brand-soft px-1 text-badge font-semibold tracking-wide text-brand">AI</span>
-        </span>
-      )}
+    <Link href={href} className={cn("group inline-flex min-h-9 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand/60", className)} aria-label="Prod AI home">
+      {compact ? <LogoMark className="size-6" /> : <Wordmark className="text-[24px]" />}
     </Link>
   );
 }
