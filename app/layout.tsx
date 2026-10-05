@@ -3,6 +3,7 @@ import { Architects_Daughter, Caveat, Hanken_Grotesk, JetBrains_Mono } from "nex
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "@/components/providers";
+import { StudioAnalytics } from "@/components/analytics";
 import "./globals.css";
 
 // Pencil for thinking (titles, notes, sketches), a clear grotesk for the tool, a mono for code.
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
         </Providers>
         <Toaster position="bottom-right" />
+        <StudioAnalytics />
       </body>
     </html>
   );

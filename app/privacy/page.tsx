@@ -32,7 +32,7 @@ export default function Privacy() {
         <li><strong>Anthropic</strong>: what you write, your plans, and AI helper conversations (including the records a helper looks up) are sent to Anthropic&apos;s Claude API to write plans, changes and replies.</li>
         <li><strong>Supabase</strong> stores the database (in the United States, US East) and handles sign-in. <strong>Vercel</strong> hosts the app. <strong>Google</strong> handles Google sign-in. <strong>Resend</strong> sends email, when email is switched on.</li>
       </ul>
-      <p>Nothing is sold, and nothing is used for advertising. Prod AI has no ad or analytics trackers.</p>
+      <p>Nothing is sold, and nothing is used for advertising. Prod AI counts page views of its own pages with Vercel Web Analytics, which sets no cookies and keeps no profile of you. Published apps are never counted.</p>
       <h2>How long it&apos;s kept</h2>
       <ul>
         <li>Guests who haven&apos;t been back for a week are removed automatically, with their projects and published apps.</li>
