@@ -7,7 +7,7 @@ import { getModel } from "@/lib/llm/provider";
 import { costOf } from "@/lib/llm/pricing";
 import { agentInstructions, approvalFor, buildTools, stubResult } from "@/lib/agents/tools";
 import { scriptedRun } from "@/lib/agents/scripted";
-import { holdModelBudget } from "@/lib/llm/guard";
+import { holdModelBudget, planFitsModel, promptHoldUsd, type ModelHold } from "@/lib/llm/guard";
 import { PRICE, canAfford } from "@/lib/pricing";
 import { shortId } from "@/lib/sim/hash";
 import type { Agent, Blueprint } from "@/lib/blueprint/schema";
@@ -17,8 +17,11 @@ import { monthStartIso } from "@/lib/prices";
 export const maxDuration = 90;
 export const dynamic = "force-dynamic";
 
-/** Output tokens per model step (a turn is at most 4 steps). */
+/** Output tokens per model step, and the most steps in one turn. */
 const MAX_STEP_OUTPUT = 1200;
+const MAX_STEPS = 4;
+/** Room in the prompt for the tool definitions, on top of the instructions and the conversation. */
+const TOOL_CHARS = 6000;
 
 const approvalSecret = () => process.env.SIGNING_SECRET || process.env.SUPABASE_SECRET_KEY || undefined;
 
@@ -202,7 +205,11 @@ export async function POST(req: Request) {
     return notice(body.messages, "cap", `I've paused: this project has used ${Math.round(spent.credits)} of its ${project.settings.budgetCapCredits}-credit cap. Raise the cap in Settings and I'll carry on. Nothing was charged for this message.`, "budget");
   }
 
-  const hold = await holdModelBudget(user, "chat");
+  // A plan that fails the schema, or is huge, never goes to the model: the helper plays its scripted run instead.
+  // Otherwise the hold is sized from this prompt, read on every step.
+  const fits = planFitsModel(bp);
+  const promptChars = fits ? agentInstructions(bp, agent).length + JSON.stringify(body.messages).length + TOOL_CHARS : 0;
+  const hold: ModelHold = fits ? await holdModelBudget(user, "chat", promptHoldUsd(promptChars, MAX_STEP_OUTPUT, MAX_STEPS)) : { ok: false, reason: "budget" };
   if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give me a moment, then try again. Nothing was charged.", "rate");
   // A message answered by Claude costs credits; without enough, the helper plays its scripted run, free.
   const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "helperMessage") : null;
@@ -231,7 +238,7 @@ export async function POST(req: Request) {
         // Supervision presets write these permissions, so "Approve everything" gates every tool here.
         toolApproval: Object.fromEntries(agent.tools.map((t) => [t.id, approvalFor(t)])),
         // Bounded per turn: a few steps, each with a short answer, so one message can't cost dollars.
-        stopWhen: isStepCount(4),
+        stopWhen: isStepCount(MAX_STEPS),
         maxOutputTokens: MAX_STEP_OUTPUT,
         timeout: 80_000,
         maxRetries: 0,

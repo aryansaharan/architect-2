@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 /**
+ * The longest text a plan keeps in a few fields: room for any real plan, small enough that a plan written
+ * straight into the database can't make one model call cost dollars. clipToLimits cuts text written by
+ * the model or read from a repo down to these before it is checked.
+ */
+export const TEXT_LIMITS = { name: 120, jobDescription: 4000, rule: 300 } as const;
+const Name = z.string().max(TEXT_LIMITS.name);
+
+/**
  * The Blueprint is the single source of truth for a project.
  * Canvas, Preview, /live, generated code, diffs and the build script
  * are all pure functions of this object.
@@ -132,7 +140,7 @@ export type BlockType = Block["type"];
 export const ScreenSchema = z.object({
   id: Id,
   slug: z.string(),
-  title: z.string(),
+  title: Name,
   icon: z.string(), // lucide icon name, resolved by an allow-list
   purpose: z.string(),
   plain: z.string(),
@@ -149,14 +157,14 @@ export type Screen = z.infer<typeof ScreenSchema>;
 export const EntityFieldType = z.enum(["string", "number", "boolean", "date", "enum", "money", "text", "ref"]);
 export const EntitySchema = z.object({
   id: Id,
-  name: z.string(),
-  plural: z.string(),
+  name: Name,
+  plural: Name,
   plain: z.string(),
   fields: z
     .array(
       z.object({
-        name: z.string(),
-        label: z.string().optional(),
+        name: Name,
+        label: Name.optional(),
         type: EntityFieldType,
         options: z.array(z.string()).optional(),
         ref: Id.optional(),
@@ -183,7 +191,7 @@ export const ConnectionKind = z.enum([
 ]);
 export const ConnectionSchema = z.object({
   id: Id,
-  name: z.string(),
+  name: Name,
   kind: ConnectionKind,
   auth: z.enum(["oauth", "api_key", "none"]),
   status: z.enum(["configured", "missing"]).default("missing"),
@@ -198,7 +206,7 @@ export type ToolPermission = z.infer<typeof ToolPermission>;
 
 export const AgentToolSchema = z.object({
   id: Id,
-  name: z.string(),
+  name: Name,
   description: z.string(),
   connectionId: Id,
   access: ToolAccess,
@@ -208,7 +216,7 @@ export type AgentTool = z.infer<typeof AgentToolSchema>;
 
 export const RehearsalSchema = z.object({
   id: Id,
-  name: z.string(),
+  name: Name,
   input: z.string(),
   expect: z.string(),
   history: z
@@ -233,6 +241,45 @@ export function knownFramework(id: unknown): Framework {
   return isFramework(id) ? id : DEFAULT_FRAMEWORK;
 }
 
+/** Text cut to a limit, on a word boundary when one is close. */
+function clip(v: unknown, max: number): unknown {
+  if (typeof v !== "string" || v.length <= max) return v;
+  const cut = v.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return (space > max * 0.8 ? cut.slice(0, space) : cut).trimEnd();
+}
+
+type Loose = Record<string, unknown>;
+const each = (v: unknown): Loose[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === "object") as Loose[]) : []);
+
+/**
+ * Cuts the plan's names, job descriptions and rules down to TEXT_LIMITS, in place, before the plan is checked.
+ * For text written by the model or read from a repo, and for plans saved before the limits existed.
+ * Field names are left alone: other parts of the plan point at them.
+ */
+export function clipToLimits<T>(bp: T): T {
+  if (!bp || typeof bp !== "object") return bp;
+  const b = bp as Loose;
+  const meta = b.meta as Loose | undefined;
+  if (meta) meta.name = clip(meta.name, TEXT_LIMITS.name);
+  for (const s of each(b.screens)) s.title = clip(s.title, TEXT_LIMITS.name);
+  for (const e of each(b.entities)) {
+    e.name = clip(e.name, TEXT_LIMITS.name);
+    e.plural = clip(e.plural, TEXT_LIMITS.name);
+    for (const f of each(e.fields)) if (f.label !== undefined) f.label = clip(f.label, TEXT_LIMITS.name);
+  }
+  for (const c of each(b.connections)) c.name = clip(c.name, TEXT_LIMITS.name);
+  for (const a of each(b.agents)) {
+    a.name = clip(a.name, TEXT_LIMITS.name);
+    a.role = clip(a.role, TEXT_LIMITS.name);
+    a.jobDescription = clip(a.jobDescription, TEXT_LIMITS.jobDescription);
+    if (Array.isArray(a.rules)) a.rules = a.rules.map((r) => clip(r, TEXT_LIMITS.rule));
+    for (const t of each(a.tools)) t.name = clip(t.name, TEXT_LIMITS.name);
+    for (const r of each(a.rehearsals)) r.name = clip(r.name, TEXT_LIMITS.name);
+  }
+  return bp;
+}
+
 /** A plan as saved, with every helper on a framework Prod AI writes code for (an older plan can name one it no longer does). */
 export function withKnownFrameworks<T extends { agents?: { framework: string }[] } | null | undefined>(bp: T): T {
   if (!bp?.agents?.some((a) => !isFramework(a.framework))) return bp;
@@ -241,12 +288,12 @@ export function withKnownFrameworks<T extends { agents?: { framework: string }[]
 
 export const AgentSchema = z.object({
   id: Id,
-  name: z.string(),
-  role: z.string(),
+  name: Name,
+  role: Name,
   avatarHue: z.number().int().min(0).max(360),
   plain: z.string(),
-  jobDescription: z.string(),
-  rules: z.array(z.string()).min(1).max(8),
+  jobDescription: z.string().max(TEXT_LIMITS.jobDescription),
+  rules: z.array(z.string().max(TEXT_LIMITS.rule)).min(1).max(8),
   tools: z.array(AgentToolSchema).max(6),
   supervision: z.enum(["autonomous", "spot_check", "approve_all"]),
   knowledge: z
@@ -282,7 +329,7 @@ export type Vertical = z.infer<typeof VerticalSchema>;
 export const BlueprintSchema = z.object({
   version: z.literal(1),
   meta: z.object({
-    name: z.string(),
+    name: Name,
     tagline: z.string(),
     vertical: VerticalSchema,
     plain: z.string(),

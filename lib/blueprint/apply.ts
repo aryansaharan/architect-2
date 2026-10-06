@@ -1,4 +1,4 @@
-import { BlueprintSchema, type Blueprint } from "./schema";
+import { BlueprintSchema, clipToLimits, type Blueprint } from "./schema";
 import { applyOperation } from "./pointer";
 import { integrityErrors } from "./validate";
 import { estimate } from "./estimate";
@@ -14,7 +14,7 @@ export function applyOps(bp: Blueprint, ops: ChangeOperation[]): ApplyResult {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "could not apply change" };
   }
-  const parsed = BlueprintSchema.safeParse(next);
+  const parsed = BlueprintSchema.safeParse(clipToLimits(next));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid blueprint" };
   const errs = integrityErrors(parsed.data);
   if (errs.length) return { ok: false, error: errs[0] };

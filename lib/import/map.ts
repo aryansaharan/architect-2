@@ -1,4 +1,4 @@
-import { isFramework, knownFramework, type Agent, type AgentTool, type Block, type Blueprint, type Connection, type ToolAccess } from "@/lib/blueprint/schema";
+import { clipToLimits, isFramework, knownFramework, type Agent, type AgentTool, type Block, type Blueprint, type Connection, type ToolAccess } from "@/lib/blueprint/schema";
 import { presetPermission } from "@/lib/blueprint/describe";
 import { PRICE } from "@/lib/prices";
 import { estimate } from "@/lib/blueprint/estimate";
@@ -237,6 +237,8 @@ export function applyDetectedAgents(bp: Blueprint, detected: DetectedAgent[], op
 
   next.agents = agents;
   next.connections = connections;
+  // A repo's own instructions can be long; the plan keeps the start of them.
+  clipToLimits(next);
   const errs = integrityErrors(next);
   if (errs.length) throw new Error(`mapped blueprint failed integrity: ${errs.slice(0, 3).join("; ")}`);
   next.estimate = estimate(next);

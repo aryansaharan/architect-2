@@ -7,14 +7,14 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
-import { BlueprintSchema, DEFAULT_FRAMEWORK, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
+import { BlueprintSchema, DEFAULT_FRAMEWORK, clipToLimits, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { getModel } from "@/lib/llm/provider";
 import { costOf, failedSpend } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
 import { rehearsalOutcome } from "@/lib/sim/rehearse";
-import { holdModelBudget } from "@/lib/llm/guard";
+import { holdModelBudget, planFitsModel, promptHoldUsd, type ModelHold } from "@/lib/llm/guard";
 import { PRICE, canAfford } from "@/lib/pricing";
 import { applySupervision, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
@@ -24,7 +24,7 @@ type R = { ok: true; agentId?: string; summary?: string } | { ok: false; error: 
 
 async function save(projectId: string, bp: Blueprint, title: string, body: string, agentId: string, credits = 0, opts: { kind?: LedgerKind; revalidate?: boolean } = {}) {
   const supa = await createClient();
-  const parsed = BlueprintSchema.safeParse(bp);
+  const parsed = BlueprintSchema.safeParse(clipToLimits(bp));
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid agent");
   const errs = integrityErrors(parsed.data);
   if (errs.length) throw new Error(errs[0]);
@@ -235,6 +235,8 @@ function templateIdentity(description: string): { name: string; role: string; th
   return { name: name.slice(0, 40), role: role.slice(0, 60) || "Does the job you described", thing };
 }
 
+const NEW_AGENT_MAX_OUTPUT = 3000;
+
 const NewAgentSchema = z.object({
   name: z.string().describe("Two words max, a job title"),
   role: z.string().describe("Under 6 words"),
@@ -258,7 +260,12 @@ export async function addAgentFromDescription(projectId: string, description: st
   const db = bp.connections.find((c) => c.kind === "database") ?? bp.connections[0];
   let agent: Agent | null = null;
   let credits = 0;
-  const hold = await holdModelBudget(user, "agent");
+  const instructions = "You design one new AI agent for an existing Prod AI project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'. " + STYLE_RULE;
+  const prompt = `Project: ${bp.meta.name}: ${bp.meta.plain}\nExisting agents: ${bp.agents.map((a) => `${a.name} (${a.role})`).join("; ")}\nConnections: ${bp.connections.map((c) => c.name).join(", ")}\nData: ${bp.entities.map((e) => e.plural).join(", ")}\n\nNew agent: ${text}`;
+  // A plan that fails the schema, or is huge, never goes to the model (the template is used); otherwise the hold is sized from this prompt.
+  const hold: ModelHold = planFitsModel(project.blueprint)
+    ? await holdModelBudget(user, "agent", promptHoldUsd(instructions.length + prompt.length, NEW_AGENT_MAX_OUTPUT))
+    : { ok: false, reason: "budget" };
   if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of new AI helpers in a few minutes. Wait a little, then try again." };
   // Claude writing the new helper costs credits; without enough, it starts from a template, free.
   const afford = hold.ok ? await canAfford(user.id, user.isAnonymous, "newHelper") : null;
@@ -267,10 +274,10 @@ export async function addAgentFromDescription(projectId: string, description: st
     try {
       const r = await generateText({
         model: m.model,
-        instructions: "You design one new AI agent for an existing Prod AI project. Be honest about risk: anything that sends, pays, creates or deletes outside the app is 'irreversible'. " + STYLE_RULE,
-        prompt: `Project: ${bp.meta.name}: ${bp.meta.plain}\nExisting agents: ${bp.agents.map((a) => `${a.name} (${a.role})`).join("; ")}\nConnections: ${bp.connections.map((c) => c.name).join(", ")}\nData: ${bp.entities.map((e) => e.plural).join(", ")}\n\nNew agent: ${text}`,
+        instructions,
+        prompt,
         output: Output.object({ schema: NewAgentSchema, name: "new_agent" }),
-        maxOutputTokens: 3000,
+        maxOutputTokens: NEW_AGENT_MAX_OUTPUT,
         timeout: 60_000,
         maxRetries: 0,
         providerOptions: { anthropic: { effort: "low", structuredOutputMode: "outputFormat" } },

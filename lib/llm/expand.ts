@@ -1,6 +1,7 @@
 import {
   BlueprintSchema,
   DEFAULT_FRAMEWORK,
+  clipToLimits,
   type Agent,
   type Block,
   type Blueprint,
@@ -359,7 +360,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
     a.knowledge = [...ents].slice(0, 3).map((e) => ({ label: entities.find((x) => x.id === e)!.plural, source: "entity" as const, ref: e }));
   }
 
-  const bp: Blueprint = BlueprintSchema.parse({
+  const bp: Blueprint = BlueprintSchema.parse(clipToLimits({
     version: 1,
     meta: {
       name: draft.name,
@@ -375,7 +376,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
     entities,
     connections,
     estimate: { minutes: 0, credits: 0, files: 0, agentsTouched: 0, confidence: "high", breakdown: [] },
-  });
+  }));
   const errs = integrityErrors(bp);
   if (errs.length) throw new Error(`expanded blueprint failed integrity: ${errs.slice(0, 3).join("; ")}`);
   bp.estimate = estimate(bp);

@@ -30,6 +30,20 @@ Given a request and a scope, return the smallest set of typed edits that fully d
 - The summary and rationale are a promise: describe only what your edits do. Never say rows are sorted, filtered, or that anyone is notified or asked to approve unless an edit does exactly that. If part of the request can't be done, say so plainly.
 ${STYLE_RULE}`;
 
+/** Output cap per attempt. A quote makes at most two attempts; the second sees why the first fell short. */
+export const CHANGE_MAX_OUTPUT = 8000;
+const CHANGE_ATTEMPTS = 2;
+
+/**
+ * The most a quote can send, in characters: the first attempt (instructions, the scoped object, the
+ * request and the plan's map) and the retry, which also carries the full plan.
+ */
+export function changePromptChars(bp: Blueprint, request: string): { first: number; retry: number } {
+  const json = JSON.stringify({ ...bp, estimate: undefined }).length;
+  const first = EDIT_INSTRUCTIONS.length + json + request.length + blueprintIndex(bp).length + 2000;
+  return { first, retry: first + json + 1000 };
+}
+
 export type ProposeResult = { proposal: ChangeProposal; usage?: { model: string; inputTokens: number; outputTokens: number; costUsd: number; credits: number } };
 
 /** Key-order-independent JSON (Postgres jsonb reorders keys). */
@@ -103,14 +117,14 @@ export async function proposeChange(bp: Blueprint, request: string, scope: Objec
       return null;
     };
     // Up to two attempts: the second one sees exactly why the first failed or fell short.
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < CHANGE_ATTEMPTS; attempt++) {
       try {
         const result = await generateText({
           model: m.model,
           instructions: EDIT_INSTRUCTIONS,
           prompt: feedback ? `${base}${full}\n\nYour previous edits could not be applied as asked: ${feedback}\nReturn the complete set of edits again (everything the request needs, not only the fix), using typed edits wherever one fits.` : base,
           output: Output.object({ schema: EditsSchema, name: "blueprint_edits" }),
-          maxOutputTokens: 8000,
+          maxOutputTokens: CHANGE_MAX_OUTPUT,
           timeout: 70_000,
           // The loop is the retry (with feedback), so a single request never quietly becomes four.
           maxRetries: 0,

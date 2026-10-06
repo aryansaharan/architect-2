@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, updateProject } from "@/lib/db/writes";
-import { BlueprintSchema, type Agent, type Blueprint, type Connection, type Framework, type ObjectRef, type ToolPermission } from "@/lib/blueprint/schema";
+import { BlueprintSchema, clipToLimits, type Agent, type Blueprint, type Connection, type Framework, type ObjectRef, type ToolPermission } from "@/lib/blueprint/schema";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { findBlock } from "@/lib/blueprint";
@@ -29,7 +29,7 @@ async function mutate(projectId: string, objectRef: ObjectRef | null, fn: (bp: B
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Invalid change" };
   }
-  const parsed = BlueprintSchema.safeParse(next);
+  const parsed = BlueprintSchema.safeParse(clipToLimits(next));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid change" };
   const errs = integrityErrors(parsed.data);
   if (errs.length) return { ok: false, error: errs[0] };

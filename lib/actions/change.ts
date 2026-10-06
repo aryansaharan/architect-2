@@ -7,9 +7,9 @@ import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writ
 import { applyOps } from "@/lib/blueprint/apply";
 import type { ObjectRef } from "@/lib/blueprint/schema";
 import type { ChangeProposal, WorkOrderRow } from "@/lib/db/types";
-import { proposeChange } from "@/lib/change/propose";
+import { CHANGE_MAX_OUTPUT, changePromptChars, proposeChange } from "@/lib/change/propose";
 import { usageSummary } from "@/lib/db/queries";
-import { holdModelBudget } from "@/lib/llm/guard";
+import { holdModelBudget, planFitsModel, promptHoldUsd, type ModelHold } from "@/lib/llm/guard";
 import { PRICE, canAfford, creditsThisMonth, outOfCreditsNote, resetWords } from "@/lib/pricing";
 import { monthStartIso } from "@/lib/prices";
 
@@ -31,7 +31,13 @@ export async function requestChange(projectId: string, request: string, scope: O
   const cap = project.settings.budgetCapCredits;
   const capped = spent.credits >= cap;
 
-  const hold = await holdModelBudget(user, "change");
+  // A plan that fails the schema, or is huge, never goes to the model: the free, rule-based change is offered.
+  // Otherwise the hold is sized from what this quote can send: a first attempt and a retry, each at its output cap.
+  const fits = planFitsModel(project.blueprint);
+  const sends = fits ? changePromptChars(project.blueprint, text) : null;
+  const hold: ModelHold = sends
+    ? await holdModelBudget(user, "change", promptHoldUsd(sends.first, CHANGE_MAX_OUTPUT) + promptHoldUsd(sends.retry, CHANGE_MAX_OUTPUT))
+    : { ok: false, reason: "budget" };
   if (!hold.ok && hold.reason === "rate") return { ok: false, error: "That's a lot of changes in a few minutes. Wait a little, then try again. Nothing was charged." };
   // Claude writes the change only for someone who could pay to apply it; otherwise the free, rule-based
   // change is offered (or it goes to a person), so quotes can't run up model costs.

@@ -2,6 +2,9 @@ import "server-only";
 import type { SessionUser } from "@/lib/auth";
 import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { withinLimit } from "@/lib/security/rate-limit";
+import { BlueprintSchema } from "@/lib/blueprint/schema";
+import { getModel } from "./provider";
+import { costOf } from "./pricing";
 
 /**
  * Protects the model bill. Every model call first passes a rate limit for what the person is
@@ -13,7 +16,7 @@ import { withinLimit } from "@/lib/security/rate-limit";
  */
 export type ModelOp = "plan" | "questions" | "change" | "chat" | "agent" | "import";
 
-/** Worst-case USD per call, with its output cap (see the call sites), and how often a person may make it. */
+/** The least each call holds (a call with a big prompt holds more, see promptHoldUsd), and how often a person may make it. */
 const OPS: Record<ModelOp, { estimateUsd: number; max: number; windowSeconds: number }> = {
   plan: { estimateUsd: 0.3, max: 6, windowSeconds: 600 },
   import: { estimateUsd: 0.3, max: 6, windowSeconds: 600 },
@@ -39,17 +42,46 @@ export function modelBudgets() {
 
 export type ModelHold = { ok: true; release: () => Promise<void> } | { ok: false; reason: "rate" | "budget" };
 
+/** About 3.5 characters a token for English and JSON. */
+const CHARS_PER_TOKEN = 3.5;
+
+/**
+ * The worst case for a call whose prompt is this long: every step reads the whole prompt and writes its full
+ * output cap. Owners can make a plan large, so a fixed estimate per call could let the daily caps be overshot.
+ */
+export function promptHoldUsd(promptChars: number, maxOutputTokens: number, maxSteps = 1): number {
+  const m = getModel();
+  if (!m) return 0;
+  return costOf(m.id, Math.ceil(promptChars / CHARS_PER_TOKEN), maxOutputTokens).costUsd * maxSteps;
+}
+
+/** Past this size (characters of JSON) a plan never goes to the model: the feature takes its scripted path. */
+export const MAX_PLAN_CHARS_FOR_MODEL = 150_000;
+
+/**
+ * Whether a saved plan may go into a model prompt: it passes the schema (its length limits included) and it
+ * isn't huge. Owners can write their own plan row directly, so the model never trusts it unchecked.
+ */
+export function planFitsModel(bp: unknown): boolean {
+  try {
+    if (JSON.stringify(bp).length > MAX_PLAN_CHARS_FOR_MODEL) return false;
+  } catch {
+    return false;
+  }
+  return BlueprintSchema.safeParse(bp).success;
+}
+
 const NO_HOLD: ModelHold = { ok: false, reason: "budget" };
 
-export async function holdModelBudget(user: SessionUser, op: ModelOp): Promise<ModelHold> {
-  return holdModelBudgetAs({ payerId: user.id, payerIsGuest: user.isAnonymous, rateKey: `user:${user.id}`, op });
+export async function holdModelBudget(user: SessionUser, op: ModelOp, estimateUsd?: number): Promise<ModelHold> {
+  return holdModelBudgetAs({ payerId: user.id, payerIsGuest: user.isAnonymous, rateKey: `user:${user.id}`, op, estimateUsd });
 }
 
 /**
  * The same hold when the person asking isn't the one who pays: a published app's AI helper is paid
  * for by the app's owner, while the rate limit follows whoever is typing (a team member or a visitor's network).
  */
-export async function holdModelBudgetAs(p: { payerId: string; payerIsGuest: boolean; rateKey: string; op: ModelOp }): Promise<ModelHold> {
+export async function holdModelBudgetAs(p: { payerId: string; payerIsGuest: boolean; rateKey: string; op: ModelOp; estimateUsd?: number }): Promise<ModelHold> {
   // Without the admin connection nothing can be metered, so nothing is spent.
   if (!hasAdmin()) return NO_HOLD;
   const spec = OPS[p.op];
@@ -60,7 +92,8 @@ export async function holdModelBudgetAs(p: { payerId: string; payerIsGuest: bool
   const admin = adminClient();
   const { data, error } = await admin.rpc("model_budget_hold", {
     p_user: p.payerId,
-    p_estimate_usd: spec.estimateUsd,
+    // Rounded up to the cent; never below the op's floor.
+    p_estimate_usd: Math.ceil(Math.max(spec.estimateUsd, p.estimateUsd ?? 0) * 100) / 100,
     p_user_cap_usd: cap,
     p_site_cap_usd: budgets.site,
   });

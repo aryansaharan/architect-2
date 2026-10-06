@@ -9,7 +9,7 @@ import { scriptBlueprint, type ScriptReason } from "@/lib/apps/helper-shared";
 import { emailConfigured } from "@/lib/email";
 import { usageSummary } from "@/lib/db/queries";
 import { logUsage } from "@/lib/db/writes";
-import { holdModelBudgetAs, modelBudgets } from "@/lib/llm/guard";
+import { holdModelBudgetAs, modelBudgets, planFitsModel, promptHoldUsd, type ModelHold } from "@/lib/llm/guard";
 import { PRICE, canAfford } from "@/lib/pricing";
 import { costOf } from "@/lib/llm/pricing";
 import { getModel } from "@/lib/llm/provider";
@@ -32,8 +32,11 @@ import { monthStartIso } from "@/lib/prices";
 export const maxDuration = 90;
 export const dynamic = "force-dynamic";
 
-/** Output tokens per model step (a turn is at most 4 steps). */
+/** Output tokens per model step, and the most steps in one turn. */
 const MAX_STEP_OUTPUT = 1200;
+const MAX_STEPS = 4;
+/** Room in the prompt for the tool definitions and the record open on screen. */
+const TOOL_CHARS = 6000;
 
 const approvalSecret = () => process.env.SIGNING_SECRET || process.env.SUPABASE_SECRET_KEY || undefined;
 
@@ -218,8 +221,9 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
   const owner = await ownerOf(site);
 
   // A run belongs to one person talking to one helper of this app; anything else starts a new run.
-  let runId = body.runId ?? crypto.randomUUID();
-  if (body.runId) {
+  // Visitors aren't signed in, so one visitor can't be told from another: each of their messages starts a new run.
+  let runId = team && body.runId ? body.runId : crypto.randomUUID();
+  if (team && body.runId) {
     const { data: prior } = await admin.from("agent_runs").select("project_id, agent_id, surface, actor_id").eq("id", runId).maybeSingle();
     if (prior && (prior.project_id !== site.projectId || prior.agent_id !== agent.id || prior.surface !== "live" || (prior.actor_id ?? null) !== actorId)) runId = crypto.randomUUID();
   }
@@ -251,7 +255,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
 
   // The rate limit follows whoever is typing: a team member by account, a visitor by network (per app).
   const rateKey = actorId ? `user:${actorId}:live` : `${await visitorKey()}:live:${site.projectId}`;
-  const hold = await holdModelBudgetAs({ payerId: site.ownerId, payerIsGuest: owner.isGuest, rateKey, op: "chat" });
+  // A published plan that fails the schema, or is huge, never goes to the model; otherwise the hold is sized from this prompt.
+  const fits = planFitsModel(site.blueprint);
+  const promptChars = fits ? helperInstructions(helper).length + JSON.stringify(body.messages).length + TOOL_CHARS : 0;
+  const hold: ModelHold = fits
+    ? await holdModelBudgetAs({ payerId: site.ownerId, payerIsGuest: owner.isGuest, rateKey, op: "chat", estimateUsd: promptHoldUsd(promptChars, MAX_STEP_OUTPUT, MAX_STEPS) })
+    : { ok: false, reason: "budget" };
   if (!hold.ok && hold.reason === "rate") return notice(body.messages, "rate", "That's a lot of messages in a few minutes. Give it a moment, then try again.", "rate");
 
   // The owner pays: past the project's spending cap, or without this month's credits for a message,
@@ -296,7 +305,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/apps/[slug]/cha
         tools: buildHelperTools(helper),
         // The blueprint's permission per tool; anything that can't be undone always waits for a person.
         toolApproval: helperApprovals(helper),
-        stopWhen: isStepCount(4),
+        stopWhen: isStepCount(MAX_STEPS),
         maxOutputTokens: MAX_STEP_OUTPUT,
         timeout: 80_000,
         maxRetries: 0,
