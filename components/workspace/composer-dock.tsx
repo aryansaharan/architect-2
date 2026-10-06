@@ -14,7 +14,7 @@ import type { ChangeProposal, LedgerRow, WorkOrderRow } from "@/lib/db/types";
 import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { approveChange, rejectChange, requestChange, type RequestChangeResult } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
-import { undoTo } from "./undo";
+import { undoTo, undoToastId } from "./undo";
 
 /** A proposed change waiting in the card. `note` says when it was worked out without Claude (credits ran out, or Claude is paused by the project's spending cap). */
 type Order = { wo: WorkOrderRow; overBudget: boolean; note?: string };
@@ -265,6 +265,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
     toast.success(order.wo.proposal?.summary ?? "Change applied", {
       description: `${r.label ? `Applied · ${versionWords(r.label)}` : "Applied"}. Going back is always free.`,
       duration: 9000,
+      id: prev ? undoToastId(prev) : undefined,
       action: prev ? { label: "Undo", onClick: () => void undoTo(ws.project.id, prev, () => router.refresh()) } : undefined,
     });
     setOrder(null);

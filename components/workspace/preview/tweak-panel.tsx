@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { deriveKpi, screenEntityId } from "@/components/renderer/kpi";
-import { undoTo } from "../undo";
+import { undoTo, undoToastId } from "../undo";
 import { useWorkspace } from "../context";
 
 /**
@@ -41,6 +41,7 @@ export function TweakPanel({ projectId, block, bp, onClose, onAsk }: { projectId
       toast.success(msg, {
         description: "Free · no model involved · saved as a new version",
         duration: 9000,
+        id: prev ? undoToastId(prev) : undefined,
         action: prev ? { label: "Undo", onClick: () => void undoTo(projectId, prev, () => router.refresh()) } : undefined,
       });
       router.refresh();
