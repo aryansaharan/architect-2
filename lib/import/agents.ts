@@ -47,16 +47,6 @@ export type DetectedAgent = {
   steps?: string[];
 };
 
-export type AgentScan = {
-  /** Source files read for agent definitions (at most MAX_AGENT_FILES). */
-  filesRead: string[];
-  /** How many files looked like they could define agents. */
-  candidates: number;
-  agents: DetectedAgent[];
-  /** Tools defined in the files read, including ones no agent was seen using. */
-  toolCount: number;
-};
-
 /** Extra raw fetches spent on reading agent definitions, on top of manifests and the README. */
 export const MAX_AGENT_FILES = 10;
 

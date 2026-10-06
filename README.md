@@ -130,7 +130,16 @@ BASE_URL=http://localhost:3000 npx playwright test
 
 ## Screenshots
 
-New screenshots of the launched product are on the way. The earlier ones showed screens and prices that have since changed, so they were taken down. `node scripts/readme-shots.mjs <base-url> docs/screenshots` regenerates them.
+Taken from the live site with `node scripts/readme-shots.mjs`, as a guest (starter plans, no Claude calls).
+
+| | |
+|---|---|
+| ![The landing page: write what you want on a ruled sheet](docs/screenshots/00-landing.png) **Landing.** Write what you want, then Make it. | ![A few questions, the chosen answer circled in pencil](docs/screenshots/01-questions.png) **Questions.** A few, written for your idea; Skip is always there. |
+| ![The plan as a pencil sketch on its Sheet](docs/screenshots/02-sketch.png) **The sketch.** Screens, AI helpers and data, before anything is built. | ![Screens going from pencil to ink while the app is made](docs/screenshots/03-inking.png) **Making it real.** Free; each screen turns from pencil into ink. |
+| ![A test run caught a problem and offers fixes](docs/screenshots/04-fix-note.png) **The fix note.** A test run catches a weakness; the fix is free. | ![The working app on the Sheet: It's real](docs/screenshots/05-real-app.png) **It's real.** The working app, on the same sheet. |
+| ![A note in the margin answered with the change and its price](docs/screenshots/06-margin-change.png) **A note in the margin.** The change and its price, then Apply or Not now. | ![AI helpers and what each is allowed to do](docs/screenshots/07-ai-helpers.png) **AI helpers.** Just do it, Tell me or Ask first, per action; Try it. |
+| ![The Plan map under the hood](docs/screenshots/08-plan-map.png) **Under the hood.** The Plan map, with Plain, Settings and Code faces. | ![The Publish page with the live link and who can open it](docs/screenshots/09-publish.png) **Publish.** One button, the live link, who can open it, people. |
+| ![The published app with real records](docs/screenshots/10-published-app.png) **The published app.** Real records; team screens for you and invited people. | ![A visitor sees only the public page and its form](docs/screenshots/11-visitor-page.png) **A visitor.** Only the public pages, and only what they show. |
 
 ## Project structure
 

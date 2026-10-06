@@ -188,27 +188,4 @@ export type AgentRunRow = {
   created_at: string;
 };
 
-export type UsageRow = {
-  id: string;
-  user_id: string;
-  project_id: string | null;
-  kind: string;
-  provider: string | null;
-  model: string | null;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-  credits: number;
-  meta: Record<string, unknown> | null;
-  created_at: string;
-};
-
-export type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  budget_cap_credits: number;
-  created_at: string;
-};
-
 export { type Estimate };

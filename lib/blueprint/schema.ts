@@ -29,7 +29,6 @@ export const ButtonSchema = z.object({
   variant: z.enum(["primary", "secondary", "ghost", "danger"]).default("secondary"),
   action: ActionSchema,
 });
-export type ButtonSpec = z.infer<typeof ButtonSchema>;
 
 export const FieldKind = z.enum(["text", "textarea", "number", "date", "select", "toggle", "file"]);
 
@@ -135,7 +134,6 @@ export const BlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("actions"), id: Id, buttons: z.array(ButtonSchema).min(1).max(4) }),
 ]);
 export type Block = z.infer<typeof BlockSchema>;
-export type BlockType = Block["type"];
 
 export const ScreenSchema = z.object({
   id: Id,
@@ -378,8 +376,6 @@ export function parseRef(sel: string | null | undefined): ObjectRef | null {
 export function refToString(ref: ObjectRef): string {
   return `${ref.type}:${ref.id}`;
 }
-
-export type TableSort = NonNullable<Extract<Block, { type: "table" }>["sort"]>;
 
 const isEmpty = (v: unknown) => v === undefined || v === null || v === "";
 
