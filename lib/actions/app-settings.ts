@@ -34,8 +34,10 @@ export type AppControls = {
 type Fail = { ok: false; error: string };
 
 const MAX_MEMBERS = 50;
+/** The inviter's name in an invitation, at most this long. */
+const INVITER_NAME_MAX = 40;
 const INVITES_PER_APP_PER_DAY = 20;
-const INVITES_PER_PERSON_PER_DAY = 60;
+const INVITES_PER_PERSON_PER_DAY = 20;
 const DAY = 86_400;
 const NOT_FOUND: Fail = { ok: false, error: "Project not found" };
 const NO_ADMIN: Fail = { ok: false, error: "Publishing isn't switched on for this copy of Prod AI yet." };
@@ -138,20 +140,21 @@ export async function inviteMember(projectId: string, rawEmail: string): Promise
 
   const appName = (site.blueprint.meta?.name || o.project.name).slice(0, 80);
   const link = `${siteUrl()}/live/${site.slug}`;
-  const subject = `${o.user.name} invited you to ${appName}`;
+  const inviter = inviterName(o.user.name, o.user.email);
+  const subject = `${inviter} invited you to ${appName}`;
   const sent = await sendEmail({
     to: email,
     subject,
-    fromName: o.user.name,
+    fromName: inviter,
     replyTo: o.user.email,
     text: [
       "Hi,",
       "",
-      `${o.user.name} (${o.user.email}) invited you to use ${appName}.`,
+      `${inviter} (${o.user.email}) invited you to use ${appName}.`,
       "",
       `Open it here: ${link}`,
       "",
-      `Sign in with Google or an email link, using this address (${email}). Then you'll see the screens ${o.user.name} shares with their team.`,
+      `Sign in with Google or an email link, using this address (${email}). Then you'll see the screens ${inviter} shares with their team.`,
       "",
       "If you weren't expecting this, you can ignore this email. Nothing happens unless you sign in.",
       "",
@@ -172,6 +175,21 @@ export async function inviteMember(projectId: string, rawEmail: string): Promise
   ]).catch((e) => console.error("[app-settings] ledger failed", e));
   revalidatePath(`/p/${o.project.id}`, "layout");
   return { ok: true, member: { email: row.email as string, invitedAt: row.invited_at as string, acceptedAt: (row.accepted_at as string | null) ?? null }, email: sent.status };
+}
+
+/**
+ * A display name comes from the sign-in provider and anyone can set it, so in an invitation it carries no
+ * links or web addresses and is at most 40 characters. Without anything left, the start of the email address.
+ */
+function inviterName(name: string, email: string): string {
+  const clean = name
+    .replace(/\S*(?:https?:\/\/|www\.)\S*/gi, " ")
+    .replace(/\S+\.[a-z]{2,}(?:\/\S*)?/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, INVITER_NAME_MAX)
+    .trim();
+  return clean || email.split("@")[0].slice(0, INVITER_NAME_MAX);
 }
 
 export async function removeMember(projectId: string, rawEmail: string): Promise<{ ok: true } | Fail> {
