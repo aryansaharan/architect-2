@@ -306,7 +306,7 @@ export const supportFixture: BlueprintInput = {
         { id: "r-feature-request", name: "Feature request", input: "Starter customer asks whether the dashboard can have a dark mode.", expect: "Category Feature request, priority Low, no outage tag.", history: [] },
         { id: "r-double-charge", name: "Double charge", input: "Growth customer says their September invoice was charged twice ($1,188 each).", expect: "Category Billing, priority High; reason cites the duplicate charge.", history: [] },
       ],
-      framework: "lyzr",
+      framework: "langgraph",
       origin: "generated",
     },
     {

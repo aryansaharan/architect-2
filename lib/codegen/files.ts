@@ -1,6 +1,6 @@
 import type { Agent, Block, Blueprint, Entity, Screen } from "@/lib/blueprint/schema";
 import { houseRulePolicy, isInfraPath, ruleBlocking } from "@/lib/import/house-rules";
-import { FRAMEWORKS } from "./frameworks";
+import { frameworkFor } from "./frameworks";
 import { agentYaml, dutiesMd, rulesMd, soulMd } from "./agentFiles";
 import type { GeneratedFile } from "./types";
 
@@ -145,7 +145,7 @@ ${bp.meta.plain}
 
 | Agent | Role | Framework | Supervision |
 | --- | --- | --- | --- |
-${bp.agents.map((a) => `| ${a.name} | ${a.role} | ${FRAMEWORKS[a.framework].label} | ${a.supervision} |`).join("\n")}
+${bp.agents.map((a) => `| ${a.name} | ${a.role} | ${frameworkFor(a.framework).label} | ${a.supervision} |`).join("\n")}
 
 ## Run it
 
@@ -249,7 +249,7 @@ jobs:
   for (const s of bp.screens) files.push({ path: `app/(app)/${s.slug}/page.tsx`, lang: "tsx", content: screenPage(s, bp), objectRef: { type: "screen", id: s.id } });
   for (const e of bp.entities) files.push({ path: `lib/data/${e.id}.ts`, lang: "ts", content: entityModule(e), objectRef: { type: "entity", id: e.id } });
   for (const a of bp.agents) {
-    const fw = FRAMEWORKS[a.framework];
+    const fw = frameworkFor(a.framework);
     const ref = { type: "agent" as const, id: a.id };
     files.push({ path: `agents/${a.id}/agent.yaml`, lang: "yaml", content: agentYaml(a, bp), objectRef: ref });
     files.push({ path: `agents/${a.id}/SOUL.md`, lang: "md", content: soulMd(a), objectRef: ref });
@@ -265,7 +265,7 @@ export function filesFor(bp: Blueprint, ref: { type: string; id: string }): Gene
   const agent = ref.type === "agent" ? bp.agents.find((a) => a.id === ref.id) : undefined;
   if (agent?.origin !== "imported") return files;
   // An imported agent's code is the owner's. Show the thin wrapper Prod AI adds, never a rewrite of it.
-  const runtime = `agents/${agent.id}/${FRAMEWORKS[agent.framework].fileName(agent)}`;
+  const runtime = `agents/${agent.id}/${frameworkFor(agent.framework).fileName(agent)}`;
   return files.map((f) => (f.path === runtime ? wrapperFile(agent, null, `agents/${agent.id}`) : f));
 }
 
@@ -320,7 +320,7 @@ export function agentSourceGuess(paths: string[], frameworks: ImportContext["fra
 
 /** A thin wrapper that loads an imported agent as it is and adds Prod AI's rules around it. `dir` is where it lives. */
 function wrapperFile(agent: Agent, source: string | null, dir: string, symbol?: string): GeneratedFile {
-  const fw = FRAMEWORKS[agent.framework];
+  const fw = frameworkFor(agent.framework);
   const ts = source ? /\.(ts|tsx|js|mjs)$/.test(source) : fw.language === "typescript";
   const where = source ?? "your repository";
   const up = "../".repeat(dir.split("/").filter(Boolean).length);
@@ -427,7 +427,7 @@ export function importPullRequest(bp: Blueprint, ctx: ImportContext): ImportPull
   const runtimeFile = (f: GeneratedFile) => {
     if (f.objectRef?.type !== "agent") return null;
     const agent = bp.agents.find((a) => a.id === f.objectRef!.id);
-    return agent && f.path === `agents/${agent.id}/${FRAMEWORKS[agent.framework].fileName(agent)}` ? agent : null;
+    return agent && f.path === `agents/${agent.id}/${frameworkFor(agent.framework).fileName(agent)}` ? agent : null;
   };
 
   for (const f of generateFiles(bp)) {

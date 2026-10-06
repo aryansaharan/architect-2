@@ -1,4 +1,4 @@
-import type { Agent, AgentTool, Block, Blueprint, Connection, Framework, ToolAccess } from "@/lib/blueprint/schema";
+import { isFramework, knownFramework, type Agent, type AgentTool, type Block, type Blueprint, type Connection, type ToolAccess } from "@/lib/blueprint/schema";
 import { presetPermission } from "@/lib/blueprint/describe";
 import { PRICE } from "@/lib/prices";
 import { estimate } from "@/lib/blueprint/estimate";
@@ -14,9 +14,6 @@ export { FRAMEWORK_LABEL, pickAgents, projectOf } from "./agents";
  * and tools, and the plan gets no agent the repository doesn't define. Pure:
  * shared by the import route and tests.
  */
-
-/** Frameworks the Blueprint can hold. Others (AutoGen, Pydantic AI, AI SDK) keep their name in the agent's description. */
-const FW: Record<string, Framework> = { langgraph: "langgraph", crewai: "crewai", openai_agents: "openai_agents", google_adk: "google_adk", lyzr: "lyzr", mastra: "mastra" };
 
 const MAX_TOOLS = 6;
 const MAX_CONNECTIONS = 8;
@@ -185,7 +182,7 @@ export function applyDetectedAgents(bp: Blueprint, detected: DetectedAgent[], op
       name: d.name,
       role: d.role ?? same?.role ?? (clause.length && clause.length <= 7 ? clause.join(" ") : `${label} agent`),
       avatarHue: hash(id) % 360,
-      plain: clip(`${d.summary ?? `A ${label} agent.`} Defined in ${d.file}${FW[d.framework] ? "" : ` (${label})`}.`, 400),
+      plain: clip(`${d.summary ?? `A ${label} agent.`} Defined in ${d.file}${isFramework(d.framework) ? "" : ` (${label})`}.`, 400),
       jobDescription,
       rules,
       tools,
@@ -195,7 +192,8 @@ export function applyDetectedAgents(bp: Blueprint, detected: DetectedAgent[], op
       cost: { model, creditsPerRun: PRICE.helperMessage },
       triggers: same?.triggers ?? ["chat"],
       rehearsals: same?.rehearsals ?? [],
-      framework: FW[d.framework] ?? "lyzr",
+      // Frameworks the Blueprint can hold keep their id; others (AutoGen, Pydantic AI, AI SDK) keep their name in the description above.
+      framework: knownFramework(d.framework),
       origin: "imported" as const,
     };
   });

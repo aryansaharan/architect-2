@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import type { SessionUser } from "@/lib/auth";
-import type { Blueprint } from "@/lib/blueprint/schema";
+import { withKnownFrameworks, type Blueprint } from "@/lib/blueprint/schema";
 import type { ProjectSettings } from "@/lib/db/types";
 import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 
@@ -34,7 +34,7 @@ export async function loadSite(slug: string): Promise<LiveSite | null> {
   if (error) console.error("[apps] site read failed", error.message);
   if (!data || data.blocked_at) return null;
   const project = (Array.isArray(data.projects) ? data.projects[0] : data.projects) as { owner_id: string; settings: ProjectSettings };
-  return { slug: data.slug, projectId: data.project_id, ownerId: project.owner_id, blueprint: data.blueprint as Blueprint, publishedAt: data.published_at, settings: project.settings };
+  return { slug: data.slug, projectId: data.project_id, ownerId: project.owner_id, blueprint: withKnownFrameworks(data.blueprint as Blueprint), publishedAt: data.published_at, settings: project.settings };
 }
 
 /** The same read, once per request: a published app's page, its metadata and its social image share it. */

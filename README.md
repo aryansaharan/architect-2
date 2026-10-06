@@ -42,7 +42,7 @@ Short on time? **[/demo](https://prod-ai-studio.vercel.app/demo)** opens a finis
 | Notes in the margin, a priced change, Apply, version N, Undo | Margin | **Real.** Claude returns typed edits that code checks and applies; rule-based when Claude isn't available |
 | AI helpers: what each may do, and Try it with an approval gate | `/p/:id/agents` | **Real** (Claude with tool approval; approvals are signed by the server). Try it runs on sample data; guests get a scripted run that still asks first |
 | Test runs, replay, audit log | AI helpers → Details for developers | A deterministic judge over the real plan; replays and the log are real records |
-| The same helper as code in six frameworks (Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, Mastra) | AI helpers, Code and GitHub | **Real** generated code, shown and downloadable, not executed |
+| The same helper as code in five frameworks (LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, Mastra) | AI helpers, Code and GitHub | **Real** generated code, shown and downloadable, not executed |
 | Plan map with Plain · Settings · Code; Preview and tweak; file tree, diffs, `.zip` download | Under the hood | **Real** |
 | Import a public repo: stack, agents and tools, House Rules, PR #1 in `prodai/` | `/new?mode=import` | **Real** GitHub reads, detection and parsing; mapping by Claude. PR #1 is proposed, not pushed |
 | GitHub: connect, branch per change, pushes, pull requests, sync | Code and GitHub | **Simulated** (a sandbox, labelled) |
@@ -136,7 +136,7 @@ New screenshots of the launched product are on the way. The earlier ones showed 
 ```
 ARCHITECTURE.md        the design for running at scale, and what runs today (section 20)
 DECISIONS.md           the product calls, and what was rejected
-RESEARCH.md            nine products compared, and the gaps Prod AI targets
+RESEARCH.md            eight products compared, and the gaps Prod AI targets
 docs/                  LAUNCH.md (going live on free tiers), DESIGN.md (Paper & Pencil rules), screenshots
 public/docs            architecture diagram (PNG, PDF)
 app/                   routes: landing, login, start, demo, home, new, settings, architecture, privacy, terms,
@@ -160,7 +160,7 @@ lib/security           rate limits, project caps, signing
 lib/supabase           browser, session and admin connections
 lib/change             notes to typed edits to validated changes
 lib/agents             Try it tools, approval mapping, scripted fallback
-lib/codegen            generated files, job-description files, six framework templates, diffs, the import PR #1
+lib/codegen            generated files, job-description files, five framework templates, diffs, the import PR #1
 lib/import             GitHub reads, stack and agent detection, House Rules, mapping
 lib/sim                build timeline, fixes, test runs, preflight
 lib/demo               the finished example behind /demo
@@ -169,8 +169,6 @@ tests/                 Playwright end-to-end tests
 scripts/               screenshot and export scripts
 ```
 
-## Origin
+## About
 
-Prod AI began as an answer to Lyzr's Architect 2.0 brief ("a vibe-coding platform for both technical and non-technical users"). It is an independent product, not affiliated with or endorsed by Lyzr.
-
-Built by Aryan Saharan. MIT licensed.
+Built and run by Aryan Saharan. MIT licensed.

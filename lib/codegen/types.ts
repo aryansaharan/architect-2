@@ -17,7 +17,7 @@ export type FrameworkModule = {
   label: string;
   language: "python" | "typescript";
   fileName: (agent: Agent) => string; // e.g. "agent.py", relative to agents/<agent.id>/
-  install: string; // e.g. "pip install lyzr-adk"
+  install: string; // e.g. "pip install langgraph"
   render: (agent: Agent, bp: Blueprint) => string;
   notes: (agent: Agent, bp: Blueprint) => string[];
 };

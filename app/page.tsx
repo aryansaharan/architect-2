@@ -7,10 +7,11 @@ import { LandingComposer } from "@/components/landing/landing-composer";
 import { HeroTitle, MarginNote } from "@/components/landing/hero-title";
 import { PencilBox, PlanSketch, RealSketch, WriteSketch } from "@/components/landing/sketches";
 import { DrawOnView } from "@/components/motion/entry-draw";
+import { FRAMEWORK_LABEL } from "@/lib/blueprint/describe";
 import { getSessionUser } from "@/lib/auth";
 import { hasSupabase } from "@/lib/env";
 
-const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/aryansaharan/architect-2";
+const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/aryansaharan/prod-ai";
 
 const STEPS = [
   { title: "Write it", body: "Say what you want in your own words, the way you'd explain it to a friend.", Sketch: WriteSketch },
@@ -18,7 +19,7 @@ const STEPS = [
   { title: "Make it real", body: "It becomes a real app. Change it with notes in the margin. AI helpers ask before doing anything that can't be undone.", Sketch: RealSketch },
 ];
 
-const FRAMEWORKS = ["Lyzr ADK", "LangGraph", "CrewAI", "OpenAI Agents SDK", "Google ADK", "Mastra"];
+const FRAMEWORKS = Object.values(FRAMEWORK_LABEL);
 
 const WORKS = [
   "Sign in with Google or an email link, or try it as a guest",
@@ -26,7 +27,7 @@ const WORKS = [
   "Your projects are saved to your account, and only you can see them",
   "AI helpers you can talk to, which ask before anything that can't be undone",
   "Published apps keep real records you can undo, with team screens only the people you invite can open",
-  "Bring a public GitHub repo, and get code for six agent frameworks",
+  "Bring a public GitHub repo, and get code for five agent frameworks",
 ];
 
 const TEST_MODE = [
@@ -143,7 +144,7 @@ export default async function Landing() {
               <li className="flex gap-4">
                 <PencilBox on seed={3} />
                 <div>
-                  <h3 className="text-lead font-semibold">Real code in six agent frameworks</h3>
+                  <h3 className="text-lead font-semibold">Real code in five agent frameworks</h3>
                   <p className="mt-1 text-body text-muted-foreground">Every AI helper is a set of files you can read, with runtime code for the framework you choose.</p>
                   <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Frameworks">
                     {FRAMEWORKS.map((f) => (

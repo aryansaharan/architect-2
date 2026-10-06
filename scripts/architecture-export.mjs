@@ -1,4 +1,4 @@
-// Exports the architecture diagram for the submission form:
+// Exports the architecture diagram as files to share:
 //   node scripts/architecture-export.mjs [baseUrl]
 // → public/docs/architecture-diagram.png (2x) and public/docs/architecture.pdf
 import { chromium } from "@playwright/test";

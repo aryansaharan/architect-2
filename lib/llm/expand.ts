@@ -1,5 +1,6 @@
 import {
   BlueprintSchema,
+  DEFAULT_FRAMEWORK,
   type Agent,
   type Block,
   type Blueprint,
@@ -203,7 +204,7 @@ export function expandDraft(draft: Draft, opts: { modelId: string }): Blueprint 
       cost: { creditsPerRun: PRICE.helperMessage, model: opts.modelId },
       triggers: ["chat"],
       rehearsals: a.rehearsals.slice(0, 4).map((r, i) => ({ id: `r-${kebab(r.name)}-${i}`, name: r.name, input: r.input, expect: r.expect, history: [] })),
-      framework: "lyzr",
+      framework: DEFAULT_FRAMEWORK,
       origin: "generated",
     };
   });

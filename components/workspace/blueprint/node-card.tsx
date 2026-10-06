@@ -122,7 +122,7 @@ export const AgentNode = forwardRef<HTMLButtonElement, Common & { agent: Agent }
   );
 });
 
-const SHORT_FW: Record<Agent["framework"], string> = { lyzr: "Lyzr", langgraph: "LangGraph", crewai: "CrewAI", openai_agents: "OpenAI", google_adk: "ADK", mastra: "Mastra" };
+const SHORT_FW: Record<Agent["framework"], string> = { langgraph: "LangGraph", crewai: "CrewAI", openai_agents: "OpenAI", google_adk: "ADK", mastra: "Mastra" };
 
 function Dot({ cls, n, label, title, warn }: { cls: string; n: number; label: React.ReactNode; title: string; warn?: boolean }) {
   return (

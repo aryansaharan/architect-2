@@ -1,6 +1,6 @@
 {
   "name": "prod-ai",
-  "description": "Prod AI: sketch your app, get a production app. A vibe-coding platform for Lyzr's Architect 2.0 brief.",
+  "description": "Prod AI: sketch your app, get a production app. One product for the people who don't code and the people who do.",
   "version": "0.1.0",
   "private": true,
   "scripts": {

@@ -1,5 +1,5 @@
 import "server-only";
-import type { Block, Blueprint } from "@/lib/blueprint/schema";
+import { DEFAULT_FRAMEWORK, type Block, type Blueprint } from "@/lib/blueprint/schema";
 import { QUOTED_RULES } from "@/lib/sim/demo-chat";
 import { isTeam, type AppRole, type LiveSite } from "./access";
 import { hasSampleRecords, listRecords, type AppRecord } from "./records";
@@ -32,7 +32,7 @@ export function forVisitors(bp: Blueprint): Blueprint {
       cost: { creditsPerRun: 0, model: "" },
       triggers: [],
       rehearsals: [],
-      framework: "lyzr",
+      framework: DEFAULT_FRAMEWORK,
       origin: "generated",
     })),
     estimate: { minutes: 0, credits: 0, files: 0, agentsTouched: 0, confidence: "low", breakdown: [] },

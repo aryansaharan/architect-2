@@ -16,7 +16,7 @@ import { Term } from "@/components/arch/term";
 import { Playground, type PlaygroundMode } from "@/components/agents/playground";
 import { AgentSpec, PermissionEditorList, SupervisionPicker } from "../inspector/agent-faces";
 import { rehearsalSummary } from "@/lib/sim/preflight";
-import { FRAMEWORKS } from "@/lib/codegen/frameworks";
+import { FRAMEWORKS, frameworkFor } from "@/lib/codegen/frameworks";
 import { agentYaml, rulesMd, soulMd } from "@/lib/codegen/agentFiles";
 import { addRehearsal, runRehearsals } from "@/lib/actions/agents";
 import { setFramework } from "@/lib/actions/blueprint";
@@ -447,7 +447,7 @@ function AgentCode({ agent }: { agent: Agent }) {
   const [pending, start] = useTransition();
   const [fw, setFw] = useState(agent.framework);
   const [file, setFile] = useState<"runtime" | "yaml" | "soul" | "rules">("runtime");
-  const mod = FRAMEWORKS[fw];
+  const mod = frameworkFor(fw);
   const preview = { ...agent, framework: fw };
   const code = file === "runtime" ? mod.render(preview, ws.blueprint) : file === "yaml" ? agentYaml(preview, ws.blueprint) : file === "soul" ? soulMd(preview) : rulesMd(preview, ws.blueprint);
   const lang = file === "runtime" ? (mod.language === "python" ? "py" : "ts") : file === "yaml" ? "yaml" : "md";

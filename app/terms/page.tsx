@@ -4,9 +4,9 @@ export const metadata = { title: "Terms" };
 
 export default function Terms() {
   return (
-    <LegalPage title="Terms of use" updated="October 5, 2026">
+    <LegalPage title="Terms of use" updated="October 7, 2026">
       <p>
-        Prod AI is a free, early product made and run by Aryan Saharan, provided as-is. It is independent: not affiliated with or endorsed by Lyzr, or by any framework it writes
+        Prod AI is a free, early product made and run by Aryan Saharan, provided as-is. It is independent: not affiliated with or endorsed by the makers of any framework it writes
         code for. By using it you agree to these terms.
       </p>
       <h2>Free credits</h2>

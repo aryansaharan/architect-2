@@ -1,14 +1,12 @@
-import type { Framework } from "@/lib/blueprint/schema";
+import { knownFramework, type Framework } from "@/lib/blueprint/schema";
 import type { FrameworkModule } from "../types";
 import { crewai } from "./crewai";
 import { googleAdk } from "./googleAdk";
 import { langgraph } from "./langgraph";
-import { lyzr } from "./lyzr";
 import { mastra } from "./mastra";
 import { openaiAgents } from "./openaiAgents";
 
 export const FRAMEWORKS: Record<Framework, FrameworkModule> = {
-  lyzr,
   langgraph,
   crewai,
   openai_agents: openaiAgents,
@@ -16,6 +14,7 @@ export const FRAMEWORKS: Record<Framework, FrameworkModule> = {
   mastra,
 };
 
-export function frameworkFor(id: Framework): FrameworkModule {
-  return FRAMEWORKS[id] ?? FRAMEWORKS.lyzr;
+/** The template for a framework id, falling back to the default for an id from an older plan. */
+export function frameworkFor(id: string): FrameworkModule {
+  return FRAMEWORKS[knownFramework(id)];
 }

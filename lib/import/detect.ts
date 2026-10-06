@@ -7,7 +7,6 @@ const FRAMEWORK_SIGNALS: { id: string; label: string; deps: RegExp; paths?: RegE
   { id: "crewai", label: "CrewAI", deps: /(^|["'\s])crewai(\[[\w,]+\])?(["'\s=<>~^]|$)/m, paths: /(^|\/)crew[\w-]*\.py$|(^|\/)config\/(agents|tasks)\.ya?ml$/ },
   { id: "openai_agents", label: "OpenAI Agents SDK", deps: /(^|["'\s])(openai-agents|@openai\/agents)(["'\s=<>~^]|$)/m },
   { id: "google_adk", label: "Google ADK", deps: /(^|["'\s])(google-adk|@google\/adk)(["'\s=<>~^]|$)/m },
-  { id: "lyzr", label: "Lyzr", deps: /(^|["'\s])(lyzr[\w-]*|@lyzr\/[\w-]+)(["'\s=<>~^]|$)/m, paths: /(^|\/)lyzr[\w/-]*\.(py|ts)$/i },
   { id: "mastra", label: "Mastra", deps: /(^|["'\s])@mastra\/core(["'\s]|$)/m, paths: /(^|\/)mastra\// },
   { id: "ai_sdk", label: "Vercel AI SDK", deps: /"(ai|@ai-sdk\/[\w-]+)"\s*:/m },
   { id: "autogen", label: "AutoGen", deps: /(^|["'\s])(pyautogen|autogen-agentchat|autogen)(["'\s=<>~^]|$)/m },

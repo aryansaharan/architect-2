@@ -559,7 +559,7 @@ function Readout({ id }: { id: string }) {
   );
 }
 
-/** The exported image travels on its own (the submission form, a slide), so it carries its title block. On the page, the readout sits here instead. */
+/** The exported image travels on its own (a doc, a slide), so it carries its title block. On the page, the readout sits here instead. */
 function TitleBlock() {
   return (
     <foreignObject x={32} y={8} width={264} height={112}>

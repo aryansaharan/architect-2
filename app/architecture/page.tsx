@@ -11,7 +11,7 @@ export const metadata = {
   description: "How Prod AI runs in production: sandboxes, the agent harness, the model gateway, the preview proxy, GitHub, deployment and scale.",
 };
 
-const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/aryansaharan/architect-2";
+const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/aryansaharan/prod-ai";
 
 const SANDBOXES = [
   { name: "Firecracker microVMs", verdict: "Chosen", isolation: "Own kernel per project", boot: "~150 ms from snapshot", fit: "Runs Node and Python agents, real ports, persistent disk" },

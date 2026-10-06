@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * End-to-end smoke test of the reviewer's path. Works in both modes:
+ * End-to-end smoke test of the main paths. Works in both modes:
  * LLM_PROVIDER=anthropic (live) and LLM_PROVIDER=none (scripted/offline).
  */
 

@@ -89,7 +89,6 @@ export const MEMORY_LABEL: Record<Agent["memory"]["scope"], string> = {
 };
 
 export const FRAMEWORK_LABEL: Record<Agent["framework"], string> = {
-  lyzr: "Lyzr ADK",
   langgraph: "LangGraph",
   crewai: "CrewAI",
   openai_agents: "OpenAI Agents SDK",

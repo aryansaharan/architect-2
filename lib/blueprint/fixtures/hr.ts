@@ -329,7 +329,7 @@ export const hrFixture: BlueprintInput = {
         { id: "r-tight-timeline", name: "Tight timeline", input: "Financial analyst accepted on Thursday, starts Monday.", expect: "Plan marked 'Tight timeline'; HR told the laptop may not arrive in time.", history: [] },
         { id: "r-contractor", name: "Contractor", input: "IT help desk contractor for 3 months at the main campus.", expect: "No benefits enrolment tasks; accounts requested with an end date matching the contract.", history: [] },
       ],
-      framework: "lyzr",
+      framework: "openai_agents",
       origin: "generated",
     },
     {

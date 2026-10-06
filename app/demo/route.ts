@@ -11,7 +11,7 @@ async function existingDemo(supabase: Supa): Promise<string | undefined> {
   return data?.id as string | undefined;
 }
 
-/** A finished example project for reviewers (linked from the README only): guest session plus a seeded, built project, opened on its Sheet. */
+/** A finished example project (linked from the README only): guest session plus a seeded, built project, opened on its Sheet. */
 export async function GET(request: NextRequest) {
   const origin = request.nextUrl.origin;
   if (!hasSupabase()) return NextResponse.redirect(`${origin}/login?error=setup`);

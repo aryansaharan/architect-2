@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
-import { BlueprintSchema, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
+import { BlueprintSchema, DEFAULT_FRAMEWORK, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
 import { integrityErrors } from "@/lib/blueprint/validate";
 import { estimate } from "@/lib/blueprint/estimate";
 import { getModel } from "@/lib/llm/provider";
@@ -300,7 +300,7 @@ export async function addAgentFromDescription(projectId: string, description: st
         cost: { creditsPerRun: PRICE.helperMessage, model: m.id },
         triggers: ["chat"],
         rehearsals: o.rehearsals.slice(0, 4).map((x, i) => ({ id: `r-${kebab(x.name)}-${i}`, name: x.name, input: x.input, expect: x.expect, history: [] })),
-        framework: "lyzr",
+        framework: DEFAULT_FRAMEWORK,
         origin: "generated",
       };
       const u = r.usage;
@@ -333,7 +333,7 @@ export async function addAgentFromDescription(projectId: string, description: st
       cost: { creditsPerRun: PRICE.helperMessage, model: m?.id ?? "claude-opus-5" },
       triggers: ["chat"],
       rehearsals: [{ id: "r-first", name: "First question", input: thing ? `A new ${thing} just came in. Can you take a look?` : "Can you take a look at the latest one?", expect: "Looks it up and answers briefly.", history: [] }],
-      framework: "lyzr",
+      framework: DEFAULT_FRAMEWORK,
       origin: "generated",
     };
   }
@@ -383,7 +383,7 @@ export async function addAgentFromSource(projectId: string, input: { kind: "code
     cost: { creditsPerRun: 1, model: input.kind === "code" ? "bring-your-own" : "remote" },
     triggers: ["chat", "manual"],
     rehearsals: [{ id: "r-smoke", name: "Smoke test", input: "A simple, typical request.", expect: "Answers within 10 seconds without calling irreversible tools.", history: [] }],
-    framework: input.framework ?? "lyzr",
+    framework: input.framework ?? DEFAULT_FRAMEWORK,
     origin: input.kind === "code" ? "imported" : "endpoint",
   };
   bp.agents.push(agent);

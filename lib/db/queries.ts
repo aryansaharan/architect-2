@@ -1,5 +1,6 @@
 import "server-only";
 import type { Supa } from "@/lib/supabase/server";
+import { withKnownFrameworks } from "@/lib/blueprint/schema";
 import type {
   AgentRunRow,
   CheckpointMeta,
@@ -14,20 +15,25 @@ import type {
   WorkOrderRow,
 } from "./types";
 
+/** Rows that carry a saved plan, read with every helper on a framework Prod AI still writes code for. */
+function withPlan<T extends { blueprint?: unknown }>(row: T): T {
+  return row.blueprint ? { ...row, blueprint: withKnownFrameworks(row.blueprint as { agents?: { framework: string }[] }) } : row;
+}
+
 const PROJECT_LIST_COLUMNS =
   "id, owner_id, name, vertical, source, brief, blueprint, current_checkpoint_id, settings, build_state, is_demo, created_at, updated_at";
 
 export async function listProjects(supa: Supa): Promise<ProjectRow[]> {
   const { data, error } = await supa.from("projects").select(PROJECT_LIST_COLUMNS).order("updated_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as ProjectRow[];
+  return ((data ?? []) as unknown as ProjectRow[]).map(withPlan);
 }
 
 export async function getProject(supa: Supa, id: string): Promise<ProjectRow | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const { data, error } = await supa.from("projects").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
-  return (data as ProjectRow | null) ?? null;
+  return data ? withPlan(data as ProjectRow) : null;
 }
 
 export async function listCheckpoints(supa: Supa, projectId: string): Promise<CheckpointMeta[]> {
@@ -43,14 +49,14 @@ export async function listCheckpoints(supa: Supa, projectId: string): Promise<Ch
 export async function getCheckpoint(supa: Supa, id: string): Promise<CheckpointRow | null> {
   const { data, error } = await supa.from("checkpoints").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
-  return (data as CheckpointRow | null) ?? null;
+  return data ? withPlan(data as CheckpointRow) : null;
 }
 
 export async function getCheckpointsFull(supa: Supa, ids: string[]): Promise<CheckpointRow[]> {
   if (!ids.length) return [];
   const { data, error } = await supa.from("checkpoints").select("*").in("id", ids);
   if (error) throw error;
-  return (data ?? []) as CheckpointRow[];
+  return ((data ?? []) as CheckpointRow[]).map(withPlan);
 }
 
 export async function listLedger(supa: Supa, projectId: string, limit = 80): Promise<LedgerRow[]> {
@@ -103,7 +109,7 @@ export async function listDeployments(supa: Supa, projectId: string): Promise<De
 export async function getLiveSiteForProject(supa: Supa, projectId: string): Promise<LiveSiteRow | null> {
   const { data, error } = await supa.from("live_sites").select("*").eq("project_id", projectId).maybeSingle();
   if (error) throw error;
-  return (data as LiveSiteRow | null) ?? null;
+  return data ? withPlan(data as LiveSiteRow) : null;
 }
 
 /** Which of these projects (the person's own) are published. Row-level security also limits it to their own. A failed read shows none as live. */

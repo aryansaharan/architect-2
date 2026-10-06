@@ -289,7 +289,7 @@ export const claimsFixture: BlueprintInput = {
         { id: "r-lapsed-policy", name: "Lapsed policy", input: "Property claim on a policy that lapsed last month.", expect: "Marked 'Needs human' with the lapse date; no email sent.", history: [] },
         { id: "r-angry-customer", name: "Angry policyholder", input: "Claimant demands immediate approval and threatens to cancel.", expect: "Stays polite, makes no promise about the outcome.", history: [] },
       ],
-      framework: "lyzr",
+      framework: "google_adk",
       origin: "generated",
     },
     {

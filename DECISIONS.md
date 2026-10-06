@@ -44,7 +44,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 ## 7. Stream the plan as a sketch forming
 
-**Decision.** A few brief-aware questions come first (a fast model call when one is available, with "Skip, use sensible defaults"), then the plan is drawn onto the page as Claude decides it.
+**Decision.** A few questions shaped by what you wrote come first (a fast model call when one is available, with "Skip, use sensible defaults"), then the plan is drawn onto the page as Claude decides it.
 
 **Why.** Careful planning takes about a minute. A spinner makes that feel broken; watching screens, helpers and risky actions appear on paper makes it feel like work being done, and shows what the helpers will be allowed to do before anything is built.
 
@@ -78,7 +78,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 **Decision.** The project page is one sheet of paper, the app in the middle and notes in the margin, not the chat-panel-plus-preview layout.
 
-**Why.** The brief Prod AI started from asked for first principles and said not to copy the current Architect's UI or any other platform's. Chat-left, preview-right is the layout nearly every builder shares (see [RESEARCH.md](RESEARCH.md)). Starting from what the user needs, the app itself deserves the space; the conversation is secondary.
+**Why.** Prod AI starts from first principles, not from another platform's UI. Chat-left, preview-right is the layout nearly every builder shares (see [RESEARCH.md](RESEARCH.md)), and copying it would mean copying its assumptions. Starting from what the user needs, the app itself deserves the space; the conversation is secondary.
 
 ## 13. Notes in the margin instead of a chat panel
 

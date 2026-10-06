@@ -348,7 +348,6 @@ const PY_IMPORTS: [RegExp, string][] = [
   [/^\s*from\s+google\.adk\b/m, "google_adk"],
   [/^\s*(?:from|import)\s+pydantic_ai\b/m, "pydantic_ai"],
   [/^\s*(?:from|import)\s+(?:autogen|autogen_agentchat)\b/m, "autogen"],
-  [/^\s*(?:from|import)\s+lyzr\w*\b/m, "lyzr"],
   [/^\s*(?:from|import)\s+langgraph\b/m, "langgraph"],
 ];
 const TS_IMPORTS: [RegExp, string][] = [
@@ -895,7 +894,7 @@ export function detectAgents(files: Record<string, string>, manifests: Record<st
   return { agents, toolCount: toolNames.size };
 }
 
-export const FRAMEWORK_LABEL: Record<string, string> = { langgraph: "LangGraph", crewai: "CrewAI", openai_agents: "OpenAI Agents SDK", google_adk: "Google ADK", lyzr: "Lyzr", mastra: "Mastra", ai_sdk: "Vercel AI SDK", autogen: "AutoGen", pydantic_ai: "Pydantic AI" };
+export const FRAMEWORK_LABEL: Record<string, string> = { langgraph: "LangGraph", crewai: "CrewAI", openai_agents: "OpenAI Agents SDK", google_adk: "Google ADK", mastra: "Mastra", ai_sdk: "Vercel AI SDK", autogen: "AutoGen", pydantic_ai: "Pydantic AI" };
 
 /** The most agents one project holds (BlueprintSchema). */
 export const MAX_AGENTS = 6;

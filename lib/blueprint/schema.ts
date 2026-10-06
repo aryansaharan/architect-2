@@ -217,9 +217,27 @@ export const RehearsalSchema = z.object({
 });
 export type Rehearsal = z.infer<typeof RehearsalSchema>;
 
-export const Frameworks = ["lyzr", "langgraph", "crewai", "openai_agents", "google_adk", "mastra"] as const;
+export const Frameworks = ["langgraph", "crewai", "openai_agents", "google_adk", "mastra"] as const;
 export const FrameworkSchema = z.enum(Frameworks);
 export type Framework = z.infer<typeof FrameworkSchema>;
+/** The framework a helper's code targets until someone picks another one. */
+export const DEFAULT_FRAMEWORK: Framework = "langgraph";
+
+/** Whether Prod AI writes code for this framework id (an import can detect others, such as AutoGen). */
+export function isFramework(id: unknown): id is Framework {
+  return (Frameworks as readonly unknown[]).includes(id);
+}
+
+/** A framework id from a repo or a saved plan; one Prod AI doesn't write code for becomes the default. */
+export function knownFramework(id: unknown): Framework {
+  return isFramework(id) ? id : DEFAULT_FRAMEWORK;
+}
+
+/** A plan as saved, with every helper on a framework Prod AI writes code for (an older plan can name one it no longer does). */
+export function withKnownFrameworks<T extends { agents?: { framework: string }[] } | null | undefined>(bp: T): T {
+  if (!bp?.agents?.some((a) => !isFramework(a.framework))) return bp;
+  return { ...bp, agents: bp.agents.map((a) => ({ ...a, framework: knownFramework(a.framework) })) };
+}
 
 export const AgentSchema = z.object({
   id: Id,
@@ -241,7 +259,7 @@ export const AgentSchema = z.object({
   cost: z.object({ creditsPerRun: z.number(), model: z.string() }),
   triggers: z.array(z.enum(["manual", "on_create", "schedule", "chat"])).default(["chat"]),
   rehearsals: z.array(RehearsalSchema).max(8).default([]),
-  framework: FrameworkSchema.default("lyzr"),
+  framework: FrameworkSchema.catch(DEFAULT_FRAMEWORK),
   origin: z.enum(["generated", "imported", "endpoint"]).default("generated"),
 });
 export type Agent = z.infer<typeof AgentSchema>;

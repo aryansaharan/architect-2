@@ -8,7 +8,7 @@ import { holdModelBudget } from "@/lib/llm/guard";
 import { PRICE, canAfford, outOfCreditsNote } from "@/lib/pricing";
 import { projectCapMessage } from "@/lib/security/caps";
 import { verify } from "@/lib/security/sign";
-import type { Blueprint, Framework } from "@/lib/blueprint/schema";
+import { DEFAULT_FRAMEWORK, isFramework, type Blueprint } from "@/lib/blueprint/schema";
 import { estimate } from "@/lib/blueprint/estimate";
 import { cleanTree, type ImportReportWithTree } from "@/lib/import/snapshot";
 import { cleanAgents } from "@/lib/import/agents";
@@ -17,8 +17,6 @@ import { startNotConnected } from "@/lib/llm/draft";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
-
-const FW: Record<string, Framework> = { langgraph: "langgraph", crewai: "crewai", openai_agents: "openai_agents", google_adk: "google_adk", lyzr: "lyzr", mastra: "mastra" };
 
 /** "1 AI helper", "2 AI helpers": counts in plain words. */
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -66,7 +64,7 @@ export async function POST(req: Request) {
     : afford && !afford.ok
       ? outOfCreditsNote(afford.credits, `the screens come from ${starterWords} and any agents are read from your code`)
       : undefined;
-  const framework = report.frameworks.map((f) => FW[f.id]).find(Boolean) ?? "lyzr";
+  const framework = report.frameworks.map((f) => f.id).find(isFramework) ?? DEFAULT_FRAMEWORK;
   // Older clients (and cached reports from before agents were read) send no agents: keep the earlier behaviour.
   const scanned = Array.isArray(report.agents);
   let agentNote = scanned ? mappingNote(report.agents!, [], [], "", 0, filesRead) : "";
@@ -76,7 +74,7 @@ export async function POST(req: Request) {
     // Proposals are written in the repo's framework; agents read from the repo keep their own (applyDetectedAgents).
     next.agents.forEach((a) => {
       a.framework = framework;
-      a.origin = !scanned && report.frameworks.some((f) => FW[f.id]) ? "imported" : "generated";
+      a.origin = !scanned && report.frameworks.some((f) => isFramework(f.id)) ? "imported" : "generated";
     });
     if (scanned) {
       try {

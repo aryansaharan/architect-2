@@ -1,12 +1,11 @@
-# Exploration: what the market does, and where Prod AI fits
+# Market research: what the market does, and where Prod AI fits
 
-The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, Vercel v0, Rocket.new, Cursor, Codex and Claude Code: how they differ, why people adopt them, their features, UI/UX patterns and flows. This is that research (checked against each product's docs and press in September 2026), and how it shaped Prod AI. Every claim below is backed by a link in [Sources](#7-sources).
+Eight products people use to build software with AI: Replit, Lovable, Emergent, Vercel v0, Rocket.new, Cursor, Codex and Claude Code. How they differ, why people adopt them, their features, UI/UX patterns and flows (checked against each product's docs and press in September 2026), and how that shaped Prod AI. Every claim below is backed by a link in [Sources](#7-sources).
 
-## 1. The nine products in one page
+## 1. The eight products in one page
 
 | Product | Built for | Why people adopt it | Core flow | Where it hurts |
 |---|---|---|---|---|
-| **architect.new** (Lyzr) | Non-technical, enterprise | Agents are first-class, not bolted on; an AI Consultant proposes what to build; 24 built-in integrations plus custom tools and MCP; agent evals that escalate to a person below a confidence threshold | Prompt or AI Consultant → Plan (PRD) → Agents → App → deploy | Agents run only on Lyzr Studio, and editing one means leaving for Studio; no cost estimate before a run; a branch must already exist on GitHub before you can switch to it |
 | **Replit Agent** | Both | Everything in one place (database, hosting, secrets); plan mode and a task board; imports from GitHub, Figma, Bolt and Lovable (via GitHub) | Prompt → plan and task cards → build with preview → publish | Effort-based pricing (June 2025) and Agent 3 (September 2025) produced bills users did not expect, including for failed attempts; an agent deleted a production database during a code freeze in July 2025 |
 | **Lovable** | Non-technical | Polished UI output; a preview toolbar for visual edits; backend and AI with no API keys | Prompt → chat left, preview right → visual edits → publish | Exports to GitHub but cannot import a repo; edits one branch at a time; a row-level-security gap exposed user data in 170 of 1,645 scanned apps (CVE-2025-48757), and a 2026 permissions regression exposed public projects' chats and code |
 | **Emergent** | Non-technical | A team of agents (plan, design, code, test); mobile apps via Expo; asks clarifying questions first | Prompt → questions → visible build stages → preview → deploy | Users report fix loops billed per attempt; one Trustpilot reviewer says a single login bug was billed for fixes 233 times |
@@ -17,11 +16,6 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 | **Claude Code** | Technical | Terminal, IDE, desktop and web; hooks, subagents, skills, plugins, MCP; checkpoints with rewind; permission modes | Plan → edit → review diff → PR | Usage limits on subscription plans; preview only for local dev servers in the desktop app; no hosting |
 
 ## 2. UI/UX and flow notes
-
-**architect.new (Lyzr).**
-- Starts from a prompt box, or from the AI Consultant, which interviews you (role, time sinks, tools) and proposes three tailored agent apps with estimated hours saved.
-- A build moves through three tabs: Plan (a generated PRD you approve or edit), Agents (the agent network), App (code preview plus chat). Deploy gives a public URL.
-- Signature interaction: a Plan toggle in the message box that answers without building anything. Editing an agent jumps out to Lyzr Studio.
 
 **Replit Agent.**
 - Two-panel editor: Agent chat on one side, live preview on the other (including mobile emulators), Publish at the top right.
@@ -68,17 +62,17 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 - **App builders win non-technical users with speed and polish, then lose their trust on turn three.** The complaints rhyme: bills nobody predicted (Replit's pricing changes, v0's context-based token pricing, Cursor's 2025 switch), fix attempts that cost money (Emergent and Replit user reports), and no way to see what the agent is about to do or what it will cost.
 - **Coding agents win engineers with control, but stop at the repo.** Cursor, Codex and Claude Code have diffs, worktrees, permissions and rewind. Previews are arriving (Codex's built-in browser, Claude Code's desktop preview) and Codex has a hosting beta, but there is still nothing a non-technical colleague can open, price or govern.
 - **Products switch modes instead of changing depth.** Lovable has Build, Chat and Plan modes; Replit adds a plan mode; Cursor offers the Agents Window or the classic IDE. Each is a separate surface, not one surface that goes deeper when you need it.
-- **Almost nobody governs the agents inside the app they help you build.** Governance, where it exists, is about the coding agent (Codex and Claude Code approval policies). The agents that ship to production (the ones that email customers or pay claims) get no permission model, no approvals and no evals. The exception is architect.new's Agent Eval, which escalates low-confidence actions to a person.
+- **Almost nobody governs the agents inside the app they help you build.** Governance, where it exists, is about the coding agent (Codex and Claude Code approval policies). The agents that ship to production (the ones that email customers or pay claims) get no permission model, no approvals and no evals.
 
 ## 4. Gaps, and how Prod AI answers each one
 
 | Gap in the market | Evidence | What Prod AI does |
 |---|---|---|
-| **Cost you can predict** | No product quotes a task before it runs (v0 shows per-model prices only; architect.new's credits docs show no estimate); Replit users report paying for failed attempts; one Emergent reviewer reports a single bug billed 233 times | Nothing Claude does runs without a price: one fixed price per action (a plan 40 credits, a change 15, a helper message 5), and every note in the margin gets the change in plain words and its price before **Apply** (a Work Order, under the hood). Making it real and publishing are free, and a failed call is never charged. A monthly credits meter and an optional cap per project. Fixes for our own mistakes are free and labelled **Our fix** |
+| **Cost you can predict** | No product quotes a task before it runs (v0 shows per-model prices only); Replit users report paying for failed attempts; one Emergent reviewer reports a single bug billed 233 times | Nothing Claude does runs without a price: one fixed price per action (a plan 40 credits, a change 15, a helper message 5), and every note in the margin gets the change in plain words and its price before **Apply** (a Work Order, under the hood). Making it real and publishing are free, and a failed call is never charged. A monthly credits meter and an optional cap per project. Fixes for our own mistakes are free and labelled **Our fix** |
 | **Stopping doom loops** | Paid fix loops in Emergent and Replit user reports; Rocket's free Fix-it covers only errors Rocket detects, on paid plans | When a test run catches a problem, a **note on the sheet** shows what was tried, why it matters and two free fixes. The harness stops after the same error twice and hands it to a person (see [ARCHITECTURE.md](ARCHITECTURE.md#7-the-agent-harness)) |
 | **Governing production agents** | Replit database deletion, Cursor file deletions, Lovable data exposure | Every tool is **Read**, **Change** or **Can't undo**. Anything irreversible **asks a person first**, in **Try it** on the AI helpers tab and in published apps, with test runs (rehearsals) and replays |
-| **Agents from any framework** | Builders hard-wire one agent stack (architect.new builds Lyzr Studio agents) | One agent definition compiles to **Lyzr ADK, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK and Mastra**, with an honest list of what does not translate |
-| **Handoff between the two audiences** | Lovable cannot import repos; Rocket syncs two ways only for Next.js + TypeScript; architect.new needs branches pushed to GitHub first | **Ask a teammate** sends the exact object, the brief, recent requests and the latest diff. Engineers get a branch and a PR per change (simulated for now); the fix comes back as a plain-English line |
+| **Agents from any framework** | None we found turns one agent definition into code for the framework a team already uses | One agent definition compiles to **LangGraph, CrewAI, OpenAI Agents SDK, Google ADK and Mastra**, with an honest list of what does not translate |
+| **Handoff between the two audiences** | Lovable cannot import repos; Rocket syncs two ways only for Next.js + TypeScript | **Ask a teammate** sends the exact object, the original request, recent requests and the latest diff. Engineers get a branch and a PR per change (simulated for now); the fix comes back as a plain-English line |
 | **Importing existing agent projects** | Imports (Replit, v0) bring in code and environment; none we found maps the agents and tools inside a repo | Import detects the stack **and the agents and tools inside it**, shows a coverage map, and agrees **House Rules** before anything is proposed. The repo stays untouched; new files arrive in one `prodai/` folder as PR #1 |
 | **One surface for both people** | Mode switches instead of depth (section 3) | No mode switch. The Sheet speaks plain English for everyone; **Under the hood** holds the Plan map (every object with Plain, Settings and Code faces), Code and GitHub, and Handoffs for whoever wants the depth |
 
@@ -86,8 +80,7 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 
 | From | Pattern | Where it lives in Prod AI |
 |---|---|---|
-| architect.new | Plan, Agents, App as the spine of a project | The Sheet (the plan as a sketch that becomes the app), the AI helpers tab, and the Plan map under the hood |
-| Emergent, architect.new | Clarifying questions before building | A few brief-aware questions on /new, with "Skip, use sensible defaults" |
+| Emergent | Clarifying questions before building | A few questions on /new, shaped by what you wrote, with "Skip, use sensible defaults" |
 | Replit, Claude Code | Checkpoints you can roll back to | Versions: "Applied · version N" with Undo, always free to return to |
 | Lovable, v0 | Visual edits in the preview | "Point and write a note" on the real app, and point-and-tweak in Preview and tweak (0 credits) |
 | v0 | Branch per chat, PR into protected main | Branch and PR per applied change (Code and GitHub, sandboxed) |
@@ -100,24 +93,13 @@ The brief asked for an exploration of architect.new, Replit, Lovable, Emergent, 
 
 - **A builder vs developer toggle.** Most products above split people this way. We think it is the wrong split: an ops lead reads code when it matters, and an engineer wants the plain summary when reviewing.
 - **A linear Plan → Build → Ship ribbon as the whole product.** Real projects loop; versions and priced notes in the margin handle that better than a wizard.
-- **Chat on the left, preview on the right.** Nearly every builder above uses this layout, and the brief asked us not to copy any of them. Prod AI's project is one sheet of paper: the app in the middle, notes in the margin.
+- **Chat on the left, preview on the right.** Nearly every builder above uses this layout, and copying it would mean copying their assumptions. Prod AI's project is one sheet of paper: the app in the middle, notes in the margin.
 - **Chat as the only surface.** The plan, the price and the progress live on the Sheet, not in messages that scroll away. Notes in the margin are threads tied to what they changed.
 - **Credits with no receipt.** Every charge in the margin's thread says what it was for, and our own fixes cost nothing.
 
 ## 7. Sources
 
 All links were opened and checked in September 2026.
-
-**architect.new (Lyzr)**
-- [AI Consultant](https://docs.architect.new/introduction/platform/ai-consultant.md)
-- [Build guide (Plan, Agents, App)](https://docs.architect.new/build/build-guide.md)
-- [Plan mode](https://docs.architect.new/build/plan-mode.md)
-- [GitHub connect (branches must exist on GitHub)](https://docs.architect.new/build/github-connect.md)
-- [Architect vs Studio](https://docs.architect.new/introduction/platform/architect-vs-studio.md)
-- [Docs index, including the integrations list](https://docs.architect.new/llms.txt)
-- [Plans and credits](https://docs.architect.new/introduction/essentials/plans-credits.md)
-- [Launch press release, Agent Eval and human escalation (Feb 2026)](https://natlawreview.com/press-releases/lyzr-launches-architect-first-enterprise-grade-text-agent-platform-building)
-- [SiliconANGLE launch coverage (Feb 2026)](https://siliconangle.com/2026/02/06/exclusive-startup-lyzr-ai-launches-app-builder-aimed-moving-agents-production-volume/)
 
 **Replit**
 - [Effort-based pricing recap](https://replit.com/blog/effort-based-pricing-recap)
