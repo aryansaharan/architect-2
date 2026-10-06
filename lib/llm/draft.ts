@@ -230,6 +230,3 @@ export function startNotConnected(bp: Blueprint): Blueprint {
   if (bp.connections.every((c) => c === own || c.status === "missing")) return bp;
   return { ...bp, connections: bp.connections.map((c) => (c === own ? c : { ...c, status: "missing" as const })) };
 }
-
-/** Kept for callers of the earlier name: "Nothing yet" now means the same as every new plan. */
-export const markNothingConnected = startNotConnected;

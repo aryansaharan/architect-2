@@ -9,10 +9,6 @@ export function formatUsd(n: number): string {
   return n < 10 ? `$${n.toFixed(2)}` : `$${Math.round(n)}`;
 }
 
-export function creditsUsd(credits: number): string {
-  return formatUsd(credits / 100);
-}
-
 export function timeAgo(iso: string, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
   if (s < 45) return "just now";
@@ -35,13 +31,4 @@ export function formatValue(v: unknown, type?: string): string {
   }
   if (typeof v === "boolean") return v ? "Yes" : "No";
   return String(v);
-}
-
-export function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
 }

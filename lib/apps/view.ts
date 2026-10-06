@@ -1,4 +1,4 @@
-import type { Action, Block, Blueprint, Entity } from "@/lib/blueprint/schema";
+import type { Action, Block, Blueprint } from "@/lib/blueprint/schema";
 
 /**
  * What a published app shows to whom. Team screens are for the owner and the people they invite;
@@ -64,9 +64,6 @@ export function blockActions(b: Block): Action[] {
   if (b.type === "form") return [b.onSubmit];
   return [];
 }
-
-/** The data types a published app keeps records for: every entity the plan defines. */
-export const appEntities = (bp: Blueprint): Entity[] => bp.entities;
 
 /** Only these keys of a record, for a visitor on a public page. */
 export function pick(data: Record<string, unknown>, fields: string[]): Record<string, unknown> {

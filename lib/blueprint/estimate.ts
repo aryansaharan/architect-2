@@ -3,11 +3,6 @@ import type { Blueprint, Estimate } from "./schema";
 /** 1 credit = $0.01. Estimates are always computed, never trusted from a model. */
 export const USD_PER_CREDIT = 0.01;
 
-export function creditsToUsd(credits: number): string {
-  const usd = credits * USD_PER_CREDIT;
-  return usd < 1 ? `$${usd.toFixed(2)}` : `$${usd.toFixed(usd < 10 ? 2 : 0)}`;
-}
-
 export function estimate(bp: Blueprint, fileCount?: number): Estimate {
   const askTools = bp.agents.flatMap((a) => a.tools).filter((t) => t.permission === "ask" || t.access === "irreversible").length;
   const breakdown = [

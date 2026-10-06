@@ -3,12 +3,6 @@ import { allBlocks, BLOCK_LABELS } from "./index";
 
 /** Plain-English sentences for the "Plain" face. Deterministic, no model needed. */
 
-export const ACCESS_LABEL: Record<AgentTool["access"], string> = {
-  read: "Can read",
-  write: "Can change",
-  irreversible: "Can't be undone",
-};
-
 /**
  * One vocabulary everywhere. Tool level: Just do it / Tell me / Ask first.
  * Agent level (supervision): On its own / Spot-check / Approve everything,
@@ -98,13 +92,6 @@ export const FRAMEWORK_LABEL: Record<Agent["framework"], string> = {
 
 export function connectionName(bp: Blueprint, id: string): string {
   return bp.connections.find((c) => c.id === id)?.name ?? id;
-}
-
-export function toolSentence(bp: Blueprint, t: AgentTool): string {
-  const where = connectionName(bp, t.connectionId);
-  if (t.permission === "ask") return `Asks you before it can ${lowerFirst(t.name)} (${where}).`;
-  if (t.permission === "log") return `Can ${lowerFirst(t.name)} in ${where}, and tells you when it does.`;
-  return `Can ${lowerFirst(t.name)} in ${where}.`;
 }
 
 export function agentSummary(bp: Blueprint, a: Agent) {

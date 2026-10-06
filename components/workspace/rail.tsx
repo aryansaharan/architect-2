@@ -15,7 +15,7 @@ import type { CheckpointMeta, Lane, LedgerKind, LedgerRow } from "@/lib/db/types
 import type { ChatLedgerKind } from "@/lib/db/writes";
 import { useWorkspace } from "./context";
 import { NoteWriter, creditWords, useChatState, versionWords, workOrderIdOf, type SentMessage } from "./composer-dock";
-import { OPEN_NOTES_EVENT, marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
+import { marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
 import { undoTo } from "./undo";
 
 /** A history entry, or a note just sent that the history doesn't have yet (same shape, so both render the same). */
@@ -150,13 +150,6 @@ export function Margin({ initialPref = "auto" }: { initialPref?: RailPref }) {
       else if (panelRef.current?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     });
   };
-
-  // "Open the notes" from anywhere: openNotes() in rail-pref.ts fires this event.
-  useEffect(() => {
-    const onOpen = () => openMargin(false);
-    window.addEventListener(OPEN_NOTES_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_NOTES_EVENT, onOpen);
-  });
 
   // On a phone, Escape closes the open notes wherever focus is (after Undo it can fall back to the page),
   // and focus goes back to the Notes bar. Menus and dialogs on top handle their own Escape first.

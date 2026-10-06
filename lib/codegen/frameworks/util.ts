@@ -23,14 +23,6 @@ export function lines(...chunks: Chunk[]): string {
   return out.join("\n") + "\n";
 }
 
-export function indent(s: string, n: number): string {
-  const pad = " ".repeat(n);
-  return s
-    .split("\n")
-    .map((l) => (l.length ? pad + l : l))
-    .join("\n");
-}
-
 // ── Text & escaping ──────────────────────────────────────────────────────────
 
 const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;

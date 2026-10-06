@@ -6,8 +6,6 @@ import { integrityErrors } from "@/lib/blueprint/validate";
 import { hash } from "@/lib/sim/hash";
 import { FRAMEWORK_LABEL, MAX_AGENTS, describeAgents, pickAgents, type DetectedAgent, type DetectedTool } from "./agents";
 
-export { FRAMEWORK_LABEL, pickAgents, projectOf } from "./agents";
-
 /**
  * Maps the agents read from an imported repository (lib/import/agents.ts) into
  * the plan, deterministically: every agent keeps its real name, instructions

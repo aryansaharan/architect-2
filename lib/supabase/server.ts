@@ -1,6 +1,5 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createPlainClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/env";
 
@@ -20,13 +19,6 @@ export async function createClient() {
         }
       },
     },
-  });
-}
-
-/** Cookie-less client for public reads (the /live pages). */
-export function createPublicClient() {
-  return createPlainClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 

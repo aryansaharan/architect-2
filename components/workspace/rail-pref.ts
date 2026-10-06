@@ -50,14 +50,6 @@ export function writeRail(v: RailPref) {
   window.dispatchEvent(new Event(RAIL_EVENT));
 }
 
-/** Fired to open the notes: the margin on a desktop, the bottom sheet on a phone. */
-export const OPEN_NOTES_EVENT = "prodai:open-notes";
-
-/** Show the notes: the margin from 1024px wide, the bottom sheet on smaller screens. */
-export function openNotes() {
-  window.dispatchEvent(new Event(OPEN_NOTES_EVENT));
-}
-
 /**
  * The part of a project a path is on: "" for the Sheet (/p/[id]), else the next
  * segment ("agents", "ship", "blueprint", "preview", "code", "handoffs").

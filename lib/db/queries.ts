@@ -10,7 +10,6 @@ import type {
   HandoffRow,
   LedgerRow,
   LiveSiteRow,
-  ProfileRow,
   ProjectRow,
   WorkOrderRow,
 } from "./types";
@@ -155,11 +154,6 @@ export async function usageSummary(supa: Supa, opts: { projectId?: string; since
   }
   summary.credits = Math.round(summary.credits * 100) / 100;
   return summary;
-}
-
-export async function getProfile(supa: Supa, userId: string): Promise<ProfileRow | null> {
-  const { data } = await supa.from("profiles").select("*").eq("id", userId).maybeSingle();
-  return (data as ProfileRow | null) ?? null;
 }
 
 export async function listIntegrations(supa: Supa): Promise<{ provider: string; status: string; meta: Record<string, unknown> | null }[]> {

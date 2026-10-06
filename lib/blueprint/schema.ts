@@ -332,9 +332,6 @@ export function refToString(ref: ObjectRef): string {
   return `${ref.type}:${ref.id}`;
 }
 
-export const defaultPermissionFor = (access: ToolAccess): ToolPermission =>
-  access === "read" ? "auto" : access === "write" ? "log" : "ask";
-
 export type TableSort = NonNullable<Extract<Block, { type: "table" }>["sort"]>;
 
 const isEmpty = (v: unknown) => v === undefined || v === null || v === "";

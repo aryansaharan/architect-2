@@ -46,7 +46,6 @@ const BECAUSE: Record<ScriptReason, string> = {
   public: "the app's owner hasn't switched the AI model on for visitors",
 };
 
-export const SCRIPT_REASONS = Object.keys(BECAUSE) as ScriptReason[];
 export const isScriptReason = (v: unknown): v is ScriptReason => typeof v === "string" && v in BECAUSE;
 
 /** "I'm answering from my script because the app's owner needs to sign in" (no full stop, so it can go on). */

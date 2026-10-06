@@ -14,15 +14,6 @@ export function splitPointer(path: string): string[] {
   return path.slice(1).split("/").map(decode);
 }
 
-export function getAt(doc: Json, path: string): Json {
-  let cur: Json = doc;
-  for (const seg of splitPointer(path)) {
-    if (cur === null || typeof cur !== "object") return undefined;
-    cur = Array.isArray(cur) ? cur[Number(seg)] : (cur as Record<string, Json>)[seg];
-  }
-  return cur;
-}
-
 function parentOf(doc: Json, path: string): { parent: Json; key: string } {
   const segs = splitPointer(path);
   if (!segs.length) throw new Error("Cannot modify the document root");
