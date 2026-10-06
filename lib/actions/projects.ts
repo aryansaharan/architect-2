@@ -52,8 +52,11 @@ export async function deleteProject(projectId: string): Promise<R> {
       console.error("[projects] keeping usage failed", usage.message);
       return { ok: false, error: "Couldn't delete it. Try again." };
     }
+    // A published app taken down after a report stays down, its link included: its project can't be deleted to free the link.
+    const { data: blocked } = await admin.from("live_sites").select("slug").eq("project_id", projectId).not("blocked_at", "is", null).maybeSingle();
+    if (blocked) return { ok: false, error: "Its published app was taken down after a report, so this project can't be deleted." };
     // The published app goes offline first (published sites are written by the server only).
-    const { error: live } = await admin.from("live_sites").delete().eq("project_id", projectId);
+    const { error: live } = await admin.from("live_sites").delete().eq("project_id", projectId).is("blocked_at", null);
     if (live) {
       console.error("[projects] taking the app offline failed", live.message);
       return { ok: false, error: "Couldn't take its published app offline, so nothing was deleted. Try again." };

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { visitorKey, withinLimit } from "@/lib/security/rate-limit";
+import { emailConfigured, sendEmail } from "@/lib/email";
+import { siteUrl } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,20 @@ export async function POST(req: Request) {
 
   const { error } = await admin.from("abuse_reports").insert({ slug, reason, details: details?.trim() || null, reporter_hash: reporter });
   if (error) return failed("insert", error.message);
+  await tellOperator(slug, reason, details?.trim());
   return Response.json({ ok: true });
+}
+
+/** Each new report goes to the person running this copy (ABUSE_REPORT_TO), when email is set up. Never blocks the report. */
+async function tellOperator(slug: string, reason: string, details: string | undefined) {
+  const to = process.env.ABUSE_REPORT_TO?.trim();
+  if (!to || !emailConfigured()) return;
+  const sent = await sendEmail({
+    to,
+    subject: `Report: ${reason} on /live/${slug}`,
+    text: [`Someone reported ${siteUrl()}/live/${slug} as ${reason}.`, "", details ? `They wrote: ${details}` : "They didn't add details.", "", "Reports are in the abuse_reports table. To take the page down, set blocked_at on its live_sites row."].join("\n"),
+  });
+  if (sent.status !== "sent") console.error("[report] operator email", sent.status);
 }
 
 function failed(what: string, detail: string) {

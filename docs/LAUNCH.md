@@ -65,6 +65,7 @@ A long random string: run `openssl rand -hex 32` in a terminal, once per setting
 
 - **Email** (invitations and AI helpers that send email): a domain, a Resend account with that
   domain verified, then `RESEND_API_KEY` and `EMAIL_FROM`. Until then invitations show a link to copy.
+  Set `ABUSE_REPORT_TO` to your address too, so each "Report this page" reaches you by email.
 - **Sign-in emails**: Supabase's built-in sender allows only a few an hour. With a domain, set custom
   SMTP (Resend works) in Authentication → Emails.
 - **Charging**: Vercel Pro (commercial use), a Razorpay account, then the credit packs.

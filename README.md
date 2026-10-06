@@ -115,6 +115,7 @@ npm run dev                   # http://localhost:3000
 | `LLM_DAILY_USD_GUEST`, `LLM_DAILY_USD_MEMBER`, `LLM_DAILY_USD_SITE` | 24-hour model budgets in USD: per guest (0), per person, for the whole site |
 | `CRON_SECRET`, `RATE_LIMIT_SALT`, `SIGNING_SECRET` | Long random strings: the daily cleanup job, hashed IP addresses, signed approvals and import reports |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Optional: invitations and AI helper email through Resend |
+| `ABUSE_REPORT_TO` | Optional, with email set up: your address, so each report about a published page reaches you |
 | `GITHUB_TOKEN` | Optional, no scopes: raises the import rate limit from 60 to 5,000 requests an hour |
 
 **Hosting your own copy.** [docs/LAUNCH.md](docs/LAUNCH.md) is the checklist: an Anthropic spend limit, the database changes in [`supabase/migrations`](supabase/migrations) (on a new project, run every file in filename order), sign-in providers (Anonymous sign-ins and Manual linking for guests, Google, email) and the Vercel settings. The daily cleanup is a Vercel Cron job ([`vercel.json`](vercel.json)).

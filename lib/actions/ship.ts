@@ -199,9 +199,12 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   // Publishing what's already live would only add a duplicate row to the history.
   if (existing && sameBlueprint(existing.blueprint, project.blueprint)) return { ok: false, error: "No changes since you published." };
   // Published again after going offline: the same link comes back (the offline note promises it), even if the project was renamed.
+  // The history is the owner's to write, so an earlier link is reused only if this project made it (it ends in the project's own
+  // id): nobody can claim a link another app used, or a hand-picked one.
   const { data: last } = existing ? { data: null } : await supa.from("deployments").select("url").eq("project_id", projectId).eq("target", "architect_cloud").not("url", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const before = /^\/live\/([a-z0-9][a-z0-9-]{2,79})$/.exec((last?.url as string | null | undefined) ?? "")?.[1];
-  const slug = existing?.slug ?? before ?? slugFor(project.name, projectId);
+  const ours = before?.endsWith(`-${shortId(projectId)}`) ? before : undefined;
+  const slug = existing?.slug ?? ours ?? slugFor(project.name, projectId);
   const link = `${await requestOrigin()}/live/${slug}`;
   // The project's current version goes live; the live row points at it rather than at a copy of it.
   const cp = await checkpointToPublish(supa, project);
