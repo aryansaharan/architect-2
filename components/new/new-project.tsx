@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Pencil } from "lucide-react";
+import { ArrowRight, Info, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { questionsFor, renderAnswers, type Question } from "@/lib/blueprint/questions";
 import { guestStarterNote, matchVertical } from "@/lib/blueprint/match";
@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 import { CapNote, signInHref } from "./cap-note";
 import { PencilCircle } from "./pencil-circle";
 import { PlanningView, usePlanStream } from "./plan-stream";
+import { CodeWritingView } from "./code-writing";
+import { KindLine, type AppKind } from "./kind-switch";
+import { PRICE } from "@/lib/prices";
 import { connectionsFor, isConnectionsQuestion, isNothingOption, toggleConnection } from "./connections";
 
 type Step = "describe" | "questions" | "planning";
@@ -20,16 +23,24 @@ type Step = "describe" | "questions" | "planning";
 /** How long the page waits for the questions written for this brief. After that the templates simply stay. */
 const TAILOR_WAIT_MS = 10_000;
 
+const isKind = (v: unknown): v is AppKind => v === "business" || v === "code";
+/** Why it's that kind of app, in one plain sentence, as the server said it. */
+const reasonOf = (j: Record<string, unknown> | null): string | null => {
+  const w = j?.kindReason;
+  return typeof w === "string" && w.trim() ? w.trim().slice(0, 160) : null;
+};
+
 const isQuestions = (v: unknown): v is Question[] =>
   Array.isArray(v) && v.length === 3 && v.every((q) => q && typeof q.id === "string" && typeof q.label === "string" && Array.isArray(q.options) && q.options.length >= 2 && q.options.every((o: unknown) => typeof o === "string") && Number.isInteger(q.defaultIndex));
 
 const STEPS = ["Write it", "A few questions", "The sketch"];
+const CODE_STEPS = ["Write it", "What to make", "The code"];
 
-/** Where you are, in pencil: write it, answer a few questions, watch the sketch form. */
-export function Steps({ at }: { at: number }) {
+/** Where you are, in pencil: write it, answer a few questions, watch the sketch form. A code app's steps say what they are. */
+export function Steps({ at, kind = "business" }: { at: number; kind?: AppKind }) {
   return (
     <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-sketch text-sketch" aria-label="Steps">
-      {STEPS.map((s, i) => (
+      {(kind === "code" ? CODE_STEPS : STEPS).map((s, i) => (
         <li key={s} className={cn("flex items-center gap-2.5", i === at ? "text-foreground" : "text-faint")} aria-current={i === at ? "step" : undefined}>
           {i > 0 && <span aria-hidden>·</span>}
           <span className={i === at ? "pencil-underline" : undefined}>
@@ -71,22 +82,53 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
   const [tailored, setTailored] = useState<{ brief: string; questions: Question[] } | null>(null);
   const [settledFor, setSettledFor] = useState<string | null>(null);
   const answeredRef = useRef(false);
+  // What kind of app Claude chose for this note (with the questions), and the person's own choice, if they made one.
+  const [kindFor, setKindFor] = useState<{ brief: string; kind: AppKind; reason: string | null } | null>(null);
+  const [pickedKind, setPickedKind] = useState<{ brief: string; kind: AppKind } | null>(null);
+  // "Sketch it" pressed while Claude is still reading the note: it starts the moment the kind is known.
+  const [queued, setQueued] = useState<{ skip: boolean } | null>(null);
+  const [planKind, setPlanKind] = useState<AppKind>("business");
   const tailoredHere = tailored?.brief === brief ? tailored.questions : null;
   const tailoring = llm === "live" && step === "questions" && settledFor !== brief && !tailoredHere;
   const hasTailored = Boolean(tailoredHere);
+  const claudeKind = kindFor?.brief === brief ? kindFor : null;
+  const handKind = pickedKind?.brief === brief ? pickedKind.kind : null;
+  // Real code needs Claude: without a model (offline), every app is a business app.
+  const kindOffered = llm === "live" && !capMessage;
+  const kind: AppKind = kindOffered ? (handKind ?? claudeKind?.kind ?? "business") : "business";
+  const deciding = kindOffered && !claudeKind && !handKind && tailoring;
+  // The fetch below settled (or gave up): run a plan that was waiting for the kind.
+  const onSettled = useEffectEvent((forBrief: string, k: AppKind | null) => {
+    if (!queued || forBrief !== brief) return;
+    const skip = queued.skip;
+    setQueued(null);
+    plan(skip, handKind ?? k ?? "business", true);
+  });
   useEffect(() => {
     if (llm !== "live" || step !== "questions" || brief.trim().length < MIN_BRIEF || hasTailored || capMessage) return;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TAILOR_WAIT_MS);
+    let got: AppKind | null = null;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, TAILOR_WAIT_MS);
     fetch("/api/questions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief }), signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { questions?: unknown } | null) => {
+      .then((j: { questions?: unknown; kind?: unknown } | null) => {
         if (!answeredRef.current && isQuestions(j?.questions)) setTailored({ brief, questions: j.questions });
+        if (isKind(j?.kind)) {
+          got = j.kind;
+          setKindFor({ brief, kind: j.kind, reason: reasonOf(j as Record<string, unknown>) });
+        }
       })
       .catch(() => {})
       .finally(() => {
         clearTimeout(timer);
+        // Cancelled because the page moved on (or a dev double-run): the next request settles it instead.
+        if (ctrl.signal.aborted && !timedOut) return;
         setSettledFor(brief);
+        onSettled(brief, got);
       });
     return () => {
       clearTimeout(timer);
@@ -107,13 +149,18 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
   const handPicked = pickedByHand?.filter((o) => conn?.question.options.includes(o)) ?? [];
   const picked = handPicked.length ? handPicked : (conn?.preselected ?? []);
 
-  function plan(skip: boolean) {
+  function plan(skip: boolean, as: AppKind = kind, now = false) {
+    // Claude is still reading the note: wait for what kind of app it is (a few seconds at most), then start.
+    if (!now && as === kind && deciding) return setQueued({ skip });
     setStep("planning");
+    setPlanKind(as);
+    if (as === "code") return void planner.start("/api/plan", { brief, answers: "", kind: "code" }, (id) => `/p/${id}`);
     const all = conn ? { ...answers, [conn.question.id]: picked.join(", ") } : answers;
-    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}`);
+    void planner.start("/api/plan", { brief, answers: skip ? "" : renderAnswers(questions, all), kind: "business", ...(skip || !conn ? {} : { connections: picked }) }, (id) => `/p/${id}`);
   }
 
   const toDescribe = () => {
+    setQueued(null);
     setPicked(null);
     setAnswers({});
     setTouched(new Set());
@@ -124,6 +171,20 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
     answeredRef.current = true;
     fn();
   };
+
+  if (step === "planning" && planKind === "code")
+    return (
+      <CodeWritingView
+        s={planner}
+        eyebrow={<Steps at={2} kind="code" />}
+        onRetry={() => plan(false, "code")}
+        onBusiness={() => {
+          setPickedKind({ brief, kind: "business" });
+          plan(true, "business");
+        }}
+        signInNext={isGuest ? comeBack(brief) : null}
+      />
+    );
 
   if (step === "planning")
     return (
@@ -155,7 +216,7 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Steps at={step === "describe" ? 0 : 1} />
+      <Steps at={step === "describe" ? 0 : 1} kind={step === "questions" ? kind : "business"} />
       <h1 className="mt-4 font-pencil text-title">What do you want to make?</h1>
 
       {step === "describe" ? (
@@ -196,7 +257,32 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
               </button>
             </div>
 
-            <div className="mt-5 border-t border-dashed border-hairline-hi px-5 py-6 sm:px-8">
+            {kindOffered && (
+              <KindLine
+                className="mt-5 border-t border-dashed border-hairline-hi px-5 py-4 sm:px-8"
+                kind={kind}
+                reason={claudeKind?.kind === kind && !handKind ? claudeKind.reason : null}
+                deciding={deciding}
+                chosenBy={handKind ? "you" : claudeKind ? "claude" : null}
+                onChange={(k) => setPickedKind({ brief, kind: k })}
+              />
+            )}
+
+            {kind === "code" ? (
+              <div className="border-t border-dashed border-hairline-hi px-5 py-6 sm:px-8">
+                <h2 className="font-pencil text-section">Claude writes it from your note</h2>
+                <p className="mt-2 text-body text-muted-foreground">
+                  Real files, in React and Tailwind. Prod AI really builds them and starts your app in a sealed test space where you can try it. You see every file, and you can download them all.
+                </p>
+                {isGuest && (
+                  <p className="mt-3 flex gap-2 text-body text-foreground">
+                    <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    Claude writes real code for people who are signed in. Sign in and your note comes with you.
+                  </p>
+                )}
+              </div>
+            ) : (
+            <div className={cn("border-t border-dashed border-hairline-hi px-5 py-6 sm:px-8", !kindOffered && "mt-5")}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 className="font-pencil text-section">A few quick questions</h2>
                 <p className="text-meta text-faint" aria-live="polite">
@@ -254,19 +340,55 @@ export function NewProject({ initialPrompt, llm, isGuest = false, capMessage = n
                 })}
               </div>
             </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-hairline-hi px-5 py-4 sm:px-8">
-              <Button variant="ghost" size="lg" className="-ml-4 text-muted-foreground" onClick={() => plan(true)}>
-                Skip, use sensible defaults
-              </Button>
-              <Button size="cta" className="ml-auto" onClick={() => plan(false)}>
-                Sketch it <ArrowRight />
-              </Button>
+              {kind === "code" ? (
+                isGuest ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="lg"
+                      className="-ml-4 text-muted-foreground"
+                      onClick={() => {
+                        setPickedKind({ brief, kind: "business" });
+                        plan(true, "business");
+                      }}
+                    >
+                      Start from a business starter instead
+                    </Button>
+                    <Button asChild size="cta" className="ml-auto">
+                      <Link href={signInHref(comeBack(brief))}>
+                        Sign in to have Claude write it <ArrowRight />
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="cta" className="ml-auto" onClick={() => plan(false)}>
+                    Write it <ArrowRight />
+                  </Button>
+                )
+              ) : (
+                <>
+                  <Button variant="ghost" size="lg" className="-ml-4 text-muted-foreground" disabled={Boolean(queued)} onClick={() => plan(true)}>
+                    Skip, use sensible defaults
+                  </Button>
+                  <Button size="cta" className="ml-auto" disabled={Boolean(queued)} onClick={() => plan(false)}>
+                    {queued ? "Reading your idea…" : <>Sketch it <ArrowRight /></>}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <div className="mt-4 space-y-1.5 text-meta text-muted-foreground sm:text-right">
-            <p>Sketching is free. Nothing is built until you say so, and you see the price first.</p>
-            {isGuest && <GuestNote brief={brief} />}
+            {kind === "code" ? (
+              <p>
+                Claude writes it for <span className="tabular-nums">{PRICE.codeApp}</span> credits, charged only once it&apos;s saved. Making it real is free.
+              </p>
+            ) : (
+              <p>Sketching is free. Nothing is built until you say so, and you see the price first.</p>
+            )}
+            {isGuest && kind !== "code" && <GuestNote brief={brief} />}
           </div>
         </>
       )}

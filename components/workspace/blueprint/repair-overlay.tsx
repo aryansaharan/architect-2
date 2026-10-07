@@ -11,11 +11,9 @@ import { cn } from "@/lib/utils";
 import { useWorkspace } from "../context";
 import { stoppedWords } from "../use-build-runner";
 import { Term } from "@/components/arch/term";
-import { SimulatedChip } from "./build-console";
+import { RealBuildChip } from "./build-console";
 import { Pill } from "@/components/ui/pill";
 import { DUR, EASE } from "@/lib/motion";
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 export function RepairOverlay() {
   const ws = useWorkspace();
@@ -56,21 +54,27 @@ export function RepairOverlay() {
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-meta text-muted-foreground">Caught in a <Term k="rehearsal">test run</Term></p>
                 <Pill tone="fix"><Term k="our-fix" /> · free</Pill>
-                <SimulatedChip />
+                <RealBuildChip />
               </div>
               <h2 id="repair-title" className="mt-1.5 font-pencil text-section">{plan.title}</h2>
             </div>
             {agent && <Avatar name={agent.name} hue={agent.avatarHue} size={34} />}
           </div>
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <div>
-              <p className="text-meta font-medium text-muted-foreground">What it tried</p>
-              <p className="mt-1.5 text-body">{plan.tried}</p>
-            </div>
-            <div>
-              <p className="text-meta font-medium text-muted-foreground">Why it matters</p>
-              <p className="mt-1.5 text-body text-muted-foreground">{plan.whyFailed}</p>
-            </div>
+          <div className="space-y-4 p-5">
+            {plan.failures.slice(0, 3).map((f) => (
+              <div key={`${f.agentId}/${f.rehearsalId}`} className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-meta font-medium text-muted-foreground">{f.agentName} · {f.rehearsalName}</p>
+                  <p className="mt-1.5 text-body">Asked: “{f.input}”</p>
+                  <p className="mt-1 text-ui text-muted-foreground">Should: {f.expect}</p>
+                </div>
+                <div>
+                  <p className="text-meta font-medium text-muted-foreground">What it did</p>
+                  {f.reply && <p className="mt-1.5 line-clamp-3 text-ui text-muted-foreground" title={f.reply}>{f.reply}</p>}
+                  <p className="mt-1.5 text-body">{f.reason}</p>
+                </div>
+              </div>
+            ))}
           </div>
           <div className="grid gap-3 px-5 max-sm:pb-4 sm:grid-cols-2">
             {plan.options.map((o, i) => {
@@ -91,9 +95,6 @@ export function RepairOverlay() {
                   </div>
                   <p className="mt-2 text-body font-medium">{o.label}</p>
                   <p className="mt-1 flex-1 text-ui text-muted-foreground">{o.narration}</p>
-                  <p className="mt-2 text-meta text-muted-foreground">
-                    Changes: {plural(o.blastRadius.screens, "screen")} · {plural(o.blastRadius.agents, "AI helper")} · {plural(o.blastRadius.files, "file")}
-                  </p>
                   <Button
                     ref={i === 0 ? first : undefined}
                     variant={o.recommended ? "default" : "outline"}
@@ -109,9 +110,13 @@ export function RepairOverlay() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 p-5 pt-4 max-sm:border-t max-sm:border-hairline max-sm:pt-3">
-          <p className="text-meta text-muted-foreground">Either way, it re-runs every test run before you see the app.</p>
+          <p className="text-meta text-muted-foreground">With a fix, Claude plays the failed test runs again before you see the app, free.</p>
           {ws.build.mode === "build" ? (
-            <Button
+            <div className="flex flex-wrap items-center gap-1">
+              <Button variant="ghost" className="text-muted-foreground" disabled={stopping || Boolean(ws.build.repairChoice)} onClick={() => ws.build.choose("none")}>
+                Leave it and finish
+              </Button>
+              <Button
               variant="ghost"
               className="text-muted-foreground"
               disabled={stopping || Boolean(ws.build.repairChoice)}
@@ -121,12 +126,13 @@ export function RepairOverlay() {
                 setStopping(false);
                 if (!r.ok) return toast.error(r.error);
                 ws.build.dismiss();
-                toast.success("Build stopped", { description: stoppedWords(r.refunded, "Your plan is exactly as you left it.") });
+                toast.success("Build stopped", { description: stoppedWords(r.refunded, `Your plan is exactly as you left it.${ws.build.charged ? ` The test runs Claude already played (${ws.build.charged} credits) stay on your bill.` : ""}`) });
                 router.refresh();
               }}
             >
-              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan{ws.build.charged ? " · refunded" : ""}
-            </Button>
+              {stopping ? <Loader2 className="animate-spin" /> : <Undo2 />} Stop and go back to the plan
+              </Button>
+            </div>
           ) : (
             <Button variant="ghost" className="text-muted-foreground" onClick={() => ws.build.dismiss()}>
               End replay

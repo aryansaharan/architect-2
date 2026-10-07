@@ -1,7 +1,6 @@
 "use client";
 import { createContext, useContext, useLayoutEffect, useState, type RefObject } from "react";
 import type { useWorkspace } from "../context";
-import type { TimelineStep } from "@/lib/sim/buildTimeline";
 
 /** Everything the Sheet reads: the workspace (project, plan, build runner, composer focus). */
 export type SheetWorkspace = ReturnType<typeof useWorkspace>;
@@ -31,27 +30,6 @@ export function useWidth(ref: RefObject<HTMLElement | null>): number | null {
     return () => ro.disconnect();
   }, [ref]);
   return width;
-}
-
-type Step = Extract<TimelineStep, { kind: "step" }>;
-
-/** What a build step is doing, in the Sheet's words ("Inking Claim Detail", "Teaching Intake Triage"). */
-export function stepLine(ws: SheetWorkspace, step: Step): string {
-  const bp = ws.blueprint;
-  const ref = step.objectRef;
-  if (step.id === "read-brief") return "Reading your sketch";
-  if (step.id === "rehearse") return "Trying every AI helper on its test runs";
-  if (step.id === "rehearse-again") return "Running the test runs again";
-  if (step.id === "final-checks") return "Checking sign-in and who can see what";
-  if (ref?.type === "screen") return `Inking ${bp.screens.find((s) => s.id === ref.id)?.title ?? "a screen"}`;
-  if (ref?.type === "agent") return `Teaching ${bp.agents.find((a) => a.id === ref.id)?.name ?? "an AI helper"} its job`;
-  if (ref?.type === "entity") return `Setting up ${bp.entities.find((e) => e.id === ref.id)?.plural.toLowerCase() ?? "the data"}`;
-  if (ref?.type === "connection") {
-    const c = bp.connections.find((x) => x.id === ref.id);
-    if (!c) return "Connecting";
-    return c.status === "missing" ? `${c.name} isn't connected yet, so it uses test data` : `Connecting ${c.name}`;
-  }
-  return step.title;
 }
 
 /** Old words out, the Sheet's words in: a "rehearsal" is a test run here, an "approval gate" is asking first. */

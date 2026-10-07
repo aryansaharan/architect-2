@@ -259,9 +259,9 @@ function Rehearsals({ agent }: { agent: Agent }) {
   const [pending, start] = useTransition();
   const [running, setRunning] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", input: "", expect: "" });
-  // Same counting as the publish checklist: a rehearsal that hasn't run counts as not passing.
+  // Same counting as the publish checklist: of the test runs played, how many pass. One not played yet isn't a failure.
   const sum = agentRehearsals(ws.blueprint, agent);
-  const rate = sum.total ? sum.rate : null;
+  const rate = sum.played ? sum.rate : null;
   // trend: pass rate per run index (last 8 runs)
   const runsCount = Math.max(0, ...agent.rehearsals.map((r) => r.history.length));
   const trend = Array.from({ length: Math.min(8, runsCount) }, (_, k) => {
@@ -270,16 +270,15 @@ function Rehearsals({ agent }: { agent: Agent }) {
     return results.length ? results.filter((x) => x!.pass).length / results.length : 1;
   });
 
+  // Claude plays them on the server, three at a time: the list shows them all as running until the answers are in.
   async function runAll() {
-    for (let i = 0; i < agent.rehearsals.length; i++) {
-      setRunning(i);
-      await new Promise((r) => setTimeout(r, 550));
-    }
-    const r = await runRehearsals(ws.project.id, agent.id);
+    setRunning(-1);
+    const r = await runRehearsals(ws.project.id, agent.id).catch(() => ({ ok: false as const, error: "Couldn't reach Prod AI. Nothing was charged." }));
     setRunning(null);
     if (!r.ok) return void toast.error(r.error);
-    if (r.passed === r.total) toast.success(`${r.passed} of ${r.total} passed`);
-    else toast.error(`${r.passed} of ${r.total} passed`, { description: "Open the failed one to see what happened and fix it." });
+    const paid = r.credits ? ` · ${r.credits} credits` : "";
+    if (r.passed === r.total) toast.success(`${r.passed} of ${r.total} passed${paid}`);
+    else toast.error(`${r.passed} of ${r.total} passed${paid}`, { description: "Open the failed one to see what happened and fix it." });
     router.refresh();
   }
 
@@ -289,10 +288,10 @@ function Rehearsals({ agent }: { agent: Agent }) {
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
           <div className="panel rounded-md p-4">
             <p className="micro-label">Reliability</p>
-            <p className={cn("mt-1.5 text-lead font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.8 ? "text-ok" : "text-foreground")}>{rate === null ? "Not run yet" : `${Math.round(rate * 100)}% passing`}</p>
+            <p className={cn("mt-1.5 text-lead font-semibold tabular-nums", rate === null ? "text-muted-foreground" : rate >= 0.8 ? "text-ok" : "text-foreground")}>{rate === null ? "Not played yet" : `${Math.round(rate * 100)}% passing`}</p>
             <p className="mt-1 text-ui text-muted-foreground">
-              {rate === null ? "No test runs yet." : `${sum.passing} of ${sum.total} passing on their latest run.`}
-              {sum.notRun ? ` ${sum.notRun} not run yet, so ${sum.notRun === 1 ? "it counts" : "they count"} as not passing.` : ""} Publishing needs 80%.
+              {rate === null ? "None played yet." : `${sum.passing} of ${sum.played} played ${sum.played === 1 ? "passes" : "pass"} on their latest run.`}
+              {sum.notRun && sum.played ? ` ${sum.notRun} not played yet.` : ""} Publishing needs 80% of the played ones to pass.
             </p>
             {trend.length > 1 && (
               <div className="mt-3">
@@ -318,26 +317,27 @@ function Rehearsals({ agent }: { agent: Agent }) {
           <div className="panel flex flex-col justify-between rounded-md p-4">
             <div>
               <p className="text-body font-medium"><Term k="rehearsal">Test runs</Term> are practice conversations {agent.name} must get right before anyone relies on it.</p>
-              <p className="mt-1 text-ui text-muted-foreground">They run on every build and every pull request. If you loosen a permission, the test run that depends on it will catch it.</p>
+              <p className="mt-1 text-ui text-muted-foreground">Claude plays {agent.name} on each one, and a second call checks the answer against what should happen. They also run when you make the app real.</p>
             </div>
             <Button className="mt-3 w-fit" onClick={runAll} disabled={running !== null || !agent.rehearsals.length}>
-              {running !== null ? <Loader2 className="animate-spin" /> : <Play />} Run all {agent.rehearsals.length} · free
+              {running !== null ? <Loader2 className="animate-spin" /> : <Play />} {running !== null ? `Claude is playing ${agent.rehearsals.length}…` : `Run all ${agent.rehearsals.length} · ${agent.rehearsals.length * PRICE.testRun} credits`}
             </Button>
+            {ws.user.isAnonymous && <p className="mt-1.5 text-meta text-muted-foreground">Test runs are played by Claude, so they need you signed in.</p>}
           </div>
         </div>
 
         <ul className="mt-5 space-y-2">
-          {agent.rehearsals.map((r, i) => {
+          {agent.rehearsals.map((r) => {
             const last = r.history[r.history.length - 1];
             return (
               <li key={r.id} className={cn("panel rounded-md p-3.5", last && !last.pass && "border-foreground/30")}>
                 <div className="flex items-start gap-3">
-                  {running === i ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-brand" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline-hi" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-ok" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-foreground/70" />}
+                  {running !== null ? <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-brand" /> : !last ? <span className="mt-1 size-3 shrink-0 rounded-full border border-hairline-hi" /> : last.pass ? <Check className="mt-0.5 size-4 shrink-0 text-ok" /> : <CircleX className="mt-0.5 size-4 shrink-0 text-foreground/70" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-ui font-medium">{r.name}</p>
                     <p className="mt-0.5 text-ui text-muted-foreground"><span className="text-foreground/80">When:</span> {r.input}</p>
                     <p className="text-ui text-muted-foreground"><span className="text-foreground/80">Should:</span> {r.expect}</p>
-                    {last ? <p className={cn("mt-1.5 text-meta", last.pass ? "text-ok" : "font-medium text-foreground")}>{last.pass ? "" : "Failed: "}{last.note} · <TimeAgo iso={last.at} /></p> : running !== i && <p className="mt-1.5 text-meta text-muted-foreground">Not run yet, so it counts as not passing.</p>}
+                    {last ? <p className={cn("mt-1.5 text-meta", last.pass ? "text-ok" : "font-medium text-foreground")}>{last.pass ? "" : "Failed: "}{last.note} · <TimeAgo iso={last.at} /></p> : running === null && <p className="mt-1.5 text-meta text-muted-foreground">Not played yet.</p>}
                   </div>
                   {last && !last.pass && (
                     <Button size="sm" variant="outline" className="shrink-0" onClick={() => { ws.setScope({ type: "agent", id: agent.id }); ws.focusComposer({ type: "agent", id: agent.id }); }}>

@@ -1,23 +1,19 @@
 "use client";
-import { useMemo, useRef, useState, type Ref } from "react";
+import { useRef, useState, type Ref } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FastForward, FlaskConical, Undo2 } from "lucide-react";
+import { Check, CircleSlash, FlaskConical, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { cancelBuild } from "@/lib/actions/build";
+import { PRICE } from "@/lib/prices";
+import type { TestRun } from "@/lib/build/report";
 import { stoppedWords } from "../use-build-runner";
-import { PencilRadio } from "./pencil-radio";
-import { stepLine, useSheet, useWidth } from "./use-sheet";
-
-/** The one honest line about the build, said where it happens: the steps are a visual, the result is not. */
-export const SIMULATED_LINE = "This building step is a visual; the plan, code and data are real.";
-
-/** Holds the playback still while a stop is on its way, so the build can't finish under it. */
-const HOLD = 1e-4; // a 2 s step now takes hours; small enough to stay inside setTimeout's range
+import { plural, useSheet, useWidth } from "./use-sheet";
 
 /**
- * Stops the build: cancelBuild (which refunds a build charged under the earlier pricing), then the
- * runner is dismissed. A replay just ends.
+ * Stops the build: cancelBuild puts the sketch back as it was, then the runner lets go. Test runs Claude
+ * already played stay charged (that work happened). A replay just ends.
  */
 export function useStopBuild() {
   const ws = useSheet();
@@ -26,16 +22,12 @@ export function useStopBuild() {
   const stop = async () => {
     if (ws.build.mode === "replay") return ws.build.dismiss();
     setStopping(true);
-    const speed = ws.build.speed;
-    if (ws.build.status === "running") ws.build.setSpeed(HOLD);
     const r = await cancelBuild(ws.project.id).catch(() => ({ ok: false as const, error: "Couldn't reach Prod AI. Try again." }));
     setStopping(false);
-    if (!r.ok) {
-      ws.build.setSpeed(speed);
-      return void toast.error(r.error);
-    }
+    if (!r.ok) return void toast.error(r.error);
     ws.build.dismiss();
-    toast.success("Stopped", { description: stoppedWords(r.refunded, "Your sketch is exactly as you left it.") });
+    const kept = ws.build.charged ? ` The test runs Claude already played (${plural(ws.build.charged, "credit")}) stay on your bill.` : "";
+    toast.success("Stopped", { description: stoppedWords(r.refunded, `Your sketch is exactly as you left it.${kept}`) });
     router.refresh();
   };
   return { stop, stopping };
@@ -97,25 +89,35 @@ function PencilLine({ progress, marks }: { progress: number; marks: number[] }) 
   );
 }
 
-/** The calm line at the top of the sheet while it's being made real. */
+/** One test run's verdict, in the build's list: the helper, the test, and what Claude's judge said. */
+function RunLine({ run, name }: { run: TestRun; name: string }) {
+  const Icon = run.outcome === "pass" ? Check : run.outcome === "fail" ? X : CircleSlash;
+  return (
+    <li className="fade-up flex items-start gap-2">
+      <Icon aria-hidden className={cn("mt-[3px] size-3.5 shrink-0", run.outcome === "pass" ? "text-ok" : run.outcome === "fail" ? "text-fix" : "text-faint")} />
+      <p className="min-w-0 text-meta">
+        <span className="font-medium text-foreground">{name}</span>
+        <span className="text-muted-foreground"> · {run.name}{run.again ? " · again, with the fix" : ""}: </span>
+        <span className={cn(run.outcome === "fail" ? "text-foreground" : "text-muted-foreground")}>{run.reason}</span>
+      </p>
+    </li>
+  );
+}
+
+/** The calm line at the top of the sheet while it's being made real: the real step, how far, and each test run as it ends. */
 export function BuildProgress({ showStop, ref }: { showStop: boolean; ref?: Ref<HTMLElement> }) {
   const ws = useSheet();
   const b = ws.build;
   const { stop, stopping } = useStopBuild();
-  const total = b.steps.filter((s) => s.kind === "step").length;
-  const n = Math.min(b.completed.length + 1, Math.max(total, 1));
+  const n = Math.min(b.completed.length + 1, b.total);
   const replay = b.mode === "replay";
-  const cur = b.current?.kind === "step" ? b.current : null;
-  const doing =
-    b.status === "finishing" ? "Saving it as a new version" : b.status === "repair" ? "Waiting for you: pick a fix below" : cur ? stepLine(ws, cur) : "Getting started";
+  const doing = b.status === "finishing" ? "Saving it as a new version" : b.status === "repair" ? "Waiting for you: pick a fix below" : (b.current?.title ?? (b.completed.length ? "Saving it" : "Getting started"));
   const lead = replay ? "Replaying how it was made" : "Making it real";
   const pct = Math.round(b.progress * 100);
-  // Where each step ends along the line, by how long it takes: the same measure as the progress.
-  const marks = useMemo(() => {
-    const steps = b.steps.flatMap((st) => (st.kind === "step" ? [st.durationMs] : []));
-    const all = steps.reduce((t, d) => t + d, 0) || 1;
-    return steps.map((_, i) => steps.slice(0, i + 1).reduce((t, d) => t + d, 0) / all);
-  }, [b.steps]);
+  const marks = Array.from({ length: b.total }, (_, i) => (i + 1) / b.total);
+  const agentName = (id: string) => ws.blueprint.agents.find((a) => a.id === id)?.name ?? "An AI helper";
+  const testing = b.current?.id === "tests" || b.current?.id === "tests-again";
+  const live = b.runs.slice(-6);
 
   return (
     <section ref={ref} tabIndex={-1} aria-label="Build progress" className="mt-7 scroll-mt-6 rounded-md border border-hairline bg-canvas/60 px-4 py-4 outline-none sm:px-5">
@@ -125,46 +127,41 @@ export function BuildProgress({ showStop, ref }: { showStop: boolean; ref?: Ref<
           {lead} · <span className="text-brand">{doing}</span>
         </span>
         <span className="text-meta tabular-nums text-muted-foreground">
-          Step {n} of {total}
+          Step {n} of {b.total}
         </span>
       </p>
       <div role="progressbar" aria-label={lead} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="mt-2 w-full">
         <PencilLine progress={b.progress} marks={marks} />
       </div>
+      {b.current?.detail && <p className="mt-2 text-meta text-muted-foreground">{b.current.detail}</p>}
+      {live.length > 0 && (testing || b.status === "repair") && (
+        <ul aria-label="Test runs so far" className="mt-3 space-y-1.5 border-t border-dashed border-hairline pt-3">
+          {live.map((r) => (
+            <RunLine key={`${r.agentId}/${r.rehearsalId}/${r.again ? 1 : 0}`} run={r} name={agentName(r.agentId)} />
+          ))}
+        </ul>
+      )}
       <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
-        {/* Said once, here where the build happens. A replay says what it is below. */}
         {!replay && (
           <p className="inline-flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
             <FlaskConical className="size-3.5 shrink-0" aria-hidden />
-            <span>{SIMULATED_LINE}</span>
+            <span>
+              {b.tests === "claude"
+                ? `Every step is real: the plan is checked, the code compiled, and Claude plays each test run (${PRICE.testRun} credits each).`
+                : "Every step is real: the plan is checked and the code compiled."}
+            </span>
           </p>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-meta text-muted-foreground max-sm:sr-only">Speed</span>
-          {/* The build is a scripted playback over the real plan, so this sets playback speed, not a faster build. */}
-          <PencilRadio<string>
-            label="Playback speed"
-            value={String(b.speed >= 50 ? 50 : b.speed >= 4 ? 4 : 1)}
-            onChange={(v) => b.setSpeed(Number(v))}
-            options={[
-              { value: "1", label: "Normal" },
-              { value: "4", label: "Fast" },
-              { value: "50", label: <><FastForward className="size-3" aria-hidden />Skip to end</>, title: "Plays the rest in a moment. It still stops if you need to pick a fix." },
-            ]}
-          />
-          {showStop && (
-            <Button variant="ghost" className="text-muted-foreground" disabled={stopping || b.status === "finishing"} onClick={stop}>
-              <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : b.charged ? "Stop · refunded" : "Stop"}
-            </Button>
-          )}
-        </div>
+        {showStop && (
+          <Button variant="ghost" className="ml-auto text-muted-foreground" disabled={stopping || b.status === "finishing"} onClick={stop}>
+            <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : "Stop"}
+          </Button>
+        )}
       </div>
       {!replay && b.charged ? (
-        <p className="mt-2 text-meta tabular-nums text-muted-foreground">
-          This build took {b.charged} credits under the earlier pricing. Stop and they come back.
-        </p>
+        <p className="mt-2 text-meta tabular-nums text-muted-foreground">Test runs so far: {plural(b.charged, "credit")}.</p>
       ) : replay ? (
-        <p className="mt-2 text-meta text-muted-foreground">Replays are free and change nothing.</p>
+        <p className="mt-2 text-meta text-muted-foreground">A replay of the saved build: it runs nothing, costs nothing and changes nothing.</p>
       ) : null}
     </section>
   );

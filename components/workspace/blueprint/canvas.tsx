@@ -179,7 +179,7 @@ export function BlueprintCanvas() {
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {ws.project.buildState === "built" && !running && (
+          {ws.project.buildState === "built" && ws.build.canReplay && !running && (
             <Button variant="outline" onClick={() => ws.build.start({ replay: true })} aria-label="Replay how it was built">
               <Play /> <span className="max-sm:hidden">Replay how it was built</span><span className="sm:hidden">Replay</span>
             </Button>

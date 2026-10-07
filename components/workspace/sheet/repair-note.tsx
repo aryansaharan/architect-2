@@ -9,17 +9,11 @@ import { DrawnCheck } from "@/components/motion/sheet-draw";
 import { useStopBuild } from "./build-progress";
 import { plainWords, plural, reducedMotion, useSheet } from "./use-sheet";
 
-/** What a fix touches, in plain words, leaving out what it doesn't: "Changes 1 AI helper and 2 files". */
-function touches(r: { screens: number; agents: number; files: number }): string {
-  const parts = [r.screens ? plural(r.screens, "screen") : "", r.agents ? plural(r.agents, "AI helper") : "", r.files ? plural(r.files, "file") : ""].filter(Boolean);
-  if (!parts.length) return "A small change";
-  return `Changes ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]}`;
-}
-
 /**
- * The build paused for a decision, written on the sheet as a pencil note: what went wrong,
- * two fixes in plain words with their price, and a way out. It calls the same runner the old
- * repair card did (ws.build.choose), so the choice is recorded and applied exactly as before.
+ * The build paused for a decision, written on the sheet as a pencil note: the test run that really
+ * failed (what was asked, what should have happened, what the helper did, and why Claude's judge
+ * failed it), the fixes in plain words, and two ways out: finish without a fix, or stop.
+ * Fixing is free, and the failed test runs are played again with the fix, also free.
  */
 export function RepairNote() {
   const ws = useSheet();
@@ -61,14 +55,38 @@ export function RepairNote() {
       transition={{ duration: DUR.panel, ease: EASE }}
       className="sketch mt-6 scroll-mt-6 border-fix/70 bg-panel p-5 sm:p-6"
     >
-      <p className="font-sketch text-sketch text-fix">Caught before you saw it · fixing it is free</p>
+      <p className="font-sketch text-sketch text-fix">Caught in a real test run · fixing it is free</p>
       <h2 id={`${id}-t`} className="mt-1 font-pencil text-section text-foreground">{plainWords(plan.title)}</h2>
-      <p id={`${id}-d`} className="mt-2.5 max-w-[68ch] text-body text-foreground/85">
-        {plainWords(plan.tried)} <span className="text-muted-foreground">{plainWords(plan.whyFailed)}</span>
-      </p>
+      <div id={`${id}-d`} className="mt-3 space-y-3">
+        {plan.failures.slice(0, 3).map((f) => (
+          <div key={`${f.agentId}/${f.rehearsalId}`} className="max-w-[72ch] border-l-2 border-fix/50 pl-3">
+            <p className="text-meta text-muted-foreground">
+              <span className="font-medium text-foreground">{f.agentName}</span> · {f.rehearsalName}
+            </p>
+            <p className="mt-1 text-body text-foreground/85">
+              Asked: <span className="text-muted-foreground">“{f.input}”</span>
+            </p>
+            <p className="text-body text-foreground/85">
+              Should: <span className="text-muted-foreground">{f.expect}</span>
+            </p>
+            {f.reply && (
+              <p className="mt-1 line-clamp-3 font-mono text-meta text-muted-foreground" title={f.reply}>
+                {f.agentName}: {f.reply}
+              </p>
+            )}
+            {f.calls.length > 0 && (
+              <p className="text-meta text-muted-foreground">
+                Used: {f.calls.map((c) => `${c.name}${c.asked ? " (asked first)" : ""}`).join(", ")}
+              </p>
+            )}
+            <p className="mt-1 text-body text-foreground">{plainWords(f.reason)}</p>
+          </div>
+        ))}
+        {plan.failures.length > 3 && <p className="text-meta text-muted-foreground">And {plural(plan.failures.length - 3, "more")}. They&apos;re all in AI helpers › Tests & reliability.</p>}
+      </div>
 
       <p className="mt-5 font-pencil text-note text-foreground">Pick one:</p>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      <div className={cn("mt-2 grid gap-3", options.length > 1 && "sm:grid-cols-2")}>
         {options.map((o, i) => {
           const chosen = choice === o.id;
           return (
@@ -77,19 +95,18 @@ export function RepairNote() {
               {chosen && <DrawnCheck className="pointer-events-none absolute -left-2.5 -top-3.5 size-7 text-brand" />}
               <div className="flex items-center gap-2">
                 {o.recommended ? <span className="font-sketch text-sketch text-brand">what we&apos;d pick</span> : <span className="font-sketch text-sketch text-muted-foreground">or</span>}
-                <span className="ml-auto text-meta font-medium tabular-nums text-fix">{o.credits > 0 ? plural(o.credits, "credit") : "Free"}</span>
+                <span className="ml-auto text-meta font-medium tabular-nums text-fix">Free</span>
               </div>
               <p className="mt-1.5 text-body font-medium text-foreground">{plainWords(o.label)}</p>
               <p className="mt-1 flex-1 text-body text-muted-foreground">{plainWords(o.narration)}</p>
-              <p className="mt-2 text-meta tabular-nums text-faint">{touches(o.blastRadius)}</p>
               <Button
                 ref={i === 0 ? first : undefined}
                 variant={o.recommended ? "default" : "outline"}
                 className="mt-3"
-                disabled={Boolean(choice) || stopping}
+                disabled={Boolean(choice) || stopping || replay}
                 onClick={() => ws.build.choose(o.id)}
               >
-                <Check aria-hidden /> {chosen ? "Using this fix…" : "Use this fix"}
+                <Check aria-hidden /> {chosen ? (replay ? "Picked" : "Using this fix…") : "Use this fix"}
               </Button>
             </div>
           );
@@ -97,10 +114,15 @@ export function RepairNote() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-hairline pt-3">
-        <p className="text-meta text-muted-foreground">Either way, every AI helper does its test runs again before you see the app.</p>
-        <Button variant="ghost" className="text-muted-foreground" disabled={stopping || Boolean(choice)} onClick={stop}>
-          <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : ws.build.charged ? "Stop and go back to the sketch · refunded" : "Stop and go back to the sketch"}
-        </Button>
+        <p className="text-meta text-muted-foreground">With a fix, Claude plays the failed test runs again before you see the app, free.</p>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" className="text-muted-foreground" disabled={stopping || Boolean(choice) || replay} onClick={() => ws.build.choose("none")}>
+            {choice === "none" ? (replay ? "Left as it was" : "Finishing…") : "Leave it and finish"}
+          </Button>
+          <Button variant="ghost" className="text-muted-foreground" disabled={stopping || Boolean(choice)} onClick={stop}>
+            <Undo2 aria-hidden /> {replay ? "End replay" : stopping ? "Stopping…" : "Stop and go back to the sketch"}
+          </Button>
+        </div>
       </div>
     </motion.section>
   );

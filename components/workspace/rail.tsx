@@ -17,6 +17,7 @@ import { useWorkspace } from "./context";
 import { NoteWriter, creditWords, useChatState, versionWords, workOrderIdOf, type SentMessage } from "./composer-dock";
 import { marginModeFor, projectSection, readRail, subscribeRail, writeRail, type RailPref } from "./rail-pref";
 import { undoTo } from "./undo";
+import { codeChangesOf, codeTouchWords } from "@/components/code-apps/change-files";
 
 /** A history entry, or a note just sent that the history doesn't have yet (same shape, so both render the same). */
 type ThreadRow = Omit<LedgerRow, "kind"> & { kind: LedgerKind | ChatLedgerKind; sending?: boolean };
@@ -617,6 +618,8 @@ function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, Thr
   const credits = typeof est?.credits === "number" ? est.credits : null;
   const outcome = id && !needsPerson ? changeOutcome(id, applied, chat, ws) : null;
   const decided = outcome?.kind === "applied" || outcome?.kind === "dismissed" || outcome?.kind === "approved";
+  // A code app's change: the files it touches (from the history, or the proposal itself).
+  const codeFiles = ws.project.kind === "code" ? (codeChangesOf(row.meta) ?? codeChangesOf(id ? chat.orders.get(id)?.proposal : null)) : null;
   const enter = useEnter();
   // While it waits in the card below, the card is the one place the change is spelled out: here, only a pointer to it.
   if (outcome?.kind === "waiting")
@@ -635,7 +638,10 @@ function ChangeNote({ row, applied }: { row: ThreadRow; applied: Map<string, Thr
       {(outcome || (credits !== null && !needsPerson)) && (
         <div className="mt-2 flex flex-col gap-1 border-t border-dashed border-hairline pt-1.5">
           {credits !== null && !needsPerson && !decided && (
-            <span className="text-meta tabular-nums text-muted-foreground">{credits > 0 ? creditWords(credits) : "Free"}</span>
+            <span className="text-meta tabular-nums text-muted-foreground">
+              {credits > 0 ? creditWords(credits) : "Free"}
+              {codeFiles?.length ? ` · ${codeTouchWords(codeFiles)}` : ""}
+            </span>
           )}
           {outcome && <OutcomeLine outcome={outcome} onReview={() => id && chat.review(id)} />}
         </div>
@@ -648,7 +654,7 @@ function PlanNote({ row }: { row: ThreadRow }) {
   const ws = useWorkspace();
   const approved = ws.project.buildState !== "draft";
   return (
-    <AiNote row={row} label="drew up the plan">
+    <AiNote row={row} label={ws.project.kind === "code" ? "wrote the app" : "drew up the plan"}>
       <p className="font-medium">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
       {(approved || ws.pendingWorkOrder) && (
@@ -686,6 +692,7 @@ function AppliedNote({ row }: { row: ThreadRow }) {
     <AiNote row={row} label="applied a change">
       <p className="font-medium">{row.title}</p>
       {row.body && <ClampText text={row.body} className="mt-0.5 text-meta text-muted-foreground" />}
+      {ws.project.kind === "code" && codeChangesOf(row.meta)?.length ? <p className="mt-0.5 text-meta text-muted-foreground">{codeTouchWords(codeChangesOf(row.meta)!)}</p> : null}
       <div className="mt-2 border-t border-dashed border-hairline pt-1.5">
         <OutcomeLine outcome={appliedOutcome(row, ws.checkpoints, ws.project.currentCheckpointId)} />
       </div>

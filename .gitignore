@@ -48,3 +48,4 @@ next-env.d.ts
 # supabase local
 supabase/.temp/
 supabase/.branches/
+.tmp-tests/

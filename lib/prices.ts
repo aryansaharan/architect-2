@@ -1,7 +1,8 @@
 /**
  * What Prod AI charges, in credits, safe to use in the browser. The server's rules (the monthly allowance,
  * who can afford what) are in lib/pricing.ts, which takes its prices from here: one source of truth.
- * Only work that calls Claude costs credits. Making an app real, publishing and anything scripted are free.
+ * Only work that calls Claude costs credits. Making an app real is free apart from the test runs Claude plays;
+ * publishing and anything scripted are free.
  */
 export const PRICE = {
   plan: 40,
@@ -9,6 +10,11 @@ export const PRICE = {
   change: 15,
   newHelper: 10,
   helperMessage: 5,
+  /** Each AI helper test run Claude plays and judges while an app is made real. */
+  testRun: 5,
+  /** An app Claude writes as real code (any kind of web app), and each change to its code. */
+  codeApp: 100,
+  codeChange: 20,
 } as const;
 
 export type Priced = keyof typeof PRICE;
@@ -26,6 +32,9 @@ export const PRICE_LIST: { what: string; credits: number }[] = [
   { what: "Applying a change Claude wrote", credits: PRICE.change },
   { what: "A new AI helper Claude writes", credits: PRICE.newHelper },
   { what: "Each AI helper message Claude answers", credits: PRICE.helperMessage },
+  { what: "Each AI helper test run Claude plays while making an app real", credits: PRICE.testRun },
+  { what: "An app Claude writes as real code", credits: PRICE.codeApp },
+  { what: "A change to a code app's code", credits: PRICE.codeChange },
 ];
 
 /** "1 Oct": the day credits come back. */

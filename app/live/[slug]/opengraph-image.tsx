@@ -1,12 +1,14 @@
 import { ImageResponse } from "next/og";
 import { loadSiteOnce } from "@/lib/apps/access";
 import { publicAccess } from "@/lib/apps/view";
+import { ManifestSchema } from "@/lib/code-apps/schema";
 import { accentFor } from "@/components/renderer/theme";
 
 /**
  * A published app's own social preview: its name and tagline in its theme colour, on the slate the app
  * itself uses, with a small "Made with Prod AI". A private app (no public pages) shows strangers its name
- * and nothing more, here as on its sign-in wall. Read fresh each time, so a rename shows up.
+ * and nothing more, here as on its sign-in wall. A code app (always public) shows its title and tagline.
+ * Read fresh each time, so a rename shows up.
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -16,10 +18,19 @@ type Card = { name: string; tagline: string | null; primary: string };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
+/** A code app has no theme colour of its own, so its card takes Prod AI's teal. */
+const CODE_PRIMARY = "#0F766E";
+
 async function cardFor(slug: unknown): Promise<Card | null> {
   if (typeof slug !== "string") return null;
   const site = await loadSiteOnce(slug);
   if (!site) return null;
+  if (site.kind === "code") {
+    const m = ManifestSchema.safeParse(site.build?.manifest);
+    if (!m.success) return null;
+    const { title, tagline } = m.data;
+    return { name: clip(title.trim() || "Untitled app", 60), tagline: tagline.trim() ? clip(tagline.trim(), 150) : null, primary: CODE_PRIMARY };
+  }
   const { meta } = site.blueprint;
   const open = publicAccess(site.blueprint, site.settings.app?.hiddenEntities).screens.length > 0;
   return {

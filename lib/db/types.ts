@@ -1,4 +1,6 @@
 import type { Blueprint, Estimate, ObjectRef } from "@/lib/blueprint/schema";
+import type { BuildResult, CodeApp, PublishedBuild } from "@/lib/code-apps/schema";
+import type { BuildReport } from "@/lib/build/report";
 
 export type BuildState = "draft" | "building" | "built";
 
@@ -39,6 +41,14 @@ export type ProjectRow = {
   import_report: ImportReport | null;
   build_state: BuildState;
   is_demo: boolean;
+  /** A business app (Blueprint and renderer) or a code app (real files Claude writes). */
+  kind: "business" | "code";
+  /** A code app's files and manifest; null for a business app. */
+  code: CodeApp | null;
+  /** A code app's latest real build. */
+  build: BuildResult | null;
+  /** A business app's last real build: its steps, compiled code and the test runs Claude played (lib/build). */
+  build_report: BuildReport | null;
   created_at: string;
   updated_at: string;
 };
@@ -51,10 +61,12 @@ export type CheckpointRow = {
   label: string;
   kind: CheckpointKind;
   blueprint: Blueprint;
+  /** A code app's files at this version. */
+  code: CodeApp | null;
   summary: string | null;
   created_at: string;
 };
-export type CheckpointMeta = Omit<CheckpointRow, "blueprint">;
+export type CheckpointMeta = Omit<CheckpointRow, "blueprint" | "code">;
 
 export type Lane = "thought" | "did" | "checked";
 export type Blame = "user" | "system_fix" | "teammate" | "agent";
@@ -161,6 +173,8 @@ export type LiveSiteRow = {
   published_at: string;
   blocked_at?: string | null;
   blocked_reason?: string | null;
+  kind?: "business" | "code";
+  build?: PublishedBuild | null;
 };
 
 export type ToolCallRecord = {

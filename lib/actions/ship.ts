@@ -6,14 +6,16 @@ import { createClient, type Supa } from "@/lib/supabase/server";
 import { adminClient, hasAdmin } from "@/lib/supabase/admin";
 import { getCheckpoint, getLiveSiteForProject, getProject } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, updateProject } from "@/lib/db/writes";
-import { accessLine, canGoLive, preflight, type PreflightFix } from "@/lib/sim/preflight";
+import { accessLine, canGoLive, codeAccessLine, preflight, type PreflightFix } from "@/lib/sim/preflight";
 import { shortId } from "@/lib/sim/hash";
 import { estimate } from "@/lib/blueprint/estimate";
-import { rehearsalOutcome } from "@/lib/sim/rehearse";
+import { runRehearsals } from "@/lib/actions/agents";
 import type { Blueprint } from "@/lib/blueprint/schema";
-import type { CheckpointRow, DeploymentRow, ProjectRow } from "@/lib/db/types";
+import type { CheckpointRow, DeploymentRow, LiveSiteRow, ProjectRow } from "@/lib/db/types";
 import { siteUrl } from "@/lib/env";
 import { seedSampleRecords } from "@/lib/apps/records";
+import { buildCodeApp, hashFiles } from "@/lib/code-apps/build";
+import { CodeAppSchema, type CodeApp, type PublishedBuild } from "@/lib/code-apps/schema";
 
 type R = { ok: true; slug?: string; message?: string } | { ok: false; error: string };
 
@@ -42,18 +44,18 @@ export async function fixPreflight(projectId: string, action: PreflightFix): Pro
     bp.connections.forEach((c) => (c.status = "configured"));
     title = `Added sandbox keys for ${names.join(", ")}`;
   } else if (action === "run_rehearsals") {
-    const now = new Date().toISOString();
+    // Claude plays every helper's test runs (PRICE.testRun each); each helper's results are saved as they come.
     let passed = 0;
-    let total = 0;
-    for (const agent of bp.agents) {
-      for (const r of agent.rehearsals) {
-        const out = rehearsalOutcome(agent, r);
-        total++;
-        if (out.pass) passed++;
-        r.history = [...r.history, { at: now, pass: out.pass, note: out.note }].slice(-10);
-      }
+    let played = 0;
+    let credits = 0;
+    for (const agent of project.blueprint.agents.filter((a) => a.rehearsals.length)) {
+      const r = await runRehearsals(projectId, agent.id);
+      if (!r.ok) return played ? { ok: true, message: `Played ${played}, ${passed} passed, then stopped: ${r.error}` } : r;
+      passed += r.passed ?? 0;
+      played += r.total ?? 0;
+      credits += r.credits ?? 0;
     }
-    title = `Ran ${total} rehearsal${total === 1 ? "" : "s"}, ${passed} passed`;
+    return { ok: true, message: `Claude played ${played} test run${played === 1 ? "" : "s"}: ${passed} passed${credits ? ` · ${credits} credits` : ""}.` };
   } else if (action === "set_budget") {
     await updateProject(supa, projectId, { settings: { ...project.settings, budgetCapCredits: 500 } });
     await addLedger(supa, projectId, [{ lane: "did", kind: "budget", title: "Set a 500-credit monthly cap", credits: 0 }]);
@@ -106,6 +108,9 @@ const canonical = (v: unknown) =>
     x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x,
   );
 const sameBlueprint = (a: Blueprint, b: Blueprint) => canonical(a) === canonical(b);
+/** A code app's versions compare by their files and manifest (its blueprint is a placeholder). */
+const sameCode = (a: CodeApp | null | undefined, b: CodeApp | null | undefined) => Boolean(a && b) && canonical(a) === canonical(b);
+const isCodeApp = (project: Pick<ProjectRow, "kind">) => project.kind === "code";
 
 /**
  * The version publishing puts live: the project's current version when it is exactly the project as it
@@ -118,7 +123,7 @@ async function versionToPublish(supa: Supa, project: ProjectRow): Promise<{ curr
     supa.from("checkpoints").select("seq").eq("project_id", project.id).order("seq", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const own = current && current.project_id === project.id ? current : null;
-  if (own && sameBlueprint(own.blueprint, project.blueprint)) return { current: own, upToDate: true, seq: own.seq };
+  if (own && (isCodeApp(project) ? sameCode(own.code, project.code) : sameBlueprint(own.blueprint, project.blueprint))) return { current: own, upToDate: true, seq: own.seq };
   return { current: own, upToDate: false, seq: ((last?.seq as number | undefined) ?? 0) + 1 };
 }
 
@@ -131,6 +136,7 @@ async function checkpointToPublish(supa: Supa, project: ProjectRow): Promise<Che
     kind: "ship",
     blueprint: project.blueprint,
     summary: "Saved when you published, so the live app is a version you can come back to.",
+    ...(isCodeApp(project) ? { code: project.code } : {}),
   });
 }
 
@@ -152,6 +158,11 @@ export async function publishState(projectId: string): Promise<PublishState | nu
   const project = await getProject(supa, projectId).catch(() => null);
   if (!project) return null;
   const [live, next] = await Promise.all([getLiveSiteForProject(supa, projectId).catch(() => null), versionToPublish(supa, project)]);
+  if (isCodeApp(project)) {
+    const build = project.build?.ok ? project.build : null;
+    const code = CodeAppSchema.safeParse(project.code);
+    return { unchanged: Boolean(live && build && code.success && sameLiveBuild(live, build.hash, code.data)), version: next.seq, savesEdits: !next.upToDate, access: live ? codeAccessLine : null };
+  }
   return {
     unchanged: Boolean(live && sameBlueprint(live.blueprint, project.blueprint)),
     version: next.seq,
@@ -165,6 +176,7 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   const supa = await createClient();
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false, error: "Project not found" };
+  if (isCodeApp(project)) return goLiveCode(supa, project, target, domain);
   const checks = preflight(project.blueprint, {
     budgetCapCredits: project.settings.budgetCapCredits,
     built: project.build_state === "built" || project.source === "import",
@@ -231,10 +243,64 @@ export async function goLive(projectId: string, target: DeploymentRow["target"],
   return { ok: true, slug };
 }
 
+/** What's live is this exact build of these files and manifest. */
+function sameLiveBuild(live: LiveSiteRow, hash: string, code: CodeApp | null): boolean {
+  return live.kind === "code" && live.build?.hash === hash && Boolean(code) && canonical(live.build.manifest) === canonical(code?.manifest);
+}
+
+/**
+ * Publishing a code app: its latest real build goes live (copied into live_sites.build with its manifest,
+ * never its source files), only when that build is of the current files and compiled without errors.
+ * The live row keeps the project's placeholder plan (the column needs one). No sample data: a code app's
+ * records start empty. Versions, deployments and the history work as for every app.
+ */
+async function goLiveCode(supa: Supa, project: ProjectRow, target: DeploymentRow["target"], domain?: string): Promise<R> {
+  if (target !== "architect_cloud") return { ok: false, error: "A code app goes live on Prod Cloud. To host it yourself, download its code from the Code tab." };
+  if (!hasAdmin()) return NO_ADMIN;
+  const code = CodeAppSchema.safeParse(project.code);
+  const build = project.build;
+  if (!code.success || !build || !build.ok || typeof build.js !== "string" || build.hash !== hashFiles(code.data.files)) return { ok: false, error: "Build it first: the latest version has to build without errors before it can go live." };
+  const projectId = project.id;
+  const existing = await getLiveSiteForProject(supa, projectId);
+  if (isBlocked(existing)) return BLOCKED;
+  if (existing && sameLiveBuild(existing, build.hash, code.data)) return { ok: false, error: "No changes since you published." };
+  // The same link as before when it comes back after going offline, and only a link this project made (as for business apps).
+  const { data: last } = existing ? { data: null } : await supa.from("deployments").select("url").eq("project_id", projectId).eq("target", "architect_cloud").not("url", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const before = /^\/live\/([a-z0-9][a-z0-9-]{2,79})$/.exec((last?.url as string | null | undefined) ?? "")?.[1];
+  const ours = before?.endsWith(`-${shortId(projectId)}`) ? before : undefined;
+  const slug = existing?.slug ?? ours ?? slugFor(code.data.manifest.title || project.name, projectId);
+  const link = `${await requestOrigin()}/live/${slug}`;
+  const cp = await checkpointToPublish(supa, project);
+  const published: PublishedBuild = { hash: build.hash, js: build.js, css: build.css, manifest: code.data.manifest };
+  const row = { checkpoint_id: cp.id, blueprint: project.blueprint, kind: "code", build: published };
+  const { error } = existing
+    ? await liveSites().update({ ...row, published_at: new Date().toISOString() }).eq("project_id", projectId)
+    : await liveSites().insert({ slug, project_id: projectId, ...row });
+  if (error) return failed("publish", error.message);
+  const summary = [
+    { id: "builds", label: "It builds", pass: true },
+    { id: "starts", label: "It starts", pass: true },
+  ];
+  await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
+  await supa.from("deployments").insert({ project_id: projectId, env: "live", target, checkpoint_id: cp.id, status: "live", preflight: summary, url: `/live/${slug}` });
+  await addLedger(supa, projectId, [
+    {
+      lane: "did",
+      kind: "ship",
+      title: existing ? `Published version ${cp.seq}` : `Published version ${cp.seq} on Prod Cloud`,
+      body: `Live at ${link}. ${codeAccessLine}${domain ? ` ${domain} will point here once DNS checks pass.` : ""}`,
+      checkpointId: cp.id,
+    },
+  ]);
+  revalidatePath(`/p/${projectId}`, "layout");
+  return { ok: true, slug };
+}
+
 export async function rollbackTo(projectId: string, deploymentId: string): Promise<R> {
   await requireUser();
   const supa = await createClient();
-  if (!(await getProject(supa, projectId))) return { ok: false, error: "Project not found" };
+  const project = await getProject(supa, projectId);
+  if (!project) return { ok: false, error: "Project not found" };
   if (!hasAdmin()) return NO_ADMIN;
   const { data: dep } = await supa.from("deployments").select("*").eq("id", deploymentId).eq("project_id", projectId).maybeSingle();
   const live = await getLiveSiteForProject(supa, projectId);
@@ -243,7 +309,18 @@ export async function rollbackTo(projectId: string, deploymentId: string): Promi
   const cp = await getCheckpoint(supa, dep.checkpoint_id);
   if (!cp || cp.project_id !== projectId) return { ok: false, error: "That version is gone" };
   if (live.checkpoint_id === cp.id) return { ok: false, error: `Version ${cp.seq} is already live.` };
-  const { error } = await liveSites().update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString() }).eq("project_id", projectId);
+  let codeBuild: PublishedBuild | null = null;
+  if (isCodeApp(project)) {
+    // A code app's version keeps its files, not a build: it is built again here, on the server, before it goes back online.
+    const code = CodeAppSchema.safeParse(cp.code);
+    if (!code.success) return { ok: false, error: `Version ${cp.seq} has no code to put back online.` };
+    const built = await buildCodeApp(code.data);
+    if (!built.ok) return { ok: false, error: `Version ${cp.seq} doesn't build any more, so it can't go back online: ${built.errors[0]?.message ?? "the build failed"}` };
+    codeBuild = { hash: built.hash, js: built.js, css: built.css, manifest: code.data.manifest };
+  }
+  const { error } = await liveSites()
+    .update({ blueprint: cp.blueprint, checkpoint_id: cp.id, published_at: new Date().toISOString(), ...(codeBuild ? { kind: "code", build: codeBuild } : {}) })
+    .eq("project_id", projectId);
   if (error) return failed("rollback", error.message);
   await supa.from("deployments").update({ status: "rolled_back" }).eq("project_id", projectId).eq("status", "live");
   await supa.from("deployments").insert({ project_id: projectId, env: "live", target: "architect_cloud", checkpoint_id: cp.id, status: "live", preflight: dep.preflight, url: `/live/${live.slug}` });

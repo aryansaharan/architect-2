@@ -165,7 +165,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
   const ws = useWorkspace();
   const s = agentSummary(ws.blueprint, agent);
   const sup = supervisionView(agent);
-  // Counted exactly like the publish checklist: a rehearsal that hasn't run counts as not passing.
+  // Counted exactly like the publish checklist: of the test runs played, how many pass.
   const reh = rehearsalSummary({ ...ws.blueprint, agents: [agent] });
   return (
     <div>
@@ -216,7 +216,7 @@ export function AgentPlain({ agent }: { agent: Agent }) {
         <dl className="grid grid-cols-2 gap-2">
           <Stat icon={Brain} label="Remembers" value={MEMORY_LABEL[agent.memory.scope].replace("Remembers ", "").replace("Shares memory ", "")} />
           <Stat icon={Coins} label="Cost" value={`${PRICE.helperMessage} credits a message`} />
-          <Stat icon={ShieldCheck} label={<Term k="rehearsal">Test runs</Term>} value={reh.total ? `${reh.passing} of ${reh.total} passing${reh.notRun ? ` · ${reh.notRun} not run yet` : ""}` : "None yet"} />
+          <Stat icon={ShieldCheck} label={<Term k="rehearsal">Test runs</Term>} value={reh.played ? `${reh.passing} of ${reh.played} played passing${reh.notRun ? ` · ${reh.notRun} not played yet` : ""}` : reh.total ? "Not played yet" : "None yet"} />
           <Stat icon={Gauge} label="Works on" value={s.screens.length ? s.screens.map((x) => x.title).join(", ") : "Background only"} />
         </dl>
       </Section>

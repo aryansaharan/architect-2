@@ -19,8 +19,9 @@ function withPlan<T extends { blueprint?: unknown }>(row: T): T {
   return row.blueprint ? { ...row, blueprint: withKnownFrameworks(row.blueprint as { agents?: { framework: string }[] }) } : row;
 }
 
+/** The list leaves out a code app's files and build (large); `kind` says which kind of app each one is. */
 const PROJECT_LIST_COLUMNS =
-  "id, owner_id, name, vertical, source, brief, blueprint, current_checkpoint_id, settings, build_state, is_demo, created_at, updated_at";
+  "id, owner_id, name, vertical, source, brief, blueprint, current_checkpoint_id, settings, build_state, is_demo, kind, created_at, updated_at";
 
 export async function listProjects(supa: Supa): Promise<ProjectRow[]> {
   const { data, error } = await supa.from("projects").select(PROJECT_LIST_COLUMNS).order("updated_at", { ascending: false });

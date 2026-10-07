@@ -38,5 +38,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|live/|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|pdf)$).*)"],
+  // /run/live/* is a published code app's sandbox page: public, so it needs no session. /run/p/* (the studio's test
+  // version) keeps it: the session is how the page knows it's the owner or their team.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|live/|run/live/|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|pdf)$).*)"],
 };

@@ -3,22 +3,23 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, CircleAlert, Cloud, Container, Copy, Download, ExternalLink, Globe, Loader2, Server, Undo2, X } from "lucide-react";
+import { AnimatePresence } from "motion/react";
+import { Check, ChevronRight, CircleAlert, Cloud, Container, Download, Globe, Loader2, Server } from "lucide-react";
 import type { DeploymentRow } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
-import { DUR, EASE, SPRING } from "@/lib/motion";
-import { TimeAgo } from "@/components/time-ago";
 import { accessLine, canGoLive, preflight, type PreflightCheck } from "@/lib/sim/preflight";
 import { generateFiles } from "@/lib/codegen/files";
-import { fixPreflight, goLive, publishState, rollbackTo, takeOffline, type PublishState } from "@/lib/actions/ship";
+import { fixPreflight, goLive, publishState, type PublishState } from "@/lib/actions/ship";
 import { PRICE } from "@/lib/prices";
 import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
+import { useProjectKind } from "@/components/code-apps/around-code-app";
 import { useWorkspace } from "../context";
 import { AppControls } from "./app-controls";
+import { CodeShipView } from "./code-ship-view";
+import { DeployProgress, liveAnswers, LaunchMoment, LiveLink, PublishedVersions, versionHistory } from "./published";
 import { useOrigin } from "./use-origin";
 
 type Target = DeploymentRow["target"];
@@ -35,7 +36,8 @@ const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a
 /** A name as a URL-safe slug: "Claims Desk" → "claims-desk". */
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
-const STEPS = ["Packaging the current version", "Getting a server ready", "Setting up the database, with each row private to its owner", "Registering AI helpers and their ask-first steps", "Warming up", "Checking the live link answers"];
+// Two real steps: publish this version, then load the live link to check it answers.
+const STEPS = ["Publishing this version", "Checking the live link answers"];
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -62,55 +64,18 @@ function attentionLine(c: PreflightCheck, bp: ReturnType<typeof useWorkspace>["b
 }
 
 /** Short, one-click fix labels. The build fix gets its own label (it may start, resume or only show the build). */
-const FIX_LABEL: Record<string, string> = { enable_auth: "Turn on sign-in", gate_irreversible: "Make them ask first", sandbox_keys: "Add keys", set_budget: "Set a 500-credit cap", run_rehearsals: "Run them" };
+const FIX_LABEL: Record<string, string> = { enable_auth: "Turn on sign-in", gate_irreversible: "Make them ask first", sandbox_keys: "Add keys", set_budget: "Set a 500-credit cap", run_rehearsals: "Play them with Claude" };
 
 /** Which must-fix comes first (and gets the one filled button): nothing else matters until it's built, then who can see the data. */
 const blockerRank = (c: PreflightCheck) => (c.fix?.action === "build_first" ? 0 : ({ signin: 1, permissions: 2, budget: 3, rehearsals: 4 } as Record<string, number>)[c.id] ?? 5);
 
-type HistoryRow = { d: DeploymentRow; title: string; status: string; rollBackTo: number | null };
-const TARGET_NAME: Record<Target, string> = { architect_cloud: "", vercel: "Vercel (sandbox)", vpc: "Your VPC (sandbox)" };
 
-/**
- * Published versions as plain history, newest first: "Version 6 · Change the brand colour to teal" when
- * a version was published, "Rolled back to version 4" when an older one was put back. Publishing always
- * puts the project's newest version live, so a row that put up an older version than the row before it
- * was a rollback. Each older version shown gets one "Roll back to this", on the latest row that names it
- * ("Version 4 · …" rather than "Rolled back to version 4" when both are shown).
- */
-function versionHistory(deployments: DeploymentRow[], checkpoints: { id: string; seq: number; label: string }[], liveCheckpointId: string | null, limit: number): HistoryRow[] {
-  const byId = new Map(checkpoints.map((c) => [c.id, c]));
-  const seqOf = (d: DeploymentRow) => (d.checkpoint_id ? byId.get(d.checkpoint_id)?.seq ?? null : null);
-  const liveSeq = liveCheckpointId ? byId.get(liveCheckpointId)?.seq ?? null : null;
-  const cloud = deployments.filter((d) => d.target === "architect_cloud");
-  const rollback = new Set<string>();
-  // Oldest first, so each row is compared with the one it replaced.
-  [...cloud].reverse().forEach((d, i, rows) => {
-    const seq = seqOf(d);
-    const before = i > 0 ? seqOf(rows[i - 1]) : null;
-    if (seq !== null && before !== null && seq < before) rollback.add(d.id);
-  });
-  const shown = deployments.slice(0, limit);
-  const olderThanLive = (d: DeploymentRow) => {
-    const seq = seqOf(d);
-    return d.target === "architect_cloud" && d.status !== "live" && seq !== null && liveSeq !== null && seq < liveSeq;
-  };
-  // The row that offers each older version: its latest publish row shown, else its latest row shown.
-  const offer = new Map<string, string>();
-  for (const d of shown) if (olderThanLive(d) && !rollback.has(d.id) && !offer.has(d.checkpoint_id!)) offer.set(d.checkpoint_id!, d.id);
-  for (const d of shown) if (olderThanLive(d) && !offer.has(d.checkpoint_id!)) offer.set(d.checkpoint_id!, d.id);
-  return shown.map((d) => {
-    const seq = seqOf(d);
-    const cp = d.checkpoint_id ? byId.get(d.checkpoint_id) : undefined;
-    // Older rows were labelled "Published" or "Went live" when publishing made a copy; those say nothing about the version.
-    const what = cp && !/^(Published|Went live)$/.test(cp.label) ? ` · ${cp.label}` : "";
-    const title = seq === null ? "A saved version" : rollback.has(d.id) ? `Rolled back to version ${seq}` : `Version ${seq}${what}`;
-    const takenOffline = !liveCheckpointId && d.status !== "sandbox" && d.id === cloud[0]?.id;
-    const status = d.status === "live" ? "Live now" : d.status === "sandbox" ? "Prepared" : takenOffline ? "Taken offline" : "Replaced";
-    return { d, title, status, rollBackTo: d.checkpoint_id && offer.get(d.checkpoint_id) === d.id ? seq : null };
-  });
+/** Publish: a code app (real files, a real build) has its own checks; a business app keeps these. */
+export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
+  return useProjectKind() === "code" ? <CodeShipView deployments={deployments} /> : <BusinessShipView deployments={deployments} />;
 }
 
-export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
+function BusinessShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
   const bp = ws.blueprint;
@@ -138,7 +103,6 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   const [target, setTarget] = useState<Target>("architect_cloud");
   const [domain, setDomain] = useState("");
   const [domainTouched, setDomainTouched] = useState(false);
-  const [confirmOffline, setConfirmOffline] = useState(false);
   const [deploying, setDeploying] = useState<number | null>(null);
   const [pending, start] = useTransition();
   const [launched, setLaunched] = useState<string | null>(null);
@@ -152,7 +116,6 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   // Suggest a domain that fits this project, not someone else's.
   const exampleDomain = `app.${slugify(ws.project.name) || "yourcompany"}.com`;
   const origin = useOrigin();
-  const liveUrl = ws.liveSlug ? `${origin}/live/${ws.liveSlug}` : "";
   const isLive = Boolean(live && ws.liveSlug);
   const liveVersion = live?.checkpoint_id ? ws.checkpoints.find((c) => c.id === live.checkpoint_id)?.seq ?? null : null;
   const history = useMemo(() => versionHistory(deployments, ws.checkpoints, isLive ? live?.checkpoint_id ?? null : null, 6), [deployments, ws.checkpoints, isLive, live]);
@@ -177,7 +140,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   // The build fix: start the build (or pick up one that was interrupted) right here, then show it running on the plan.
   const buildRunning = ws.build.mode === "build" && (ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing");
   const interrupted = ws.project.buildState === "building" && !buildRunning;
-  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build" : "Make it real · free";
+  const buildLabel = buildRunning ? "Watch the build" : interrupted ? "Resume the build" : "Make it real";
   const buildDetail = buildRunning ? "Building now. Test runs happen near the end of the build." : interrupted ? "The build was interrupted before its test runs. Resume it to finish them." : null;
 
   const [fixing, setFixing] = useState<Parameters<typeof fixPreflight>[1] | null>(null);
@@ -190,26 +153,29 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
   };
   const runFix = async (action: Parameters<typeof fixPreflight>[1]) => {
     if (action === "build_first") {
-      // Start or resume it here (free), then watch it on the plan.
-      if (!buildRunning && !(await ws.build.start())) return;
-      router.push(`/p/${ws.project.id}/blueprint`);
+      // Make it real on the Sheet, where its price (and the choice to play the test runs) is shown first.
+      router.push(`/p/${ws.project.id}`);
       return;
     }
     const r = await fixPreflight(ws.project.id, action);
-    if (r.ok) toast.success("Fixed", { description: "Free · saved as a new version" });
+    if (r.ok) toast.success(r.message ?? "Fixed", r.message ? undefined : { description: "Free · saved as a new version" });
     else toast.error(r.error);
     router.refresh();
   };
 
   async function deploy() {
-    for (let i = 0; i < STEPS.length; i++) {
-      setDeploying(i);
-      if (i === 0) setTimeout(() => document.getElementById("deploy-progress")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
-      await new Promise((r) => setTimeout(r, 650 + (i % 2) * 250));
+    setDeploying(0);
+    setTimeout(() => document.getElementById("deploy-progress")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+    const r = await goLive(ws.project.id, target, host || undefined).catch(() => ({ ok: false as const, error: "That didn't go through. Nothing changed on the live link. Try again in a moment." }));
+    if (!r.ok) {
+      setDeploying(null);
+      return void toast.error(r.error);
     }
-    const r = await goLive(ws.project.id, target, host || undefined);
+    if (target === "architect_cloud") {
+      setDeploying(1);
+      if (!(await liveAnswers(r.slug ?? ws.liveSlug ?? ""))) toast.error("It's published, but the live link didn't answer yet. Open it again in a moment.");
+    }
     setDeploying(null);
-    if (!r.ok) return void toast.error(r.error);
     // What's live is the project as it is now, until the next change.
     if (target === "architect_cloud") setState((s) => (typeof s === "object" ? { ...s, unchanged: true } : s));
     if (target === "architect_cloud") setLaunched(r.slug ?? ws.liveSlug ?? "");
@@ -227,12 +193,6 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
       downloadBlob(new Blob([text], { type: "text/plain" }), `${slug}.txt`);
     }
   }
-
-  const copyLink = () => {
-    const url = `${window.location.origin}/live/${ws.liveSlug}`;
-    void navigator.clipboard.writeText(url);
-    toast.success("Link copied", { description: url });
-  };
 
   const publishLabel = isLive && target === "architect_cloud" ? "Publish changes" : "Publish";
   const canPublish = ready && domainValid && deploying === null && !unchanged;
@@ -273,25 +233,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
         </p>
 
         {/* The live link, big and easy to copy. */}
-        {isLive && live && (
-          <section aria-label="Live link" className="panel mt-6 rounded-md p-4 sm:p-5">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Pill tone="ok" dot size="md">Live now</Pill>
-              <span className="text-ui text-muted-foreground">
-                {liveVersion !== null ? `Version ${liveVersion} · ` : ""}published <TimeAgo iso={live.created_at} />
-              </span>
-            </div>
-            {/* Who can use it, from what the live app makes public. */}
-            <p className="mt-2 text-ui text-muted-foreground">{access}</p>
-            {/* A copy field: the whole link on one line, cut short with an ellipsis if it doesn't fit, never broken mid-word. */}
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-hairline bg-canvas p-1.5 pl-3">
-              <code className="min-w-0 flex-1 truncate font-mono text-code text-foreground" title={liveUrl || undefined}>{liveUrl || `/live/${ws.liveSlug}`}</code>
-              {/* Filled only when there's nothing to fix or publish: then sharing the link is what's left to do. */}
-              <Button size="sm" variant={canPublish || primaryFix ? "outline" : "default"} className="shrink-0" onClick={copyLink}><Copy /> Copy link</Button>
-            </div>
-            <Button asChild variant="outline" size="sm" className="mt-3"><a href={liveUrl || `/live/${ws.liveSlug}`} target="_blank" rel="noreferrer">Open it <ExternalLink /></a></Button>
-          </section>
-        )}
+        {isLive && live && <LiveLink live={live} liveVersion={liveVersion} access={access} quiet={Boolean(canPublish || primaryFix)} />}
 
         {/* Only what needs attention. Everything that already passes is folded away. */}
         <section aria-labelledby="attention" className="mt-8">
@@ -362,103 +304,13 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           {target === "vpc" && <Button size="lg" variant="outline" onClick={downloadBundle}><Download /> Download bundle</Button>}
           <p className="text-ui text-muted-foreground">{publishHint}</p>
         </div>
-        <AnimatePresence>
-          {deploying !== null && (
-            <motion.div
-              id="deploy-progress"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              transition={{ duration: DUR.panel, ease: EASE }}
-              className="panel mt-4 overflow-hidden rounded-md"
-            >
-              <div className="h-1 bg-deep">
-                <motion.div className="h-full bg-brand" animate={{ width: `${Math.round(((deploying + 0.5) / STEPS.length) * 100)}%` }} transition={{ duration: DUR.page, ease: EASE }} />
-              </div>
-              <ol className="p-3 text-ui" aria-live="polite">
-                {STEPS.map((s, i) => (
-                  <li key={s} className={cn("flex items-center gap-2 py-0.5 transition-colors duration-250 ease-paper", i > deploying ? "text-faint" : i === deploying ? "text-foreground" : "text-muted-foreground")}>
-                    {i < deploying ? <Check className="size-3.5 text-ok" /> : i === deploying ? <Loader2 className="size-3.5 animate-spin text-brand" /> : <span className="size-3.5" />}
-                    <span>{s}</span>
-                  </li>
-                ))}
-              </ol>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <DeployProgress steps={STEPS} at={deploying} />
 
         {/* The owner's controls for the published app: people, what's public, AI helpers for visitors, sample data. */}
         <AppControls />
 
         {/* After publishing: versions, rollback, and the way offline. */}
-        {deployments.length > 0 && (
-          <section aria-labelledby="versions" className="mt-10">
-            <h3 id="versions" className="font-pencil text-section">Versions</h3>
-            <ul className="panel mt-3 divide-y divide-hairline rounded-md">
-              {history.map(({ d, title, status, rollBackTo }) => (
-                <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-ui">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-ui font-medium">{title}</span>
-                    <span className="block text-meta text-muted-foreground">
-                      {status}
-                      {TARGET_NAME[d.target] && ` · ${TARGET_NAME[d.target]}`} · <TimeAgo iso={d.created_at} />
-                    </span>
-                  </span>
-                  {d.status === "live" && <Pill tone="ok" dot>Live</Pill>}
-                  {rollBackTo !== null && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      aria-label={`Roll back to this, version ${rollBackTo}`}
-                      onClick={() =>
-                        start(async () => {
-                          const r = await rollbackTo(ws.project.id, d.id);
-                          if (r.ok) toast.success(`Rolled back to version ${rollBackTo}`, { description: "Instant and free. Your test version is unchanged." });
-                          else toast.error(r.error);
-                          router.refresh();
-                        })
-                      }
-                    >
-                      <Undo2 /> Roll back to this
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {live && (
-              <div className="mt-3">
-                {confirmOffline ? (
-                  <div role="group" aria-label="Confirm taking the live version offline" className="panel rounded-md p-4">
-                    <p className="text-ui">Take it offline? The link will show “not found” until you publish again. Your project and its versions stay as they are.</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() =>
-                          start(async () => {
-                            const r = await takeOffline(ws.project.id);
-                            if (r.ok) toast.success("Taken offline", { description: "Publish again any time from here." });
-                            else toast.error(r.error);
-                            setConfirmOffline(false);
-                            router.refresh();
-                          })
-                        }
-                      >
-                        {pending ? <Loader2 className="animate-spin" /> : null} Take it offline
-                      </Button>
-                      <Button variant="ghost" disabled={pending} autoFocus onClick={() => setConfirmOffline(false)}>Keep it live</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <button className="text-ui text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors duration-150 hover:text-foreground" disabled={pending} onClick={() => setConfirmOffline(true)}>
-                    Take it offline…
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-        )}
+        <PublishedVersions deployments={deployments} history={history} live={live} pending={pending} start={start} />
 
         {/* Where it runs, a custom domain and what it costs: for the people who want them. */}
         <details className="group mt-10 border-t border-hairline pt-5">
@@ -532,52 +384,7 @@ export function ShipView({ deployments }: { deployments: DeploymentRow[] }) {
           </div>
         </details>
       </div>
-      <AnimatePresence>{launched !== null && <LaunchMoment slug={launched} origin={origin} name={bp.meta.name} onClose={() => setLaunched(null)} />}</AnimatePresence>
+      <AnimatePresence>{launched !== null && <LaunchMoment slug={launched} origin={origin} note={`${bp.meta.name} is online now. AI helpers keep the permissions and spending cap you set, and rolling back is one click.`} onClose={() => setLaunched(null)} />}</AnimatePresence>
     </div>
-  );
-}
-
-/** Going live gets a quiet moment: the link, how to share it, and the way back. */
-function LaunchMoment({ slug, origin, name, onClose }: { slug: string; origin: string; name: string; onClose: () => void }) {
-  const url = `${origin}/live/${slug}`;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 p-4 sm:p-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.2 } }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <motion.div
-        role="dialog"
-        aria-modal="true"
-        aria-label="You're live"
-        // Put down on the page once: it drops in a touch askew and settles straight.
-        initial={{ opacity: 0, y: -12, rotate: -2 }}
-        animate={{ opacity: 1, y: 0, rotate: 0 }}
-        exit={{ opacity: 0, y: 6, transition: { duration: DUR.hover, ease: EASE } }}
-        transition={{ ...SPRING, opacity: { duration: DUR.panel, ease: EASE } }}
-        className="panel-raised relative w-full min-w-0 max-w-[520px] rounded-lg px-5 pb-7 pt-9 text-center sm:px-8"
-      >
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X /></Button>
-        <p className="font-pencil text-title">It&apos;s live.</p>
-        <p className="mt-3 text-body text-muted-foreground">{name} is online now. AI helpers keep the permissions and spending cap you set, and rolling back is one click.</p>
-        <div className="mt-6 flex items-center gap-2 rounded-md border border-hairline bg-canvas p-1.5 pl-3">
-          <code className="min-w-0 flex-1 truncate text-left font-mono text-code">{url}</code>
-          <Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(url); toast.success("Link copied"); }}><Copy /> Copy</Button>
-        </div>
-        <div className="mt-4 flex justify-center gap-2">
-          <Button variant="ghost" size="lg" onClick={onClose}>Back to Publish</Button>
-          <Button asChild size="lg">
-            <a href={url} target="_blank" rel="noreferrer">Open it <ExternalLink /></a>
-          </Button>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }

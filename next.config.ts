@@ -27,8 +27,15 @@ const csp = [
   "object-src 'none'",
 ].join("; ");
 
+/** Routes that run esbuild (real builds of business apps and code apps, and a code app's rollback, which rebuilds it). */
+const ESBUILD_ROUTES = ["/api/build/**", "/api/code-apps/**", "/api/plan", "/p/**"];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // esbuild runs its own native binary, so it is required at run time rather than bundled.
+  serverExternalPackages: ["esbuild"],
+  // The binary sits in a platform package (@esbuild/linux-x64 on Vercel) that esbuild finds at run time, out of the tracer's sight.
+  outputFileTracingIncludes: Object.fromEntries(ESBUILD_ROUTES.map((r) => [r, ["./node_modules/esbuild/**/*", "./node_modules/@esbuild/**/*"]])),
   // Browsers ask for /favicon.ico on their own; the icon is app/icon.svg.
   async redirects() {
     return [{ source: "/favicon.ico", destination: "/icon.svg", permanent: true }];
@@ -37,7 +44,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        // Everything but /run: a code app's sandbox pages send their own, stricter policy (lib/code-apps/sandbox-html.ts).
+        source: "/:path((?!run/).*)",
         headers: [
           { key: "Content-Security-Policy", value: csp },
           { key: "X-Content-Type-Options", value: "nosniff" },

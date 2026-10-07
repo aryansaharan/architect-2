@@ -7,9 +7,10 @@ import { Pill } from "@/components/ui/pill";
 import type { CreditMeter } from "@/lib/prices";
 import { Greeting } from "./greeting";
 import { HomeComposer } from "./home-composer";
+import { withKinds } from "./kinds";
 import { ProjectCard, type HomeProject } from "./project-card";
 
-export function HomeView({
+export async function HomeView({
   user,
   projects,
   credits,
@@ -22,6 +23,8 @@ export function HomeView({
   capMessage?: string | null;
 }) {
   const first = user.name.split(" ")[0];
+  // Which are code apps (and what each is), when the page didn't say.
+  const cards = await withKinds(projects);
   return (
     <div className="min-h-screen">
       <AppHeader current="/home" user={user} credits={credits} />
@@ -65,7 +68,7 @@ export function HomeView({
             // The cards are laid down one after another on the first visit of the session; after that they're simply there.
             <EntryOnce id="home-cards">
               <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((p, i) => (
+                {cards.map((p, i) => (
                   <li key={p.id} className={motion.cardIn} style={{ "--entry-i": i } as React.CSSProperties}>
                     <ProjectCard p={p} seed={i + 1} />
                   </li>

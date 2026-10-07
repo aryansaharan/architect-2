@@ -176,9 +176,9 @@ export function RealApp({ justBuilt }: { justBuilt: boolean }) {
         <li><span className="font-sans text-body tabular-nums text-faint">2.</span> Point at anything you&apos;d change and write a note</li>
         <li><span className="font-sans text-body tabular-nums text-faint">3.</span> Publish. We check a few things first.</li>
       </ol>
-      {ws.project.buildState === "built" && (
+      {ws.project.buildState === "built" && ws.build.canReplay && (
         <button type="button" onClick={() => void ws.build.start({ replay: true })} className="mt-2 inline-flex items-center gap-1.5 rounded-sm text-meta text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground">
-          <Play className="size-3" aria-hidden /> Watch it being made again · free
+          <Play className="size-3" aria-hidden /> Watch how it was made again · free
         </button>
       )}
 

@@ -19,7 +19,7 @@ export function estimate(bp: Blueprint, fileCount?: number): Estimate {
     9 + bp.screens.length + 5 * bp.agents.length + bp.entities.length;
   const complexity = bp.screens.length + bp.agents.length * 2 + bp.connections.length;
   return {
-    // A real build in production. Never shown bare: buildTimeLabel pairs it with the simulated playback's length.
+    // A rough size, in minutes of work. How long making it real takes is buildTimeLabel (seconds plus its test runs).
     minutes: Math.max(2, Math.ceil(credits / 4)),
     credits,
     files,
@@ -35,12 +35,8 @@ export function estimateChange(r: { screens: number; agents: number; files: numb
   return { credits, minutes: Math.max(1, Math.ceil(credits / 5)) };
 }
 
-/**
- * Honest time labels. `minutes` is what a real build or change of this size takes in production. This demo
- * doesn't run one: the build is a simulated playback and a change applies at once. Every place a time shows
- * says both, each for what it is, e.g. "about 27 min for a real build · about 30 s here (simulated)".
- */
-export function simulatedDuration(ms: number): string {
+/** A duration in words: "8 s", "45 s", "1 min 20 s". */
+export function durationWords(ms: number): string {
   const s = Math.max(1, Math.round(ms / 1000));
   if (s < 60) return `${s < 15 ? s : Math.round(s / 5) * 5} s`;
   const m = Math.floor(s / 60);
@@ -50,10 +46,14 @@ export function simulatedDuration(ms: number): string {
 
 export type TimeLabel = { real: string; here: string; label: string };
 
-/** A full build: the production estimate plus the length of this demo's simulated playback at normal speed. */
-export function buildTimeLabel(minutes: number, simulatedMs: number): TimeLabel {
-  const real = `about ${minutes} min for a real build`;
-  const here = `about ${simulatedDuration(simulatedMs)} here (simulated)`;
+/**
+ * How long making it real takes, honestly: a few seconds to check the plan and compile the code, plus the
+ * test runs Claude plays (three at a time, about 20 s a round). `runs` is 0 when they're skipped.
+ */
+export function buildTimeLabel(runs: number): TimeLabel {
+  const ms = 5000 + Math.ceil(runs / 3) * 20_000;
+  const real = runs ? `about ${durationWords(ms)}` : "a few seconds";
+  const here = runs ? `${runs} test run${runs === 1 ? "" : "s"} played by Claude` : "no test runs";
   return { real, here, label: `${real} · ${here}` };
 }
 

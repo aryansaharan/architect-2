@@ -22,6 +22,7 @@ import { restoreCheckpoint } from "@/lib/actions/checkpoints";
 import { signOut } from "@/lib/actions/auth";
 import type { CreditMeter } from "@/lib/prices";
 import type { CheckpointMeta } from "@/lib/db/types";
+import { codeStage, useLastRun, useProjectKind, useRunWatcher } from "@/components/code-apps/around-code-app";
 import { useWorkspace } from "./context";
 import { projectSection } from "./rail-pref";
 import { undoTo } from "./undo";
@@ -40,6 +41,15 @@ const HOOD = [
   { section: "code", label: "Code and GitHub", icon: Code2, key: "C", hint: "Every file it wrote, changes, GitHub" },
   { section: "handoffs", label: "Handoffs", icon: Inbox, key: "H", hint: "What you've asked teammates" },
 ] as const;
+
+/**
+ * A code app (real files Claude writes) has no AI helpers, plan map, point-and-tweak preview or handoffs:
+ * its places are the Sheet, Publish and its code.
+ */
+const CODE_TABS = new Set(["", "ship"]);
+const CODE_HOOD: Partial<Record<(typeof HOOD)[number]["section"], { label: string; hint: string }>> = {
+  code: { label: "Code", hint: "Every file Claude wrote, what changed between versions, and a download that runs anywhere" },
+};
 
 const hrefFor = (base: string, section: string) => (section ? `${base}/${section}` : base);
 
@@ -65,6 +75,10 @@ export function TopBar() {
   const pathname = usePathname();
   const base = `/p/${ws.project.id}`;
   const section = projectSection(pathname, ws.project.id);
+  const code = useProjectKind() === "code";
+  // Remember how the code app's latest build last ran in the studio's sandbox (the status and Publish read it).
+  useRunWatcher(ws.project.id, code);
+  const tabs = code ? TABS.filter((t) => CODE_TABS.has(t.section)) : TABS;
 
   return (
     <header className="relative z-30 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-hairline bg-canvas px-2.5 pt-1.5 md:h-12 md:flex-nowrap md:pt-0">
@@ -78,12 +92,12 @@ export function TopBar() {
         <h1 className="min-w-0 truncate pb-0.5 font-pencil text-note leading-none text-foreground" title={ws.project.name}>
           {ws.project.name}
         </h1>
-        <ProjectStatus />
+        {code ? <CodeProjectStatus /> : <ProjectStatus />}
         {ws.project.isDemo && <span className="hidden shrink-0 text-meta text-faint 2xl:inline">Demo project</span>}
       </div>
 
       <nav aria-label="Project" className="flex items-center gap-0.5 max-md:order-last max-md:-mx-1 max-md:w-full max-md:justify-between">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Tooltip key={t.label}>
             <TooltipTrigger asChild>
               <Link
@@ -105,13 +119,13 @@ export function TopBar() {
             </TooltipContent>
           </Tooltip>
         ))}
-        <UnderTheHood base={base} section={section} />
+        <UnderTheHood base={base} section={section} code={code} />
       </nav>
 
       <div className="flex items-center justify-end gap-1 max-md:ml-auto md:flex-1">
         <Versions />
         <Credits />
-        <ShareMenu />
+        <ShareMenu code={code} />
         <UserMenu />
       </div>
     </header>
@@ -160,10 +174,28 @@ function ProjectStatus() {
   );
 }
 
-/** Plan map, Preview and tweak, Code and GitHub, Handoffs: one menu away, with the open handoffs counted inside. */
-function UnderTheHood({ base, section }: { base: string; section: string }) {
+/**
+ * A code app's status, in the same words: Sketch (written, not built yet, or it stops with an error),
+ * Real (built, and it started in the studio), Published.
+ */
+function CodeProjectStatus() {
   const ws = useWorkspace();
-  const here = HOOD.find((h) => h.section === section);
+  const run = useLastRun(ws.project.id, ws.codeBuild?.hash);
+  const state = codeStage(ws.codeBuild, run, Boolean(ws.liveSlug));
+  const s = STATUS[state];
+  return (
+    <Pill size="md" tone={s.tone} dot={state === "published"} className={s.cls}>
+      <span className="sr-only">Status: </span>
+      {s.label}
+    </Pill>
+  );
+}
+
+/** Plan map, Preview and tweak, Code and GitHub, Handoffs: one menu away, with the open handoffs counted inside. A code app keeps only its code. */
+function UnderTheHood({ base, section, code }: { base: string; section: string; code: boolean }) {
+  const ws = useWorkspace();
+  const entries = code ? HOOD.filter((h) => CODE_HOOD[h.section]).map((h) => ({ ...h, ...CODE_HOOD[h.section] })) : HOOD;
+  const here = entries.find((h) => h.section === section);
   const openHandoffs = ws.handoffs.filter((h) => h.status !== "resolved").length;
   return (
     <DropdownMenu>
@@ -183,7 +215,7 @@ function UnderTheHood({ base, section }: { base: string; section: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" className="w-[min(20rem,calc(100vw-1rem))]">
         <DropdownMenuLabel className="text-meta font-normal text-muted-foreground">For a closer look. You never need these to make or publish your app.</DropdownMenuLabel>
-        {HOOD.map((h) => {
+        {entries.map((h) => {
           const current = h.section === section;
           return (
             <DropdownMenuItem key={h.section} asChild>
@@ -401,8 +433,8 @@ function Credits() {
   );
 }
 
-/** Share: the live link (once published), inviting people, and handing it to an engineer. */
-function ShareMenu() {
+/** Share: the live link (once published), inviting people, and handing it to an engineer (business apps; a code app has no handoffs). */
+function ShareMenu({ code }: { code: boolean }) {
   const ws = useWorkspace();
   const base = `/p/${ws.project.id}`;
   // Items that open a dialog keep focus there instead of handing it back to this trigger.
@@ -459,21 +491,25 @@ function ShareMenu() {
             </span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="items-start"
-          onSelect={() => {
-            openingDialog.current = true;
-            const target = ws.selected;
-            requestAnimationFrame(() => ws.openHandoff(target));
-          }}
-        >
-          <UsersRound className="mt-0.5" />
-          <span className="min-w-0">
-            <span className="block">Ask a teammate</span>
-            <span className="block text-meta text-muted-foreground">Hand it to an engineer with everything they need</span>
-          </span>
-        </DropdownMenuItem>
+        {!code && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="items-start"
+              onSelect={() => {
+                openingDialog.current = true;
+                const target = ws.selected;
+                requestAnimationFrame(() => ws.openHandoff(target));
+              }}
+            >
+              <UsersRound className="mt-0.5" />
+              <span className="min-w-0">
+                <span className="block">Ask a teammate</span>
+                <span className="block text-meta text-muted-foreground">Hand it to an engineer with everything they need</span>
+              </span>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -22,83 +22,13 @@ import { TimeAgo } from "@/components/time-ago";
 import { connectGitHub, pullFromGitHub } from "@/lib/actions/github";
 import { downloadBlob, zip } from "@/lib/zip";
 import { cn } from "@/lib/utils";
+import { useProjectKind } from "@/components/code-apps/around-code-app";
 import { useWorkspace } from "../context";
-
-type Tree = { name: string; path: string; children?: Tree[] };
+import { CodeAppBrowser } from "./code-app-browser";
+import { buildTree, DiffIndex, DiffSections, langOf, TreeView, VersionPicker, versionName } from "./shared";
 
 /** Same slug the GitHub connection uses for the repo name, so folder, zip and repo all match. */
 const projectSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
-
-function buildTree(paths: string[]): Tree[] {
-  const root: Tree = { name: "", path: "", children: [] };
-  for (const full of paths) {
-    const parts = full.split("/");
-    let node = root;
-    parts.forEach((p, i) => {
-      const path = parts.slice(0, i + 1).join("/");
-      if (i === parts.length - 1) node.children!.push({ name: p, path });
-      else {
-        let next = node.children!.find((c) => c.path === path && c.children);
-        if (!next) {
-          next = { name: p, path, children: [] };
-          node.children!.push(next);
-        }
-        node = next;
-      }
-    });
-  }
-  const sort = (n: Tree[]): Tree[] => n.sort((a, b) => (a.children && !b.children ? -1 : !a.children && b.children ? 1 : a.name.localeCompare(b.name))).map((x) => (x.children ? { ...x, children: sort(x.children) } : x));
-  return sort(root.children!);
-}
-
-const EXT_LANG: Record<string, GeneratedFile["lang"]> = { ts: "ts", tsx: "tsx", js: "ts", jsx: "tsx", mjs: "ts", cjs: "ts", py: "py", yml: "yaml", yaml: "yaml", md: "md", mdx: "md", json: "json", sql: "sql", sh: "sh", toml: "toml" };
-function langOf(path: string): GeneratedFile["lang"] {
-  const base = path.split("/").pop() ?? "";
-  if (/^\.env/.test(base)) return "env";
-  return EXT_LANG[base.split(".").pop()?.toLowerCase() ?? ""] ?? "txt";
-}
-
-/** Diff lines: additions in the success green, removals in faint ink. Blue and green keep their access meanings. */
-const DIFF = {
-  add: "border-ok bg-brand-soft text-foreground",
-  del: "border-foreground/30 bg-foreground/[0.04] text-muted-foreground",
-  same: "border-transparent text-foreground/70",
-};
-const DIFF_DOT = { added: "bg-ok", removed: "bg-foreground/30", modified: "bg-muted-foreground" } as const;
-
-/** A version's name as the Versions menu writes it. */
-const versionName = (label: string) => label.replace(/^Went live$/, "Published").replace(/^Restored #(\d+) · /, "Restored version $1 · ");
-
-/**
- * Which version to compare: a small choice when there are two to four (one tab stop, arrow keys move),
- * a list drawn like the inputs when there are more.
- */
-function VersionPicker({ which, value, onChange, compact, className }: { which: "from" | "to"; value: string; onChange: (id: string) => void; compact?: boolean; className?: string }) {
-  const ws = useWorkspace();
-  const list = ws.checkpoints;
-  const title = which === "from" ? "From" : "To";
-  if (list.length >= 2 && list.length <= 4) {
-    const options = [...list].sort((a, b) => a.seq - b.seq).map((c) => ({
-      value: c.id,
-      title: `Version ${c.seq} · ${versionName(c.label)}`,
-      label: compact ? <><span className="sr-only">Version </span>v{c.seq}</> : <span className="min-w-0 truncate">Version {c.seq} · {versionName(c.label)}</span>,
-    }));
-    return (
-      <div className={cn(compact ? "flex items-center gap-2" : "", className)}>
-        <p className={cn("text-meta font-medium text-muted-foreground", !compact && "mb-1")}>{title}</p>
-        <Segmented ariaLabel={`${title} version`} value={value} onChange={onChange} options={options} className={cn(!compact && "flex w-full flex-col items-stretch [&>button]:justify-start [&>button]:overflow-hidden")} />
-      </div>
-    );
-  }
-  return (
-    <label className={cn("block", compact && "flex min-w-0 flex-1 items-center gap-2", className)}>
-      <span className="text-meta font-medium text-muted-foreground">{title}</span>
-      <NativeSelect aria-label={`${title} version`} value={value} onChange={(e) => onChange(e.target.value)} className={cn(!compact && "mt-1")}>
-        {list.map((c) => <option key={c.id} value={c.id}>Version {c.seq} · {versionName(c.label)}</option>)}
-      </NativeSelect>
-    </label>
-  );
-}
 
 type RepoFile = { status: "ok"; content: string } | { status: "binary" | "error" };
 
@@ -133,7 +63,15 @@ function useRepoSnapshot(projectId: string, enabled: boolean) {
   return snap;
 }
 
-export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: CheckpointMeta; blueprint: Blueprint } | null; to: { meta: CheckpointMeta; blueprint: Blueprint } | null }; workOrders: WorkOrderRow[] }) {
+type Compare = { from: { meta: CheckpointMeta; blueprint: Blueprint } | null; to: { meta: CheckpointMeta; blueprint: Blueprint } | null };
+
+/** The Code tab: a code app's real files, or the files a business app's plan generates. */
+export function CodeBrowser({ compare, workOrders }: { compare: Compare; workOrders: WorkOrderRow[] }) {
+  if (useProjectKind() === "code") return <CodeAppBrowser fromId={compare.from?.meta.id ?? null} toId={compare.to?.meta.id ?? null} />;
+  return <BusinessCodeBrowser compare={compare} workOrders={workOrders} />;
+}
+
+function BusinessCodeBrowser({ compare, workOrders }: { compare: Compare; workOrders: WorkOrderRow[] }) {
   const ws = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
@@ -256,19 +194,7 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
             {pr && <p className="mb-3 text-meta text-muted-foreground">Changes to PR #{pr.number} between versions. Your repo&apos;s own files never appear here.</p>}
             <VersionPicker which="from" value={compare.from?.meta.id ?? ""} onChange={(id) => setCompare("from", id)} />
             <VersionPicker which="to" value={compare.to?.meta.id ?? ""} onChange={(id) => setCompare("to", id)} className="mt-3" />
-            <ul className="mt-4 space-y-0.5">
-              {diffs.map((d) => (
-                <li key={d.path}>
-                  <a href={`#diff-${d.path}`} className="flex items-center gap-2 rounded-sm px-2 py-1 text-badge transition-colors duration-150 hover:bg-raised">
-                    <span className={cn("size-1.5 shrink-0 rounded-full", DIFF_DOT[d.status as keyof typeof DIFF_DOT] ?? DIFF_DOT.modified)} title={d.status} />
-                    <span className="min-w-0 flex-1 truncate font-mono">{d.path}</span>
-                    <span className="tabular-nums text-ok">+{d.additions}</span>
-                    <span className="tabular-nums text-muted-foreground">−{d.deletions}</span>
-                  </a>
-                </li>
-              ))}
-              {diffs.length === 0 && <li className="px-2 py-4 text-center text-meta text-muted-foreground">No differences between these versions.</li>}
-            </ul>
+            <DiffIndex diffs={diffs} />
           </div>
         )}
       </div>
@@ -357,27 +283,7 @@ export function CodeBrowser({ compare, workOrders }: { compare: { from: { meta: 
                 Version {compare.from.meta.seq} “{versionName(compare.from.meta.label)}” → version {compare.to.meta.seq} “{versionName(compare.to.meta.label)}” · {diffs.length} file{diffs.length === 1 ? "" : "s"} changed{pr ? ` in PR #${pr.number}` : ""}
               </p>
             )}
-            <div className="space-y-4">
-              {diffs.map((d) => (
-                <section key={d.path} id={`diff-${d.path}`} className="overflow-hidden rounded-md border border-hairline">
-                  <header className="flex items-center gap-2 border-b border-hairline bg-panel px-3 py-2 text-badge">
-                    <span className="truncate font-mono">{d.path}</span>
-                    <span className="ml-auto tabular-nums text-ok">+{d.additions}</span>
-                    <span className="tabular-nums text-muted-foreground">−{d.deletions}</span>
-                  </header>
-                  <div className="code-face overflow-x-auto py-1 text-code">
-                    {d.hunks.map((h, hi) => (
-                      <div key={hi}>
-                        <div className="bg-deep px-3 py-0.5 text-muted-foreground">{h.header}</div>
-                        {h.lines.map((l, li) => (
-                          <div key={li} className={cn("whitespace-pre border-l-2 px-3", l.startsWith("+") ? DIFF.add : l.startsWith("-") ? DIFF.del : DIFF.same)}>{l || " "}</div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+            <DiffSections diffs={diffs} />
           </div>
         )}
       </div>
@@ -425,31 +331,6 @@ function HeldBack({ pr }: { pr: ImportPullRequest }) {
         </ul>
       )}
     </div>
-  );
-}
-
-function TreeView({ nodes, depth, active, onOpen, openDirs, toggle }: { nodes: Tree[]; depth: number; active: string; onOpen: (p: string) => void; openDirs: Set<string>; toggle: (p: string) => void }) {
-  return (
-    <ul>
-      {nodes.map((n) =>
-        n.children ? (
-          <li key={n.path}>
-            <button onClick={() => toggle(n.path)} className="flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-muted-foreground transition-colors duration-150 hover:text-foreground" style={{ paddingLeft: depth * 12 + 4 }} aria-expanded={openDirs.has(n.path)}>
-              {openDirs.has(n.path) ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
-              <Folder className="size-3 shrink-0" />
-              <span className="truncate">{n.name}</span>
-            </button>
-            {openDirs.has(n.path) && <TreeView nodes={n.children} depth={depth + 1} active={active} onOpen={onOpen} openDirs={openDirs} toggle={toggle} />}
-          </li>
-        ) : (
-          <li key={n.path}>
-            <button onClick={() => onOpen(n.path)} aria-current={n.path === active ? "true" : undefined} className={cn("flex w-full items-center gap-1.5 truncate rounded-sm px-1 py-0.5 text-left transition-colors duration-150", n.path === active ? "bg-brand-soft text-brand ring-1 ring-brand/30" : "text-foreground/80 hover:bg-raised")} style={{ paddingLeft: depth * 12 + 20 }}>
-              <span className="truncate">{n.name}</span>
-            </button>
-          </li>
-        ),
-      )}
-    </ul>
   );
 }
 

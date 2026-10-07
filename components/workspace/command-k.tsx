@@ -105,8 +105,8 @@ export function CommandK() {
             <CommandItem onSelect={() => run(() => setSheet(true))}><Keyboard /> Keyboard shortcuts<CommandShortcut>?</CommandShortcut></CommandItem>
             <CommandItem onSelect={() => run(() => ws.openHandoff(ws.selected))}><UsersRound /> Ask a teammate</CommandItem>
             <CommandItem onSelect={() => run(() => router.push(`${base}/code?compare=1`))}><History /> Compare versions</CommandItem>
-            {ws.project.buildState === "built" && (
-              // The Sheet inks the app in again as the build replays, step by step.
+            {ws.project.buildState === "built" && ws.build.canReplay && (
+              // The Sheet shows the saved build again, step by step.
               <CommandItem onSelect={() => run(() => { router.push(base); void ws.build.start({ replay: true }); })}><Play /> Replay how it was built</CommandItem>
             )}
             {ws.liveSlug && <CommandItem onSelect={() => run(() => window.open(`/live/${ws.liveSlug}`, "_blank"))}><ExternalLink /> Open the published app</CommandItem>}

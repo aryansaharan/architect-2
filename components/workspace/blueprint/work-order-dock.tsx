@@ -4,7 +4,8 @@ import { motion } from "motion/react";
 import { ArrowRight, Clock, Coins, FileCode2, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buildTimeLabel } from "@/lib/blueprint/estimate";
-import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
+import { plannedRuns } from "@/lib/build/report";
+import { PRICE } from "@/lib/prices";
 import { useWorkspace } from "../context";
 import { DUR, EASE } from "@/lib/motion";
 
@@ -16,8 +17,9 @@ export function WorkOrderDock() {
   const [starting, setStarting] = useState(false);
   const gates = bp.agents.flatMap((a) => a.tools).filter((t) => t.permission === "ask").length;
   const missing = bp.connections.filter((c) => c.status === "missing");
-  // Production estimate and this demo's simulated playback, each labelled, so the quote never promises a time it doesn't keep.
-  const time = useMemo(() => buildTimeLabel(est.minutes, totalDuration(buildTimeline(bp))), [bp, est.minutes]);
+  // How long the real build takes: seconds for the checks and compiling, plus the test runs Claude plays.
+  const runs = plannedRuns(bp.agents).length;
+  const time = useMemo(() => buildTimeLabel(runs), [runs]);
 
   return (
     // Floats at the bottom of its container; the plan map places it in flow, in its own row under the plan.
@@ -36,7 +38,7 @@ export function WorkOrderDock() {
           </div>
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-ui">
             <div className="flex items-center gap-1.5"><Clock className="size-3.5 shrink-0 text-muted-foreground" /><dt className="sr-only">Time</dt><dd>{time.real} <span className="text-muted-foreground">· {time.here}</span></dd></div>
-            <div className="flex items-center gap-1.5"><Coins className="size-3.5 shrink-0 text-muted-foreground" /><dt className="sr-only">Price</dt><dd>Free</dd></div>
+            <div className="flex items-center gap-1.5"><Coins className="size-3.5 shrink-0 text-muted-foreground" /><dt className="sr-only">Price</dt><dd>{runs ? `Free, plus ${runs * PRICE.testRun} credits for the test runs` : "Free"}</dd></div>
             <div className="flex items-center gap-1.5"><FileCode2 className="size-3.5 text-muted-foreground" /><dt className="sr-only">Files</dt><dd>{est.files} files</dd></div>
             <div className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-brand" /><dt className="sr-only">Approval gates</dt><dd>{gates} action{gates === 1 ? "" : "s"} will ask you first</dd></div>
           </dl>
@@ -47,7 +49,7 @@ export function WorkOrderDock() {
               disabled={starting}
               onClick={async () => {
                 setStarting(true);
-                await ws.build.start();
+                await ws.build.start({ tests: true });
                 setStarting(false);
               }}
             >

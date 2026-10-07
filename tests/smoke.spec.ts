@@ -62,18 +62,18 @@ test("ship: preflight passes and the live URL serves the app", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Intake Queue" })).toBeVisible();
 });
 
-test("new project: plan → Work Order → build with a repair → built", async ({ page }) => {
+test("new project: plan → make it real for real → built", async ({ page }) => {
   test.setTimeout(240_000);
   await openDemo(page);
   await page.goto("/new?prompt=" + encodeURIComponent("A support inbox for a small SaaS team: read tickets, draft replies from the help centre, and escalate outages to on-call."));
   await page.getByRole("button", { name: /Skip, use sensible defaults/ }).click();
   await page.waitForURL(/\/p\/[0-9a-f-]+/, { timeout: 150_000 });
+  // A guest's test runs need Claude, so the Sheet says they'll be skipped before anything runs.
+  await expect(page.getByText(/so they need you signed in/).first()).toBeVisible();
   await page.getByRole("button", { name: /Make it real/ }).first().click();
-  await page.getByRole("radio", { name: /Skip/ }).click();
-  const repair = page.getByRole("alertdialog");
-  await expect(repair).toBeVisible({ timeout: 60_000 });
-  await repair.getByRole("button", { name: /Use this fix/ }).first().click();
   await expect(page.getByText(/It.s real/).first()).toBeVisible({ timeout: 60_000 });
+  // The build's record is real: its code was compiled, and the history says the test runs weren't played.
+  await expect(page.getByText(/Test runs: not played/).first()).toBeAttached({ timeout: 20_000 });
 });
 
 test("import: public repo → stack report → house rules → mapped project", async ({ page }) => {

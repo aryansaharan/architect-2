@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import type { ObjectRef, ObjectType } from "@/lib/blueprint/schema";
-import { buildTimeline } from "@/lib/sim/buildTimeline";
 import { cn } from "@/lib/utils";
 import { useDrawSequence, useFirstShowing } from "@/components/motion/sheet-draw";
 import { useWorkspace } from "../context";
@@ -16,6 +15,7 @@ import { ResumeNote } from "./resume-note";
 import { GraphiteFilter, ScreenSketch, type InkState } from "./screen-sketch";
 import { EmptySheet } from "./sheet-states";
 import { plural, reducedMotion, SheetContext, useSheet, type SheetWorkspace } from "./use-sheet";
+import { CodeSheet } from "@/components/code-apps/code-sheet";
 
 /**
  * The Sheet: the project page. One sheet of paper that goes from sketch, to being made real, to the real app.
@@ -31,7 +31,8 @@ export function Sheet() {
 export function SheetView({ ws }: { ws: SheetWorkspace }) {
   return (
     <SheetContext.Provider value={ws}>
-      <SheetBody />
+      {/* A code app (real files Claude wrote) has its own Sheet: its files, the real build, and the app running in its sandbox. */}
+      {ws.project.kind === "code" ? <CodeSheet /> : <SheetBody />}
     </SheetContext.Provider>
   );
 }
@@ -117,13 +118,12 @@ function SketchSheet({ building }: { building: boolean }) {
     if (!atRepair) progress.current?.focus({ preventScroll: true });
   }, [building, atRepair]);
 
-  // An interrupted build remembers which step it reached: everything before it stays inked.
-  const stoppedAt = interrupted?.step ?? null;
+  // An interrupted build saved the steps it finished: what they made stays inked.
+  const saved = interrupted ? ws.project.buildReport : null;
   const doneBefore = useMemo(() => {
-    if (!stoppedAt) return null;
-    const steps = buildTimeline(bp).filter((s) => s.kind === "step");
-    return new Set(steps.slice(0, stoppedAt - 1).flatMap((s) => (s.kind === "step" && s.objectRef ? [refKey(s.objectRef.type, s.objectRef.id)] : [])));
-  }, [stoppedAt, bp]);
+    if (!saved) return null;
+    return new Set(saved.steps.flatMap((s) => (s.state !== "running" && s.objectRef ? [refKey(s.objectRef.type, s.objectRef.id)] : [])));
+  }, [saved]);
 
   const stateOf = useCallback(
     (type: ObjectType, id: string): NodeState | null => {

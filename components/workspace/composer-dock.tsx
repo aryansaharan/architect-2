@@ -15,6 +15,7 @@ import type { Blueprint, ObjectRef } from "@/lib/blueprint/schema";
 import { approveChange, rejectChange, requestChange, type RequestChangeResult } from "@/lib/actions/change";
 import { useWorkspace } from "./context";
 import { undoTo, undoToastId } from "./undo";
+import { actionWord, codeChangesOf, codeSuggestions, codeTouchWords } from "@/components/code-apps/change-files";
 
 /** A proposed change waiting in the card. `note` says when it was worked out without Claude (credits ran out, or Claude is paused by the project's spending cap). */
 type Order = { wo: WorkOrderRow; overBudget: boolean; note?: string };
@@ -168,7 +169,9 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
   const scopeKey = `${scope ? `${scope.type}:${scope.id}` : "none"}#${ws.composerFocusKey}`;
   const [clearedFor, setClearedFor] = useState<string | null>(null);
   const effectiveScope = clearedFor === scopeKey ? null : scope;
-  const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing";
+  // A business build, or a code app being built, started or fixed on the Sheet: notes wait until it's done.
+  const building = ws.build.status === "running" || ws.build.status === "repair" || ws.build.status === "finishing" || ws.codeBusy;
+  const isCode = ws.project.kind === "code";
   // Starter notes: until you've written one, and after that while you're at the writing area.
   const fresh = sent.length === 0 && !ws.ledger.some((r) => (r.kind as string) === "request" || (r.kind as string) === "question");
   const showChips = suggest && !building && !order && !text && (fresh || focused);
@@ -263,7 +266,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
     setOutcome(order.wo.id, { status: "applied", label: r.label ?? "Applied", undo: prev });
     setLanded({ order, version: r.label ? versionWords(r.label) : "" });
     toast.success(order.wo.proposal?.summary ?? "Change applied", {
-      description: `${r.label ? `Applied · ${versionWords(r.label)}` : "Applied"}. Going back is always free.`,
+      description: `${r.label ? `Applied · ${versionWords(r.label)}` : "Applied"}.${isCode ? " Prod AI builds it again, free." : ""} Going back is always free.`,
       duration: 9000,
       id: prev ? undoToastId(prev) : undefined,
       action: prev ? { label: "Undo", onClick: () => void undoTo(ws.project.id, prev, () => router.refresh()) } : undefined,
@@ -288,12 +291,14 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
   const cardP = card?.wo.proposal;
   const label = effectiveScope ? objectLabel(ws.blueprint, effectiveScope) : "";
   const placeholder = building
-    ? ws.build.mode === "replay"
+    ? ws.build.mode === "replay" && !ws.codeBusy
       ? "Replaying… you can write notes when it ends."
       : "Making it real… you can write notes when it's done."
     : effectiveScope
       ? `Write a note about ${label}…`
-      : "Write a note… e.g. make the table sortable by priority";
+      : isCode
+        ? "Write a note… e.g. make the buttons bigger"
+        : "Write a note… e.g. make the table sortable by priority";
 
   return (
     <div
@@ -329,6 +334,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
           >
             <ChangeCard
               order={card}
+              code={isCode}
               approving={approving}
               problem={applyProblem?.id === card.wo.id ? applyProblem.text : null}
               applied={order ? null : (landed?.version ?? null)}
@@ -351,7 +357,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
       {showChips && (
         <div role="group" aria-label="Suggestions" className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="font-sketch text-sketch text-faint">Try</span>
-          {suggestionsFor(ws.blueprint, effectiveScope).map((sg) => (
+          {(isCode ? codeSuggestions(ws.code?.manifest) : suggestionsFor(ws.blueprint, effectiveScope)).map((sg) => (
             <button
               key={sg}
               type="button"
@@ -445,6 +451,7 @@ export function NoteWriter({ suggest = false, onSent, className }: { suggest?: b
  */
 function ChangeCard({
   order,
+  code = false,
   approving,
   problem,
   applied,
@@ -454,6 +461,8 @@ function ChangeCard({
   onTeammate,
 }: {
   order: Order;
+  /** A code app's change: its files (added, changed, removed) instead of screens and AI helpers. */
+  code?: boolean;
   approving: boolean;
   /** Why the last Apply didn't go through (offline, say), in plain words. */
   problem: string | null;
@@ -467,6 +476,8 @@ function ChangeCard({
   const p = order.wo.proposal!;
   const isAnswer = Boolean(p.answer);
   const needsPerson = p.operations.length === 0 && !isAnswer;
+  // A code change lists the files it touches; the server worked them out and checked them.
+  const files = code ? (codeChangesOf(p) ?? []) : null;
   return (
     // A proposal is not real yet: a sketch on the paper, with no shadow.
     <div role="region" aria-label="Work Order" className="sketch bg-panel">
@@ -492,6 +503,19 @@ function ChangeCard({
           <>
             <p className="mt-1 text-body font-medium">{p.summary}</p>
             {p.rationale && <p className="mt-1 text-meta text-muted-foreground">{p.rationale}</p>}
+            {files && files.length > 0 && (
+              <ul aria-label="Files it changes" className="mt-2 space-y-0.5">
+                {files.slice(0, 8).map((f) => (
+                  <li key={f.path} className="flex min-w-0 items-baseline gap-2 text-meta">
+                    <span className="w-14 shrink-0 text-faint">{actionWord(f.action)}</span>
+                    <span className={cn("min-w-0 truncate font-mono text-badge", f.action === "remove" ? "text-muted-foreground line-through" : "text-foreground")} title={f.path}>
+                      {f.path}
+                    </span>
+                  </li>
+                ))}
+                {files.length > 8 && <li className="text-meta text-faint">and {files.length - 8} more</li>}
+              </ul>
+            )}
             {/* Why Claude didn't write it: this month's credits ran out, or the project's spending cap paused Claude, so the free, rule-based way was used. */}
             {order.note && (
               <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
@@ -512,7 +536,7 @@ function ChangeCard({
               <>
                 <div className="mt-2 flex flex-wrap items-baseline gap-x-2 border-t border-dashed border-hairline pt-2 tabular-nums">
                   <span className="text-body font-medium">{p.credits > 0 ? creditWords(p.credits) : "Free"}</span>
-                  <span className="text-meta text-muted-foreground">· {touchWords(p.blastRadius)}</span>
+                  <span className="text-meta text-muted-foreground">· {files ? codeTouchWords(files) : touchWords(p.blastRadius)}</span>
                 </div>
                 {order.overBudget && (
                   <p className="mt-2 flex items-start gap-1.5 text-meta text-foreground">
@@ -564,7 +588,11 @@ function ChangeCard({
                     <span>{problem}</span>
                   </p>
                 ) : (
-                  <p className="mt-1.5 text-meta text-faint">{applied !== null ? "Saved as a new version. Going back is always free." : "Nothing changes until you apply. Going back is always free."}</p>
+                  <p className="mt-1.5 text-meta text-faint">
+                    {applied !== null
+                      ? `Saved as a new version.${code ? " Prod AI builds it again, free." : ""} Going back is always free.`
+                      : `Nothing changes until you apply.${code ? " Then Prod AI builds it again, free." : ""} Going back is always free.`}
+                  </p>
                 )}
               </>
             )}

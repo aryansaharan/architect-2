@@ -8,6 +8,8 @@ import { parseRailPref, RAIL_COOKIE } from "@/components/workspace/rail-pref";
 import { llmMode } from "@/lib/llm/provider";
 import { creditMeter } from "@/lib/pricing";
 import { monthStartIso } from "@/lib/prices";
+import { publicReport } from "@/lib/build/report";
+import { buildInfo } from "@/components/code-apps/build-info";
 
 export async function generateMetadata(props: LayoutProps<"/p/[id]">) {
   const { id } = await props.params;
@@ -53,7 +55,12 @@ export default async function ProjectLayout(props: LayoutProps<"/p/[id]">) {
           source: project.source,
           brief: project.brief,
           currentCheckpointId: project.current_checkpoint_id,
+          kind: project.kind === "code" ? "code" : "business",
+          buildReport: project.build_report ? publicReport(project.build_report) : null,
         },
+        // A code app's files, and its latest build without the bundle (the sandbox page serves that).
+        code: project.kind === "code" ? project.code : null,
+        codeBuild: project.kind === "code" ? buildInfo(project.build) : null,
         blueprint: project.blueprint,
         checkpoints,
         ledger,

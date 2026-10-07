@@ -17,9 +17,19 @@ export type PartialDraft = {
   screens?: { title?: string; kind?: string }[];
 };
 
+/** A code app's file as Claude writes it: it may arrive in growing parts, always under the same path. */
+export type WrittenFile = { path: string; content: string; done: boolean };
+/** The code app's manifest as it arrives (docs/CODE-APPS.md): what it is and what it keeps. */
+export type PartialManifest = { title?: string; tagline?: string; kind?: string; collections?: { name?: string; label?: string; read?: string; write?: string }[]; usesAI?: boolean };
+
 export function usePlanStream(initialMode: "live" | "offline") {
   const router = useRouter();
   const [draft, setDraft] = useState<PartialDraft>({});
+  // A code app: its files and manifest, as they're written.
+  const [files, setFiles] = useState<WrittenFile[]>([]);
+  const [manifest, setManifest] = useState<PartialManifest | null>(null);
+  // What the server says it's doing, when it says (a code app's writing steps).
+  const [status, setStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<"live" | "offline">(initialMode);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +52,9 @@ export function usePlanStream(initialMode: "live" | "offline") {
     setErrorCode(null);
     setNote(null);
     setDraft({});
+    setFiles([]);
+    setManifest(null);
+    setStatus(null);
     setDone(false);
     started.current = Date.now();
     try {
@@ -54,6 +67,7 @@ export function usePlanStream(initialMode: "live" | "offline") {
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
+      let finished = false;
       for (;;) {
         const { value, done: end } = await reader.read();
         if (end) break;
@@ -63,8 +77,17 @@ export function usePlanStream(initialMode: "live" | "offline") {
         for (const line of lines) {
           if (!line.trim()) continue;
           const e = JSON.parse(line);
-          if (e.t === "status") setMode(e.mode);
+          if (e.t === "status") {
+            if (e.mode === "live" || e.mode === "offline") setMode(e.mode);
+            const said = e.text ?? e.message ?? e.label;
+            if (typeof said === "string") setStatus(said.slice(0, 160));
+          }
           if (e.t === "partial") setDraft(e.draft ?? {});
+          if (e.t === "file" && typeof e.path === "string" && typeof e.content === "string") {
+            const f: WrittenFile = { path: e.path.slice(0, 120), content: e.content, done: e.done === true };
+            setFiles((all) => (all.some((x) => x.path === f.path) ? all.map((x) => (x.path === f.path ? f : x)) : [...all, f]));
+          }
+          if (e.t === "manifest" && e.manifest && typeof e.manifest === "object") setManifest(e.manifest);
           if (e.t === "note") {
             setNote(e.text);
             setMode("offline");
@@ -74,17 +97,20 @@ export function usePlanStream(initialMode: "live" | "offline") {
             throw new Error(e.message);
           }
           if (e.t === "done") {
+            finished = true;
             setDone(true);
             setTimeout(() => router.push(redirect(e.projectId)), 900);
           }
         }
       }
+      // The connection closed before the server said it was done (a dropped network, say): say so, plainly.
+      if (!finished) throw new Error("The connection dropped before it finished. If it was saved, it's in your projects; otherwise try again.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Planning failed");
     }
   }
 
-  return { draft, mode, note, error, errorCode, elapsed, done, running, start };
+  return { draft, files, manifest, status, mode, note, error, errorCode, elapsed, done, running, start };
 }
 
 

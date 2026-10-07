@@ -14,7 +14,7 @@ import { costOf } from "./pricing";
  * model budget by default, so a new browser never costs anything. The real cost is metered by
  * logUsage the moment the call returns; the hold is released after that.
  */
-export type ModelOp = "plan" | "questions" | "change" | "chat" | "agent" | "import";
+export type ModelOp = "plan" | "questions" | "change" | "chat" | "agent" | "import" | "test";
 
 /** The least each call holds (a call with a big prompt holds more, see promptHoldUsd), and how often a person may make it. */
 const OPS: Record<ModelOp, { estimateUsd: number; max: number; windowSeconds: number }> = {
@@ -24,6 +24,8 @@ const OPS: Record<ModelOp, { estimateUsd: number; max: number; windowSeconds: nu
   change: { estimateUsd: 0.1, max: 30, windowSeconds: 600 },
   chat: { estimateUsd: 0.25, max: 30, windowSeconds: 600 },
   agent: { estimateUsd: 0.25, max: 30, windowSeconds: 600 },
+  // Test runs come in batches while an app is made real (at most MAX_TEST_RUNS a build).
+  test: { estimateUsd: 0.1, max: 40, windowSeconds: 600 },
 };
 
 const usd = (name: string, fallback: number) => {

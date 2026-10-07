@@ -10,7 +10,8 @@ import { Avatar } from "@/components/arch/badges";
 import { ConnectionIcon } from "@/components/icon";
 import { sortPhrase, type Block, type Connection, type Entity, type Screen } from "@/lib/blueprint/schema";
 import { buildTimeLabel } from "@/lib/blueprint/estimate";
-import { buildTimeline, totalDuration } from "@/lib/sim/buildTimeline";
+import { plannedRuns } from "@/lib/build/report";
+import { PRICE } from "@/lib/prices";
 import { allBlocks, BLOCK_LABELS, blockTitle, relations } from "@/lib/blueprint";
 import { connectionSummary, entitySummary, list, screenSummary, signInMethods } from "@/lib/blueprint/describe";
 import { formatValue } from "@/lib/format";
@@ -272,8 +273,9 @@ export function BlockSpec({ block }: { block: Block }) {
 export function BriefPlain() {
   const ws = useWorkspace();
   const bp = ws.blueprint;
-  // The estimate is for a real build; this demo plays a simulated one, so both are said, each for what it is.
-  const time = useMemo(() => buildTimeLabel(bp.estimate.minutes, totalDuration(buildTimeline(bp))), [bp]);
+  // Making it real: seconds of checks and compiling, plus the test runs Claude plays (PRICE.testRun each).
+  const runs = plannedRuns(bp.agents).length;
+  const time = useMemo(() => buildTimeLabel(runs), [runs]);
   return (
     <div>
       <p className="mt-1 text-ui font-medium">{bp.meta.tagline}</p>
@@ -286,7 +288,7 @@ export function BriefPlain() {
         </dl>
       </Section>
       <Section title="Estimate to build">
-        <p className="text-ui tabular-nums">{time.label} · free · {bp.estimate.files} files · confidence {bp.estimate.confidence}</p>
+        <p className="text-ui tabular-nums">{time.label} · {runs ? `${runs * PRICE.testRun} credits for the test runs, the rest free` : "free"} · {bp.estimate.files} files</p>
       </Section>
     </div>
   );

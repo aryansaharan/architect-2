@@ -310,7 +310,7 @@ export const AgentSchema = z.object({
 export type Agent = z.infer<typeof AgentSchema>;
 
 export const EstimateSchema = z.object({
-  /** Minutes a real build takes in production. The demo's simulated build is far shorter: show both (buildTimeLabel). */
+  /** A rough size for the plan (minutes of work it stands for). Making it real takes seconds plus its test runs: buildTimeLabel says how long. */
   minutes: z.number(),
   credits: z.number(),
   files: z.number(),

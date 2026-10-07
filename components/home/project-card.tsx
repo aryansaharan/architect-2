@@ -23,13 +23,21 @@ export type HomeProject = {
   helpers: number;
   imported: boolean;
   updatedAt: string;
+  /** A business app (plan and renderer) or a code app (real files Claude writes). Unknown reads as business. */
+  kind?: "business" | "code";
+  /** A code app: what it is in a few words ("a memory game"), and whether its latest build worked. */
+  code?: { what: string; built: boolean };
 };
 
 /** The longest project name (lib/actions/projects.ts holds the same limit). */
 const MAX_NAME = 120;
 
-/** Where the project is, in the same words as its top bar: Sketch, Making it real, Real, Published. */
+/** Where the project is, in the same words as its top bar: Sketch, Making it real, Real, Published. A code app is real once it builds. */
 function stage(p: HomeProject): { label: string; tone: PillTone; dot?: boolean; border?: string; ink?: boolean } {
+  if (p.kind === "code") {
+    if (p.live) return { label: "Published", tone: "ok", dot: true };
+    return p.code?.built ? { label: "Real", tone: "neutral", border: "border-line-strong", ink: true } : { label: "Sketch", tone: "neutral", border: "border-dashed" };
+  }
   if (p.buildState === "draft") return { label: "Sketch", tone: "neutral", border: "border-dashed" };
   if (p.buildState === "building") return { label: "Making it real", tone: "neutral", dot: true };
   return p.live ? { label: "Published", tone: "ok", dot: true } : { label: "Real", tone: "neutral", border: "border-line-strong", ink: true };
@@ -41,7 +49,8 @@ function stage(p: HomeProject): { label: string; tone: PillTone; dot?: boolean; 
  */
 export function ProjectCard({ p, seed }: { p: HomeProject; seed: number }) {
   const s = stage(p);
-  const inked = p.buildState !== "draft";
+  const code = p.kind === "code";
+  const inked = code ? s.label !== "Sketch" : p.buildState !== "draft";
   // The name as last saved here, shown at once while the page catches up.
   const [saved, setSaved] = useState<string | null>(null);
   const name = saved ?? p.name;
@@ -97,16 +106,24 @@ export function ProjectCard({ p, seed }: { p: HomeProject; seed: number }) {
           </Pill>
         </div>
         {p.tagline && <p className="mt-1 line-clamp-2 text-body text-muted-foreground">{p.tagline}</p>}
-        <p className="mt-3 flex items-center gap-3 text-meta tabular-nums text-faint">
-          <span>{p.screens} {p.screens === 1 ? "screen" : "screens"}</span>
-          <span>{p.helpers} AI {p.helpers === 1 ? "helper" : "helpers"}</span>
+        <p className="mt-3 flex min-w-0 items-center gap-3 text-meta tabular-nums text-faint">
+          {/* Which kind of app it is, first in the line: real code, or a business app built from a plan. */}
+          <span className="shrink-0 font-medium text-muted-foreground">{code ? "Code" : "Business"}</span>
+          {code ? (
+            p.code?.what && <span className="min-w-0 truncate">{p.code.what}</span>
+          ) : (
+            <>
+              <span>{p.screens} {p.screens === 1 ? "screen" : "screens"}</span>
+              <span>{p.helpers} AI {p.helpers === 1 ? "helper" : "helpers"}</span>
+            </>
+          )}
           {p.imported && (
             <span className="inline-flex items-center gap-1">
               <FolderGit2 className="size-3" />
               from GitHub
             </span>
           )}
-          <TimeAgo iso={p.updatedAt} className="ml-auto" />
+          <TimeAgo iso={p.updatedAt} className="ml-auto shrink-0" />
         </p>
       </div>
 

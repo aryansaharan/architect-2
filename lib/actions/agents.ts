@@ -5,7 +5,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getProject } from "@/lib/db/queries";
+import { getProject, usageSummary } from "@/lib/db/queries";
 import { addCheckpoint, addLedger, logUsage, updateProject } from "@/lib/db/writes";
 import { BlueprintSchema, DEFAULT_FRAMEWORK, clipToLimits, type Agent, type Blueprint, type Framework } from "@/lib/blueprint/schema";
 import { integrityErrors } from "@/lib/blueprint/validate";
@@ -13,9 +13,11 @@ import { estimate } from "@/lib/blueprint/estimate";
 import { getModel } from "@/lib/llm/provider";
 import { costOf, failedSpend } from "@/lib/llm/pricing";
 import { hash } from "@/lib/sim/hash";
-import { rehearsalOutcome } from "@/lib/sim/rehearse";
+import { meteredTestRun, playAll } from "@/lib/build/test-run";
+import type { TestRun } from "@/lib/build/report";
 import { holdModelBudget, planFitsModel, promptHoldUsd, type ModelHold } from "@/lib/llm/guard";
-import { PRICE, canAfford } from "@/lib/pricing";
+import { PRICE, canAfford, creditsThisMonth, outOfCreditsNote } from "@/lib/pricing";
+import { monthStartIso } from "@/lib/prices";
 import { applySupervision, FRAMEWORK_LABEL, PERMISSION_LABEL, presetPermission, SUPERVISION_LABEL } from "@/lib/blueprint/describe";
 import type { LedgerKind } from "@/lib/db/types";
 import { agentLocationError, agentNameFromLocation } from "@/lib/import/detect";
@@ -102,30 +104,63 @@ function uniqueId(bp: Blueprint, base: string) {
   return id;
 }
 
-/** Run every rehearsal for one agent. Deterministic: rehearsals catch real weaknesses in the blueprint. */
-export async function runRehearsals(projectId: string, agentId: string): Promise<R & { passed?: number; total?: number }> {
-  await requireUser();
+/**
+ * Play every test run for one AI helper with Claude, PRICE.testRun each, three at a time, and keep each
+ * result in its history (lib/build/test-run.ts: Claude plays the helper, a smaller call judges it).
+ * Guests, and anyone whose credits or project limit don't cover them, are told so and nothing runs.
+ */
+export async function runRehearsals(projectId: string, agentId: string): Promise<R & { passed?: number; total?: number; credits?: number }> {
+  const user = await requireUser();
   const supa = await createClient();
   const project = await getProject(supa, projectId);
   if (!project) return { ok: false, error: "Project not found" };
-  const bp = structuredClone(project.blueprint);
-  const agent = bp.agents.find((a) => a.id === agentId);
+  const agent = project.blueprint.agents.find((a) => a.id === agentId);
   if (!agent) return { ok: false, error: "Agent not found" };
-  const now = new Date().toISOString();
-  let passed = 0;
-  for (const r of agent.rehearsals) {
-    const out = rehearsalOutcome(agent, r);
-    if (out.pass) passed++;
-    r.history = [...r.history, { at: now, pass: out.pass, note: out.note }].slice(-10);
-  }
-  bp.estimate = estimate(bp);
-  await updateProject(supa, projectId, { blueprint: bp });
   const total = agent.rehearsals.length;
+  if (!total) return { ok: false, error: "Add a test run first" };
+  if (user.isAnonymous) return { ok: false, error: `Test runs are played by Claude, so they need you signed in (${PRICE.testRun} credits each).` };
+  if (!getModel() || !planFitsModel(project.blueprint)) return { ok: false, error: "Claude isn't available right now. Try again in a little while." };
+  const cost = total * PRICE.testRun;
+  const credits = await creditsThisMonth(user.id, false);
+  if (credits.left < cost) return { ok: false, error: outOfCreditsNote(credits, `the ${total} test runs (${cost} credits) can't be played`) };
+  const spent = await usageSummary(supa, { projectId, sinceIso: monthStartIso() });
+  if (spent.credits + cost > project.settings.budgetCapCredits) return { ok: false, error: `That would pass this project's ${project.settings.budgetCapCredits}-credit monthly limit. Raise it in Settings.` };
+
+  const bp = project.blueprint;
+  const runs: TestRun[] = [];
+  await playAll(agent.rehearsals, (r) => meteredTestRun(user, projectId, bp, agent, r), (run) => void runs.push(run));
+
+  // Saved on the latest plan, so a change made meanwhile isn't lost; only these test runs' histories move.
+  const latest = await getProject(supa, projectId);
+  if (!latest) return { ok: false, error: "Project not found" };
+  const next_ = structuredClone(latest.blueprint);
+  const a = next_.agents.find((x) => x.id === agentId);
+  let passed = 0;
+  let played = 0;
+  for (const run of runs) {
+    if (run.outcome === "error") continue;
+    played++;
+    if (run.outcome === "pass") passed++;
+    const r = a?.rehearsals.find((x) => x.id === run.rehearsalId);
+    if (r) r.history = [...r.history, { at: run.at, pass: run.outcome === "pass", note: `Claude: ${run.reason}` }].slice(-10);
+  }
+  next_.estimate = estimate(next_);
+  await updateProject(supa, projectId, { blueprint: next_ });
+  const charged = runs.reduce((n, r) => n + r.credits, 0);
+  const errors = runs.length - played;
   await addLedger(supa, projectId, [
-    { lane: "checked", kind: "rehearsal", title: `Test runs for ${agent.name} · ${passed} of ${total} passed`, body: passed === total ? "Every conversation went as expected." : "A test run failed. Open Tests & reliability to see why and fix it.", credits: 0, objectRef: { type: "agent", id: agentId } },
+    {
+      lane: "checked",
+      kind: "rehearsal",
+      title: `Test runs for ${agent.name} · ${passed} of ${played} passed`,
+      body: `Played by Claude and judged${charged ? ` · ${charged} credits` : ""}.${errors ? ` ${errors} couldn't run, so ${errors === 1 ? "it wasn't" : "they weren't"} charged.` : ""}${passed < played ? " Open the failed one to see what happened." : ""}`,
+      credits: 0,
+      objectRef: { type: "agent", id: agentId },
+    },
   ]);
   revalidatePath(`/p/${projectId}`, "layout");
-  return { ok: true, passed, total };
+  if (!played) return { ok: false, error: runs[0]?.reason ?? "The test runs couldn't be played. Nothing was charged." };
+  return { ok: true, passed, total: played, credits: charged };
 }
 
 export async function addRehearsal(projectId: string, agentId: string, input: { name: string; input: string; expect: string }): Promise<R> {

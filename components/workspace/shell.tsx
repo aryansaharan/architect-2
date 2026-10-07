@@ -8,7 +8,6 @@ import { Margin } from "./rail";
 import { Inspector } from "./inspector/inspector";
 import { HandoffDialog } from "./handoff-dialog";
 import { CommandK } from "./command-k";
-import { RecordedRepairContext } from "./use-build-runner";
 import { ComposerDockProvider } from "./composer-dock";
 import { projectSection, type RailPref } from "./rail-pref";
 import type { WorkOrderRow } from "@/lib/db/types";
@@ -21,17 +20,13 @@ import { DUR, EASE, SPRING } from "@/lib/motion";
  * covers what's on it. The page fills the space in between.
  */
 export function WorkspaceShell({ data, railPref = "auto", changeOrders = [], children }: { data: WorkspaceData; railPref?: RailPref; changeOrders?: WorkOrderRow[]; children: React.ReactNode }) {
-  // The build's recorded fix (newest first), so "Replay how it was built" matches the history.
-  const recordedFix = data.ledger.find((r) => r.kind === "repair" && r.blame === "system_fix") ?? null;
   return (
     <Suspense>
-      <RecordedRepairContext.Provider value={recordedFix}>
-        <WorkspaceProvider data={data}>
-          <ComposerDockProvider changeOrders={changeOrders}>
-            <ShellLayout railPref={railPref}>{children}</ShellLayout>
-          </ComposerDockProvider>
-        </WorkspaceProvider>
-      </RecordedRepairContext.Provider>
+      <WorkspaceProvider data={data}>
+        <ComposerDockProvider changeOrders={changeOrders}>
+          <ShellLayout railPref={railPref}>{children}</ShellLayout>
+        </ComposerDockProvider>
+      </WorkspaceProvider>
     </Suspense>
   );
 }
