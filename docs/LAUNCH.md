@@ -22,6 +22,8 @@ Each one is safe to run more than once.
 2. `20260928010000_launch_security.sql`
 3. `20260928020000_app_data.sql`
 4. `20260929000000_free_tier.sql`
+5. `20261007000000_model_budget_limits.sql` and `20261007010000_project_row_caps.sql` (extra limits, optional)
+6. `20261008000000_code_apps.sql` (code apps and build records; the app needs it)
 
 Then, still in Supabase:
 

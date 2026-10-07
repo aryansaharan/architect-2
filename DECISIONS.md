@@ -16,7 +16,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 **Why.** It makes the core promises cheap and trustworthy: every change is a small, reviewable diff; save points are exact; "Plain, Settings and Code" can never disagree because they're three views of one object; the live site is the same renderer as the preview. It also means an edit from any direction (a note in the margin, a tweak, the spec, the code) lands in one place.
 
-**Trade-off.** The preview renders a fixed vocabulary of nine blocks rather than arbitrary generated UI. For agentic business apps (queues, records, forms, agent chats) that vocabulary covers most screens, and the generated Next.js code remains fully editable.
+**Trade-off.** The preview renders a fixed vocabulary of nine blocks rather than arbitrary generated UI. For agentic business apps (queues, records, forms, agent chats) that vocabulary covers most screens, and the generated Next.js code remains fully editable. Ideas it doesn't fit are written as real code instead ([decision 19](#19-two-kinds-of-app-and-claude-picks)).
 
 ## 3. The model decides; code lays out
 
@@ -26,7 +26,7 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 ## 4. Price before work, and "our fix · free"
 
-**Decision.** Only work Claude does costs credits, at one fixed price each: planning an app or importing a repo 40, applying a change Claude wrote 15, a new AI helper 10, each AI helper message 5 ([`lib/prices.ts`](lib/prices.ts)). Every change is a Work Order with a price and a blast radius; in the product that is the reply to a note in the margin: the change in plain words, its price, then **Apply** or **Not now**. Making it real, publishing, quotes, rule-based changes and scripted answers are free, a call that fails is never charged, and fixes for Prod AI's own mistakes are labelled and free.
+**Decision.** Only work Claude does costs credits, at one fixed price each: planning an app or importing a repo 40, applying a change Claude wrote 15, a new AI helper 10, each AI helper message 5, each test run Claude plays 5, an app written as real code 100 and each change to its code 20 ([`lib/prices.ts`](lib/prices.ts)). Every change is a Work Order with a price and a blast radius; in the product that is the reply to a note in the margin: the change in plain words, its price, then **Apply** or **Not now**. Making it real (the checks, compiling and building), publishing, quotes, rule-based changes and scripted answers are free, a call that fails is never charged, and fixes for real failures and Prod AI's own mistakes are labelled and free.
 
 **Why.** Paying for an AI's own mistakes is the single loudest complaint about AI builders. A fixed price per action is something a person can predict before pressing a button, and attributing every credit makes trust measurable. The real model cost is still metered behind each price, against daily budgets ([decision 16](#16-metered-model-spend-and-server-only-writes)).
 
@@ -38,9 +38,9 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 ## 6. Test runs inside the build
 
-**Decision.** Every build gives every AI helper its test runs (rehearsals, under the hood); Publish requires them to pass; generated CI runs them on each pull request.
+**Decision.** Every build offers each AI helper's test runs (rehearsals, under the hood): Claude plays the helper and a second call judges it against what the test expects. Publish warns about test runs that weren't played and blocks when fewer than 80% of the played ones pass; generated CI runs them on each pull request.
 
-**Why.** This brings agent simulation forward from "before production" to "while designing". The first build always surfaces one real weakness in the plan, and a note on the sheet proposes two free fixes. That moment is the product's clearest demonstration of trust.
+**Why.** This brings agent testing forward from "before production" to "while designing". When a run really fails, a note on the sheet shows what was asked, what should happen and what the helper did, and proposes a free fix. That moment is the product's clearest demonstration of trust.
 
 ## 7. Stream the plan as a sketch forming
 
@@ -92,11 +92,13 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 **Why.** The same object needs two vocabularies. Leading with the plain one keeps the first ten minutes readable for a non-technical owner; keeping the technical one a click away means an engineer never has to guess what a plain label maps to.
 
-## 15. A simulated build that says so, and costs nothing
+## 15. Real builds, with the price shown first
 
-**Decision.** The build is a scripted timeline over the real plan, and it is labelled on the sheet: "This building step is a visual; the plan, code and data are real." No generated code runs: the app is rendered from its plan by a tested library of nine blocks. It has a playback speed control (Normal, Fast, Skip to end), not a fake "faster build", and making it real is free.
+**Decision.** Making it real does the work for real, on the server. For a business app it checks every reference in the plan and every sample record, generates the code and compiles each TypeScript file with esbuild (and says which files were written but not compiled), then, if the person accepts the price shown first (5 credits a test run, at most 12 a build), Claude plays each AI helper's test runs with its real instructions, rules and sandboxed tools, and a smaller call judges each one. A code app is compiled, bundled and started in a sandbox. Each step streams as it finishes and the report is saved, so a reload follows the same build and "Replay how it was built" shows what really happened. The checks, compiling and building are free; only the test runs Claude plays cost credits, and fixes for real failures, with their replays, are free.
 
-**Why.** Running generated code in real sandboxes is the production design ([ARCHITECTURE.md](ARCHITECTURE.md)), not something Prod AI pretends to do before it exists. No model work happens while it plays, so it costs nothing: the price sits on the work Claude actually does, and the plan was paid for when Claude wrote it. The honest version still shows the real value: a real plan, real generated code, a real test-run decision that changes the plan, and a published app with real records.
+**Why.** An earlier version played a labelled animation over the plan. It was honest, but it couldn't find anything, and a fix note that appears on every build teaches people to ignore it. Real test runs fail only when a helper really misbehaves, so the fix note quotes what was asked, what should happen and what the helper did, and the fix it proposes is worth taking. Honesty no longer depends on a label either: "It's real." means the plan holds together, the code compiles and, for a code app, the app started. The cost is small and never a surprise: compiling takes seconds and is free, and test runs are priced before they're played, can be skipped and are capped per build.
+
+**Rejected.** Keeping the animation (free and predictable, but its fix note was scripted). Running generated business-app code in a server sandbox now: that is phase 0 of the production design ([ARCHITECTURE.md](ARCHITECTURE.md)), and compiling it catches broken code today without servers Prod AI doesn't have yet.
 
 ## 16. Metered model spend and server-only writes
 
@@ -116,6 +118,14 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 
 **Why.** An app whose forms don't save is a mock-up. The people using a published app are usually not its owner, so access can't follow project ownership alone: every read and write goes through the server, which decides from the app's own screens what each person may see and send.
 
+## 19. Two kinds of app, and Claude picks
+
+**Decision.** Prod AI makes two kinds of app. A **business app** (records, forms, queues, AI helpers, approvals) is a Blueprint drawn by the tested renderer's nine building blocks. Anything else (a game, a portfolio, a quiz, a tool) is a **code app**: Claude writes real React files with allowlisted packages, plus a manifest of its data and who may read and write it ([docs/CODE-APPS.md](docs/CODE-APPS.md)). Claude picks the kind from the idea (a fast-model call, with a keyword fallback), and `/new` shows the choice with a switch: **Business app** or **Real code**.
+
+**Why.** Governed building blocks stay the reliable choice for team work: every change is a small typed diff, permissions and approvals are checked by code, and the renderer is tested. But nine blocks can't draw a game or a portfolio, and forcing those ideas into them would let down the people who brought them. Real code covers everything else, with the same promises where they matter: a price first, a real build, free repairs of real errors, and data rules the server enforces. Letting Claude pick means nobody has to know the difference to start; the switch lets anyone who does overrule it.
+
+**Rejected.** Real code for everything (it would lose the typed diffs, approval gates and tested renderer that team apps rely on). Asking people to choose up front (most don't know which they need).
+
 ## What I cut, and what's next
 
 - **Real GitHub pushes and pull requests**: the flow and repo semantics are designed; the push is sandboxed.
@@ -123,5 +133,6 @@ Short notes on the calls that shaped Prod AI: what I chose, what I rejected, and
 - **Real teammates in the studio**: handoffs persist, but the teammate's answer is simulated. (Published apps do have real invited team members.)
 - **Outside connections other than email**: payments, Slack, CRMs and the rest run on test data in Try it, and in a published app the helper says the connection isn't set up.
 - **Payments**: credits are free for now; credit packs come later, together with a paid hosting plan.
+- **Server sandboxes**: generated business-app code is compiled, not run, and code apps run in a browser sandbox; per-project microVMs are the production design. Code apps don't have point and write a note yet.
 - **A drag-and-drop layout editor**: point-and-tweak covers copy, columns and removal; layout changes go through notes in the margin.
 - **Next:** approvals inbox for production agent actions, LLM-judged rehearsals against production traces, multiplayer presence, ZIP and Figma import.

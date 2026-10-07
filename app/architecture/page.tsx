@@ -55,7 +55,7 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
   {
     part: "Planner",
     status: [{ label: "Real", kind: "real" }],
-    today: "Claude plans a structured Blueprint, streamed live; code expands it deterministically and validates every reference. Guests start from a starter plan",
+    today: "Claude picks the kind of app. For a business app it plans a structured Blueprint, streamed live, and code expands it deterministically and validates every reference; for anything else it writes real React files, streamed file by file. Guests start from a starter plan",
     prod: "Same contract, routed through the model gateway",
   },
   {
@@ -85,16 +85,19 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
   {
     part: "Build + repair",
     status: [
-      { label: "Build: simulated, labelled", kind: "stand-in" },
-      { label: "Repair decision: real", kind: "real" },
+      { label: "Builds, test runs, repairs: real", kind: "real" },
+      { label: "Tool loop in microVMs: designed", kind: "designed" },
     ],
-    today: "A deterministic build animation with a real repair decision that changes the Blueprint and makes a new version. No generated code runs",
+    today: "A business app's build checks every reference in the plan, compiles the generated code with esbuild, and has Claude play and judge each AI helper's test runs (price shown first); a real failure gets a free fix and a free replay. A code app is compiled and bundled with esbuild in about 15 ms, and Claude repairs real build and runtime errors for free. Generated business-app code is compiled, not executed",
     prod: "Full tool loop inside microVMs with verifier and budgets",
   },
   {
     part: "Sandbox + preview",
-    status: [{ label: "Simulated, labelled", kind: "stand-in" }],
-    today: "Preview renders the Blueprint with a spec renderer inside the studio; no generated or imported code runs",
+    status: [
+      { label: "Code apps' browser sandbox: real", kind: "real" },
+      { label: "Server microVMs: designed", kind: "designed" },
+    ],
+    today: "A code app runs in its own page with its own Content Security Policy and an opaque origin (no cookies, no access to the studio), talking to Prod AI only by postMessage. A business app's preview renders the Blueprint with the spec renderer; no generated business-app or imported code runs",
     prod: "Firecracker microVM per project behind the preview proxy; imported repos run as themselves, with a preview per exposed port",
   },
   {
@@ -110,9 +113,9 @@ const TODAY: { part: string; status: { label: string; kind: Status }[]; today: s
     part: "Deploy and published apps",
     status: [
       { label: "Public /live URL, records, rollback: real", kind: "real" },
-      { label: "Builds and releases: designed", kind: "designed" },
+      { label: "Immutable releases: designed", kind: "designed" },
     ],
-    today: "A public /live/… URL renders a published Blueprint snapshot, with rollback, real records (up to 2,000 per app, with undo) and team screens for invited people. No build runs; Vercel and VPC targets are sandboxed",
+    today: "A public /live/… URL serves a published Blueprint snapshot, or a code app's published build in its sandbox, with rollback, real records (up to 2,000 per app, with undo) and team screens for invited people. Publishing checks the live link answers. Vercel and VPC targets are sandboxed",
     prod: "Immutable releases, canary rollout, instant rollback, and a database per app",
   },
 ];
